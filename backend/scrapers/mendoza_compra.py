@@ -5,10 +5,15 @@ from urllib.parse import urljoin
 from datetime import datetime
 import re
 import uuid
+import sys
+from pathlib import Path
 
-from ..models.scraper_config import ScraperConfig
-from ..models.licitacion import LicitacionCreate
-from .base_scraper import BaseScraper
+# Add parent directory to path so we can import modules
+sys.path.insert(0, str(Path(__file__).parent.parent))
+
+from models.scraper_config import ScraperConfig
+from models.licitacion import LicitacionCreate
+from scrapers.base_scraper import BaseScraper
 
 logger = logging.getLogger("scraper.mendoza_compra")
 
