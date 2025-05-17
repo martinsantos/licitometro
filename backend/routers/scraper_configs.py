@@ -3,11 +3,16 @@ from typing import List, Dict, Optional
 from uuid import UUID
 import asyncio
 import logging
+import sys
+from pathlib import Path
 
-from ..db.repositories import ScraperConfigRepository, LicitacionRepository
-from ..models.scraper_config import ScraperConfig, ScraperConfigCreate, ScraperConfigUpdate
-from ..dependencies import get_scraper_config_repository, get_licitacion_repository
-from ..scrapers.scraper_factory import create_scraper
+# Add parent directory to path so we can import modules
+sys.path.insert(0, str(Path(__file__).parent.parent))
+
+from db.repositories import ScraperConfigRepository, LicitacionRepository
+from models.scraper_config import ScraperConfig, ScraperConfigCreate, ScraperConfigUpdate
+from dependencies import get_scraper_config_repository, get_licitacion_repository
+from scrapers.scraper_factory import create_scraper
 
 logger = logging.getLogger("api.scraper_configs")
 
