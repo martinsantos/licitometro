@@ -1,9 +1,15 @@
 from fastapi import APIRouter, Depends, HTTPException, Query, Body
 from typing import List, Dict, Optional
 from uuid import UUID
-from ..db.repositories import LicitacionRepository
-from ..models.licitacion import Licitacion, LicitacionCreate, LicitacionUpdate
-from ..dependencies import get_licitacion_repository
+import sys
+from pathlib import Path
+
+# Add parent directory to path so we can import modules
+sys.path.insert(0, str(Path(__file__).parent.parent))
+
+from db.repositories import LicitacionRepository
+from models.licitacion import Licitacion, LicitacionCreate, LicitacionUpdate
+from dependencies import get_licitacion_repository
 
 router = APIRouter(
     prefix="/api/licitaciones",
