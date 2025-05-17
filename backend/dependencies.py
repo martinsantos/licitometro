@@ -1,7 +1,13 @@
 from fastapi import Depends
 from motor.motor_asyncio import AsyncIOMotorClient
 import os
-from .db.repositories import LicitacionRepository, ScraperConfigRepository
+import sys
+from pathlib import Path
+
+# Add parent directory to path so we can import modules
+sys.path.insert(0, str(Path(__file__).parent))
+
+from db.repositories import LicitacionRepository, ScraperConfigRepository
 
 # Get MongoDB connection string from environment variable
 MONGO_URL = os.environ.get("MONGO_URL", "mongodb://localhost:27017")
