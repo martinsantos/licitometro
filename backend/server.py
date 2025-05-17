@@ -6,6 +6,7 @@ from motor.motor_asyncio import AsyncIOMotorClient
 from dotenv import load_dotenv
 import sys
 from pathlib import Path
+import uvicorn
 
 # Add parent directory to path so we can import modules
 sys.path.insert(0, str(Path(__file__).parent))
@@ -53,13 +54,15 @@ app.include_router(scraper_configs.router)
 
 @app.on_event("startup")
 async def startup_db_client():
-    app.mongodb_client = AsyncIOMotorClient(MONGO_URL)
-    app.mongodb = app.mongodb_client[DB_NAME]
-    logger.info("Connected to MongoDB")
+    # Using the same client and database for the application
+    # This ensures consistency across all components
+    app.mongodb_client = client
+    app.mongodb = database
+    logger.info(f"Connected to MongoDB at {MONGO_URL}, database: {DB_NAME}")
 
 @app.on_event("shutdown")
 async def shutdown_db_client():
-    app.mongodb_client.close()
+    client.close()
     logger.info("Disconnected from MongoDB")
 
 @app.get("/api/")
@@ -75,3 +78,6 @@ async def health_check():
     except Exception as e:
         logger.error(f"Health check failed: {e}")
         raise HTTPException(status_code=500, detail="Database connection error")
+
+if __name__ == "__main__":
+    uvicorn.run("server:app", host="0.0.0.0", port=8001, reload=True)
