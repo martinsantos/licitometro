@@ -3,10 +3,15 @@ from typing import List, Dict, Any, Optional
 from uuid import UUID, uuid4
 import pymongo
 from bson import ObjectId
+import sys
+from pathlib import Path
 
-from ..models.licitacion import Licitacion, LicitacionCreate, LicitacionUpdate
-from ..models.scraper_config import ScraperConfig, ScraperConfigCreate, ScraperConfigUpdate
-from .models import licitacion_entity, licitaciones_entity, scraper_config_entity, scraper_configs_entity
+# Add parent directory to path so we can import modules
+sys.path.insert(0, str(Path(__file__).parent.parent))
+
+from models.licitacion import Licitacion, LicitacionCreate, LicitacionUpdate
+from models.scraper_config import ScraperConfig, ScraperConfigCreate, ScraperConfigUpdate
+from db.models import licitacion_entity, licitaciones_entity, scraper_config_entity, scraper_configs_entity
 
 
 class LicitacionRepository:
