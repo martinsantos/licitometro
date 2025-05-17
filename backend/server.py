@@ -4,8 +4,14 @@ import logging
 import os
 from motor.motor_asyncio import AsyncIOMotorClient
 from dotenv import load_dotenv
+import sys
+from pathlib import Path
 
-from .routers import licitaciones, scraper_configs
+# Add parent directory to path so we can import modules
+sys.path.insert(0, str(Path(__file__).parent))
+
+# Import routers directly (not as relative imports)
+from routers import licitaciones, scraper_configs
 
 # Load environment variables
 load_dotenv()
