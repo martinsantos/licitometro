@@ -6,8 +6,14 @@ import asyncio
 from bs4 import BeautifulSoup
 from datetime import datetime
 import uuid
-from ..models.scraper_config import ScraperConfig
-from ..models.licitacion import LicitacionCreate
+import sys
+from pathlib import Path
+
+# Add parent directory to path so we can import modules
+sys.path.insert(0, str(Path(__file__).parent.parent))
+
+from models.scraper_config import ScraperConfig
+from models.licitacion import LicitacionCreate
 
 logger = logging.getLogger("scraper")
 
