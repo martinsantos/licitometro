@@ -41,7 +41,30 @@ class BaseScraper(ABC):
     async def extract_licitacion_data(self, html: str, url: str) -> Optional[LicitacionCreate]:
         """Extract licitacion data from HTML"""
         pass
-    
+
+    def _determine_status(self, soup: BeautifulSoup) -> str:
+        """Determine the status of a licitacion based on config."""
+        status_selector = self.config.selectors.get("status_selector")
+        status_text = None
+
+        if status_selector:
+            status_element = soup.select_one(status_selector)
+            if status_element:
+                status_text = status_element.get_text(strip=True)
+        
+        if status_text and self.config.status_mapping:
+            return self.config.status_mapping.get(status_text, "active")
+        
+        # Default logic if no mapping or text not in mapping
+        if status_text:
+            status_text_lower = status_text.lower()
+            if any(term in status_text_lower for term in ["cerrada", "finalizada"]):
+                return "closed"
+            if any(term in status_text_lower for term in ["abierta", "en curso"]):
+                return "active"
+        
+        return "active"  # Default status
+
     @abstractmethod
     async def extract_links(self, html: str) -> List[str]:
         """Extract links to licitacion pages"""

@@ -104,6 +104,9 @@ class MendozaCompraScraper(BaseScraper):
                         "type": file_url.split('.')[-1].lower() if '.' in file_url else "unknown"
                     })
             
+            # Determine status
+            status = self._determine_status(soup)
+
             # Create the licitacion object
             licitacion_data = {
                 "title": title,
@@ -115,7 +118,7 @@ class MendozaCompraScraper(BaseScraper):
                 "description": description,
                 "contact": contact,
                 "source_url": url,
-                "status": "active",
+                "status": status,
                 "location": location,
                 "attached_files": attached_files,
             }

@@ -12,8 +12,8 @@ class ScraperConfigBase(BaseModel):
     schedule: str = Field("0 0 * * *", description="Cron schedule expression for when to run the scraper")
     # Selectors for different fields
     selectors: Dict[str, Any] = Field(
-        ..., 
-        description="CSS or XPath selectors for different fields"
+        ...,
+        description="CSS or XPath selectors for different fields, including an optional 'status_selector'"
     )
     pagination: Optional[Dict[str, Any]] = Field(
         None, 
@@ -43,6 +43,10 @@ class ScraperConfigBase(BaseModel):
         None, 
         description="Configuration for document extraction"
     )
+    status_mapping: Optional[Dict[str, str]] = Field(
+        default=None,
+        description="Mapping of status terms found on the website to internal status values"
+    )
 
 
 class ScraperConfigCreate(ScraperConfigBase):
@@ -64,6 +68,7 @@ class ScraperConfigUpdate(BaseModel):
     max_items: Optional[int] = None
     source_type: Optional[str] = None
     document_extraction: Optional[Dict[str, Any]] = None
+    status_mapping: Optional[Dict[str, str]] = None
 
 
 class ScraperConfig(ScraperConfigBase):
@@ -73,6 +78,10 @@ class ScraperConfig(ScraperConfigBase):
     updated_at: datetime = Field(default_factory=datetime.utcnow)
     last_run: Optional[datetime] = None
     runs_count: int = Field(0, description="Number of times the scraper has been run")
-    
+    status_mapping: Optional[Dict[str, str]] = Field(
+        default=None,
+        description="Mapping of status terms found on the website to internal status values"
+    )
+
     class Config:
         orm_mode = True
