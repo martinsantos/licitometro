@@ -1,0 +1,41 @@
+---
+import '../styles/global.css';
+const { title } = Astro.props;
+---
+
+<!DOCTYPE html>
+<html lang="es">
+<head>
+	<meta charset="UTF-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1.0">
+	<meta name="generator" content={Astro.generator} />
+	<title>{title}</title>
+	<link rel="preconnect" href="https://fonts.googleapis.com">
+	<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+	<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+</head>
+<body>
+	<header class="py-4 mb-6">
+		<div class="container mx-auto px-4">
+			<div class="flex justify-between items-center">
+				<a href="/" class="text-2xl font-bold">LICITOMETRO</a>
+				<nav>
+					<ul class="flex space-x-6">
+						<li><a href="/licitaciones" class="hover:underline">Licitaciones</a></li>
+						<li><a href="/documentos" class="hover:underline">Documentos</a></li>
+						<li><a href="/admin" class="hover:underline">Administración</a></li>
+					</ul>
+				</nav>
+			</div>
+		</div>
+	</header>
+
+	<slot />
+
+	<footer class="py-8 mt-12">
+		<div class="container mx-auto px-4 text-center">
+			<p>LICITOMETRO © 2025 - Sistema de listado, organización y análisis de licitaciones</p>
+		</div>
+	</footer>
+</body>
+</html>

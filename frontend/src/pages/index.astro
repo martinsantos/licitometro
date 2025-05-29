@@ -1,0 +1,63 @@
+---
+import Layout from '../layouts/Layout.astro';
+
+const features = [
+  {
+    title: "Licitaciones",
+    description: "Accede al listado completo de licitaciones disponibles.",
+    icon: "📋",
+    link: "/licitaciones",
+    linkText: "Ver licitaciones"
+  },
+  {
+    title: "Administración",
+    description: "Gestiona fuentes de datos y configura el scraping.",
+    icon: "⚙️",
+    link: "/admin",
+    linkText: "Ir a administración"
+  },
+  {
+    title: "Documentos",
+    description: "Explora los documentos asociados a las licitaciones.",
+    icon: "📄",
+    link: "/documentos",
+    linkText: "Ver documentos"
+  }
+];
+---
+
+<Layout title="LICITOMETRO - Sistema de Licitaciones">
+	<div class="hero">
+		<div class="container mx-auto px-4 text-center">
+			<h1 class="text-4xl font-bold mb-4">LICITOMETRO</h1>
+			<p class="text-xl mb-8">Sistema de listado, organización y análisis de licitaciones</p>
+		</div>
+	</div>
+
+	<main class="container mx-auto px-4 py-8">
+		<div class="grid grid-cols-1 md:grid-cols-3 gap-8 mb-12">
+			{features.map(feature => (
+				<div class="feature-card">
+					<div class="feature-card-icon text-3xl">
+						{feature.icon}
+					</div>
+					<h3 class="text-xl font-bold">{feature.title}</h3>
+					<p class="text-gray-600 mb-4">{feature.description}</p>
+					<a href={feature.link} class="btn btn-primary inline-block">{feature.linkText}</a>
+				</div>
+			))}
+		</div>
+
+		<div class="bg-white rounded-lg shadow-lg p-6 mb-8">
+			<h2 class="text-2xl font-bold mb-4">Sobre el LICITOMETRO</h2>
+			<p class="mb-4">
+				El LICITOMETRO es una herramienta diseñada para facilitar el acceso, seguimiento y análisis de licitaciones públicas.
+				Permite a los usuarios explorar licitaciones de diferentes fuentes, filtrar por diversos criterios y acceder a la documentación relacionada.
+			</p>
+			<p>
+				Con una interfaz intuitiva y potentes capacidades de búsqueda, el LICITOMETRO simplifica el proceso de encontrar
+				oportunidades relevantes y mantenerse al día con las últimas licitaciones publicadas.
+			</p>
+		</div>
+	</main>
+</Layout>

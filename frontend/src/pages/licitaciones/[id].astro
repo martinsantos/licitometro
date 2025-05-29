@@ -1,0 +1,41 @@
+---
+import Layout from '../../layouts/Layout.astro';
+import LicitacionDetalle from '../../components/LicitacionDetalle';
+
+export function getStaticPaths() {
+  return [
+    { params: { id: '1' } },
+    { params: { id: '2' } },
+    { params: { id: '3' } }
+  ];
+}
+
+const { id } = Astro.params;
+const licitacionId = parseInt(id || '0');
+const API_URL = import.meta.env.PUBLIC_API_URL || 'http://localhost:8000';
+
+if (!licitacionId) {
+  return Astro.redirect('/licitaciones');
+}
+---
+
+<Layout title="LICITOMETRO - Detalle de Licitación">
+	<div class="hero">
+		<div class="container mx-auto px-4">
+			<h1 class="text-4xl font-bold mb-2">Detalle de Licitación</h1>
+			<p class="text-xl opacity-90">Información completa sobre la licitación seleccionada</p>
+		</div>
+	</div>
+	
+	<main class="container mx-auto px-4 py-8">
+		<div class="card p-6">
+			<LicitacionDetalle client:load apiUrl={API_URL} licitacionId={licitacionId} />
+			
+			<div class="mt-8 pt-4 border-t">
+				<a href="/licitaciones" class="btn btn-primary">
+					&larr; Volver al listado de licitaciones
+				</a>
+			</div>
+		</div>
+	</main>
+</Layout>

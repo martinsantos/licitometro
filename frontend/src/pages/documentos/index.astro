@@ -1,0 +1,79 @@
+---
+import Layout from '../../layouts/Layout.astro';
+
+---
+
+<Layout title="LICITOMETRO - Documentos">
+	<div class="hero">
+		<div class="container mx-auto px-4">
+			<h1 class="text-4xl font-bold mb-2">Documentos</h1>
+			<p class="text-xl opacity-90">Explora los documentos asociados a las licitaciones</p>
+		</div>
+	</div>
+	
+	<main class="container mx-auto px-4 py-8">
+		<div class="card p-6">
+			<p class="text-gray-700 mb-6">
+				Esta sección permite explorar los documentos asociados a las licitaciones.
+				Puede filtrar por tipo de documento o por licitación.
+			</p>
+			
+			<div class="bg-yellow-50 border-l-4 border-yellow-400 text-yellow-700 p-4 mb-6">
+				<div class="flex">
+					<div class="flex-shrink-0">
+						<svg class="h-5 w-5 text-yellow-400" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+							<path fill-rule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clip-rule="evenodd" />
+						</svg>
+					</div>
+					<div class="ml-3">
+						<p class="text-sm">Funcionalidad en desarrollo. Próximamente podrá visualizar y descargar documentos desde esta sección.</p>
+					</div>
+				</div>
+			</div>
+			
+			<div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
+				<div class="card p-4 flex items-center opacity-50 cursor-not-allowed">
+					<div class="bg-blue-100 text-blue-800 p-3 rounded mr-3">
+						<svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+							<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+						</svg>
+					</div>
+					<div>
+						<p class="font-medium">Pliego de condiciones</p>
+						<p class="text-sm text-gray-600">PDF - 2.4 MB</p>
+					</div>
+				</div>
+				
+				<div class="card p-4 flex items-center opacity-50 cursor-not-allowed">
+					<div class="bg-blue-100 text-blue-800 p-3 rounded mr-3">
+						<svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+							<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+						</svg>
+					</div>
+					<div>
+						<p class="font-medium">Anexo técnico</p>
+						<p class="text-sm text-gray-600">DOCX - 1.8 MB</p>
+					</div>
+				</div>
+				
+				<div class="card p-4 flex items-center opacity-50 cursor-not-allowed">
+					<div class="bg-blue-100 text-blue-800 p-3 rounded mr-3">
+						<svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+							<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+						</svg>
+					</div>
+					<div>
+						<p class="font-medium">Formulario de propuesta</p>
+						<p class="text-sm text-gray-600">XLSX - 0.5 MB</p>
+					</div>
+				</div>
+			</div>
+			
+			<div class="mt-6">
+				<a href="/licitaciones" class="btn btn-primary">
+					&larr; Volver al listado de licitaciones
+				</a>
+			</div>
+		</div>
+	</main>
+</Layout>

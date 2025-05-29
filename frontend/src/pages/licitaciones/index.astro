@@ -1,0 +1,52 @@
+---
+import Layout from '../../layouts/Layout.astro';
+import LicitacionesList from '../../components/LicitacionesList';
+
+const API_URL = import.meta.env.PUBLIC_API_URL || 'http://localhost:8000';
+---
+
+<Layout title="LICITOMETRO - Listado de Licitaciones">
+	<div class="hero">
+		<div class="container mx-auto px-4">
+			<h1 class="text-4xl font-bold mb-2">Listado de Licitaciones</h1>
+			<p class="text-xl opacity-90">Explora y filtra todas las licitaciones disponibles</p>
+		</div>
+	</div>
+	
+	<main class="container mx-auto px-4 py-8">
+		<div class="card p-6 mb-8">
+			<h2 class="text-2xl font-bold mb-4">Filtros</h2>
+			<div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+				<div>
+					<label for="organismo" class="block text-sm font-medium mb-1">
+						Organismo
+					</label>
+					<input
+						type="text"
+						id="organismo"
+						placeholder="Filtrar por organismo"
+						class="w-full p-2 border border-gray-300 rounded"
+					/>
+				</div>
+				<div>
+					<label for="estado" class="block text-sm font-medium mb-1">
+						Estado
+					</label>
+					<select
+						id="estado"
+						class="w-full p-2 border border-gray-300 rounded"
+					>
+						<option value="">Todos</option>
+						<option value="activa">Activa</option>
+						<option value="cerrada">Cerrada</option>
+						<option value="adjudicada">Adjudicada</option>
+					</select>
+				</div>
+			</div>
+		</div>
+		
+		<div class="card p-6">
+			<LicitacionesList client:load apiUrl={API_URL} />
+		</div>
+	</main>
+</Layout>
