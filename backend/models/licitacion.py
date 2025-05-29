@@ -28,7 +28,14 @@ class LicitacionBase(BaseModel):
 
 class LicitacionCreate(LicitacionBase):
     """Model for creating a new licitación"""
-    pass
+    id_licitacion: str = Field(..., description="Unique identifier for the licitación from the source")
+    jurisdiccion: str = Field(..., description="Jurisdiction of the licitación")
+    tipo_procedimiento: str = Field(..., description="Type of procedure for the licitación")
+    tipo_acceso: Optional[str] = Field(None, description="Type of access for the licitación")
+    municipios_cubiertos: Optional[str] = Field(None, description="Municipalities covered by the licitación")
+    fecha_scraping: Optional[datetime] = Field(None, description="Date when the licitación was scraped")
+    provincia: Optional[str] = Field(None, description="Province (specific to municipal sources)")
+    cobertura: Optional[str] = Field(None, description="Coverage (specific to aggregator sources)")
 
 
 class LicitacionUpdate(BaseModel):
