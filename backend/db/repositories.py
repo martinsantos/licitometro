@@ -26,6 +26,7 @@ class LicitacionRepository:
         self.collection.create_index("status")
         self.collection.create_index("location")
         self.collection.create_index("category")
+        self.collection.create_index("fuente") # Added index for fuente
     
     async def create(self, licitacion: LicitacionCreate) -> Licitacion:
         """Create a new licitacion"""
@@ -85,6 +86,19 @@ class LicitacionRepository:
         """Count licitaciones with optional filtering"""
         query = filters or {}
         return await self.collection.count_documents(query)
+
+    async def get_distinct(self, field_name: str) -> List[str]:
+        """Get distinct values for a given field"""
+        # Ensure the field exists and is safe to query for distinct values
+        # This is a basic check; more robust validation might be needed
+        # depending on the data model and security requirements.
+        if field_name not in Licitacion.model_fields:
+             # Or LicitacionCreate.model_fields depending on what fields are filterable
+            raise ValueError(f"Field '{field_name}' is not a valid field for distinct query.")
+
+        values = await self.collection.distinct(field_name)
+        # Filter out None or empty string values if necessary
+        return [value for value in values if value]
 
 
 class ScraperConfigRepository:
