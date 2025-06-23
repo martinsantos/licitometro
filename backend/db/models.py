@@ -24,6 +24,7 @@ def licitacion_entity(licitacion) -> dict:
         "attached_files": licitacion.get("attached_files", []),
         "keywords": licitacion.get("keywords", []),
         "metadata": licitacion.get("metadata", {}),
+        "fuente": licitacion.get("fuente"),
         "created_at": licitacion.get("created_at", datetime.utcnow()),
         "updated_at": licitacion.get("updated_at", datetime.utcnow())
     }

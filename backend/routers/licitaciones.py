@@ -33,6 +33,7 @@ async def get_licitaciones(
     organization: Optional[str] = None,
     location: Optional[str] = None,
     category: Optional[str] = None,
+    fuente: Optional[str] = None, # Added fuente filter
     repo: LicitacionRepository = Depends(get_licitacion_repository)
 ):
     """Get all licitaciones with optional filtering"""
@@ -47,6 +48,8 @@ async def get_licitaciones(
         filters["location"] = location
     if category:
         filters["category"] = category
+    if fuente: # Added fuente to filters
+        filters["fuente"] = fuente
     
     return await repo.get_all(skip=skip, limit=limit, filters=filters)
 
@@ -66,6 +69,7 @@ async def count_licitaciones(
     organization: Optional[str] = None,
     location: Optional[str] = None,
     category: Optional[str] = None,
+    fuente: Optional[str] = None, # Added fuente filter
     repo: LicitacionRepository = Depends(get_licitacion_repository)
 ):
     """Count licitaciones with optional filtering"""
@@ -80,6 +84,8 @@ async def count_licitaciones(
         filters["location"] = location
     if category:
         filters["category"] = category
+    if fuente: # Added fuente to filters
+        filters["fuente"] = fuente
     
     count = await repo.count(filters=filters)
     return {"count": count}
@@ -117,3 +123,17 @@ async def delete_licitacion(
     if not deleted:
         raise HTTPException(status_code=404, detail="Licitación not found")
     return {"message": "Licitación deleted successfully"}
+
+@router.get("/distinct/{field_name}", response_model=List[str])
+async def get_distinct_values(
+    field_name: str,
+    repo: LicitacionRepository = Depends(get_licitacion_repository)
+):
+    """Get distinct values for a given field"""
+    # Validate field_name to prevent arbitrary field access if necessary
+    allowed_fields = ["organization", "location", "category", "fuente", "status"]
+    if field_name not in allowed_fields:
+        raise HTTPException(status_code=400, detail=f"Filtering by field '{field_name}' is not allowed.")
+
+    distinct_values = await repo.get_distinct(field_name)
+    return distinct_values

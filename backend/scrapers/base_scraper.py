@@ -74,9 +74,11 @@ class BaseScraper(ABC):
         licitaciones = []
         
         # If this is a licitacion detail page
-        licitacion_data = await self.extract_licitacion_data(html, url)
-        if licitacion_data:
-            licitaciones.append(licitacion_data)
+        licitacion_data_dict = await self.extract_licitacion_data(html, url)
+        if licitacion_data_dict:
+            # Add fuente to the licitacion data
+            licitacion_data_dict["fuente"] = self.config.name
+            licitaciones.append(LicitacionCreate(**licitacion_data_dict))
             return licitaciones
         
         # If this is a listing page
@@ -84,9 +86,11 @@ class BaseScraper(ABC):
         for link in links:
             detail_html = await self.fetch_page(link)
             if detail_html:
-                licitacion_data = await self.extract_licitacion_data(detail_html, link)
-                if licitacion_data:
-                    licitaciones.append(licitacion_data)
+                licitacion_data_dict = await self.extract_licitacion_data(detail_html, link)
+                if licitacion_data_dict:
+                    # Add fuente to the licitacion data
+                    licitacion_data_dict["fuente"] = self.config.name
+                    licitaciones.append(LicitacionCreate(**licitacion_data_dict))
             
             # Respect the wait time
             await asyncio.sleep(self.config.wait_time)

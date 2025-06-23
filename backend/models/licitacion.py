@@ -17,6 +17,7 @@ class LicitacionBase(BaseModel):
     contact: Optional[str] = Field(None, description="Contact information")
     source_url: Optional[HttpUrl] = Field(None, description="URL where the licitación was found")
     status: str = Field("active", description="Status of the licitación (active, closed, awarded, etc.)")
+    fuente: Optional[str] = Field(None, description="Source of the licitación (scraper name)")
     location: Optional[str] = Field(None, description="Geographical location")
     category: Optional[str] = Field(None, description="Category of the licitación")
     budget: Optional[float] = Field(None, description="Budget amount")
@@ -36,6 +37,7 @@ class LicitacionCreate(LicitacionBase):
     fecha_scraping: Optional[datetime] = Field(None, description="Date when the licitación was scraped")
     provincia: Optional[str] = Field(None, description="Province (specific to municipal sources)")
     cobertura: Optional[str] = Field(None, description="Coverage (specific to aggregator sources)")
+    # fuente is inherited from LicitacionBase and is also required here
 
 
 class LicitacionUpdate(BaseModel):

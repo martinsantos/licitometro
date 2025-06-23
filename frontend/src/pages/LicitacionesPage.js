@@ -13,7 +13,8 @@ const LicitacionesPage = () => {
     status: 'active',
     organization: '',
     location: '',
-    category: ''
+    category: '',
+    fuente: ''
   });
   const [searchQuery, setSearchQuery] = useState('');
   const [page, setPage] = useState(0);
@@ -24,6 +25,27 @@ const LicitacionesPage = () => {
   const [organizations, setOrganizations] = useState([]);
   const [locations, setLocations] = useState([]);
   const [categories, setCategories] = useState([]);
+  const [fuentes, setFuentes] = useState([]);
+
+  const fetchFilterOptions = async () => {
+    try {
+      // Example: Fetch distinct organizations, locations, categories, and fuentes
+      // Adjust API endpoints as needed
+      const [orgsRes, locsRes, catsRes, fuentesRes] = await Promise.all([
+        axios.get(`${API}/licitaciones/distinct/organization`),
+        axios.get(`${API}/licitaciones/distinct/location`),
+        axios.get(`${API}/licitaciones/distinct/category`),
+        axios.get(`${API}/licitaciones/distinct/fuente`),
+      ]);
+      setOrganizations(orgsRes.data);
+      setLocations(locsRes.data);
+      setCategories(catsRes.data);
+      setFuentes(fuentesRes.data);
+    } catch (error) {
+      console.error('Error fetching filter options:', error);
+      // Handle error appropriately
+    }
+  };
 
   const fetchLicitaciones = async () => {
     setLoading(true);
@@ -35,12 +57,21 @@ const LicitacionesPage = () => {
       if (filters.organization) url += `&organization=${filters.organization}`;
       if (filters.location) url += `&location=${filters.location}`;
       if (filters.category) url += `&category=${filters.category}`;
+      if (filters.fuente) url += `&fuente=${filters.fuente}`;
       
       const response = await axios.get(url);
       setLicitaciones(response.data);
       
       // Fetch total count for pagination
-      const countUrl = `${API}/licitaciones/count?status=${filters.status || ''}`;
+      let countUrl = `${API}/licitaciones/count?`;
+      const filterParams = [];
+      if (filters.status) filterParams.push(`status=${filters.status}`);
+      if (filters.organization) filterParams.push(`organization=${filters.organization}`);
+      if (filters.location) filterParams.push(`location=${filters.location}`);
+      if (filters.category) filterParams.push(`category=${filters.category}`);
+      if (filters.fuente) filterParams.push(`fuente=${filters.fuente}`);
+      countUrl += filterParams.join('&');
+
       const countResponse = await axios.get(countUrl);
       setTotalItems(countResponse.data.count);
       
@@ -75,6 +106,10 @@ const LicitacionesPage = () => {
   useEffect(() => {
     fetchLicitaciones();
   }, [page, pageSize, filters]);
+
+  useEffect(() => {
+    fetchFilterOptions();
+  }, []); // Fetch options once on component mount
 
   const handleFilterChange = (e) => {
     const { name, value } = e.target;
@@ -120,7 +155,7 @@ const LicitacionesPage = () => {
           </div>
         </div>
         
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">Estado</label>
             <select
@@ -178,6 +213,22 @@ const LicitacionesPage = () => {
               <option value="Bienes">Bienes</option>
             </select>
           </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Fuente</label>
+            <select
+              name="fuente"
+              value={filters.fuente}
+              onChange={handleFilterChange}
+              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+            >
+              <option value="">Todas</option>
+              {fuentes.map((fuente) => (
+                <option key={fuente} value={fuente}>
+                  {fuente}
+                </option>
+              ))}
+            </select>
+          </div>
         </div>
       </div>
       
@@ -217,8 +268,10 @@ const LicitacionesPage = () => {
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                       Fecha Publicación
                     </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                       Fecha Apertura
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Fuente
                     </th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                       Estado
@@ -244,6 +297,9 @@ const LicitacionesPage = () => {
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-700">
                         {formatDate(licitacion.opening_date)}
+                       </td>
+                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-700">
+                        {licitacion.fuente || 'N/A'}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
                         <span className={`px-2 py-1 inline-flex text-xs leading-5 font-semibold rounded-full 
