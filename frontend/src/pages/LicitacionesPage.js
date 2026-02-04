@@ -294,59 +294,62 @@ const LicitacionesPage = () => {
         ) : (
           <>
             <div className="overflow-x-auto">
-              <table className="min-w-full">
+              <table className="min-w-[1200px] w-full table-fixed">
                 <thead className="bg-gray-100">
                   <tr>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider w-64">
                       Título
                     </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider w-56">
                       Organismo
                     </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider w-32">
                       Fecha Publicación
                     </th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider w-32">
                       Fecha Apertura
                     </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider w-36">
                       Origen
                     </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider w-40">
                       Fecha Scraping
                     </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider w-28">
                       Estado
+                    </th>
+                    <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider w-40">
+                      Acción
                     </th>
                   </tr>
                 </thead>
                 <tbody className="bg-white divide-y divide-gray-200">
                   {licitaciones.map((licitacion) => (
                     <tr key={licitacion.id} className="hover:bg-gray-50">
-                      <td className="px-6 py-4 whitespace-nowrap">
+                      <td className="px-4 py-4 align-top">
                         <Link 
                           to={`/licitaciones/${licitacion.id}`} 
-                          className="text-blue-800 hover:text-blue-600 font-medium"
+                          className="text-blue-800 hover:text-blue-600 font-medium leading-snug"
                         >
                           {licitacion.title}
                         </Link>
                       </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-700">
+                      <td className="px-4 py-4 text-sm text-gray-700 truncate">
                         {licitacion.organization}
                       </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-700">
+                      <td className="px-4 py-4 text-sm text-gray-700 whitespace-nowrap">
                         {formatDate(licitacion.publication_date)}
                       </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-700">
-                       {formatDate(licitacion.opening_date)}
+                      <td className="px-4 py-4 text-sm text-gray-700 whitespace-nowrap">
+                        {formatDate(licitacion.opening_date)}
                        </td>
-                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-700">
+                       <td className="px-4 py-4 text-sm text-gray-700">
                         {licitacion.fuente || 'N/A'}
                       </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-700">
+                      <td className="px-4 py-4 text-sm text-gray-700 whitespace-nowrap">
                         {formatDateTime(licitacion.fecha_scraping)}
                       </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
+                      <td className="px-4 py-4 whitespace-nowrap">
                         <span className={`px-2 py-1 inline-flex text-xs leading-5 font-semibold rounded-full 
                           ${licitacion.status === 'active' ? 'bg-green-100 text-green-800' : 
                             licitacion.status === 'closed' ? 'bg-red-100 text-red-800' : 
@@ -357,6 +360,20 @@ const LicitacionesPage = () => {
                            licitacion.status === 'closed' ? 'Cerrada' : 
                            licitacion.status === 'awarded' ? 'Adjudicada' : 'Desconocido'}
                         </span>
+                      </td>
+                      <td className="px-4 py-4 whitespace-nowrap">
+                        {licitacion.source_url ? (
+                          <a
+                            href={licitacion.source_url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="inline-flex items-center px-3 py-1.5 text-xs font-semibold rounded-md bg-blue-800 text-white hover:bg-blue-700"
+                          >
+                            Abrir proceso
+                          </a>
+                        ) : (
+                          <span className="text-xs text-gray-400">N/A</span>
+                        )}
                       </td>
                     </tr>
                   ))}
