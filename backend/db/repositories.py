@@ -47,30 +47,48 @@ class LicitacionRepository:
         licitaciones = await cursor.to_list(length=limit)
         return licitaciones_entity(licitaciones)
     
-    async def get_by_id(self, id: UUID) -> Optional[Licitacion]:
+    async def get_by_id(self, id) -> Optional[Licitacion]:
         """Get a licitacion by id"""
-        licitacion = await self.collection.find_one({"_id": id})
+        query_id = id
+        if isinstance(id, str):
+            try:
+                query_id = ObjectId(id)
+            except Exception:
+                pass
+        licitacion = await self.collection.find_one({"_id": query_id})
         if licitacion:
             return licitacion_entity(licitacion)
         return None
     
-    async def update(self, id: UUID, licitacion: LicitacionUpdate) -> Optional[Licitacion]:
+    async def update(self, id, licitacion: LicitacionUpdate) -> Optional[Licitacion]:
         """Update a licitacion"""
         update_data = {k: v for k, v in licitacion.model_dump().items() if v is not None}
         update_data["updated_at"] = datetime.utcnow()
         
         if update_data:
+            query_id = id
+            if isinstance(id, str):
+                try:
+                    query_id = ObjectId(id)
+                except Exception:
+                    pass
             result = await self.collection.update_one(
-                {"_id": id},
+                {"_id": query_id},
                 {"$set": update_data}
             )
             if result.modified_count:
-                return await self.get_by_id(id)
+                return await self.get_by_id(query_id)
         return None
     
-    async def delete(self, id: UUID) -> bool:
+    async def delete(self, id) -> bool:
         """Delete a licitacion"""
-        result = await self.collection.delete_one({"_id": id})
+        query_id = id
+        if isinstance(id, str):
+            try:
+                query_id = ObjectId(id)
+            except Exception:
+                pass
+        result = await self.collection.delete_one({"_id": query_id})
         return result.deleted_count > 0
     
     async def search(self, query: str, skip: int = 0, limit: int = 100) -> List[Licitacion]:
@@ -131,9 +149,15 @@ class ScraperConfigRepository:
         configs = await cursor.to_list(length=limit)
         return scraper_configs_entity(configs)
     
-    async def get_by_id(self, id: UUID) -> Optional[ScraperConfig]:
+    async def get_by_id(self, id) -> Optional[ScraperConfig]:
         """Get a scraper configuration by id"""
-        config = await self.collection.find_one({"_id": id})
+        query_id = id
+        if isinstance(id, str):
+            try:
+                query_id = ObjectId(id)
+            except Exception:
+                pass
+        config = await self.collection.find_one({"_id": query_id})
         if config:
             return scraper_config_entity(config)
         return None
@@ -145,23 +169,35 @@ class ScraperConfigRepository:
             return scraper_config_entity(config)
         return None
     
-    async def update(self, id: UUID, config: ScraperConfigUpdate) -> Optional[ScraperConfig]:
+    async def update(self, id, config: ScraperConfigUpdate) -> Optional[ScraperConfig]:
         """Update a scraper configuration"""
         update_data = {k: v for k, v in config.model_dump().items() if v is not None}
         update_data["updated_at"] = datetime.utcnow()
         
         if update_data:
+            query_id = id
+            if isinstance(id, str):
+                try:
+                    query_id = ObjectId(id)
+                except Exception:
+                    pass
             result = await self.collection.update_one(
-                {"_id": id},
+                {"_id": query_id},
                 {"$set": update_data}
             )
             if result.modified_count:
-                return await self.get_by_id(id)
+                return await self.get_by_id(query_id)
         return None
     
-    async def delete(self, id: UUID) -> bool:
+    async def delete(self, id) -> bool:
         """Delete a scraper configuration"""
-        result = await self.collection.delete_one({"_id": id})
+        query_id = id
+        if isinstance(id, str):
+            try:
+                query_id = ObjectId(id)
+            except Exception:
+                pass
+        result = await self.collection.delete_one({"_id": query_id})
         return result.deleted_count > 0
     
     async def update_last_run(self, id: UUID) -> None:

@@ -92,7 +92,7 @@ async def count_licitaciones(
 
 @router.get("/{licitacion_id}", response_model=Licitacion)
 async def get_licitacion(
-    licitacion_id: UUID,
+    licitacion_id: str,
     repo: LicitacionRepository = Depends(get_licitacion_repository)
 ):
     """Get a licitacion by id"""
@@ -103,7 +103,7 @@ async def get_licitacion(
 
 @router.put("/{licitacion_id}", response_model=Licitacion)
 async def update_licitacion(
-    licitacion_id: UUID,
+    licitacion_id: str,
     licitacion: LicitacionUpdate,
     repo: LicitacionRepository = Depends(get_licitacion_repository)
 ):
@@ -115,7 +115,7 @@ async def update_licitacion(
 
 @router.delete("/{licitacion_id}")
 async def delete_licitacion(
-    licitacion_id: UUID,
+    licitacion_id: str,
     repo: LicitacionRepository = Depends(get_licitacion_repository)
 ):
     """Delete a licitacion"""

@@ -5,7 +5,7 @@ import logging
 from pydantic import HttpUrl
 from bs4 import BeautifulSoup # Added for potential HTML parsing
 
-from backend.models.licitacion import LicitacionCreate
+from models.licitacion import LicitacionCreate
 from backend.scrapers.base_scraper import BaseScraper
 
 logger = logging.getLogger(__name__)
@@ -264,4 +264,4 @@ class CabaScraper(BaseScraper):
 #         print(f"\nNext page URL (from HTML - placeholder): {next_page}")
 
 #     # asyncio.run(main())
-```
+

@@ -1,22 +1,19 @@
 from typing import Optional
-import sys
-from pathlib import Path
 
-# Add parent directory to path so we can import modules
-sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from models.scraper_config import ScraperConfig
 from scrapers.base_scraper import BaseScraper
 from scrapers.comprar_gob_ar import ComprarGobArScraper
+from scrapers.boletin_oficial_mendoza_scraper import BoletinOficialMendozaScraper
 # Existing specific scrapers
 from scrapers.mendoza_compra import MendozaCompraScraper # Keep for now as per instructions
 
 # Newly added scrapers
-from backend.scrapers.buenos_aires_provincia_scraper import BuenosAiresProvinciaScraper
-from backend.scrapers.caba_scraper import CabaScraper
-from backend.scrapers.cordoba_provincia_scraper import CordobaProvinciaScraper
-from backend.scrapers.santa_fe_provincia_scraper import SantaFeProvinciaScraper
-from backend.scrapers.mendoza_provincia_scraper import MendozaProvinciaScraper
+from .buenos_aires_provincia_scraper import BuenosAiresProvinciaScraper
+from .caba_scraper import CabaScraper
+from .cordoba_provincia_scraper import CordobaProvinciaScraper
+from .santa_fe_provincia_scraper import SantaFeProvinciaScraper
+from .mendoza_provincia_scraper import MendozaProvinciaScraper
 
 
 def create_scraper(config: ScraperConfig) -> Optional[BaseScraper]:
@@ -42,6 +39,8 @@ def create_scraper(config: ScraperConfig) -> Optional[BaseScraper]:
     # New Mendoza scraper - specific URL first
     elif "comprar.mendoza.gov.ar" in config.url or "mendoza-provincia" in config_name_lower: # This is for the new OCDS-focused one
         return MendozaProvinciaScraper(config)
+    elif "boletinoficial.mendoza" in config.url or "boletin oficial mendoza" in config_name_lower:
+        return BoletinOficialMendozaScraper(config)
     
     # Existing Mendoza scraper (potentially more general or different part of mendoza.gov.ar)
     elif "mendoza.gov.ar" in config.url or "mendoza-compra" in config_name_lower: # Keep this for MendozaCompraScraper

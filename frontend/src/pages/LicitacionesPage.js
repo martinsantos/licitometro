@@ -50,7 +50,7 @@ const LicitacionesPage = () => {
   const fetchLicitaciones = async () => {
     setLoading(true);
     try {
-      let url = `${API}/licitaciones?skip=${page * pageSize}&limit=${pageSize}`;
+      let url = `${API}/licitaciones/?skip=${page * pageSize}&limit=${pageSize}`;
       
       // Add filters to the query
       if (filters.status) url += `&status=${filters.status}`;
@@ -268,6 +268,7 @@ const LicitacionesPage = () => {
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                       Fecha Publicación
                     </th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                       Fecha Apertura
                     </th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">

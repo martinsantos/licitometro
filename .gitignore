@@ -46,3 +46,10 @@ agenthub/agents/youtube/db
 venv/
 .venv/
 __pycache__/
+storage/
+docs/*_list.html
+docs/*_detail.html
+docs/boletin_mendoza_results.html
+.cursor/
+.superdesign/
+.windsurfrules

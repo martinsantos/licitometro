@@ -46,7 +46,7 @@ const LicitacionForm = ({ apiUrl, onSuccess }) => {
     
     try {
       // Crear la licitación
-      const licitacionResponse = await fetch(`${apiUrl}/api/licitaciones`, {
+      const licitacionResponse = await fetch(`${apiUrl}/api/licitaciones/`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

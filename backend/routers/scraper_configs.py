@@ -47,7 +47,7 @@ async def get_scraper_configs(
 
 @router.get("/{config_id}", response_model=ScraperConfig)
 async def get_scraper_config(
-    config_id: UUID,
+    config_id: str,
     repo: ScraperConfigRepository = Depends(get_scraper_config_repository)
 ):
     """Get a scraper configuration by id"""
@@ -58,7 +58,7 @@ async def get_scraper_config(
 
 @router.put("/{config_id}", response_model=ScraperConfig)
 async def update_scraper_config(
-    config_id: UUID,
+    config_id: str,
     config: ScraperConfigUpdate,
     repo: ScraperConfigRepository = Depends(get_scraper_config_repository)
 ):
@@ -76,7 +76,7 @@ async def update_scraper_config(
 
 @router.delete("/{config_id}")
 async def delete_scraper_config(
-    config_id: UUID,
+    config_id: str,
     repo: ScraperConfigRepository = Depends(get_scraper_config_repository)
 ):
     """Delete a scraper configuration"""

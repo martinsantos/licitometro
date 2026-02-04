@@ -262,4 +262,3 @@ class CordobaProvinciaScraper(BaseScraper):
 #         print(f"Next page URL (using placeholder selectors): {next_page}")
 
 #     # asyncio.run(main())
-```

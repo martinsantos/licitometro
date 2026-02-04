@@ -14,7 +14,7 @@ const ScraperList = () => {
   const fetchScrapers = async () => {
     setLoading(true);
     try {
-      const response = await axios.get(`${API}/scraper-configs`);
+    const response = await axios.get(`${API}/scraper-configs/`);
       setScrapers(response.data);
       setLoading(false);
     } catch (error) {

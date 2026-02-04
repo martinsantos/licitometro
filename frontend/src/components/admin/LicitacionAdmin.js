@@ -17,7 +17,7 @@ const LicitacionAdmin = () => {
   const fetchLicitaciones = async () => {
     setLoading(true);
     try {
-      let url = `${API}/licitaciones?skip=${page * pageSize}&limit=${pageSize}`;
+      let url = `${API}/licitaciones/?skip=${page * pageSize}&limit=${pageSize}`;
       
       const response = await axios.get(url);
       setLicitaciones(response.data);

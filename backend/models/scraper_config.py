@@ -1,6 +1,6 @@
 from typing import Optional, Dict, Any, List
 from datetime import datetime
-from uuid import UUID, uuid4
+from uuid import uuid4
 from pydantic import BaseModel, Field, HttpUrl
 
 
@@ -68,7 +68,7 @@ class ScraperConfigUpdate(BaseModel):
 
 class ScraperConfig(ScraperConfigBase):
     """Model for a scraper configuration stored in the database"""
-    id: UUID = Field(default_factory=uuid4)
+    id: str = Field(default_factory=lambda: str(uuid4()))
     created_at: datetime = Field(default_factory=datetime.utcnow)
     updated_at: datetime = Field(default_factory=datetime.utcnow)
     last_run: Optional[datetime] = None

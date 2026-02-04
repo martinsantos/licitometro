@@ -4,8 +4,8 @@ import logging
 
 from pydantic import HttpUrl
 
-from backend.models.licitacion import LicitacionCreate
-from backend.scrapers.base_scraper import BaseScraper
+from models.licitacion import LicitacionCreate
+from scrapers.base_scraper import BaseScraper
 
 logger = logging.getLogger(__name__)
 
@@ -240,4 +240,4 @@ class BuenosAiresProvinciaScraper(BaseScraper):
 #         print(f"\nNext page URL: {next_page}")
 
 #     # asyncio.run(main())
-```
+

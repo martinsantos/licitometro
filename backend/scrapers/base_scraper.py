@@ -55,7 +55,7 @@ class BaseScraper(ABC):
     async def fetch_page(self, url: str) -> Optional[str]:
         """Fetch a page and return its HTML content"""
         try:
-            async with self.session.get(url) as response:
+            async with self.session.get(str(url)) as response:
                 if response.status == 200:
                     return await response.text()
                 else:

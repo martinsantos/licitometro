@@ -98,7 +98,7 @@ const ScraperFormPage = () => {
       if (isEditMode) {
         await axios.put(`${API}/scraper-configs/${id}`, formData);
       } else {
-        await axios.post(`${API}/scraper-configs`, formData);
+        await axios.post(`${API}/scraper-configs/`, formData);
       }
       
       navigate('/admin');

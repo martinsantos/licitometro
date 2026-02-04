@@ -270,4 +270,3 @@ class SantaFeProvinciaScraper(BaseScraper):
 #         print(f"Next page URL (using placeholder logic): {next_page}")
 
 #     # asyncio.run(main())
-```

@@ -33,7 +33,7 @@ const LicitacionesList = ({ apiUrl }) => {
       if (filtros.fechaDesde) params.append('fecha_desde', filtros.fechaDesde);
       if (filtros.fechaHasta) params.append('fecha_hasta', filtros.fechaHasta);
       
-      const response = await fetch(`${apiUrl}/api/licitaciones?${params.toString()}`);
+      const response = await fetch(`${apiUrl}/api/licitaciones/?${params.toString()}`);
       
       if (!response.ok) {
         throw new Error('No se pudieron cargar las licitaciones');

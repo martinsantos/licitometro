@@ -1,0 +1,17 @@
+{
+  "name": "COMPR.AR Mendoza",
+  "url": "https://comprar.mendoza.gov.ar/",
+  "active": true,
+  "schedule": "0 7,13,19 * * 1-5",
+  "selectors": {
+    "links": "a"
+  },
+  "pagination": {
+    "list_event_target": "ctl00$CPH1$CtrlConsultasFrecuentes$btnProcesoCompraTreintaDias"
+  },
+  "headers": {},
+  "cookies": {},
+  "wait_time": 1.0,
+  "max_items": null,
+  "source_type": "website"
+}
