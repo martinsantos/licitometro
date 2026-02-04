@@ -294,31 +294,31 @@ const LicitacionesPage = () => {
         ) : (
           <>
             <div className="overflow-x-auto">
-              <table className="min-w-[1200px] w-full table-fixed">
+              <table className="min-w-[1100px] w-full table-fixed">
                 <thead className="bg-gray-100">
                   <tr>
-                    <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider w-64">
+                    <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider w-72">
                       Título
                     </th>
-                    <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider w-56">
+                    <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider w-48">
                       Organismo
                     </th>
-                    <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider w-32">
+                    <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider w-28">
                       Fecha Publicación
                     </th>
-                      <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider w-32">
+                      <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider w-28">
                       Fecha Apertura
                     </th>
-                    <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider w-36">
+                    <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider w-28">
                       Origen
                     </th>
-                    <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider w-40">
+                    <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider w-32">
                       Fecha Scraping
                     </th>
-                    <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider w-28">
+                    <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider w-24">
                       Estado
                     </th>
-                    <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider w-40">
+                    <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider w-44">
                       Acción
                     </th>
                   </tr>
@@ -329,7 +329,7 @@ const LicitacionesPage = () => {
                       <td className="px-4 py-4 align-top">
                         <Link 
                           to={`/licitaciones/${licitacion.id}`} 
-                          className="text-blue-800 hover:text-blue-600 font-medium leading-snug"
+                          className="text-blue-800 hover:text-blue-600 font-medium leading-snug block"
                         >
                           {licitacion.title}
                         </Link>
@@ -362,18 +362,30 @@ const LicitacionesPage = () => {
                         </span>
                       </td>
                       <td className="px-4 py-4 whitespace-nowrap">
-                        {licitacion.source_url ? (
-                          <a
-                            href={licitacion.source_url}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="inline-flex items-center px-3 py-1.5 text-xs font-semibold rounded-md bg-blue-800 text-white hover:bg-blue-700"
-                          >
-                            Abrir proceso
-                          </a>
-                        ) : (
-                          <span className="text-xs text-gray-400">N/A</span>
-                        )}
+                        <div className="flex items-center gap-2">
+                          {licitacion.source_url ? (
+                            <a
+                              href={licitacion.source_url}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="inline-flex items-center px-3 py-1.5 text-xs font-semibold rounded-md bg-blue-800 text-white hover:bg-blue-700"
+                            >
+                              Ver detalle
+                            </a>
+                          ) : (
+                            <span className="text-xs text-gray-400">N/A</span>
+                          )}
+                          {licitacion.metadata?.comprar_list_url ? (
+                            <a
+                              href={licitacion.metadata.comprar_list_url}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="inline-flex items-center px-3 py-1.5 text-xs font-semibold rounded-md border border-blue-800 text-blue-800 hover:bg-blue-50"
+                            >
+                              Ir a COMPR.AR
+                            </a>
+                          ) : null}
+                        </div>
                       </td>
                     </tr>
                   ))}

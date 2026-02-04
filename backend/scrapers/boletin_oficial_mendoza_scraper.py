@@ -82,7 +82,7 @@ class BoletinOficialMendozaScraper(BaseScraper):
         # API-based search: no pagination handled here
         return None
 
-    async def _fetch_advance_search(self, keyword: Optional[str] = None) -> Optional[str]:
+    async def _fetch_advance_search(self, keyword: Optional[str] = None, tipo_busqueda: str = "NORMA") -> Optional[str]:
         pagination = self.config.pagination or {}
         advance_url = pagination.get(
             "advance_search_url",
@@ -92,7 +92,7 @@ class BoletinOficialMendozaScraper(BaseScraper):
         fecha_des, fecha_has = self._business_date_range()
 
         payload = {
-            "tipo_busqueda": "NORMA",
+            "tipo_busqueda": tipo_busqueda,
             "tipo_boletin": str(tipo_boletin),
             "fechaPubDes": fecha_des,
             "fechaPubHas": fecha_has,
@@ -118,7 +118,9 @@ class BoletinOficialMendozaScraper(BaseScraper):
             "strict_filter_regex",
             r"\\b(licitaci[oó]n|contrataci[oó]n|concurso|convocatoria|compulsa|comparaci[oó]n de precios|adjudicaci[oó]n)\\b",
         )
-        strict_re = re.compile(strict_pattern, re.IGNORECASE)
+        strict_re = None
+        if strict_pattern:
+            strict_re = re.compile(strict_pattern, re.IGNORECASE)
 
         for row in items:
             cols = row.find_all("td")
@@ -153,25 +155,38 @@ class BoletinOficialMendozaScraper(BaseScraper):
                 origin_match = re.search(r"Origen:\\s*([A-ZÁÉÍÓÚÑ0-9 ,.-]+)", details_text or "")
                 if origin_match:
                     organization = origin_match.group(1).strip()
+                # Try to extract page number for PDF deep link
+                page_num = None
+                page_match = re.search(r"(?:Pág\\.?|Página)\\s*(\\d+)", details_text or "", re.IGNORECASE)
+                if page_match:
+                    page_num = page_match.group(1)
                 # Attach 'Texto Publicado' link if present
                 texto_link = details_row.find("a", string=re.compile(r"Texto Publicado", re.IGNORECASE))
                 if texto_link and texto_link.get("href"):
+                    pdf_url = texto_link.get("href")
+                    if page_num:
+                        pdf_url = f"{pdf_url}#page={page_num}"
                     attached_files.append(
                         {
                             "name": "Texto Publicado",
-                            "url": texto_link.get("href"),
+                            "url": pdf_url,
                             "type": "pdf",
                         }
                     )
 
             # Second strict filter to reduce noise
-            combined_text = " ".join(filter(None, [tipo, norma, description or "", keyword or ""]))
-            if not strict_re.search(combined_text):
-                continue
+            if strict_re:
+                combined_text = " ".join(filter(None, [tipo, norma, description or "", keyword or ""]))
+                if not strict_re.search(combined_text):
+                    continue
 
             if boletin_link:
+                pdf_url = boletin_link
+                page_match = re.search(r"(?:Pág\\.?|Página)\\s*(\\d+)", (description or ""), re.IGNORECASE)
+                if page_match:
+                    pdf_url = f"{boletin_link}#page={page_match.group(1)}"
                 attached_files.append(
-                    {"name": f"Boletin {boletin_num}", "url": boletin_link, "type": "pdf"}
+                    {"name": f"Boletin {boletin_num}", "url": pdf_url, "type": "pdf"}
                 )
 
             title = f"{tipo} {norma}".strip()
@@ -187,6 +202,7 @@ class BoletinOficialMendozaScraper(BaseScraper):
                 description=description,
                 status="active",
                 source_url=boletin_link or self.config.url,
+                fuente="Boletin Oficial Mendoza",
                 tipo_procedimiento="Boletin Oficial - Norma",
                 tipo_acceso="Boletin Oficial",
                 fecha_scraping=datetime.utcnow(),
@@ -200,6 +216,7 @@ class BoletinOficialMendozaScraper(BaseScraper):
     async def run(self) -> List[LicitacionCreate]:
         await self.setup()
         try:
+            include_all = self.config.selectors.get("include_all", False)
             keywords = self.config.selectors.get(
                 "keywords",
                 [
@@ -216,18 +233,27 @@ class BoletinOficialMendozaScraper(BaseScraper):
                 ],
             )
             licitaciones: List[LicitacionCreate] = []
-            for keyword in keywords:
-                html = await self._fetch_advance_search(keyword=keyword)
-                if not html:
-                    continue
-                licitaciones.extend(self._parse_results_html(html, keyword=keyword))
-                if self.config.max_items and len(licitaciones) >= self.config.max_items:
-                    break
-            # Fallback: if no results with keywords, run a broad query and rely on strict filter
-            if not licitaciones:
-                html = await self._fetch_advance_search(keyword=None)
-                if html:
-                    licitaciones.extend(self._parse_results_html(html, keyword=None))
+            if include_all:
+                tipos = self.config.selectors.get("include_types", ["NORMA", "EDICTO"])
+                for t in tipos:
+                    html = await self._fetch_advance_search(keyword=None, tipo_busqueda=t)
+                    if html:
+                        licitaciones.extend(self._parse_results_html(html, keyword=None))
+            else:
+                for keyword in keywords:
+                    html = await self._fetch_advance_search(keyword=keyword, tipo_busqueda="NORMA")
+                    if not html:
+                        continue
+                    licitaciones.extend(self._parse_results_html(html, keyword=keyword))
+                    if self.config.max_items and len(licitaciones) >= self.config.max_items:
+                        break
+                # Fallback: if no results with keywords, run a broad query and rely on strict filter
+                if not licitaciones:
+                    html = await self._fetch_advance_search(keyword=None, tipo_busqueda="NORMA")
+                    if html:
+                        licitaciones.extend(self._parse_results_html(html, keyword=None))
+            # Ordenar por fecha de publicacion (mas reciente primero)
+            licitaciones.sort(key=lambda l: l.publication_date, reverse=True)
             return licitaciones
         finally:
             await self.cleanup()
