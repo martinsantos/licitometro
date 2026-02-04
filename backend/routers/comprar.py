@@ -3,6 +3,7 @@ from fastapi.responses import HTMLResponse
 from bs4 import BeautifulSoup
 import aiohttp
 import logging
+import html as html_escape
 
 router = APIRouter(
     prefix="/api/comprar",
@@ -38,11 +39,30 @@ async def comprar_proceso(
             fields = _extract_hidden_fields(list_html)
             fields["__EVENTTARGET"] = target
             fields["__EVENTARGUMENT"] = ""
-            async with session.post(list_url, data=fields) as resp:
-                if resp.status != 200:
-                    raise HTTPException(status_code=502, detail="No se pudo abrir el proceso solicitado.")
-                detail_html = await resp.text()
-                return HTMLResponse(content=detail_html)
+
+            # Return an auto-submitting form so the browser lands on the original domain.
+            inputs = "\n".join(
+                f'<input type="hidden" name="{html_escape.escape(k)}" value="{html_escape.escape(v)}" />'
+                for k, v in fields.items()
+            )
+            html = f"""<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="utf-8" />
+    <title>Abrir proceso COMPR.AR</title>
+  </head>
+  <body>
+    <form id="comprarForm" method="post" action="{html_escape.escape(list_url)}">
+      {inputs}
+      <noscript>
+        <p>Presioná el botón para abrir el proceso en COMPR.AR.</p>
+        <button type="submit">Abrir proceso</button>
+      </noscript>
+    </form>
+    <script>document.getElementById('comprarForm').submit();</script>
+  </body>
+</html>"""
+            return HTMLResponse(content=html)
     except HTTPException:
         raise
     except Exception as exc:
