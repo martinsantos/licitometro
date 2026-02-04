@@ -303,8 +303,43 @@ class MendozaCompraScraper(BaseScraper):
             WebDriverWait(driver, 15).until(
                 EC.presence_of_element_located((By.CSS_SELECTOR, "#ctl00_CPH1_GridListaPliegosAperturaProxima"))
             )
+            def goto_page(page_num: int, prev_first: Optional[str]) -> bool:
+                if page_num <= 1:
+                    return True
+                try:
+                    pager = driver.find_element(By.LINK_TEXT, str(page_num))
+                    try:
+                        driver.execute_script("arguments[0].scrollIntoView(true);", pager)
+                    except Exception:
+                        pass
+                    try:
+                        driver.execute_script("arguments[0].click();", pager)
+                    except Exception:
+                        pager.click()
+                    WebDriverWait(driver, 10).until(
+                        EC.presence_of_element_located((By.CSS_SELECTOR, "#ctl00_CPH1_GridListaPliegosAperturaProxima"))
+                    )
+                    if prev_first:
+                        def _changed(drv):
+                            try:
+                                cell = drv.find_element(By.CSS_SELECTOR, "#ctl00_CPH1_GridListaPliegosAperturaProxima tr td:first-child a")
+                                txt = (cell.text or cell.get_attribute("textContent") or "").strip()
+                                return txt != prev_first
+                            except Exception:
+                                return False
+                        WebDriverWait(driver, 10).until(_changed)
+                    return True
+                except Exception:
+                    return False
             current_page = 1
             while current_page <= max_pages:
+                prev_first = None
+                try:
+                    first_cell = driver.find_element(By.CSS_SELECTOR, "#ctl00_CPH1_GridListaPliegosAperturaProxima tr td:first-child a")
+                    prev_first = (first_cell.text or first_cell.get_attribute("textContent") or "").strip()
+                except Exception:
+                    prev_first = None
+
                 rows = driver.find_elements(By.CSS_SELECTOR, "#ctl00_CPH1_GridListaPliegosAperturaProxima tr td:first-child a")
                 logger.info(f"Selenium page {current_page}: {len(rows)} links")
                 if rows:
@@ -321,40 +356,62 @@ class MendozaCompraScraper(BaseScraper):
                 for idx, numero in enumerate(numeros):
                     if numero in mapping:
                         continue
-                    try:
-                        link = driver.find_element(By.XPATH, f"//a[normalize-space()='{numero}']")
-                    except Exception:
+                    link = None
+                    for _ in range(3):
+                        try:
+                            link = driver.find_element(By.XPATH, f"//a[normalize-space()='{numero}']")
+                            break
+                        except Exception:
+                            time.sleep(0.5)
+                    if link is None:
                         continue
                     prev_url = driver.current_url
-                    driver.execute_script("arguments[0].click();", link)
+                    try:
+                        driver.execute_script("arguments[0].scrollIntoView(true);", link)
+                    except Exception:
+                        pass
+                    def _click():
+                        try:
+                            driver.execute_script("arguments[0].click();", link)
+                            return True
+                        except Exception:
+                            try:
+                                link.click()
+                                return True
+                            except Exception:
+                                return False
+                    if not _click():
+                        continue
                     try:
                         WebDriverWait(driver, 8).until(EC.url_changes(prev_url))
                     except Exception:
-                        pass
+                        # retry once if no navigation
+                        if not _click():
+                            pass
+                        else:
+                            try:
+                                WebDriverWait(driver, 5).until(EC.url_changes(prev_url))
+                            except Exception:
+                                pass
                     current_url = driver.current_url
                     if idx < 2:
                         logger.info(f"Selenium click {numero} -> {current_url}")
-                    if "VistaPreviaPliegoCiudadano" in current_url:
+                    if current_url and "comprar.mendoza.gov.ar" in current_url and "Compras.aspx?qs=" not in current_url:
                         mapping[numero] = current_url
-                    driver.back()
-                    try:
-                        WebDriverWait(driver, 10).until(
-                            EC.presence_of_element_located((By.CSS_SELECTOR, "#ctl00_CPH1_GridListaPliegosAperturaProxima"))
-                        )
-                    except Exception:
-                        time.sleep(2)
+                    # Return to list and ensure we stay on the same page
+                    driver.get(list_url)
+                    WebDriverWait(driver, 15).until(
+                        EC.presence_of_element_located((By.CSS_SELECTOR, "#ctl00_CPH1_GridListaPliegosAperturaProxima"))
+                    )
+                    goto_page(current_page, prev_first)
 
                 # pagination
                 next_page = current_page + 1
-                try:
-                    pager = driver.find_element(By.LINK_TEXT, str(next_page))
-                    pager.click()
-                    WebDriverWait(driver, 10).until(
-                        EC.presence_of_element_located((By.CSS_SELECTOR, "#ctl00_CPH1_GridListaPliegosAperturaProxima"))
-                    )
-                    current_page = next_page
-                except Exception:
+                if next_page > max_pages:
                     break
+                if not goto_page(next_page, prev_first):
+                    break
+                current_page = next_page
         finally:
             driver.quit()
         return mapping
