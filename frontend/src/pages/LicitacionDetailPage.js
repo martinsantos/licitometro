@@ -253,25 +253,39 @@ const LicitacionDetailPage = () => {
                 <div className="mt-6">
                   <h4 className="text-sm font-medium text-gray-900 mb-2">Enlace Original</h4>
                   <div className="flex flex-wrap gap-2">
-                    <a 
-                      href={licitacion.source_url} 
-                      target="_blank" 
-                      rel="noopener noreferrer" 
-                      className="text-blue-800 hover:text-blue-600 text-sm inline-flex items-center"
-                    >
-                      Ver detalle del proceso
-                      <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 ml-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
-                      </svg>
-                    </a>
-                    {licitacion.metadata?.comprar_list_url && (
+                    {licitacion.metadata?.comprar_detail_url ? (
+                      <a 
+                        href={licitacion.metadata.comprar_detail_url} 
+                        target="_blank" 
+                        rel="noopener noreferrer" 
+                        className="text-blue-800 hover:text-blue-600 text-sm inline-flex items-center"
+                      >
+                        Ver detalle del proceso
+                        <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 ml-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                        </svg>
+                      </a>
+                    ) : licitacion.source_url ? (
+                      <a 
+                        href={licitacion.source_url} 
+                        target="_blank" 
+                        rel="noopener noreferrer" 
+                        className="text-blue-800 hover:text-blue-600 text-sm inline-flex items-center"
+                      >
+                        Ver detalle del proceso
+                        <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 ml-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                        </svg>
+                      </a>
+                    ) : null}
+                    {licitacion.metadata?.comprar_open_url && (
                       <a
-                        href={licitacion.metadata.comprar_list_url}
+                        href={licitacion.metadata.comprar_open_url}
                         target="_blank"
                         rel="noopener noreferrer"
                         className="text-blue-800 hover:text-blue-600 text-sm inline-flex items-center"
                       >
-                        Ir al listado COMPR.AR
+                        Abrir en COMPR.AR
                         <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 ml-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
                         </svg>

@@ -24,8 +24,8 @@ def _extract_hidden_fields(html: str) -> dict:
     return fields
 
 
-@router.get("/proceso", response_class=HTMLResponse)
-async def comprar_proceso(
+@router.get("/proceso/open", response_class=HTMLResponse)
+async def comprar_proceso_open(
     list_url: str = Query(..., description="Lista Compras.aspx con qs"),
     target: str = Query(..., description="Postback target del proceso"),
 ):
@@ -52,7 +52,7 @@ async def comprar_proceso(
     <title>Abrir proceso COMPR.AR</title>
   </head>
   <body>
-    <form id="comprarForm" method="post" action="{html_escape.escape(list_url)}">
+    <form id="comprarForm" method="post" action="{html_escape.escape(list_url)}" target="_blank">
       {inputs}
       <noscript>
         <p>Presioná el botón para abrir el proceso en COMPR.AR.</p>
@@ -67,4 +67,35 @@ async def comprar_proceso(
         raise
     except Exception as exc:
         logger.error(f"Error proxying proceso: {exc}")
+        raise HTTPException(status_code=500, detail="Error interno al abrir el proceso.")
+
+
+@router.get("/proceso/html", response_class=HTMLResponse)
+async def comprar_proceso_html(
+    list_url: str = Query(..., description="Lista Compras.aspx con qs"),
+    target: str = Query(..., description="Postback target del proceso"),
+):
+    try:
+        async with aiohttp.ClientSession() as session:
+            async with session.get(list_url) as resp:
+                if resp.status != 200:
+                    raise HTTPException(status_code=502, detail="No se pudo acceder a la lista de compras.")
+                list_html = await resp.text()
+
+            fields = _extract_hidden_fields(list_html)
+            fields["__EVENTTARGET"] = target
+            fields["__EVENTARGUMENT"] = ""
+            async with session.post(list_url, data=fields) as resp:
+                if resp.status != 200:
+                    raise HTTPException(status_code=502, detail="No se pudo abrir el proceso solicitado.")
+                detail_html = await resp.text()
+                # Inject base href to resolve assets correctly
+                base_tag = '<base href="https://comprar.mendoza.gov.ar/" />'
+                if "<head>" in detail_html:
+                    detail_html = detail_html.replace("<head>", f"<head>{base_tag}", 1)
+                return HTMLResponse(content=detail_html)
+    except HTTPException:
+        raise
+    except Exception as exc:
+        logger.error(f"Error proxying proceso html: {exc}")
         raise HTTPException(status_code=500, detail="Error interno al abrir el proceso.")

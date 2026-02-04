@@ -294,7 +294,7 @@ const LicitacionesPage = () => {
         ) : (
           <>
             <div className="overflow-x-auto">
-              <table className="min-w-[1100px] w-full table-fixed">
+              <table className="min-w-[1100px] w-full table-auto text-sm">
                 <thead className="bg-gray-100">
                   <tr>
                     <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider w-72">
@@ -329,12 +329,12 @@ const LicitacionesPage = () => {
                       <td className="px-4 py-4 align-top">
                         <Link 
                           to={`/licitaciones/${licitacion.id}`} 
-                          className="text-blue-800 hover:text-blue-600 font-medium leading-snug block"
+                          className="text-blue-800 hover:text-blue-600 font-medium leading-snug block break-words"
                         >
                           {licitacion.title}
                         </Link>
                       </td>
-                      <td className="px-4 py-4 text-sm text-gray-700 truncate">
+                      <td className="px-4 py-4 text-sm text-gray-700 break-words">
                         {licitacion.organization}
                       </td>
                       <td className="px-4 py-4 text-sm text-gray-700 whitespace-nowrap">
@@ -363,7 +363,16 @@ const LicitacionesPage = () => {
                       </td>
                       <td className="px-4 py-4 whitespace-nowrap">
                         <div className="flex items-center gap-2">
-                          {licitacion.source_url ? (
+                          {licitacion.metadata?.comprar_detail_url ? (
+                            <a
+                              href={licitacion.metadata.comprar_detail_url}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="inline-flex items-center px-3 py-1.5 text-xs font-semibold rounded-md bg-blue-800 text-white hover:bg-blue-700"
+                            >
+                              Ver detalle
+                            </a>
+                          ) : licitacion.source_url ? (
                             <a
                               href={licitacion.source_url}
                               target="_blank"
@@ -375,9 +384,9 @@ const LicitacionesPage = () => {
                           ) : (
                             <span className="text-xs text-gray-400">N/A</span>
                           )}
-                          {licitacion.metadata?.comprar_list_url ? (
+                          {licitacion.metadata?.comprar_open_url ? (
                             <a
-                              href={licitacion.metadata.comprar_list_url}
+                              href={licitacion.metadata.comprar_open_url}
                               target="_blank"
                               rel="noopener noreferrer"
                               className="inline-flex items-center px-3 py-1.5 text-xs font-semibold rounded-md border border-blue-800 text-blue-800 hover:bg-blue-50"

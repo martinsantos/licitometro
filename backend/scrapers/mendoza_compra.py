@@ -389,9 +389,11 @@ class MendozaCompraScraper(BaseScraper):
                     "comprar_unidad_ejecutora": unidad,
                     "comprar_servicio_admin": servicio_admin,
                 }
-                proxy_url = None
+                proxy_open_url = None
+                proxy_html_url = None
                 if target:
-                    proxy_url = f"{api_base}/api/comprar/proceso?list_url={quote_plus(list_url)}&target={quote_plus(target)}"
+                    proxy_open_url = f"{api_base}/api/comprar/proceso/open?list_url={quote_plus(list_url)}&target={quote_plus(target)}"
+                    proxy_html_url = f"{api_base}/api/comprar/proceso/html?list_url={quote_plus(list_url)}&target={quote_plus(target)}"
 
                 lic = LicitacionCreate(**{
                     "title": title,
@@ -402,7 +404,7 @@ class MendozaCompraScraper(BaseScraper):
                     "licitacion_number": numero,
                     "description": title,
                     "contact": None,
-                    "source_url": proxy_url or list_url,
+                    "source_url": proxy_open_url or list_url,
                     "status": "active" if not estado else ("active" if "publicado" in estado.lower() else "active"),
                     "location": "Mendoza",
                     "attached_files": [],
@@ -412,7 +414,11 @@ class MendozaCompraScraper(BaseScraper):
                     "tipo_acceso": "COMPR.AR",
                     "fecha_scraping": datetime.utcnow(),
                     "fuente": "COMPR.AR Mendoza",
-                    "metadata": meta,
+                    "metadata": {
+                        **meta,
+                        "comprar_open_url": proxy_open_url,
+                        "comprar_detail_url": proxy_html_url,
+                    },
                 })
 
                 if lic.id_licitacion in seen_ids:
