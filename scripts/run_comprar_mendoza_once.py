@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import logging
 from pathlib import Path
 
 from pymongo import MongoClient
@@ -21,6 +22,7 @@ OUTPUT = Path('storage/comprar_mendoza_run.json')
 
 
 async def main() -> int:
+    logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(name)s: %(message)s")
     client = MongoClient('mongodb://localhost:27017')
     db = client['licitometro']
     col = db['scraper_configs']
