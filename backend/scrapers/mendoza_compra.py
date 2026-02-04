@@ -8,6 +8,8 @@ import re
 import uuid
 import sys
 from pathlib import Path
+from urllib.parse import quote_plus
+import os
 
 # Add parent directory to path so we can import modules
 sys.path.insert(0, str(Path(__file__).parent.parent))
@@ -254,7 +256,7 @@ class MendozaCompraScraper(BaseScraper):
                 list_urls.extend(cfg_urls if isinstance(cfg_urls, list) else [cfg_urls])
             list_urls.extend(self._extract_list_urls(home_html))
             list_urls = list(dict.fromkeys(list_urls))
-            detail_htmls: List[str] = []
+            detail_entries: List[Dict[str, Any]] = []
             max_pages = int(self.config.selectors.get("max_pages", 20))
 
             async def process_list_page(page_html: str, page_url: str):
@@ -268,7 +270,11 @@ class MendozaCompraScraper(BaseScraper):
                     detail_fields["__EVENTARGUMENT"] = ""
                     detail_html = await self._postback(page_url, detail_fields)
                     if detail_html:
-                        detail_htmls.append(detail_html)
+                        detail_entries.append({
+                            "html": detail_html,
+                            "list_url": page_url,
+                            "target": target,
+                        })
                     await asyncio.sleep(self.config.wait_time)
 
             async def process_list_seed(seed_html: str, seed_url: str):
@@ -312,7 +318,7 @@ class MendozaCompraScraper(BaseScraper):
                         await process_list_seed(alt_html, list_url)
 
             # Fallback to postback list if no list URLs found
-            if not detail_htmls:
+            if not detail_entries:
                 fields = self._extract_hidden_fields(home_html)
                 list_event = self.config.pagination.get(
                     "list_event_target", "ctl00$CPH1$CtrlConsultasFrecuentes$btnProcesoCompraTreintaDias"
@@ -329,7 +335,11 @@ class MendozaCompraScraper(BaseScraper):
                         detail_fields["__EVENTARGUMENT"] = ""
                         detail_html = await self._postback(base_url, detail_fields)
                         if detail_html:
-                            detail_htmls.append(detail_html)
+                            detail_entries.append({
+                                "html": detail_html,
+                                "list_url": base_url,
+                                "target": target,
+                            })
                         await asyncio.sleep(self.config.wait_time)
 
             # Define business window (hoy + 3 dias habiles)
@@ -337,12 +347,28 @@ class MendozaCompraScraper(BaseScraper):
             tz_name = self.config.selectors.get("timezone", "America/Argentina/Mendoza")
             allowed_dates = last_business_days_set(count=window_days, tz_name=tz_name)
 
+            api_base = self.config.selectors.get("api_base_url") if self.config.selectors else None
+            if not api_base:
+                api_base = os.getenv("API_BASE_URL", "http://localhost:8001")
+
             seen_ids = set()
-            for detail_html in detail_htmls:
-                lic = await self.extract_licitacion_data(detail_html, base_url)
+            for entry in detail_entries:
+                detail_html = entry["html"]
+                list_url = entry["list_url"]
+                target = entry["target"]
+                lic = await self.extract_licitacion_data(detail_html, list_url)
                 if lic:
                     if lic.id_licitacion in seen_ids:
                         continue
+                    meta = dict(lic.metadata or {})
+                    meta["comprar_list_url"] = list_url
+                    meta["comprar_target"] = target
+                    proxy_url = f"{api_base}/api/comprar/proceso?list_url={quote_plus(list_url)}&target={quote_plus(target)}"
+                    lic = LicitacionCreate(**{
+                        **lic.model_dump(),
+                        "metadata": meta,
+                        "source_url": proxy_url,
+                    })
                     pub_date = lic.publication_date.date()
                     if pub_date not in allowed_dates and lic.opening_date:
                         pub_date = lic.opening_date.date()

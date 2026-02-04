@@ -37,6 +37,18 @@ const LicitacionDetailPage = () => {
     });
   };
 
+  const formatDateTime = (dateString) => {
+    if (!dateString) return 'N/A';
+    const date = new Date(dateString);
+    return date.toLocaleString('es-AR', {
+      day: '2-digit',
+      month: '2-digit',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit'
+    });
+  };
+
   if (loading) {
     return (
       <div className="container mx-auto px-4 py-12 text-center">
@@ -142,6 +154,18 @@ const LicitacionDetailPage = () => {
                   <dt className="text-sm font-medium text-gray-500">Fecha de Apertura</dt>
                   <dd className="mt-1 text-sm text-gray-900">{formatDate(licitacion.opening_date)}</dd>
                 </div>
+                {licitacion.fecha_scraping && (
+                  <div className="sm:col-span-1">
+                    <dt className="text-sm font-medium text-gray-500">Fecha de Scraping</dt>
+                    <dd className="mt-1 text-sm text-gray-900">{formatDateTime(licitacion.fecha_scraping)}</dd>
+                  </div>
+                )}
+                {licitacion.fuente && (
+                  <div className="sm:col-span-1">
+                    <dt className="text-sm font-medium text-gray-500">Origen</dt>
+                    <dd className="mt-1 text-sm text-gray-900">{licitacion.fuente}</dd>
+                  </div>
+                )}
                 {licitacion.expiration_date && (
                   <div className="sm:col-span-1">
                     <dt className="text-sm font-medium text-gray-500">Fecha de Vencimiento</dt>

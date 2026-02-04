@@ -12,7 +12,7 @@ import uvicorn
 sys.path.insert(0, str(Path(__file__).parent))
 
 # Import routers directly (not as relative imports)
-from routers import licitaciones, scraper_configs
+from routers import licitaciones, scraper_configs, comprar
 
 # Load environment variables
 load_dotenv()
@@ -51,6 +51,7 @@ database = client[DB_NAME]
 # Include routers
 app.include_router(licitaciones.router)
 app.include_router(scraper_configs.router)
+app.include_router(comprar.router)
 
 @app.on_event("startup")
 async def startup_db_client():

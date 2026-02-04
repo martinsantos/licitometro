@@ -18,8 +18,14 @@ const LicitacionesPage = () => {
   });
   const [searchQuery, setSearchQuery] = useState('');
   const [page, setPage] = useState(0);
-  const [pageSize, setPageSize] = useState(10);
+  const [pageSize, setPageSize] = useState(1000);
   const [totalItems, setTotalItems] = useState(0);
+  const pageSizeOptions = [
+    { label: '10', value: 10 },
+    { label: '50', value: 50 },
+    { label: '100', value: 100 },
+    { label: 'Todas', value: 1000 }
+  ];
 
   // Fetch filters options
   const [organizations, setOrganizations] = useState([]);
@@ -120,6 +126,12 @@ const LicitacionesPage = () => {
     setPage(0); // Reset to first page when filters change
   };
 
+  const handlePageSizeChange = (e) => {
+    const value = parseInt(e.target.value, 10);
+    setPageSize(value);
+    setPage(0);
+  };
+
   const formatDate = (dateString) => {
     if (!dateString) return 'N/A';
     const date = new Date(dateString);
@@ -127,6 +139,18 @@ const LicitacionesPage = () => {
       day: '2-digit',
       month: '2-digit',
       year: 'numeric'
+    });
+  };
+
+  const formatDateTime = (dateString) => {
+    if (!dateString) return 'N/A';
+    const date = new Date(dateString);
+    return date.toLocaleString('es-AR', {
+      day: '2-digit',
+      month: '2-digit',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit'
     });
   };
 
@@ -155,7 +179,7 @@ const LicitacionesPage = () => {
           </div>
         </div>
         
-        <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-6 gap-4">
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">Estado</label>
             <select
@@ -229,6 +253,20 @@ const LicitacionesPage = () => {
               ))}
             </select>
           </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Mostrar</label>
+            <select
+              value={pageSize}
+              onChange={handlePageSizeChange}
+              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+            >
+              {pageSizeOptions.map((opt) => (
+                <option key={opt.label} value={opt.value}>
+                  {opt.label}
+                </option>
+              ))}
+            </select>
+          </div>
         </div>
       </div>
       
@@ -272,7 +310,10 @@ const LicitacionesPage = () => {
                       Fecha Apertura
                     </th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Fuente
+                      Origen
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Fecha Scraping
                     </th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                       Estado
@@ -297,10 +338,13 @@ const LicitacionesPage = () => {
                         {formatDate(licitacion.publication_date)}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-700">
-                        {formatDate(licitacion.opening_date)}
+                       {formatDate(licitacion.opening_date)}
                        </td>
                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-700">
                         {licitacion.fuente || 'N/A'}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-700">
+                        {formatDateTime(licitacion.fecha_scraping)}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
                         <span className={`px-2 py-1 inline-flex text-xs leading-5 font-semibold rounded-full 

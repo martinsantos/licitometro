@@ -18,6 +18,7 @@ class LicitacionBase(BaseModel):
     source_url: Optional[HttpUrl] = Field(None, description="URL where the licitación was found")
     status: str = Field("active", description="Status of the licitación (active, closed, awarded, etc.)")
     fuente: Optional[str] = Field(None, description="Source of the licitación (scraper name)")
+    fecha_scraping: Optional[datetime] = Field(None, description="Date when the licitación was scraped")
     location: Optional[str] = Field(None, description="Geographical location")
     category: Optional[str] = Field(None, description="Category of the licitación")
     budget: Optional[float] = Field(None, description="Budget amount")
@@ -34,7 +35,6 @@ class LicitacionCreate(LicitacionBase):
     tipo_procedimiento: str = Field(..., description="Type of procedure for the licitación")
     tipo_acceso: Optional[str] = Field(None, description="Type of access for the licitación")
     municipios_cubiertos: Optional[str] = Field(None, description="Municipalities covered by the licitación")
-    fecha_scraping: Optional[datetime] = Field(None, description="Date when the licitación was scraped")
     provincia: Optional[str] = Field(None, description="Province (specific to municipal sources)")
     cobertura: Optional[str] = Field(None, description="Coverage (specific to aggregator sources)")
     # fuente is inherited from LicitacionBase and is also required here
@@ -52,6 +52,7 @@ class LicitacionUpdate(BaseModel):
     description: Optional[str] = None
     contact: Optional[str] = None
     source_url: Optional[HttpUrl] = None
+    fecha_scraping: Optional[datetime] = None
     status: Optional[str] = None
     location: Optional[str] = None
     category: Optional[str] = None
