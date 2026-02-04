@@ -229,6 +229,43 @@ class MendozaCompraScraper(BaseScraper):
             pages[k] = list(dict.fromkeys(v))
         return pages
 
+    def _extract_rows_from_list(self, html: str) -> List[Dict[str, Any]]:
+        """Extract row data from Compras list table."""
+        soup = BeautifulSoup(html, 'html.parser')
+        table = soup.find('table', {'id': re.compile('GridListaPliegosAperturaProxima')})
+        if not table:
+            return []
+        rows = []
+        for row in table.find_all('tr'):
+            cols = row.find_all('td')
+            if len(cols) < 6:
+                continue
+            # First column contains the process number and postback target
+            link = cols[0].find('a', href=True)
+            target = None
+            if link:
+                m = re.search(r"__doPostBack\('([^']+)'\s*,\s*'([^']*)'\)", link.get('href', ''))
+                if m:
+                    target = m.group(1)
+            numero = cols[0].get_text(' ', strip=True)
+            title = cols[1].get_text(' ', strip=True)
+            tipo = cols[2].get_text(' ', strip=True)
+            apertura = cols[3].get_text(' ', strip=True)
+            estado = cols[4].get_text(' ', strip=True)
+            unidad = cols[5].get_text(' ', strip=True) if len(cols) > 5 else None
+            servicio_admin = cols[6].get_text(' ', strip=True) if len(cols) > 6 else None
+            rows.append({
+                "target": target,
+                "numero": numero,
+                "title": title,
+                "tipo": tipo,
+                "apertura": apertura,
+                "estado": estado,
+                "unidad": unidad,
+                "servicio_admin": servicio_admin,
+            })
+        return rows
+
     async def _postback(self, url: str, fields: Dict[str, str]) -> Optional[str]:
         try:
             async with self.session.post(str(url), data=fields) as response:
@@ -256,26 +293,18 @@ class MendozaCompraScraper(BaseScraper):
                 list_urls.extend(cfg_urls if isinstance(cfg_urls, list) else [cfg_urls])
             list_urls.extend(self._extract_list_urls(home_html))
             list_urls = list(dict.fromkeys(list_urls))
-            detail_entries: List[Dict[str, Any]] = []
+            row_entries: List[Dict[str, Any]] = []
             max_pages = int(self.config.selectors.get("max_pages", 20))
 
             async def process_list_page(page_html: str, page_url: str):
-                row_targets = self._extract_row_targets(page_html)
-                if row_targets:
-                    logger.info(f"Found {len(row_targets)} procesos en {page_url}")
-                list_fields = self._extract_hidden_fields(page_html)
-                for target in row_targets:
-                    detail_fields = dict(list_fields)
-                    detail_fields["__EVENTTARGET"] = target
-                    detail_fields["__EVENTARGUMENT"] = ""
-                    detail_html = await self._postback(page_url, detail_fields)
-                    if detail_html:
-                        detail_entries.append({
-                            "html": detail_html,
-                            "list_url": page_url,
-                            "target": target,
-                        })
-                    await asyncio.sleep(self.config.wait_time)
+                rows = self._extract_rows_from_list(page_html)
+                if rows:
+                    logger.info(f"Found {len(rows)} procesos en {page_url}")
+                for row in rows:
+                    row_entries.append({
+                        **row,
+                        "list_url": page_url,
+                    })
 
             async def process_list_seed(seed_html: str, seed_url: str):
                 current_html = seed_html
@@ -318,7 +347,7 @@ class MendozaCompraScraper(BaseScraper):
                         await process_list_seed(alt_html, list_url)
 
             # Fallback to postback list if no list URLs found
-            if not detail_entries:
+            if not row_entries:
                 fields = self._extract_hidden_fields(home_html)
                 list_event = self.config.pagination.get(
                     "list_event_target", "ctl00$CPH1$CtrlConsultasFrecuentes$btnProcesoCompraTreintaDias"
@@ -327,20 +356,7 @@ class MendozaCompraScraper(BaseScraper):
                 fields["__EVENTARGUMENT"] = ""
                 list_html = await self._postback(base_url, fields)
                 if list_html:
-                    row_targets = self._extract_row_targets(list_html)
-                    list_fields = self._extract_hidden_fields(list_html)
-                    for target in row_targets:
-                        detail_fields = dict(list_fields)
-                        detail_fields["__EVENTTARGET"] = target
-                        detail_fields["__EVENTARGUMENT"] = ""
-                        detail_html = await self._postback(base_url, detail_fields)
-                        if detail_html:
-                            detail_entries.append({
-                                "html": detail_html,
-                                "list_url": base_url,
-                                "target": target,
-                            })
-                        await asyncio.sleep(self.config.wait_time)
+                    await process_list_page(list_html, base_url)
 
             # Define business window (hoy + 3 dias habiles)
             window_days = self.config.selectors.get("business_days_window", 4)
@@ -352,29 +368,61 @@ class MendozaCompraScraper(BaseScraper):
                 api_base = os.getenv("API_BASE_URL", "http://localhost:8001")
 
             seen_ids = set()
-            for entry in detail_entries:
-                detail_html = entry["html"]
-                list_url = entry["list_url"]
-                target = entry["target"]
-                lic = await self.extract_licitacion_data(detail_html, list_url)
-                if lic:
-                    if lic.id_licitacion in seen_ids:
-                        continue
-                    meta = dict(lic.metadata or {})
-                    meta["comprar_list_url"] = list_url
-                    meta["comprar_target"] = target
+            for entry in row_entries:
+                numero = entry.get("numero")
+                title = entry.get("title") or "Proceso de compra"
+                tipo = entry.get("tipo") or "Proceso de compra"
+                apertura = entry.get("apertura")
+                estado = entry.get("estado")
+                unidad = entry.get("unidad")
+                servicio_admin = entry.get("servicio_admin")
+                list_url = entry.get("list_url") or base_url
+                target = entry.get("target")
+
+                opening_date = parse_date_guess(apertura) if apertura else None
+                publication_date = opening_date or datetime.utcnow()
+
+                meta = {
+                    "comprar_list_url": list_url,
+                    "comprar_target": target,
+                    "comprar_estado": estado,
+                    "comprar_unidad_ejecutora": unidad,
+                    "comprar_servicio_admin": servicio_admin,
+                }
+                proxy_url = None
+                if target:
                     proxy_url = f"{api_base}/api/comprar/proceso?list_url={quote_plus(list_url)}&target={quote_plus(target)}"
-                    lic = LicitacionCreate(**{
-                        **lic.model_dump(),
-                        "metadata": meta,
-                        "source_url": proxy_url,
-                    })
-                    pub_date = lic.publication_date.date()
-                    if pub_date not in allowed_dates and lic.opening_date:
-                        pub_date = lic.opening_date.date()
-                    if pub_date in allowed_dates:
-                        licitaciones.append(lic)
-                        seen_ids.add(lic.id_licitacion)
+
+                lic = LicitacionCreate(**{
+                    "title": title,
+                    "organization": servicio_admin or unidad or "Gobierno de Mendoza",
+                    "publication_date": publication_date,
+                    "opening_date": opening_date,
+                    "expedient_number": None,
+                    "licitacion_number": numero,
+                    "description": title,
+                    "contact": None,
+                    "source_url": proxy_url or list_url,
+                    "status": "active" if not estado else ("active" if "publicado" in estado.lower() else "active"),
+                    "location": "Mendoza",
+                    "attached_files": [],
+                    "id_licitacion": numero or str(uuid.uuid4()),
+                    "jurisdiccion": "Mendoza",
+                    "tipo_procedimiento": tipo,
+                    "tipo_acceso": "COMPR.AR",
+                    "fecha_scraping": datetime.utcnow(),
+                    "fuente": "COMPR.AR Mendoza",
+                    "metadata": meta,
+                })
+
+                if lic.id_licitacion in seen_ids:
+                    continue
+                pub_date = lic.publication_date.date()
+                if pub_date not in allowed_dates and lic.opening_date:
+                    pub_date = lic.opening_date.date()
+                if pub_date in allowed_dates:
+                    licitaciones.append(lic)
+                    seen_ids.add(lic.id_licitacion)
                 if self.config.max_items and len(licitaciones) >= self.config.max_items:
                     break
 

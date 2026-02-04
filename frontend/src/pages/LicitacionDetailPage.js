@@ -146,6 +146,24 @@ const LicitacionDetailPage = () => {
                   <dt className="text-sm font-medium text-gray-500">Número de Licitación</dt>
                   <dd className="mt-1 text-sm text-gray-900">{licitacion.licitacion_number || 'N/A'}</dd>
                 </div>
+                {licitacion.tipo_procedimiento && (
+                  <div className="sm:col-span-1">
+                    <dt className="text-sm font-medium text-gray-500">Tipo de Procedimiento</dt>
+                    <dd className="mt-1 text-sm text-gray-900">{licitacion.tipo_procedimiento}</dd>
+                  </div>
+                )}
+                {licitacion.tipo_acceso && (
+                  <div className="sm:col-span-1">
+                    <dt className="text-sm font-medium text-gray-500">Tipo de Acceso</dt>
+                    <dd className="mt-1 text-sm text-gray-900">{licitacion.tipo_acceso}</dd>
+                  </div>
+                )}
+                {licitacion.jurisdiccion && (
+                  <div className="sm:col-span-1">
+                    <dt className="text-sm font-medium text-gray-500">Jurisdicción</dt>
+                    <dd className="mt-1 text-sm text-gray-900">{licitacion.jurisdiccion}</dd>
+                  </div>
+                )}
                 <div className="sm:col-span-1">
                   <dt className="text-sm font-medium text-gray-500">Fecha de Publicación</dt>
                   <dd className="mt-1 text-sm text-gray-900">{formatDate(licitacion.publication_date)}</dd>
@@ -164,6 +182,24 @@ const LicitacionDetailPage = () => {
                   <div className="sm:col-span-1">
                     <dt className="text-sm font-medium text-gray-500">Origen</dt>
                     <dd className="mt-1 text-sm text-gray-900">{licitacion.fuente}</dd>
+                  </div>
+                )}
+                {licitacion.metadata?.comprar_estado && (
+                  <div className="sm:col-span-1">
+                    <dt className="text-sm font-medium text-gray-500">Estado (COMPR.AR)</dt>
+                    <dd className="mt-1 text-sm text-gray-900">{licitacion.metadata.comprar_estado}</dd>
+                  </div>
+                )}
+                {licitacion.metadata?.comprar_unidad_ejecutora && (
+                  <div className="sm:col-span-1">
+                    <dt className="text-sm font-medium text-gray-500">Unidad Ejecutora</dt>
+                    <dd className="mt-1 text-sm text-gray-900">{licitacion.metadata.comprar_unidad_ejecutora}</dd>
+                  </div>
+                )}
+                {licitacion.metadata?.comprar_servicio_admin && (
+                  <div className="sm:col-span-1">
+                    <dt className="text-sm font-medium text-gray-500">Servicio Adm. Financiero</dt>
+                    <dd className="mt-1 text-sm text-gray-900">{licitacion.metadata.comprar_servicio_admin}</dd>
                   </div>
                 )}
                 {licitacion.expiration_date && (

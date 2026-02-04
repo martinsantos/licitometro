@@ -19,6 +19,9 @@ class LicitacionBase(BaseModel):
     status: str = Field("active", description="Status of the licitación (active, closed, awarded, etc.)")
     fuente: Optional[str] = Field(None, description="Source of the licitación (scraper name)")
     fecha_scraping: Optional[datetime] = Field(None, description="Date when the licitación was scraped")
+    tipo_procedimiento: Optional[str] = Field(None, description="Type of procedure for the licitación")
+    tipo_acceso: Optional[str] = Field(None, description="Type of access for the licitación")
+    jurisdiccion: Optional[str] = Field(None, description="Jurisdiction of the licitación")
     location: Optional[str] = Field(None, description="Geographical location")
     category: Optional[str] = Field(None, description="Category of the licitación")
     budget: Optional[float] = Field(None, description="Budget amount")
@@ -53,6 +56,9 @@ class LicitacionUpdate(BaseModel):
     contact: Optional[str] = None
     source_url: Optional[HttpUrl] = None
     fecha_scraping: Optional[datetime] = None
+    tipo_procedimiento: Optional[str] = None
+    tipo_acceso: Optional[str] = None
+    jurisdiccion: Optional[str] = None
     status: Optional[str] = None
     location: Optional[str] = None
     category: Optional[str] = None
