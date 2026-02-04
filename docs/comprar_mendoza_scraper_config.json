@@ -4,10 +4,17 @@
   "active": true,
   "schedule": "0 7,13,19 * * 1-5",
   "selectors": {
-    "links": "a"
+    "links": "a",
+    "timezone": "America/Argentina/Mendoza",
+    "business_days_window": 4,
+    "use_selenium_pliego": true,
+    "selenium_max_pages": 9
   },
   "pagination": {
-    "list_event_target": "ctl00$CPH1$CtrlConsultasFrecuentes$btnProcesoCompraTreintaDias"
+    "list_event_target": "ctl00$CPH1$CtrlConsultasFrecuentes$btnProcesoCompraTreintaDias",
+    "list_urls": [
+      "https://comprar.mendoza.gov.ar/Compras.aspx?qs=W1HXHGHtH10="
+    ]
   },
   "headers": {},
   "cookies": {},

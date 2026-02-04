@@ -10,6 +10,12 @@ import sys
 from pathlib import Path
 from urllib.parse import quote_plus
 import os
+import time
+from selenium import webdriver
+from selenium.webdriver.chrome.options import Options
+from selenium.webdriver.common.by import By
+from selenium.webdriver.support.ui import WebDriverWait
+from selenium.webdriver.support import expected_conditions as EC
 
 # Add parent directory to path so we can import modules
 sys.path.insert(0, str(Path(__file__).parent.parent))
@@ -266,6 +272,93 @@ class MendozaCompraScraper(BaseScraper):
             })
         return rows
 
+    def _extract_pliego_url(self, html: str, base_url: str) -> Optional[str]:
+        """Extract unique PLIEGO URL from detail HTML."""
+        soup = BeautifulSoup(html, 'html.parser')
+        for a in soup.find_all('a', href=True):
+            href = a.get('href', '')
+            if 'VistaPreviaPliegoCiudadano.aspx?qs=' in href:
+                return urljoin(base_url, href)
+        # Fallback: raw search in HTML
+        m = re.search(r"(PLIEGO\\/VistaPreviaPliegoCiudadano\\.aspx\\?qs=[^\\\"'\\s]+)", html)
+        if m:
+            return urljoin(base_url, m.group(1))
+        return None
+
+    def _collect_pliego_urls_selenium(self, list_url: str, max_pages: int = 5) -> Dict[str, str]:
+        """Collect unique PLIEGO URLs using Selenium (per process number)."""
+        mapping: Dict[str, str] = {}
+        try:
+            options = Options()
+            options.add_argument("--headless=new")
+            options.add_argument("--no-sandbox")
+            options.add_argument("--disable-dev-shm-usage")
+            driver = webdriver.Chrome(options=options)
+        except Exception as exc:
+            logger.error(f"Selenium not available: {exc}")
+            return mapping
+
+        try:
+            driver.get(list_url)
+            WebDriverWait(driver, 15).until(
+                EC.presence_of_element_located((By.CSS_SELECTOR, "#ctl00_CPH1_GridListaPliegosAperturaProxima"))
+            )
+            current_page = 1
+            while current_page <= max_pages:
+                rows = driver.find_elements(By.CSS_SELECTOR, "#ctl00_CPH1_GridListaPliegosAperturaProxima tr td:first-child a")
+                logger.info(f"Selenium page {current_page}: {len(rows)} links")
+                if rows:
+                    sample = []
+                    for r in rows[:5]:
+                        sample.append((r.text or r.get_attribute("textContent") or "").strip())
+                    logger.info(f"Selenium sample links: {sample}")
+                numeros = []
+                for r in rows:
+                    num = (r.text or r.get_attribute("textContent") or "").strip()
+                    if num:
+                        numeros.append(num)
+
+                for idx, numero in enumerate(numeros):
+                    if numero in mapping:
+                        continue
+                    try:
+                        link = driver.find_element(By.XPATH, f"//a[normalize-space()='{numero}']")
+                    except Exception:
+                        continue
+                    prev_url = driver.current_url
+                    driver.execute_script("arguments[0].click();", link)
+                    try:
+                        WebDriverWait(driver, 8).until(EC.url_changes(prev_url))
+                    except Exception:
+                        pass
+                    current_url = driver.current_url
+                    if idx < 2:
+                        logger.info(f"Selenium click {numero} -> {current_url}")
+                    if "VistaPreviaPliegoCiudadano" in current_url:
+                        mapping[numero] = current_url
+                    driver.back()
+                    try:
+                        WebDriverWait(driver, 10).until(
+                            EC.presence_of_element_located((By.CSS_SELECTOR, "#ctl00_CPH1_GridListaPliegosAperturaProxima"))
+                        )
+                    except Exception:
+                        time.sleep(2)
+
+                # pagination
+                next_page = current_page + 1
+                try:
+                    pager = driver.find_element(By.LINK_TEXT, str(next_page))
+                    pager.click()
+                    WebDriverWait(driver, 10).until(
+                        EC.presence_of_element_located((By.CSS_SELECTOR, "#ctl00_CPH1_GridListaPliegosAperturaProxima"))
+                    )
+                    current_page = next_page
+                except Exception:
+                    break
+        finally:
+            driver.quit()
+        return mapping
+
     async def _postback(self, url: str, fields: Dict[str, str]) -> Optional[str]:
         try:
             async with self.session.post(str(url), data=fields) as response:
@@ -300,10 +393,22 @@ class MendozaCompraScraper(BaseScraper):
                 rows = self._extract_rows_from_list(page_html)
                 if rows:
                     logger.info(f"Found {len(rows)} procesos en {page_url}")
+                list_fields = self._extract_hidden_fields(page_html)
                 for row in rows:
+                    detail_html = None
+                    if row.get("target"):
+                        detail_fields = dict(list_fields)
+                        detail_fields["__EVENTTARGET"] = row["target"]
+                        detail_fields["__EVENTARGUMENT"] = ""
+                        detail_html = await self._postback(page_url, detail_fields)
+                        await asyncio.sleep(self.config.wait_time)
+                    pliego_url = self._extract_pliego_url(detail_html or "", base_url) if detail_html else None
+                    if pliego_url and not pliego_url.startswith(("http://", "https://")):
+                        pliego_url = None
                     row_entries.append({
                         **row,
                         "list_url": page_url,
+                        "pliego_url": pliego_url,
                     })
 
             async def process_list_seed(seed_html: str, seed_url: str):
@@ -335,6 +440,16 @@ class MendozaCompraScraper(BaseScraper):
 
                 # Process default list
                 await process_list_seed(list_html, list_url)
+
+                # Optionally collect PLIEGO URLs via Selenium for unique process links
+                if self.config.selectors.get("use_selenium_pliego", True):
+                    max_pages = int(self.config.selectors.get("selenium_max_pages", 5))
+                    pliego_map = self._collect_pliego_urls_selenium(list_url, max_pages=max_pages)
+                    logger.info(f"Selenium pliego URLs encontrados: {len(pliego_map)}")
+                    if pliego_map:
+                        for entry in row_entries:
+                            if entry.get("numero") in pliego_map:
+                                entry["pliego_url"] = pliego_map[entry["numero"]]
 
                 # If configured, trigger "últimos 30 días" list and process it too
                 list_event = self.config.pagination.get("list_event_target") if self.config.pagination else None
@@ -388,12 +503,17 @@ class MendozaCompraScraper(BaseScraper):
                     "comprar_estado": estado,
                     "comprar_unidad_ejecutora": unidad,
                     "comprar_servicio_admin": servicio_admin,
+                    "comprar_pliego_url": entry.get("pliego_url"),
                 }
                 proxy_open_url = None
                 proxy_html_url = None
                 if target:
                     proxy_open_url = f"{api_base}/api/comprar/proceso/open?list_url={quote_plus(list_url)}&target={quote_plus(target)}"
                     proxy_html_url = f"{api_base}/api/comprar/proceso/html?list_url={quote_plus(list_url)}&target={quote_plus(target)}"
+
+                pliego_url = entry.get("pliego_url")
+                if pliego_url and not pliego_url.startswith(("http://", "https://")):
+                    pliego_url = None
 
                 lic = LicitacionCreate(**{
                     "title": title,
@@ -404,7 +524,7 @@ class MendozaCompraScraper(BaseScraper):
                     "licitacion_number": numero,
                     "description": title,
                     "contact": None,
-                    "source_url": proxy_open_url or list_url,
+                    "source_url": pliego_url or proxy_open_url or list_url,
                     "status": "active" if not estado else ("active" if "publicado" in estado.lower() else "active"),
                     "location": "Mendoza",
                     "attached_files": [],

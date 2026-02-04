@@ -384,9 +384,9 @@ const LicitacionesPage = () => {
                           ) : (
                             <span className="text-xs text-gray-400">N/A</span>
                           )}
-                          {licitacion.metadata?.comprar_open_url ? (
+                          {((licitacion.metadata?.comprar_pliego_url || (licitacion.source_url && licitacion.source_url.includes('VistaPreviaPliegoCiudadano'))) || licitacion.metadata?.comprar_open_url) ? (
                             <a
-                              href={licitacion.metadata.comprar_open_url}
+                              href={licitacion.metadata?.comprar_pliego_url || (licitacion.source_url && licitacion.source_url.includes('VistaPreviaPliegoCiudadano') ? licitacion.source_url : licitacion.metadata?.comprar_open_url)}
                               target="_blank"
                               rel="noopener noreferrer"
                               className="inline-flex items-center px-3 py-1.5 text-xs font-semibold rounded-md border border-blue-800 text-blue-800 hover:bg-blue-50"

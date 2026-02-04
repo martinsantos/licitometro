@@ -278,9 +278,9 @@ const LicitacionDetailPage = () => {
                         </svg>
                       </a>
                     ) : null}
-                    {licitacion.metadata?.comprar_open_url && (
+                    {((licitacion.metadata?.comprar_pliego_url || (licitacion.source_url && licitacion.source_url.includes('VistaPreviaPliegoCiudadano'))) || licitacion.metadata?.comprar_open_url) && (
                       <a
-                        href={licitacion.metadata.comprar_open_url}
+                        href={licitacion.metadata?.comprar_pliego_url || (licitacion.source_url && licitacion.source_url.includes('VistaPreviaPliegoCiudadano') ? licitacion.source_url : licitacion.metadata?.comprar_open_url)}
                         target="_blank"
                         rel="noopener noreferrer"
                         className="text-blue-800 hover:text-blue-600 text-sm inline-flex items-center"
