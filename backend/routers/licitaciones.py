@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, Query, Body
+from fastapi import APIRouter, Depends, HTTPException, Query, Body, Request
 from typing import List, Dict, Optional
 from uuid import UUID
 import sys
@@ -188,10 +188,9 @@ async def get_licitacion_urls(
 @router.post("/deduplicate")
 async def run_deduplication(
     jurisdiccion: Optional[str] = Query(None, description="Limit deduplication to a specific jurisdiction"),
-    request = None  # FastAPI will inject request
+    request: Request = None
 ):
     """Run deduplication on all licitaciones"""
-    from fastapi import Request
     from services.deduplication_service import get_deduplication_service
     
     # Get database from request
@@ -230,7 +229,7 @@ async def resolve_licitacion_url(
 
 @router.get("/stats/url-quality")
 async def get_url_quality_stats(
-    request: 'Request'  # type: ignore
+    request: Request
 ):
     """Get statistics about URL quality across all licitaciones"""
     db = request.app.mongodb

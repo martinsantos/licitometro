@@ -6,8 +6,8 @@ from urllib.parse import urljoin
 from pydantic import HttpUrl
 from bs4 import BeautifulSoup
 
-from backend.models.licitacion import LicitacionCreate
-from backend.scrapers.base_scraper import BaseScraper
+from models.licitacion import LicitacionCreate
+from scrapers.base_scraper import BaseScraper
 
 logger = logging.getLogger(__name__)
 

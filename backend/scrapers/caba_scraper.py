@@ -6,7 +6,7 @@ from pydantic import HttpUrl
 from bs4 import BeautifulSoup # Added for potential HTML parsing
 
 from models.licitacion import LicitacionCreate
-from backend.scrapers.base_scraper import BaseScraper
+from scrapers.base_scraper import BaseScraper
 
 logger = logging.getLogger(__name__)
 

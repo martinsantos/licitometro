@@ -35,14 +35,24 @@ const ScraperList = () => {
         [scraperId]: true
       });
       
-      await axios.post(`${API}/scraper-configs/${scraperId}/run`);
+      // Use the correct scheduler endpoint
+      await axios.post(`${BACKEND_URL}/api/scheduler/trigger/${encodeURIComponent(scraperName)}`);
       
       // We don't need to wait for the scraper to finish since it runs in the background
       // Just show a success message
       alert(`Scraper "${scraperName}" iniciado correctamente. Este proceso puede tardar varios minutos.`);
     } catch (error) {
       console.error(`Error running scraper ${scraperName}:`, error);
-      alert(`Error al iniciar el scraper: ${error.response?.data?.detail || error.message}`);
+      // Better error handling
+      let errorMsg = 'Error desconocido';
+      if (error.response?.data?.detail) {
+        errorMsg = error.response.data.detail;
+      } else if (error.response?.data?.message) {
+        errorMsg = error.response.data.message;
+      } else if (error.message) {
+        errorMsg = error.message;
+      }
+      alert(`Error al iniciar el scraper: ${errorMsg}`);
     } finally {
       setRunningScrapers({
         ...runningScrapers,

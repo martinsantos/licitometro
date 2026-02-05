@@ -5,7 +5,7 @@ Provides API endpoints to control the scraper scheduler, view job status,
 trigger manual executions, and review run history.
 """
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from typing import List, Optional
 from motor.motor_asyncio import AsyncIOMotorDatabase
 import logging
@@ -26,7 +26,7 @@ router = APIRouter(
 )
 
 
-def get_db(request):
+def get_db(request: Request):
     """Get database from request app state"""
     return request.app.mongodb
 
