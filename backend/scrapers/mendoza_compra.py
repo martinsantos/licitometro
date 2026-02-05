@@ -7,6 +7,7 @@ from datetime import datetime
 import re
 import uuid
 import sys
+import hashlib
 from pathlib import Path
 from urllib.parse import quote_plus
 import os
@@ -285,6 +286,20 @@ class MendozaCompraScraper(BaseScraper):
             return urljoin(base_url, m.group(1))
         return None
 
+    def _parse_pliego_fields(self, html: str) -> Dict[str, str]:
+        """Parse key fields from PLIEGO page."""
+        soup = BeautifulSoup(html, 'html.parser')
+        data: Dict[str, str] = {}
+        for lab in soup.find_all('label'):
+            key = lab.get_text(' ', strip=True)
+            if not key:
+                continue
+            nxt = lab.find_next_sibling()
+            val = nxt.get_text(' ', strip=True) if nxt else ''
+            if val:
+                data[key] = val
+        return data
+
     def _collect_pliego_urls_selenium(self, list_url: str, max_pages: int = 5) -> Dict[str, str]:
         """Collect unique PLIEGO URLs using Selenium (per process number)."""
         mapping: Dict[str, str] = {}
@@ -540,6 +555,7 @@ class MendozaCompraScraper(BaseScraper):
                 api_base = os.getenv("API_BASE_URL", "http://localhost:8001")
 
             seen_ids = set()
+            disable_date_filter = self.config.selectors.get("disable_date_filter", True)
             for entry in row_entries:
                 numero = entry.get("numero")
                 title = entry.get("title") or "Proceso de compra"
@@ -554,34 +570,86 @@ class MendozaCompraScraper(BaseScraper):
                 opening_date = parse_date_guess(apertura) if apertura else None
                 publication_date = opening_date or datetime.utcnow()
 
+                pliego_url = entry.get("pliego_url")
+                if pliego_url and not pliego_url.startswith(("http://", "https://")):
+                    pliego_url = None
+
+                pliego_fields: Dict[str, str] = {}
+                if pliego_url:
+                    pliego_html = await self.fetch_page(pliego_url)
+                    if pliego_html:
+                        pliego_fields = self._parse_pliego_fields(pliego_html)
+
+                # Build metadata
                 meta = {
                     "comprar_list_url": list_url,
                     "comprar_target": target,
                     "comprar_estado": estado,
                     "comprar_unidad_ejecutora": unidad,
                     "comprar_servicio_admin": servicio_admin,
-                    "comprar_pliego_url": entry.get("pliego_url"),
+                    "comprar_pliego_url": pliego_url,
+                    "comprar_pliego_fields": pliego_fields,
                 }
+                
+                # Build proxy URLs
                 proxy_open_url = None
                 proxy_html_url = None
                 if target:
                     proxy_open_url = f"{api_base}/api/comprar/proceso/open?list_url={quote_plus(list_url)}&target={quote_plus(target)}"
                     proxy_html_url = f"{api_base}/api/comprar/proceso/html?list_url={quote_plus(list_url)}&target={quote_plus(target)}"
 
-                pliego_url = entry.get("pliego_url")
-                if pliego_url and not pliego_url.startswith(("http://", "https://")):
-                    pliego_url = None
+                # Determine canonical URL and quality
+                # Priority: PLIEGO URL > Proxy URL > List URL
+                canonical_url = None
+                url_quality = "partial"
+                source_urls = {}
+                
+                if pliego_url:
+                    canonical_url = pliego_url
+                    url_quality = "direct"
+                    source_urls["comprar_pliego"] = pliego_url
+                elif proxy_open_url:
+                    canonical_url = proxy_open_url
+                    url_quality = "proxy"
+                
+                # Always include list URL as source
+                source_urls["comprar_list"] = list_url
+                if proxy_open_url:
+                    source_urls["comprar_proxy"] = proxy_open_url
+                if proxy_html_url:
+                    source_urls["comprar_detail"] = proxy_html_url
+
+                # Extract fields from PLIEGO
+                description = title
+                expedient_number = None
+                contact = None
+                currency = None
+                budget = None
+                if pliego_fields:
+                    expedient_number = pliego_fields.get("Número de expediente") or pliego_fields.get("Número de Expediente")
+                    description = pliego_fields.get("Objeto de la contratación") or pliego_fields.get("Objeto") or description
+                    currency = pliego_fields.get("Moneda")
+                    contact = pliego_fields.get("Lugar de recepción de documentación física")
+
+                # Compute content hash for deduplication
+                content_hash = hashlib.md5(
+                    f"{title.lower().strip()}|{servicio_admin or unidad or ''}|{publication_date.strftime('%Y%m%d')}".encode()
+                ).hexdigest()
 
                 lic = LicitacionCreate(**{
                     "title": title,
                     "organization": servicio_admin or unidad or "Gobierno de Mendoza",
                     "publication_date": publication_date,
                     "opening_date": opening_date,
-                    "expedient_number": None,
+                    "expedient_number": expedient_number,
                     "licitacion_number": numero,
-                    "description": title,
-                    "contact": None,
+                    "description": description,
+                    "contact": contact,
                     "source_url": pliego_url or proxy_open_url or list_url,
+                    "canonical_url": canonical_url,
+                    "source_urls": source_urls,
+                    "url_quality": url_quality,
+                    "content_hash": content_hash,
                     "status": "active" if not estado else ("active" if "publicado" in estado.lower() else "active"),
                     "location": "Mendoza",
                     "attached_files": [],
@@ -591,6 +659,8 @@ class MendozaCompraScraper(BaseScraper):
                     "tipo_acceso": "COMPR.AR",
                     "fecha_scraping": datetime.utcnow(),
                     "fuente": "COMPR.AR Mendoza",
+                    "currency": currency,
+                    "budget": budget,
                     "metadata": {
                         **meta,
                         "comprar_open_url": proxy_open_url,
@@ -600,12 +670,16 @@ class MendozaCompraScraper(BaseScraper):
 
                 if lic.id_licitacion in seen_ids:
                     continue
-                pub_date = lic.publication_date.date()
-                if pub_date not in allowed_dates and lic.opening_date:
-                    pub_date = lic.opening_date.date()
-                if pub_date in allowed_dates:
+                if disable_date_filter:
                     licitaciones.append(lic)
                     seen_ids.add(lic.id_licitacion)
+                else:
+                    pub_date = lic.publication_date.date()
+                    if pub_date not in allowed_dates and lic.opening_date:
+                        pub_date = lic.opening_date.date()
+                    if pub_date in allowed_dates:
+                        licitaciones.append(lic)
+                        seen_ids.add(lic.id_licitacion)
                 if self.config.max_items and len(licitaciones) >= self.config.max_items:
                     break
 

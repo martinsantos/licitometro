@@ -137,3 +137,124 @@ async def get_distinct_values(
 
     distinct_values = await repo.get_distinct(field_name)
     return distinct_values
+
+
+# NEW ENDPOINTS FOR URL RESOLUTION AND DEDUPLICATION
+
+@router.get("/{licitacion_id}/redirect")
+async def redirect_to_canonical_url(
+    licitacion_id: str,
+    repo: LicitacionRepository = Depends(get_licitacion_repository)
+):
+    """Redirect to the canonical URL for a licitacion"""
+    from fastapi.responses import RedirectResponse
+    
+    licitacion = await repo.get_by_id(licitacion_id)
+    if not licitacion:
+        raise HTTPException(status_code=404, detail="Licitación not found")
+    
+    # Get canonical URL
+    url = None
+    if licitacion.canonical_url:
+        url = str(licitacion.canonical_url)
+    elif licitacion.source_url:
+        url = str(licitacion.source_url)
+    
+    if not url:
+        raise HTTPException(status_code=404, detail="No URL available for this licitación")
+    
+    return RedirectResponse(url=url)
+
+
+@router.get("/{licitacion_id}/urls")
+async def get_licitacion_urls(
+    licitacion_id: str,
+    repo: LicitacionRepository = Depends(get_licitacion_repository)
+):
+    """Get all available URLs for a licitacion"""
+    licitacion = await repo.get_by_id(licitacion_id)
+    if not licitacion:
+        raise HTTPException(status_code=404, detail="Licitación not found")
+    
+    return {
+        "id_licitacion": licitacion.id_licitacion,
+        "canonical_url": licitacion.canonical_url,
+        "url_quality": licitacion.url_quality,
+        "source_urls": licitacion.source_urls or {},
+        "source_url": licitacion.source_url,
+    }
+
+
+@router.post("/deduplicate")
+async def run_deduplication(
+    jurisdiccion: Optional[str] = Query(None, description="Limit deduplication to a specific jurisdiction"),
+    request = None  # FastAPI will inject request
+):
+    """Run deduplication on all licitaciones"""
+    from fastapi import Request
+    from services.deduplication_service import get_deduplication_service
+    
+    # Get database from request
+    db = request.app.mongodb
+    service = get_deduplication_service(db)
+    
+    stats = await service.run_deduplication(jurisdiccion=jurisdiccion)
+    return stats
+
+
+@router.post("/{licitacion_id}/resolve-url")
+async def resolve_licitacion_url(
+    licitacion_id: str,
+    repo: LicitacionRepository = Depends(get_licitacion_repository)
+):
+    """Resolve and update the canonical URL for a specific licitacion"""
+    from services.url_resolver import get_url_resolver
+    from motor.motor_asyncio import AsyncIOMotorDatabase
+    
+    # We need to get the database from the repo
+    # This is a bit hacky but works for now
+    db = repo.collection.database
+    
+    resolver = get_url_resolver(db)
+    url = await resolver.resolve_url(licitacion_id)
+    
+    if not url:
+        raise HTTPException(status_code=404, detail="Could not resolve URL for this licitación")
+    
+    return {
+        "id_licitacion": licitacion_id,
+        "resolved_url": url,
+        "quality": resolver.determine_url_quality(url)
+    }
+
+
+@router.get("/stats/url-quality")
+async def get_url_quality_stats(
+    request: 'Request'  # type: ignore
+):
+    """Get statistics about URL quality across all licitaciones"""
+    db = request.app.mongodb
+    collection = db.licitaciones
+    
+    pipeline = [
+        {
+            "$group": {
+                "_id": "$url_quality",
+                "count": {"$sum": 1}
+            }
+        }
+    ]
+    
+    results = await collection.aggregate(pipeline).to_list(length=10)
+    
+    # Calculate totals
+    total = sum(r["count"] for r in results)
+    
+    return {
+        "total": total,
+        "by_quality": {r["_id"] or "unknown": r["count"] for r in results},
+        "percentages": {
+            r["_id"] or "unknown": round(r["count"] / total * 100, 2) if total > 0 else 0
+            for r in results
+        }
+    }

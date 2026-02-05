@@ -16,6 +16,12 @@ class LicitacionBase(BaseModel):
     description: Optional[str] = Field(None, description="Description of the licitación")
     contact: Optional[str] = Field(None, description="Contact information")
     source_url: Optional[HttpUrl] = Field(None, description="URL where the licitación was found")
+    
+    # NEW: Canonical URL system
+    canonical_url: Optional[HttpUrl] = Field(None, description="Canonical URL to the process in source system")
+    source_urls: Optional[Dict[str, str]] = Field(default={}, description="URLs by source (comprar, boletin, etc.)")
+    url_quality: Optional[str] = Field(None, description="URL quality: direct, proxy, partial")
+    
     status: str = Field("active", description="Status of the licitación (active, closed, awarded, etc.)")
     fuente: Optional[str] = Field(None, description="Source of the licitación (scraper name)")
     fecha_scraping: Optional[datetime] = Field(None, description="Date when the licitación was scraped")
@@ -29,6 +35,11 @@ class LicitacionBase(BaseModel):
     attached_files: Optional[List[Dict[str, Any]]] = Field(default=[], description="List of attached files")
     keywords: Optional[List[str]] = Field(default=[], description="Keywords extracted from the licitación")
     metadata: Optional[Dict[str, Any]] = Field(default={}, description="Additional metadata")
+    
+    # NEW: Deduplication fields
+    content_hash: Optional[str] = Field(None, description="Hash for deduplication")
+    merged_from: Optional[List[str]] = Field(default=[], description="IDs of merged licitaciones")
+    is_merged: bool = Field(False, description="If this is a merged record")
 
 
 class LicitacionCreate(LicitacionBase):

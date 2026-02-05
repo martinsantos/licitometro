@@ -36,3 +36,9 @@ python-docx>=1.0.1
 # Text processing
 nltk>=3.8.1
 spacy>=3.7.0
+# Scheduling
+apscheduler>=3.10.4
+python-crontab>=1.2.0
+# Deduplication
+fuzzywuzzy>=0.18.0
+python-levenshtein>=0.21.0

@@ -12,7 +12,7 @@ import uvicorn
 sys.path.insert(0, str(Path(__file__).parent))
 
 # Import routers directly (not as relative imports)
-from routers import licitaciones, scraper_configs, comprar
+from routers import licitaciones, scraper_configs, comprar, scheduler
 
 # Load environment variables
 load_dotenv()
@@ -52,6 +52,7 @@ database = client[DB_NAME]
 app.include_router(licitaciones.router)
 app.include_router(scraper_configs.router)
 app.include_router(comprar.router)
+app.include_router(scheduler.router)
 
 @app.on_event("startup")
 async def startup_db_client():
@@ -60,6 +61,17 @@ async def startup_db_client():
     app.mongodb_client = client
     app.mongodb = database
     logger.info(f"Connected to MongoDB at {MONGO_URL}, database: {DB_NAME}")
+    
+    # Initialize and start scheduler automatically
+    try:
+        from services.scheduler_service import get_scheduler_service
+        scheduler_service = get_scheduler_service(database)
+        await scheduler_service.initialize()
+        await scheduler_service.load_and_schedule_scrapers()
+        scheduler_service.start()
+        logger.info("Scheduler initialized and started automatically")
+    except Exception as e:
+        logger.error(f"Failed to auto-start scheduler: {e}")
 
 @app.on_event("shutdown")
 async def shutdown_db_client():
