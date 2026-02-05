@@ -202,6 +202,42 @@ const LicitacionDetailPage = () => {
                     <dd className="mt-1 text-sm text-gray-900">{licitacion.metadata.comprar_servicio_admin}</dd>
                   </div>
                 )}
+                {licitacion.metadata?.comprar_pliego_fields?.["Procedimiento de selección"] && (
+                  <div className="sm:col-span-1">
+                    <dt className="text-sm font-medium text-gray-500">Procedimiento</dt>
+                    <dd className="mt-1 text-sm text-gray-900">{licitacion.metadata.comprar_pliego_fields["Procedimiento de selección"]}</dd>
+                  </div>
+                )}
+                {licitacion.metadata?.comprar_pliego_fields?.["Etapa"] && (
+                  <div className="sm:col-span-1">
+                    <dt className="text-sm font-medium text-gray-500">Etapa</dt>
+                    <dd className="mt-1 text-sm text-gray-900">{licitacion.metadata.comprar_pliego_fields["Etapa"]}</dd>
+                  </div>
+                )}
+                {licitacion.metadata?.comprar_pliego_fields?.["Modalidad"] && (
+                  <div className="sm:col-span-1">
+                    <dt className="text-sm font-medium text-gray-500">Modalidad</dt>
+                    <dd className="mt-1 text-sm text-gray-900">{licitacion.metadata.comprar_pliego_fields["Modalidad"]}</dd>
+                  </div>
+                )}
+                {licitacion.metadata?.comprar_pliego_fields?.["Alcance"] && (
+                  <div className="sm:col-span-1">
+                    <dt className="text-sm font-medium text-gray-500">Alcance</dt>
+                    <dd className="mt-1 text-sm text-gray-900">{licitacion.metadata.comprar_pliego_fields["Alcance"]}</dd>
+                  </div>
+                )}
+                {licitacion.metadata?.comprar_pliego_fields?.["Moneda"] && (
+                  <div className="sm:col-span-1">
+                    <dt className="text-sm font-medium text-gray-500">Moneda</dt>
+                    <dd className="mt-1 text-sm text-gray-900">{licitacion.metadata.comprar_pliego_fields["Moneda"]}</dd>
+                  </div>
+                )}
+                {licitacion.metadata?.comprar_pliego_fields?.["Lugar de recepción de documentación física"] && (
+                  <div className="sm:col-span-2">
+                    <dt className="text-sm font-medium text-gray-500">Lugar recepción documentación</dt>
+                    <dd className="mt-1 text-sm text-gray-900">{licitacion.metadata.comprar_pliego_fields["Lugar de recepción de documentación física"]}</dd>
+                  </div>
+                )}
                 {licitacion.expiration_date && (
                   <div className="sm:col-span-1">
                     <dt className="text-sm font-medium text-gray-500">Fecha de Vencimiento</dt>
@@ -278,9 +314,9 @@ const LicitacionDetailPage = () => {
                         </svg>
                       </a>
                     ) : null}
-                    {((licitacion.metadata?.comprar_pliego_url || (licitacion.source_url && licitacion.source_url.includes('VistaPreviaPliegoCiudadano'))) || licitacion.metadata?.comprar_open_url) && (
+                    {(licitacion.metadata?.comprar_pliego_url || (licitacion.source_url && licitacion.source_url.includes('VistaPreviaPliegoCiudadano'))) && (
                       <a
-                        href={licitacion.metadata?.comprar_pliego_url || (licitacion.source_url && licitacion.source_url.includes('VistaPreviaPliegoCiudadano') ? licitacion.source_url : licitacion.metadata?.comprar_open_url)}
+                        href={licitacion.metadata?.comprar_pliego_url || (licitacion.source_url && licitacion.source_url.includes('VistaPreviaPliegoCiudadano') ? licitacion.source_url : '#')}
                         target="_blank"
                         rel="noopener noreferrer"
                         className="text-blue-800 hover:text-blue-600 text-sm inline-flex items-center"

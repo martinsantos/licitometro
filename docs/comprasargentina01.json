@@ -1,0 +1,891 @@
+{
+  "metadata": {
+    "fecha_relevamiento": "2025-05-23",
+    "fuentes_actualizadas_hasta": "2025-05-20",
+    "total_fuentes_identificadas": 35,
+    "criterios_priorizacion": "cobertura_datos, acceso_programatico, frecuencia_actualizacion",
+    "campos_estandarizados": [
+      "nombre",
+      "url",
+      "jurisdiccion",
+      "tipo_acceso",
+      "frecuencia_actualizacion",
+      "cobertura_campos",
+      "campos_disponibles",
+      "campos_faltantes",
+      "volumen_estimado",
+      "observaciones",
+      "documentacion_api",
+      "requiere_registro",
+      "limitaciones_tecnicas",
+      "tecnologia_sugerida"
+    ],
+    "responsable": "Equipo Licitómetro (contacto@licitometro.org)",
+    "notas_metodologicas": "El relevamiento se realizó mediante análisis manual de portales públicos y documentación oficial. La cobertura de campos se estimó según la información visible y accesible sin registro.",
+    "proximo_relevamiento": "2025-11-23",
+    "estado_revision": "borrador",
+    "advertencia": "Este es un listado parcial y no exhaustivo. Un relevamiento completo según los criterios detallados requiere una investigación profunda y continua. La información detallada de muchos campos requiere análisis técnico individualizado."
+  },
+  "fuentes": [
+    {
+      "prioridad": 1,
+      "nombre": "COMPR.AR - Portal de Compras Públicas de la República Argentina",
+      "url": "https://comprar.gob.ar/",
+      "jurisdiccion": "Nacional",
+      "tipo_acceso": "Portal web, Posible acceso a datos estructurados vía datos.gob.ar (CSV)",
+      "frecuencia_actualizacion": "Diaria (estimado)",
+      "cobertura_campos": "Potencialmente alta (muchos campos esenciales deberían estar presentes)",
+      "campos_disponibles": [
+        "Error al analizar: Error tokenizing data. C error: Expected 1 fields in line 13, saw 2\n"
+      ],
+      "campos_faltantes": [
+        "Error al analizar: Error tokenizing data. C error: Expected 1 fields in line 13, saw 2\n"
+      ],
+      "volumen_estimado": "Muy alto (miles mensuales a nivel nacional)",
+      "observaciones": "Sistema centralizado para la Administración Pública Nacional. Utilizado también por algunas provincias y organismos.",
+      "documentacion_api": "No se encontró documentación de API pública directa, pero sí datasets en datos.gob.ar.",
+      "requiere_registro": "Sí, para operar como proveedor.",
+      "limitaciones_tecnicas": "Acceso programático primario parece ser a través de descarga de datasets, no API transaccional en tiempo real.",
+      "tecnologia_sugerida": "API/Descarga directa"
+    },
+    {
+      "prioridad": 1,
+      "nombre": "CONTRAT.AR - Portal Electrónico de Contratación de Obra Pública",
+      "url": "https://contratar.gob.ar/",
+      "jurisdiccion": "Nacional",
+      "tipo_acceso": "Portal web, Datos disponibles en datos.gob.ar (CSV, OCDS/EDCA)",
+      "frecuencia_actualizacion": "Diaria (estimado)",
+      "cobertura_campos": "Alta (OCDS/EDCA es un estándar rico en datos)",
+      "campos_disponibles": [
+        "id_licitacion",
+        "titulo",
+        "organismo",
+        "jurisdiccion",
+        "fecha_publicacion",
+        "fecha_apertura",
+        "numero_expediente",
+        "numero_licitacion",
+        "descripcion",
+        "estado_licitacion",
+        "monto_estimado",
+        "categoria_compra",
+        "url_fuente",
+        "tipo_procedimiento",
+        "plazo_ejecucion (probable en OCDS)"
+      ],
+      "campos_faltantes": [
+        "fecha_limite_preguntas",
+        "contacto",
+        "archivo_adjunto (URL directa puede variar)",
+        "ubicacion_geografica (depende de la implementación OCDS)",
+        "rubro (depende de la implementación OCDS)",
+        "garantias_requeridas (depende de la implementación OCDS)"
+      ],
+      "volumen_estimado": "Alto",
+      "observaciones": "Específico para contrataciones de obra pública. La adopción de OCDS (EDCA en Argentina) es muy positiva para la estructuración de datos.",
+      "documentacion_api": "El acceso es vía datasets en datos.gob.ar que siguen el estándar OCDS.",
+      "requiere_registro": "Sí, para operar.",
+      "limitaciones_tecnicas": "Acceso programático primario parece ser a través de descarga de datasets.",
+      "tecnologia_sugerida": "API/Descarga directa"
+    },
+    {
+      "prioridad": 2,
+      "nombre": "Datos Argentina (datos.gob.ar) - Datasets de Contrataciones",
+      "url": "https://datos.gob.ar/dataset?tags=Contrataciones",
+      "jurisdiccion": "Nacional",
+      "tipo_acceso": "API CKAN (para metadatos), Descarga de datasets (CSV, JSON, XLS según el dataset)",
+      "frecuencia_actualizacion": "Variable según el dataset (algunos pueden ser diarios, otros menos frecuentes)",
+      "cobertura_campos": "Variable. Los datasets de COMPR.AR y CONTRAT.AR (OCDS) deberían tener buena cobertura de campos esenciales.",
+      "campos_disponibles": [
+        "Depende del dataset específico. Ver schema de cada dataset."
+      ],
+      "campos_faltantes": [
+        "Depende del dataset específico."
+      ],
+      "volumen_estimado": "Agregador de múltiples fuentes, volumen total muy alto.",
+      "observaciones": "Portal central de datos abiertos de Argentina. Fuente clave para acceso programático a datos de COMPR.AR y CONTRAT.AR.",
+      "documentacion_api": "https://datos.gob.ar/apis (API de CKAN para metadatos, no para los datos en sí que son por descarga)",
+      "requiere_registro": "No, para acceder a los datos públicos.",
+      "limitaciones_tecnicas": "La frecuencia de actualización de los datasets puede no ser en tiempo real.",
+      "tecnologia_sugerida": "API/Descarga directa"
+    },
+    {
+      "prioridad": 2,
+      "nombre": "Boletín Oficial de la República Argentina",
+      "url": "https://www.boletinoficial.gob.ar/",
+      "jurisdiccion": "Nacional",
+      "tipo_acceso": "Portal web (búsqueda manual), Posible scraping (estructura HTML a analizar)",
+      "frecuencia_actualizacion": "Diaria",
+      "cobertura_campos": "Media (contiene información esencial pero puede no estar tan estructurada como en portales de compra)",
+      "campos_disponibles": [
+        "id_licitacion (a veces)",
+        "titulo",
+        "organismo",
+        "fecha_publicacion",
+        "numero_expediente",
+        "numero_licitacion",
+        "descripcion (resumida)",
+        "url_fuente (al propio boletín)"
+      ],
+      "campos_faltantes": [
+        "Muchos campos estructurados como fechas de apertura específicas, estado, monto, etc., pueden no estar siempre presentes o fácilmente extraíbles."
+      ],
+      "volumen_estimado": "Alto",
+      "observaciones": "Fuente primaria de publicación de actos de gobierno, incluyendo llamados a licitación. El scraping puede ser complejo por la variedad de formatos de los avisos.",
+      "documentacion_api": "No disponible.",
+      "requiere_registro": "No, para consulta.",
+      "limitaciones_tecnicas": "Requiere scraping; la estructura de los avisos puede variar.",
+      "tecnologia_sugerida": "API/Descarga directa"
+    },
+    {
+      "prioridad": 1,
+      "nombre": "COMPR.AR Mendoza - Portal de Compras Públicas de Mendoza",
+      "url": "https://comprar.mendoza.gov.ar/",
+      "jurisdiccion": "Provincial (Mendoza)",
+      "tipo_acceso": "Portal web (basado en COMPR.AR)",
+      "frecuencia_actualizacion": "Diaria (estimado)",
+      "cobertura_campos": "Potencialmente alta (similar a COMPR.AR nacional)",
+      "campos_disponibles": [
+        "Número de Proceso",
+        "Nombre descriptivo de Proceso",
+        "Tipo de Proceso",
+        "Fecha de Apertura",
+        "Servicio Administrativo Financiero"
+      ],
+      "campos_faltantes": [
+        "Número de Proceso",
+        "Nombre descriptivo de Proceso",
+        "Tipo de Proceso",
+        "Fecha de Apertura",
+        "Servicio Administrativo Financiero"
+      ],
+      "volumen_estimado": "Medio-Alto (para la provincia)",
+      "observaciones": "Sistema de compras de la provincia de Mendoza, parece ser una instancia o estar fuertemente ligado al COMPR.AR nacional.",
+      "documentacion_api": "No se encontró documentación de API pública directa.",
+      "requiere_registro": "Sí, para operar como proveedor.",
+      "limitaciones_tecnicas": "Similar a COMPR.AR nacional.",
+      "tecnologia_sugerida": "Scrapy"
+    },
+    {
+      "prioridad": 2,
+      "nombre": "Boletín Oficial de Mendoza",
+      "url": "https://www.mendoza.gov.ar/boletinoficial/",
+      "jurisdiccion": "Provincial (Mendoza)",
+      "tipo_acceso": "Portal web (búsqueda manual), Posible scraping",
+      "frecuencia_actualizacion": "Diaria",
+      "cobertura_campos": "Media",
+      "campos_disponibles": [
+        "No se detectaron tablas en la página principal."
+      ],
+      "campos_faltantes": [
+        "No se detectaron tablas en la página principal."
+      ],
+      "volumen_estimado": "Medio",
+      "observaciones": "Fuente primaria de publicación de actos de gobierno en Mendoza.",
+      "documentacion_api": "No disponible.",
+      "requiere_registro": "No, para consulta.",
+      "limitaciones_tecnicas": "Requiere scraping.",
+      "tecnologia_sugerida": "API/Descarga directa"
+    },
+    {
+      "prioridad": 3,
+      "nombre": "BAC - Sistema de compras públicas de la Ciudad Autónoma de Buenos Aires",
+      "url": "https://www.buenosairescompras.gob.ar/",
+      "jurisdiccion": "Municipal (Ciudad Autónoma de Buenos Aires)",
+      "tipo_acceso": "Portal web",
+      "frecuencia_actualizacion": "Diaria (estimado)",
+      "cobertura_campos": "Requiere análisis técnico detallado",
+      "campos_disponibles": [
+        "No se detectaron tablas en la página principal."
+      ],
+      "campos_faltantes": [
+        "No se detectaron tablas en la página principal."
+      ],
+      "volumen_estimado": "Alto",
+      "observaciones": "Portal de compras electrónicas de CABA.",
+      "documentacion_api": "No se encontró documentación de API pública directa.",
+      "requiere_registro": "Sí, para operar como proveedor.",
+      "limitaciones_tecnicas": "Requiere análisis para determinar viabilidad de scraping o si existe API no documentada.",
+      "tecnologia_sugerida": "Scrapy"
+    },
+    {
+      "prioridad": 3,
+      "nombre": "Boletín Oficial de la Ciudad Autónoma de Buenos Aires",
+      "url": "https://documentosboletinoficial.buenosaires.gob.ar/",
+      "jurisdiccion": "Municipal (Ciudad Autónoma de Buenos Aires)",
+      "tipo_acceso": "Portal web, Posible scraping",
+      "frecuencia_actualizacion": "Diaria",
+      "cobertura_campos": "Media",
+      "campos_disponibles": [
+        "No se detectaron tablas en la página principal."
+      ],
+      "campos_faltantes": [
+        "No se detectaron tablas en la página principal."
+      ],
+      "volumen_estimado": "Alto",
+      "observaciones": "Publicación de actos de gobierno de CABA.",
+      "documentacion_api": "No disponible.",
+      "requiere_registro": "No para consulta.",
+      "limitaciones_tecnicas": "Requiere scraping.",
+      "tecnologia_sugerida": "API/Descarga directa"
+    },
+    {
+      "prioridad": 4,
+      "nombre": "Portal de Compras Públicas Provincia de Buenos Aires (GBA)",
+      "url": "https://www.gba.gob.ar/infraestructura_tal/direcci%C3%B3n_provincial_de_compras_y_contrataciones",
+      "jurisdiccion": "Provincial (Buenos Aires)",
+      "tipo_acceso": "Portal web informativo, enlaces a COMPR.AR",
+      "frecuencia_actualizacion": "Delegada a COMPR.AR donde se realizan las publicaciones.",
+      "cobertura_campos": "Depende de COMPR.AR",
+      "campos_disponibles": [
+        "Ver COMPR.AR"
+      ],
+      "campos_faltantes": [
+        "Ver COMPR.AR"
+      ],
+      "volumen_estimado": "Muy Alto",
+      "observaciones": "La Dirección Provincial centraliza normativas, pero las operaciones pueden cursarse por COMPR.AR. El portal Provincia Compras (https://provinciacompras.com.ar/) es un marketplace para empleados públicos, no para licitaciones del Estado.",
+      "documentacion_api": "Ver COMPR.AR.",
+      "requiere_registro": "Ver COMPR.AR.",
+      "limitaciones_tecnicas": "Fragmentación posible entre portales informativos y operativos.",
+      "tecnologia_sugerida": "Scrapy"
+    },
+    {
+      "prioridad": 3,
+      "nombre": "Boletín Oficial de la Provincia de Buenos Aires",
+      "url": "https://www.boletinoficial.gba.gob.ar/",
+      "jurisdiccion": "Provincial (Buenos Aires)",
+      "tipo_acceso": "Portal web, Posible scraping",
+      "frecuencia_actualizacion": "Diaria",
+      "cobertura_campos": "Media",
+      "campos_disponibles": [
+        "Error al analizar: HTTPSConnectionPool(host='www.boletinoficial.gba.gob.ar', port=443): Max retries exceeded with url: / (Caused by SSLError(SSLCertVerificationError(\"hostname 'www.boletinoficial.gba.gob.ar' doesn't match 'boletinoficial.gba.gob.ar'\")))"
+      ],
+      "campos_faltantes": [
+        "Error al analizar: HTTPSConnectionPool(host='www.boletinoficial.gba.gob.ar', port=443): Max retries exceeded with url: / (Caused by SSLError(SSLCertVerificationError(\"hostname 'www.boletinoficial.gba.gob.ar' doesn't match 'boletinoficial.gba.gob.ar'\")))"
+      ],
+      "volumen_estimado": "Muy alto",
+      "observaciones": "Publicación de actos de gobierno de la Provincia de Buenos Aires.",
+      "documentacion_api": "No disponible.",
+      "requiere_registro": "No para consulta.",
+      "limitaciones_tecnicas": "Requiere scraping.",
+      "tecnologia_sugerida": "API/Descarga directa"
+    },
+    {
+      "prioridad": 4,
+      "nombre": "Compras Públicas Córdoba",
+      "url": "https://compraspublicas.cba.gov.ar/",
+      "jurisdiccion": "Provincial (Córdoba)",
+      "tipo_acceso": "Portal web",
+      "frecuencia_actualizacion": "Diaria (estimado)",
+      "cobertura_campos": "Requiere análisis técnico detallado",
+      "campos_disponibles": [
+        "Objeto de contratación",
+        "Tipo",
+        "Numero de Contratación",
+        "Servicio Administrativo",
+        "Fecha de inicio",
+        "Fecha cierre"
+      ],
+      "campos_faltantes": [
+        "Objeto de contratación",
+        "Tipo",
+        "Numero de Contratación",
+        "Servicio Administrativo",
+        "Fecha de inicio",
+        "Fecha cierre"
+      ],
+      "volumen_estimado": "Alto",
+      "observaciones": "Portal de compras de la provincia de Córdoba.",
+      "documentacion_api": "No se encontró documentación de API pública directa.",
+      "requiere_registro": "Sí, para operar como proveedor.",
+      "limitaciones_tecnicas": "Requiere análisis para scraping.",
+      "tecnologia_sugerida": "Scrapy"
+    },
+    {
+      "prioridad": 3,
+      "nombre": "Boletín Oficial de la Provincia de Córdoba",
+      "url": "https://boletinoficial.cba.gov.ar/",
+      "jurisdiccion": "Provincial (Córdoba)",
+      "tipo_acceso": "Portal web, Posible scraping",
+      "frecuencia_actualizacion": "Diaria",
+      "cobertura_campos": "Media",
+      "campos_disponibles": [
+        "No se detectaron tablas en la página principal."
+      ],
+      "campos_faltantes": [
+        "No se detectaron tablas en la página principal."
+      ],
+      "volumen_estimado": "Alto",
+      "observaciones": "Publicación de actos de gobierno de Córdoba.",
+      "documentacion_api": "No disponible.",
+      "requiere_registro": "Sí, para acceso a servicios adicionales, consulta básica abierta.",
+      "limitaciones_tecnicas": "Requiere scraping.",
+      "tecnologia_sugerida": "API/Descarga directa"
+    },
+    {
+      "prioridad": 4,
+      "nombre": "Compras y Licitaciones - Gobierno de Santa Fe",
+      "url": "https://www.santafe.gov.ar/licitaciones/",
+      "jurisdiccion": "Provincial (Santa Fe)",
+      "tipo_acceso": "Portal web",
+      "frecuencia_actualizacion": "Diaria (estimado)",
+      "cobertura_campos": "Requiere análisis técnico detallado",
+      "campos_disponibles": [
+        "Apertura",
+        "Titulo",
+        "Monto",
+        "Organismo"
+      ],
+      "campos_faltantes": [
+        "Apertura",
+        "Titulo",
+        "Monto",
+        "Organismo"
+      ],
+      "volumen_estimado": "Alto",
+      "observaciones": "Portal de licitaciones de la provincia de Santa Fe.",
+      "documentacion_api": "No se encontró documentación de API pública directa.",
+      "requiere_registro": "Variable según el proceso.",
+      "limitaciones_tecnicas": "Requiere análisis para scraping.",
+      "tecnologia_sugerida": "Scrapy"
+    },
+    {
+      "prioridad": 3,
+      "nombre": "Boletín Oficial de la Provincia de Santa Fe",
+      "url": "https://www.santafe.gov.ar/boletinoficial/",
+      "jurisdiccion": "Provincial (Santa Fe)",
+      "tipo_acceso": "Portal web, Posible scraping",
+      "frecuencia_actualizacion": "Diaria",
+      "cobertura_campos": "Media",
+      "campos_disponibles": [
+        "",
+        "I- FE DE ERRATASII- LEYES PROVINCIALESIII- DECRETOS PROVINCIALESIV- DECRETOS SINTETIZADOSV- RESOLUCIONES PROVINCIALESVI- LICITACIONESDIRECCIÓN PROVINCIAL DE VIALIDAD      LICITACIÓN PÚBLICA N.º 17/2025  Expediente N.°16108-0005394-3      TENDIENTE A CONCRETAR LA OBRA: “R.P. N.º 41-S TRAMO: BERNARDO DE IRIGOYEN – AP01 - REPAVIMENTACIÓN”.  PRESUPUESTO OFICIAL: $ 17.599.000.00000.-  FECHA DE APERTURA DE LAS OFERTAS:  29 de agosto de 2025    LUGAR DE APERTURA DE LAS OFERTAS: Comuna de Irigoyen Belgrano 550 Irigoyen.  HORA: 11:00 horas  CONSULTAS E INFORMES: de lunes a viernes en el horario de 7 a 13 horas en la Direc...Ver texto completoVII- AVISOS OFICIALESBANCO SANTANDER RIO SA      POR  WALTER FABIAN NARVÁEZ      El Martillero Walter Fabián Narváez comunica por un (1) día que subastará únicamente a través del Portal www.narvaezbid.com.ar  el día 7 de agosto de 2.025 a partir de las 11:00 horas 11 unidades por cuenta y orden de BANCO SANTANDER RIO S.A. (Acreedores Prendarios Art. 39 de la Ley 12.962) y de conformidad con lo establecido por el Art. 2229 del Código Civil y Comercial a saber: MOYA MARIA ESTER BMW SEDAN 4 PUERTAS 320 D  2010...Ver texto completoVIII- CONVOCATORIASCLUB UNIDAD SANCRISTOBALENSE        ASAMBLEA GENERAL ORDINARIA      La comisión directiva del Club Unidad Sancristobalense convoca a sus asociados a la Asamblea General Ordinaria que se realizará el día 31 de Julio de 2025 a las 20:30 horas en la sede de la entidad cita en Caseros Nº1021 de la ciudad de San Cristóbal de conformidad con lo dispuesto en los artículos 29 30 31 32 33 y 34 del Estatuto Social para tratar el siguiente:      ORDEN DEL DIA  1- Lectura y aprobación del acta anteri...Ver texto completoIX- CONTRATOS, ESTATUTOS, BALANCES, ETCPET / CT SAN GERÓNIMO S.R.L.        MODIFICACIÓN AL CONTRATO      Por estar así dispuesto en los autos caratulados \"Pet / CT San Gerónimo S.R.L. s/Modificación al Contrato Social\" Expte. Nº 737/2025 CUIJ: 21-05216349-5 tramitados ante el Registro Público de la ciudad de Santa Fe se hace saber que : 1) César Raúl Blajman DNI: 8.508.080 CUIT 20-08508080-7 domiciliado en calle Moreno 2847 de la ciudad de Santa Fe provincia de Santa Fe VENDE CEDE Y TRANSFIERE SIETE (07) cuotas de capital qu...Ver texto completoX- SECCION JUDICIAL - PRIMERA CIRCUNSCRIPCION - REMATESSAN JORGE        POR  DANIEL JOSE ALTARE      Por disposición del señor Juez de Primera Instancia de Distrito en lo Civil Comercial y  Laboral de la  ciudad de  San Jorge en los autos caratulados: (CUIJ.: 21-26252353-2)  (Expte 1013/2015)  BONGIOVANNI MARIA ESTER Y FORTUNATO DANIEL RAMON S/ QUIEBRA. Se ha dispuesto que el  martillero DANIEL JOSE ALTARE  CUIT: 20-06246930-8 Matrícula 124 procederá a vender en pública subasta el día VIERNES 01 DE AGOSTO de 2025 a las 11:00  horas; ó el día...Ver texto completoXI- SECCION JUDICIAL - PRIMERA CIRCUNSCRIPCION - EDICTOSSANTA FE        Juzgado de Primera Instancia      Por estar así dispuesto en los autos caratulados “MIÑOS CAROLINA GUADALUPE C/PENA JUAN ÁNGEL S/ DIVORCIO” (CUIJ NRO.: 21-10772051-8) de trámite por ante el Juzgado Unipersonal de Familia Nro. 9 de la ciudad de Santa Fe se cita y emplaza al SR. JUAN ÁNGEL PENA D.N.I. N° 33.804.088 a comparecer a estar a derecho y contestar traslado de la propuesta reguladora por el termino de diez días y bajo apercibimientos de ley. Citándoselo por med...Ver texto completoXII- SECCION JUDICIAL - SEGUNDA CIRCUNSCRIPCION - REMATESSan Lorenzo        Primera Instancia      POR  MIGUEL ANGEL MERCERAT      Por disposición del Señor Juez de Primera Instancia de Distrito en lo Laboral de la localidad de San Lorenzo en autos: \"MANSILLA RAMON GUILLERMO c/OTROS s/COBRO DE PESOS - RUBROS LABORALES\" CUIJ 21-17072905-3 (demandados CUIT 20-26389615-8 y 27-27499330-3) el Martillero Miguel Angel Mercerat (CUIT 20-17669315-1) venderá en pública subasta el día 7 de agosto de 2025 a las 11 horas en el hall de los Tribunales Provincia...Ver texto completoXIII- SECCION JUDICIAL - SEGUNDA CIRCUNSCRIPCION - EDICTOSROSARIO        juzgado de Primera Instancia      El Sr. Juez a cargo del juzgado de Primera Instancia de Circuito de Ejecución de la 1ª Nominación de Rosario DRA. MARIANA MARTINEZ notifica al Sr. PAZ MAURO EZEQUIEL (DNI Nº 34.087.661) lo declarado en autos: CFN S.R.L. c/ PAZ MAURO EZEQUIEL s/ EJECUTIVO CUIJ Nº 21-13933292-7): ROSARIO 26 de Marzo de 2024.  Por parte domiciliada y por iniciada DEMANDA EJECUTIVA. Cítese y emplácese a la parte demandada bajo apercibimiento de Rebeldía y de s...Ver texto completoXIV- SECCION JUDICIAL - OTRAS JURISDICCIONES - REMATESXV- SECCION JUDICIAL - OTRAS JURISDICCIONES - EDICTOSXVI- LEY 11867XVII- INSTITUTO MUNICIPAL DE PREVISIÓN SOCIAL DE ROSARIOXVIII- AVISOS"
+      ],
+      "campos_faltantes": [
+        "",
+        "I- FE DE ERRATASII- LEYES PROVINCIALESIII- DECRETOS PROVINCIALESIV- DECRETOS SINTETIZADOSV- RESOLUCIONES PROVINCIALESVI- LICITACIONESDIRECCIÓN PROVINCIAL DE VIALIDAD      LICITACIÓN PÚBLICA N.º 17/2025  Expediente N.°16108-0005394-3      TENDIENTE A CONCRETAR LA OBRA: “R.P. N.º 41-S TRAMO: BERNARDO DE IRIGOYEN – AP01 - REPAVIMENTACIÓN”.  PRESUPUESTO OFICIAL: $ 17.599.000.00000.-  FECHA DE APERTURA DE LAS OFERTAS:  29 de agosto de 2025    LUGAR DE APERTURA DE LAS OFERTAS: Comuna de Irigoyen Belgrano 550 Irigoyen.  HORA: 11:00 horas  CONSULTAS E INFORMES: de lunes a viernes en el horario de 7 a 13 horas en la Direc...Ver texto completoVII- AVISOS OFICIALESBANCO SANTANDER RIO SA      POR  WALTER FABIAN NARVÁEZ      El Martillero Walter Fabián Narváez comunica por un (1) día que subastará únicamente a través del Portal www.narvaezbid.com.ar  el día 7 de agosto de 2.025 a partir de las 11:00 horas 11 unidades por cuenta y orden de BANCO SANTANDER RIO S.A. (Acreedores Prendarios Art. 39 de la Ley 12.962) y de conformidad con lo establecido por el Art. 2229 del Código Civil y Comercial a saber: MOYA MARIA ESTER BMW SEDAN 4 PUERTAS 320 D  2010...Ver texto completoVIII- CONVOCATORIASCLUB UNIDAD SANCRISTOBALENSE        ASAMBLEA GENERAL ORDINARIA      La comisión directiva del Club Unidad Sancristobalense convoca a sus asociados a la Asamblea General Ordinaria que se realizará el día 31 de Julio de 2025 a las 20:30 horas en la sede de la entidad cita en Caseros Nº1021 de la ciudad de San Cristóbal de conformidad con lo dispuesto en los artículos 29 30 31 32 33 y 34 del Estatuto Social para tratar el siguiente:      ORDEN DEL DIA  1- Lectura y aprobación del acta anteri...Ver texto completoIX- CONTRATOS, ESTATUTOS, BALANCES, ETCPET / CT SAN GERÓNIMO S.R.L.        MODIFICACIÓN AL CONTRATO      Por estar así dispuesto en los autos caratulados \"Pet / CT San Gerónimo S.R.L. s/Modificación al Contrato Social\" Expte. Nº 737/2025 CUIJ: 21-05216349-5 tramitados ante el Registro Público de la ciudad de Santa Fe se hace saber que : 1) César Raúl Blajman DNI: 8.508.080 CUIT 20-08508080-7 domiciliado en calle Moreno 2847 de la ciudad de Santa Fe provincia de Santa Fe VENDE CEDE Y TRANSFIERE SIETE (07) cuotas de capital qu...Ver texto completoX- SECCION JUDICIAL - PRIMERA CIRCUNSCRIPCION - REMATESSAN JORGE        POR  DANIEL JOSE ALTARE      Por disposición del señor Juez de Primera Instancia de Distrito en lo Civil Comercial y  Laboral de la  ciudad de  San Jorge en los autos caratulados: (CUIJ.: 21-26252353-2)  (Expte 1013/2015)  BONGIOVANNI MARIA ESTER Y FORTUNATO DANIEL RAMON S/ QUIEBRA. Se ha dispuesto que el  martillero DANIEL JOSE ALTARE  CUIT: 20-06246930-8 Matrícula 124 procederá a vender en pública subasta el día VIERNES 01 DE AGOSTO de 2025 a las 11:00  horas; ó el día...Ver texto completoXI- SECCION JUDICIAL - PRIMERA CIRCUNSCRIPCION - EDICTOSSANTA FE        Juzgado de Primera Instancia      Por estar así dispuesto en los autos caratulados “MIÑOS CAROLINA GUADALUPE C/PENA JUAN ÁNGEL S/ DIVORCIO” (CUIJ NRO.: 21-10772051-8) de trámite por ante el Juzgado Unipersonal de Familia Nro. 9 de la ciudad de Santa Fe se cita y emplaza al SR. JUAN ÁNGEL PENA D.N.I. N° 33.804.088 a comparecer a estar a derecho y contestar traslado de la propuesta reguladora por el termino de diez días y bajo apercibimientos de ley. Citándoselo por med...Ver texto completoXII- SECCION JUDICIAL - SEGUNDA CIRCUNSCRIPCION - REMATESSan Lorenzo        Primera Instancia      POR  MIGUEL ANGEL MERCERAT      Por disposición del Señor Juez de Primera Instancia de Distrito en lo Laboral de la localidad de San Lorenzo en autos: \"MANSILLA RAMON GUILLERMO c/OTROS s/COBRO DE PESOS - RUBROS LABORALES\" CUIJ 21-17072905-3 (demandados CUIT 20-26389615-8 y 27-27499330-3) el Martillero Miguel Angel Mercerat (CUIT 20-17669315-1) venderá en pública subasta el día 7 de agosto de 2025 a las 11 horas en el hall de los Tribunales Provincia...Ver texto completoXIII- SECCION JUDICIAL - SEGUNDA CIRCUNSCRIPCION - EDICTOSROSARIO        juzgado de Primera Instancia      El Sr. Juez a cargo del juzgado de Primera Instancia de Circuito de Ejecución de la 1ª Nominación de Rosario DRA. MARIANA MARTINEZ notifica al Sr. PAZ MAURO EZEQUIEL (DNI Nº 34.087.661) lo declarado en autos: CFN S.R.L. c/ PAZ MAURO EZEQUIEL s/ EJECUTIVO CUIJ Nº 21-13933292-7): ROSARIO 26 de Marzo de 2024.  Por parte domiciliada y por iniciada DEMANDA EJECUTIVA. Cítese y emplácese a la parte demandada bajo apercibimiento de Rebeldía y de s...Ver texto completoXIV- SECCION JUDICIAL - OTRAS JURISDICCIONES - REMATESXV- SECCION JUDICIAL - OTRAS JURISDICCIONES - EDICTOSXVI- LEY 11867XVII- INSTITUTO MUNICIPAL DE PREVISIÓN SOCIAL DE ROSARIOXVIII- AVISOS"
+      ],
+      "volumen_estimado": "Alto",
+      "observaciones": "Publicación de actos de gobierno de Santa Fe.",
+      "documentacion_api": "No disponible.",
+      "requiere_registro": "No para consulta.",
+      "limitaciones_tecnicas": "Requiere scraping.",
+      "tecnologia_sugerida": "API/Descarga directa"
+    },
+    {
+      "prioridad": 3,
+      "nombre": "Universidades Compran (CIN)",
+      "url": "https://universidadescompran.cin.edu.ar/",
+      "jurisdiccion": "Nacional (Universidades Nacionales)",
+      "tipo_acceso": "Portal web",
+      "frecuencia_actualizacion": "Frecuente",
+      "cobertura_campos": "Media-Alta (estructura tabular clara)",
+      "campos_disponibles": [
+        "organismo (Universidad)",
+        "numero_licitacion",
+        "tipo_procedimiento",
+        "titulo (Objeto)",
+        "fecha_publicacion (Inicio)",
+        "fecha_apertura (Fin)"
+      ],
+      "campos_faltantes": [
+        "Muchos campos esenciales y adicionales del esquema requerido."
+      ],
+      "volumen_estimado": "Medio",
+      "observaciones": "Portal que centraliza compras de Universidades Nacionales. Buena base para scraping.",
+      "documentacion_api": "No disponible.",
+      "requiere_registro": "No para consulta.",
+      "limitaciones_tecnicas": "Requiere scraping. No todos los campos del esquema ideal están presentes.",
+      "tecnologia_sugerida": "Scrapy"
+    },
+    {
+      "prioridad": 4,
+      "nombre": "Portal de Compras AFIP",
+      "url": "https://www.afip.gob.ar/compras/",
+      "jurisdiccion": "Nacional (Organismo Específico)",
+      "tipo_acceso": "Portal web",
+      "frecuencia_actualizacion": "Frecuente",
+      "cobertura_campos": "Requiere análisis técnico detallado",
+      "campos_disponibles": [
+        "No se detectaron tablas en la página principal."
+      ],
+      "campos_faltantes": [
+        "No se detectaron tablas en la página principal."
+      ],
+      "volumen_estimado": "Medio",
+      "observaciones": "Portal de compras propio de la AFIP.",
+      "documentacion_api": "No se encontró.",
+      "requiere_registro": "Sí, para proveedores.",
+      "limitaciones_tecnicas": "Requiere análisis para scraping.",
+      "tecnologia_sugerida": "Scrapy"
+    },
+    {
+      "prioridad": 4,
+      "nombre": "ANSES - Compras y Contrataciones",
+      "url": "https://www.anses.gob.ar/institucional/compras-y-contrataciones",
+      "jurisdiccion": "Nacional (Organismo Específico)",
+      "tipo_acceso": "Página informativa, enlaces a COMPR.AR y otros",
+      "frecuencia_actualizacion": "Depende de las plataformas enlazadas",
+      "cobertura_campos": "Depende de COMPR.AR",
+      "campos_disponibles": [
+        "Ver COMPR.AR"
+      ],
+      "campos_faltantes": [
+        "Ver COMPR.AR"
+      ],
+      "volumen_estimado": "Medio",
+      "observaciones": "ANSES utiliza COMPR.AR para muchas de sus contrataciones.",
+      "documentacion_api": "Ver COMPR.AR.",
+      "requiere_registro": "Ver COMPR.AR.",
+      "limitaciones_tecnicas": "La información está centralizada en COMPR.AR.",
+      "tecnologia_sugerida": "Revisión manual"
+    },
+    {
+      "prioridad": 5,
+      "nombre": "Aerolíneas Argentinas - Proveedores/Concursos",
+      "url": "https://www.aerolineas.com.ar/proveedores",
+      "jurisdiccion": "Nacional (Empresa Estatal)",
+      "tipo_acceso": "Portal web",
+      "frecuencia_actualizacion": "Frecuente",
+      "cobertura_campos": "Media (información de contacto y descripción general, pliegos por email)",
+      "campos_disponibles": [
+        "titulo",
+        "fecha_cierre",
+        "contacto (email para solicitar pliego)"
+      ],
+      "campos_faltantes": [
+        "La mayoría de los campos estructurados del esquema ideal no son visibles directamente."
+      ],
+      "volumen_estimado": "Bajo-Medio",
+      "observaciones": "Los pliegos se solicitan por correo electrónico, lo que dificulta la extracción automática de datos detallados.",
+      "documentacion_api": "No disponible.",
+      "requiere_registro": "Implícito al contactar por email.",
+      "limitaciones_tecnicas": "Proceso manual para obtener detalles; no apto para scraping masivo de datos estructurados.",
+      "tecnologia_sugerida": "Scrapy"
+    },
+    {
+      "prioridad": 6,
+      "nombre": "YPF - Licitaciones (Información limitada)",
+      "url": "No se encontró un portal centralizado único para todas las licitaciones de YPF. La información suele aparecer en noticias o secciones de inversores para grandes proyectos. Se debería investigar el 'Portal de Compras YPF' si existe o canales directos para proveedores.",
+      "jurisdiccion": "Nacional (Empresa Estatal con participación privada)",
+      "tipo_acceso": "Variable (noticias, portal de inversores, posible portal de proveedores no fácilmente localizable en búsquedas generales)",
+      "frecuencia_actualizacion": "Variable",
+      "cobertura_campos": "Baja (en fuentes públicas generales)",
+      "campos_disponibles": [
+        "Requiere investigación específica en portales de proveedores de YPF si existen."
+      ],
+      "campos_faltantes": [
+        "Requiere investigación específica."
+      ],
+      "volumen_estimado": "Medio-Alto (considerando el tamaño de la empresa)",
+      "observaciones": "Se requiere una búsqueda más específica orientada a los canales que YPF utiliza para comunicarse con sus proveedores para bienes y servicios generales.",
+      "documentacion_api": "No encontrada.",
+      "requiere_registro": "Probablemente sí, en su portal de proveedores.",
+      "limitaciones_tecnicas": "Información dispersa en fuentes públicas generales.",
+      "tecnologia_sugerida": "Revisión manual"
+    },
+    {
+      "prioridad": 4,
+      "nombre": "SALTA COMPRA - Portal de Compras Públicas de Salta",
+      "url": "https://saltacompra.gob.ar/",
+      "jurisdiccion": "Provincial (Salta)",
+      "tipo_acceso": "Portal web (menciona COMPR.AR en términos, posible integración)",
+      "frecuencia_actualizacion": "Diaria (estimado)",
+      "cobertura_campos": "Requiere análisis técnico detallado",
+      "campos_disponibles": [
+        "No se detectaron tablas en la página principal."
+      ],
+      "campos_faltantes": [
+        "No se detectaron tablas en la página principal."
+      ],
+      "volumen_estimado": "Medio",
+      "observaciones": "Portal de compras de la provincia de Salta.",
+      "documentacion_api": "No se encontró.",
+      "requiere_registro": "Sí, para operar.",
+      "limitaciones_tecnicas": "Requiere análisis para scraping.",
+      "tecnologia_sugerida": "Scrapy"
+    },
+    {
+      "prioridad": 3,
+      "nombre": "Boletín Oficial de Salta",
+      "url": "https://boletinoficialsalta.gob.ar/",
+      "jurisdiccion": "Provincial (Salta)",
+      "tipo_acceso": "Portal web, Posible scraping",
+      "frecuencia_actualizacion": "Diaria",
+      "cobertura_campos": "Media",
+      "campos_disponibles": [
+        "No se detectaron tablas en la página principal."
+      ],
+      "campos_faltantes": [
+        "No se detectaron tablas en la página principal."
+      ],
+      "volumen_estimado": "Medio",
+      "observaciones": "Publicación de actos de gobierno de Salta.",
+      "documentacion_api": "No disponible.",
+      "requiere_registro": "No para consulta.",
+      "limitaciones_tecnicas": "Requiere scraping.",
+      "tecnologia_sugerida": "API/Descarga directa"
+    },
+    {
+      "prioridad": 4,
+      "nombre": "CO.DI.NEU - Plataforma de Compras Digitales de Neuquén",
+      "url": "https://www.contadurianeuquen.gob.ar/co-di-neu/",
+      "jurisdiccion": "Provincial (Neuquén)",
+      "tipo_acceso": "Portal web",
+      "frecuencia_actualizacion": "Diaria (estimado)",
+      "cobertura_campos": "Requiere análisis técnico detallado",
+      "campos_disponibles": [
+        "No se detectaron tablas en la página principal."
+      ],
+      "campos_faltantes": [
+        "No se detectaron tablas en la página principal."
+      ],
+      "volumen_estimado": "Medio",
+      "observaciones": "Sistema de compras digitales de Neuquén.",
+      "documentacion_api": "No se encontró.",
+      "requiere_registro": "Sí, para operar.",
+      "limitaciones_tecnicas": "Requiere análisis para scraping.",
+      "tecnologia_sugerida": "Scrapy"
+    },
+    {
+      "prioridad": 3,
+      "nombre": "Boletín Oficial de Neuquén",
+      "url": "https://boletinoficial.neuquen.gov.ar/",
+      "jurisdiccion": "Provincial (Neuquén)",
+      "tipo_acceso": "Portal web, Posible scraping",
+      "frecuencia_actualizacion": "Diaria",
+      "cobertura_campos": "Media",
+      "campos_disponibles": [
+        "Error al analizar: 502 Server Error: Bad Gateway for url: https://boletinoficial.neuquen.gov.ar/"
+      ],
+      "campos_faltantes": [
+        "Error al analizar: 502 Server Error: Bad Gateway for url: https://boletinoficial.neuquen.gov.ar/"
+      ],
+      "volumen_estimado": "Medio",
+      "observaciones": "Publicación de actos de gobierno de Neuquén.",
+      "documentacion_api": "No disponible.",
+      "requiere_registro": "No para consulta.",
+      "limitaciones_tecnicas": "Requiere scraping.",
+      "tecnologia_sugerida": "API/Descarga directa"
+    },
+    {
+      "prioridad": 4,
+      "nombre": "Contrataciones - Gobierno de Entre Ríos",
+      "url": "https://portal.entrerios.gov.ar/consultas/contratacionesuep",
+      "jurisdiccion": "Provincial (Entre Ríos)",
+      "tipo_acceso": "Portal web",
+      "frecuencia_actualizacion": "Frecuente",
+      "cobertura_campos": "Requiere análisis técnico detallado",
+      "campos_disponibles": [
+        "No se detectaron tablas en la página principal."
+      ],
+      "campos_faltantes": [
+        "No se detectaron tablas en la página principal."
+      ],
+      "volumen_estimado": "Medio",
+      "observaciones": "Portal de consulta de contrataciones de Entre Ríos.",
+      "documentacion_api": "No se encontró.",
+      "requiere_registro": "No para consulta general.",
+      "limitaciones_tecnicas": "Requiere análisis para scraping.",
+      "tecnologia_sugerida": "Scrapy"
+    },
+    {
+      "prioridad": 3,
+      "nombre": "Boletín Oficial de Entre Ríos",
+      "url": "https://www.entrerios.gov.ar/boletinoficial/",
+      "jurisdiccion": "Provincial (Entre Ríos)",
+      "tipo_acceso": "Portal web, Posible scraping",
+      "frecuencia_actualizacion": "Diaria",
+      "cobertura_campos": "Media",
+      "campos_disponibles": [
+        "Error al analizar: 404 Client Error: Not Found for url: https://www.entrerios.gov.ar/boletinoficial/"
+      ],
+      "campos_faltantes": [
+        "Error al analizar: 404 Client Error: Not Found for url: https://www.entrerios.gov.ar/boletinoficial/"
+      ],
+      "volumen_estimado": "Medio",
+      "observaciones": "Publicación de actos de gobierno de Entre Ríos.",
+      "documentacion_api": "No disponible.",
+      "requiere_registro": "No para consulta.",
+      "limitaciones_tecnicas": "Requiere scraping.",
+      "tecnologia_sugerida": "API/Descarga directa"
+    },
+    {
+      "prioridad": 4,
+      "nombre": "Diaguita - Portal de Compras Públicas - Universidad Nacional de Tucumán",
+      "url": "https://diaguita.unt.edu.ar/diaguita/aplicacion.php?ah=st5a9413cc271136.80054969&ai=diaguita%7C%7C110000003",
+      "jurisdiccion": "Nacional (Universidad Específica)",
+      "tipo_acceso": "Portal web",
+      "frecuencia_actualizacion": "Frecuente",
+      "cobertura_campos": "Media (estructura tabular)",
+      "campos_disponibles": [
+        "organismo",
+        "numero_licitacion",
+        "tipo_procedimiento",
+        "titulo",
+        "fecha_publicacion",
+        "fecha_apertura"
+      ],
+      "campos_faltantes": [
+        "Varios campos del esquema ideal."
+      ],
+      "volumen_estimado": "Bajo-Medio",
+      "observaciones": "Sistema utilizado por la UNT. Otras universidades podrían usar sistemas similares o el portal 'Universidades Compran'.",
+      "documentacion_api": "No disponible.",
+      "requiere_registro": "No para consulta.",
+      "limitaciones_tecnicas": "Requiere scraping.",
+      "tecnologia_sugerida": "Scrapy"
+    },
+    {
+      "prioridad": 4,
+      "nombre": "Portal de Compras y Contrataciones - Provincia de Tucumán",
+      "url": "https://compras.tucuman.gov.ar/",
+      "jurisdiccion": "Provincial (Tucumán)",
+      "tipo_acceso": "Portal web (parece utilizar tecnología similar a COMPR.AR o ser una instancia de este)",
+      "frecuencia_actualizacion": "Diaria (estimado)",
+      "cobertura_campos": "Potencialmente alta",
+      "campos_disponibles": [
+        "No se detectaron tablas en la página principal."
+      ],
+      "campos_faltantes": [
+        "No se detectaron tablas en la página principal."
+      ],
+      "volumen_estimado": "Medio",
+      "observaciones": "Portal de compras de la provincia de Tucumán.",
+      "documentacion_api": "No se encontró.",
+      "requiere_registro": "Sí, para proveedores.",
+      "limitaciones_tecnicas": "Requiere análisis.",
+      "tecnologia_sugerida": "Scrapy"
+    },
+    {
+      "prioridad": 3,
+      "nombre": "Boletín Oficial de Tucumán",
+      "url": "https://boletinoficial.tucuman.gov.ar/",
+      "jurisdiccion": "Provincial (Tucumán)",
+      "tipo_acceso": "Portal web, Posible scraping",
+      "frecuencia_actualizacion": "Diaria",
+      "cobertura_campos": "Media",
+      "campos_disponibles": [
+        "Error al analizar: HTTPSConnectionPool(host='boletinoficial.tucuman.gov.ar', port=443): Max retries exceeded with url: / (Caused by SSLError(SSLError(1, '[SSL: WRONG_VERSION_NUMBER] wrong version number (_ssl.c:1129)')))"
+      ],
+      "campos_faltantes": [
+        "Error al analizar: HTTPSConnectionPool(host='boletinoficial.tucuman.gov.ar', port=443): Max retries exceeded with url: / (Caused by SSLError(SSLError(1, '[SSL: WRONG_VERSION_NUMBER] wrong version number (_ssl.c:1129)')))"
+      ],
+      "volumen_estimado": "Medio",
+      "observaciones": "Publicación de actos de gobierno de Tucumán.",
+      "documentacion_api": "No disponible.",
+      "requiere_registro": "No para consulta.",
+      "limitaciones_tecnicas": "Requiere scraping.",
+      "tecnologia_sugerida": "API/Descarga directa"
+    },
+    {
+      "prioridad": 4,
+      "nombre": "COMPR.AR Río Negro - Portal de Compras Públicas de Río Negro",
+      "url": "https://comprar.rionegro.gov.ar/",
+      "jurisdiccion": "Provincial (Río Negro)",
+      "tipo_acceso": "Portal web (basado en COMPR.AR)",
+      "frecuencia_actualizacion": "Diaria (estimado)",
+      "cobertura_campos": "Potencialmente alta (similar a COMPR.AR nacional)",
+      "campos_disponibles": [
+        "No se encontraron resultados para tu búsqueda"
+      ],
+      "campos_faltantes": [
+        "No se encontraron resultados para tu búsqueda"
+      ],
+      "volumen_estimado": "Medio",
+      "observaciones": "Sistema de compras de la provincia de Río Negro.",
+      "documentacion_api": "No se encontró.",
+      "requiere_registro": "Sí, para operar.",
+      "limitaciones_tecnicas": "Similar a COMPR.AR.",
+      "tecnologia_sugerida": "Scrapy"
+    },
+    {
+      "prioridad": 3,
+      "nombre": "Boletín Oficial de Río Negro",
+      "url": "https://boletinoficial.rionegro.gov.ar/",
+      "jurisdiccion": "Provincial (Río Negro)",
+      "tipo_acceso": "Portal web, Posible scraping",
+      "frecuencia_actualizacion": "Diaria",
+      "cobertura_campos": "Media",
+      "campos_disponibles": [
+        "No se detectaron tablas en la página principal."
+      ],
+      "campos_faltantes": [
+        "No se detectaron tablas en la página principal."
+      ],
+      "volumen_estimado": "Medio",
+      "observaciones": "Publicación de actos de gobierno de Río Negro.",
+      "documentacion_api": "No disponible.",
+      "requiere_registro": "No para consulta.",
+      "limitaciones_tecnicas": "Requiere scraping.",
+      "tecnologia_sugerida": "API/Descarga directa"
+    },
+    {
+      "prioridad": 4,
+      "nombre": "Portal de Compras y Contrataciones San Juan",
+      "url": "https://compras.sanjuan.gob.ar/",
+      "jurisdiccion": "Provincial (San Juan)",
+      "tipo_acceso": "Portal web (parece utilizar tecnología COMPR.AR)",
+      "frecuencia_actualizacion": "Diaria (estimado)",
+      "cobertura_campos": "Potencialmente alta",
+      "campos_disponibles": [
+        "Error al analizar: HTTPSConnectionPool(host='compras.sanjuan.gob.ar', port=443): Max retries exceeded with url: / (Caused by NewConnectionError('<urllib3.connection.HTTPSConnection object at 0x11aeb92e0>: Failed to establish a new connection: [Errno 8] nodename nor servname provided, or not known'))"
+      ],
+      "campos_faltantes": [
+        "Error al analizar: HTTPSConnectionPool(host='compras.sanjuan.gob.ar', port=443): Max retries exceeded with url: / (Caused by NewConnectionError('<urllib3.connection.HTTPSConnection object at 0x11aecefa0>: Failed to establish a new connection: [Errno 8] nodename nor servname provided, or not known'))"
+      ],
+      "volumen_estimado": "Medio",
+      "observaciones": "Sistema de compras de la provincia de San Juan.",
+      "documentacion_api": "No se encontró.",
+      "requiere_registro": "Sí, para operar.",
+      "limitaciones_tecnicas": "Similar a COMPR.AR.",
+      "tecnologia_sugerida": "Scrapy"
+    },
+    {
+      "prioridad": 3,
+      "nombre": "Boletín Oficial de San Juan",
+      "url": "https://boletinoficial.sanjuan.gob.ar/",
+      "jurisdiccion": "Provincial (San Juan)",
+      "tipo_acceso": "Portal web, Posible scraping",
+      "frecuencia_actualizacion": "Diaria",
+      "cobertura_campos": "Media",
+      "campos_disponibles": [
+        "No se detectaron tablas en la página principal."
+      ],
+      "campos_faltantes": [
+        "No se detectaron tablas en la página principal."
+      ],
+      "volumen_estimado": "Medio",
+      "observaciones": "Publicación de actos de gobierno de San Juan.",
+      "documentacion_api": "No disponible.",
+      "requiere_registro": "No para consulta.",
+      "limitaciones_tecnicas": "Requiere scraping.",
+      "tecnologia_sugerida": "API/Descarga directa"
+    },
+    {
+      "prioridad": 5,
+      "nombre": "Boletín Oficial de Jujuy",
+      "url": "https://boletinoficial.jujuy.gob.ar/",
+      "jurisdiccion": "Provincial (Jujuy)",
+      "tipo_acceso": "Portal web, Posible scraping",
+      "frecuencia_actualizacion": "Diaria",
+      "cobertura_campos": "Media",
+      "campos_disponibles": [
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        ""
+      ],
+      "campos_faltantes": [
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        ""
+      ],
+      "volumen_estimado": "Medio",
+      "observaciones": "Fuente de información de licitaciones. Se debe verificar si existe un portal de compras provincial unificado además del boletín.",
+      "documentacion_api": "No disponible.",
+      "requiere_registro": "No para consulta.",
+      "limitaciones_tecnicas": "Requiere scraping.",
+      "tecnologia_sugerida": "API/Descarga directa"
+    },
+    {
+      "prioridad": 5,
+      "nombre": "Boletín Oficial de Catamarca",
+      "url": "https://boletinoficial.catamarca.gob.ar/",
+      "jurisdiccion": "Provincial (Catamarca)",
+      "tipo_acceso": "Portal web, Posible scraping",
+      "frecuencia_actualizacion": "Diaria",
+      "cobertura_campos": "Media",
+      "campos_disponibles": [
+        "Error al analizar: 403 Client Error: Forbidden for url: https://boletinoficial.catamarca.gob.ar/"
+      ],
+      "campos_faltantes": [
+        "Error al analizar: 403 Client Error: Forbidden for url: https://boletinoficial.catamarca.gob.ar/"
+      ],
+      "volumen_estimado": "Bajo-Medio",
+      "observaciones": "Fuente de información de licitaciones. Se debe verificar si existe un portal de compras provincial unificado además del boletín.",
+      "documentacion_api": "No disponible.",
+      "requiere_registro": "No para consulta.",
+      "limitaciones_tecnicas": "Requiere scraping.",
+      "tecnologia_sugerida": "API/Descarga directa"
+    },
+    {
+      "prioridad": 7,
+      "nombre": "Municipios de Mendoza (Ej: Capital, Godoy Cruz, Las Heras)",
+      "url": "Requiere búsqueda individual para cada municipio. Ejemplo: https://www.ciudaddemendoza.gob.ar/ (buscar sección de compras/licitaciones)",
+      "jurisdiccion": "Municipal (Mendoza)",
+      "tipo_acceso": "Portal web municipal individual, posible scraping",
+      "frecuencia_actualizacion": "Variable por municipio",
+      "cobertura_campos": "Variable, probablemente baja-media en términos de datos estructurados fácilmente extraíbles.",
+      "campos_disponibles": [
+        "Requiere análisis individual por municipio"
+      ],
+      "campos_faltantes": [
+        "Requiere análisis individual por municipio"
+      ],
+      "volumen_estimado": "Bajo individualmente, acumulado puede ser medio.",
+      "observaciones": "Cada municipio puede tener su propio sistema o sección en su web. No hay un portal unificado de licitaciones para todos los municipios de Mendoza identificado. Algunos podrían usar el COMPR.AR provincial.",
+      "documentacion_api": "Generalmente no disponible.",
+      "requiere_registro": "Variable.",
+      "limitaciones_tecnicas": "Alta fragmentación, requiere scraping individualizado por municipio, heterogeneidad de formatos.",
+      "tecnologia_sugerida": "API/Descarga directa"
+    }
+  ],
+  "analisis_cobertura_jurisdiccion": {
+    "nacional": "Buena cobertura con COMPR.AR, CONTRAT.AR y Boletín Oficial. Datos estructurados accesibles vía datos.gob.ar.",
+    "provincial": "Cobertura en expansión. Muchas provincias tienen portales propios (varios basados en COMPR.AR) y/o Boletines Oficiales digitalizados. Aún se requiere un mapeo exhaustivo y continuo para las 23 provincias y sus sistemas específicos.",
+    "municipal_mendoza": "Fragmentado. Requiere relevamiento individual de cada municipio. No se identificó un portal consolidado para los municipios de Mendoza. Investigar si utilizan el sistema provincial COMPR.AR Mendoza.",
+    "organismos_especificos": "Algunos tienen portales propios (AFIP), otros usan COMPR.AR (ANSES) o publican en sus webs (Aerolíneas). Universidades tienen 'Universidades Compran' y sistemas propios ('Diaguita'). YPF requiere investigación más profunda de sus canales de proveedores."
+  },
+  "recomendaciones_tecnicas": [
+    "Priorizar la integración con datos.gob.ar para COMPR.AR y CONTRAT.AR (OCDS/EDCA).",
+    "Desarrollar scrapers robustos y adaptables para Boletines Oficiales (nacional y provinciales), preparándose para variaciones de formato y tecnologías (PDFs, HTML, etc.).",
+    "Para portales provinciales y municipales sin API, desarrollar scrapers específicos. Considerar la heterogeneidad y la posible necesidad de herramientas anti-CAPTCHA o gestión de sesiones.",
+    "Utilizar el portal 'Universidades Compran' como fuente para licitaciones de universidades nacionales.",
+    "Mantener un directorio dinámico de URLs, formatos de datos y selectores de scraping, ya que pueden cambiar frecuentemente.",
+    "Implementar un sistema de logging y monitoreo para detectar fallos en los scrapers o cambios en las fuentes.",
+    "Considerar el uso de frameworks de scraping como Scrapy (Python) para gestionar la complejidad."
+  ],
+  "roadmap_implementacion_sugerido": [
+    {
+      "paso": 1,
+      "descripcion": "Fase 1 (Núcleo Nacional y Mendoza Prioridad): Integrar COMPR.AR y CONTRAT.AR (datos.gob.ar). Scrapers para Boletín Oficial Nacional, COMPR.AR Mendoza y Boletín Oficial de Mendoza."
+    },
+    {
+      "paso": 2,
+      "descripcion": "Fase 2 (Principales Jurisdicciones y CABA): Scrapers/Integración para portales de CABA, Buenos Aires, Córdoba, Santa Fe y sus Boletines Oficiales."
+    },
+    {
+      "paso": 3,
+      "descripcion": "Fase 3 (Expansión Provincial Sistemática): Abordar sistemáticamente el resto de las provincias, identificando sus portales de compra y boletines oficiales. Priorizar aquellas con mayor volumen o acceso más estructurado."
+    },
+    {
+      "paso": 4,
+      "descripcion": "Fase 4 (Organismos Específicos y Universidades): Integrar fuentes de AFIP, ANSES, Universidades Compran, y otros organismos nacionales relevantes."
+    },
+    {
+      "paso": 5,
+      "descripcion": "Fase 5 (Profundización Municipal y Empresas Estatales): Investigación detallada de fuentes municipales (comenzando por las principales ciudades de cada provincia) y empresas estatales clave (YPF, etc.)."
+    },
+    {
+      "paso": 6,
+      "descripcion": "Fase 6 (Mantenimiento y Optimización Continua): Establecer monitoreo, mantenimiento proactivo de scrapers, y búsqueda continua de nuevas fuentes o APIs."
+    }
+  ]
+}

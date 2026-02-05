@@ -1,0 +1,22 @@
+{
+  "name": "Buenos Aires Provincia",
+  "url": "https://compras.gba.gob.ar/",
+  "active": false,
+  "schedule": "0 6 * * 1-5",
+  "selectors": {
+    "links": "a",
+    "timezone": "America/Argentina/Buenos_Aires",
+    "business_days_window": 4
+  },
+  "pagination": {
+    "max_pages": 5,
+    "next_page_selector": "a.next-page"
+  },
+  "headers": {
+    "User-Agent": "Mozilla/5.0 (compatible; Licitometro/2.0)"
+  },
+  "cookies": {},
+  "wait_time": 2.0,
+  "max_items": 100,
+  "source_type": "website"
+}

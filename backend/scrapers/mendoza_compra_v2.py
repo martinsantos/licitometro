@@ -288,25 +288,62 @@ class MendozaCompraScraperV2(BaseScraper):
         
         return None
 
+    def _try_extract_url_from_js(self, driver, numero: str) -> Optional[str]:
+        """Try to extract PLIEGO URL from JavaScript functions without clicking"""
+        try:
+            # Execute JavaScript to find URL patterns in the page
+            script = """
+                // Look for URL patterns in all script tags
+                var scripts = document.getElementsByTagName('script');
+                var urls = [];
+                for (var i = 0; i < scripts.length; i++) {
+                    var text = scripts[i].text || '';
+                    // Look for VistaPreviaPliegoCiudadano URLs
+                    var matches = text.match(/VistaPreviaPliegoCiudadano\.aspx\?qs=[^&"'\s]+/g);
+                    if (matches) {
+                        urls = urls.concat(matches);
+                    }
+                }
+                // Also check for onclick handlers on links
+                var links = document.querySelectorAll('a[onclick*="VistaPreviaPliego"]');
+                links.forEach(function(link) {
+                    var onclick = link.getAttribute('onclick') || '';
+                    var match = onclick.match(/VistaPreviaPliegoCiudadano\.aspx\?qs=[^&"'\s]+/);
+                    if (match) {
+                        urls.push(match[0]);
+                    }
+                });
+                return urls;
+            """
+            urls = driver.execute_script(script)
+            if urls and len(urls) > 0:
+                # Return first found URL
+                return urls[0] if isinstance(urls, list) else urls
+        except Exception as e:
+            logger.debug(f"JS extraction failed: {e}")
+        return None
+
     def _collect_pliego_urls_selenium_v2(self, list_url: str, max_pages: int = 9) -> Dict[str, str]:
         """
         Enhanced Selenium collection with caching and multiple strategies.
+        V2.1: Added JavaScript URL extraction for better coverage.
         """
         mapping: Dict[str, str] = {}
         
-        # Filter out already cached URLs
-        need_to_find: List[str] = []
-        
-        # We'll get the process numbers first, then check cache
         options = Options()
         options.add_argument("--headless=new")
         options.add_argument("--no-sandbox")
         options.add_argument("--disable-dev-shm-usage")
         options.add_argument("--disable-gpu")
         options.add_argument("--window-size=1920,1080")
+        options.add_argument("--disable-blink-features=AutomationControlled")
+        options.add_experimental_option("excludeSwitches", ["enable-automation"])
+        options.add_experimental_option('useAutomationExtension', False)
         
         try:
             driver = webdriver.Chrome(options=options)
+            # Remove webdriver property to avoid detection
+            driver.execute_script("Object.defineProperty(navigator, 'webdriver', {get: () => undefined})")
         except Exception as exc:
             logger.error(f"Selenium not available: {exc}")
             return mapping
@@ -320,6 +357,12 @@ class MendozaCompraScraperV2(BaseScraper):
                 EC.presence_of_element_located((By.CSS_SELECTOR, "#ctl00_CPH1_GridListaPliegosAperturaProxima"))
             )
             
+            # First, try to extract all URLs from JavaScript without clicking
+            logger.info("Attempting JavaScript URL extraction...")
+            js_urls = self._try_extract_url_from_js(driver, "")
+            if js_urls:
+                logger.info(f"Found {len(js_urls)} URLs via JavaScript")
+            
             current_page = 1
             processed_numbers = set()
             
@@ -332,7 +375,6 @@ class MendozaCompraScraperV2(BaseScraper):
                 
                 for row in rows:
                     try:
-                        # First cell contains the process number link
                         cells = row.find_elements(By.TAG_NAME, "td")
                         if len(cells) < 6:
                             continue
@@ -342,7 +384,10 @@ class MendozaCompraScraperV2(BaseScraper):
                         numero = (num_link.text or num_link.get_attribute("textContent") or "").strip()
                         
                         if numero and numero not in processed_numbers:
-                            page_numbers.append((numero, num_link))
+                            # Also get the onclick or href attribute for later analysis
+                            onclick_attr = num_link.get_attribute('onclick') or ''
+                            href_attr = num_link.get_attribute('href') or ''
+                            page_numbers.append((numero, num_link, onclick_attr, href_attr))
                             processed_numbers.add(numero)
                     except Exception as e:
                         continue
@@ -350,7 +395,7 @@ class MendozaCompraScraperV2(BaseScraper):
                 logger.info(f"Found {len(page_numbers)} processes on page {current_page}")
                 
                 # Process each number
-                for idx, (numero, num_link) in enumerate(page_numbers):
+                for idx, (numero, num_link, onclick_attr, href_attr) in enumerate(page_numbers):
                     # Check cache first
                     cached_url = self.url_cache.get(numero)
                     if cached_url:
@@ -360,7 +405,20 @@ class MendozaCompraScraperV2(BaseScraper):
                     
                     self.stats['cache_misses'] += 1
                     
-                    # Try to get URL via Selenium
+                    # Strategy 1: Try to extract URL from onclick attribute
+                    if onclick_attr:
+                        # Look for URL in onclick
+                        m = re.search(r'(VistaPreviaPliegoCiudadano\.aspx\?qs=[^&"\'\s]+)', onclick_attr)
+                        if m:
+                            url = f"https://comprar.mendoza.gov.ar/PLIEGO/{m.group(1)}"
+                            mapping[numero] = url
+                            self.url_cache.set(numero, url, "pliego")
+                            self.stats['pliego_urls_found'] += 1
+                            if idx < 3:
+                                logger.info(f"Found URL from onclick for {numero}: {url}")
+                            continue
+                    
+                    # Strategy 2: Try to get URL via navigation
                     try:
                         # Scroll into view
                         driver.execute_script("arguments[0].scrollIntoView({block: 'center'});", num_link)
@@ -398,7 +456,7 @@ class MendozaCompraScraperV2(BaseScraper):
                                 self.stats['pliego_urls_found'] += 1
                                 
                                 if idx < 3:
-                                    logger.info(f"Found URL for {numero}: {current_url}")
+                                    logger.info(f"Found URL via navigation for {numero}: {current_url}")
                         
                         # Go back to list
                         driver.get(list_url)

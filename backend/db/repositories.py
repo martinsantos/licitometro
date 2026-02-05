@@ -41,8 +41,7 @@ class LicitacionRepository:
     async def get_all(self, skip: int = 0, limit: int = 100, filters: Dict = None) -> List[Licitacion]:
         """Get all licitaciones with optional filtering"""
         query = filters or {}
-        cursor = self.collection.find(query).skip(skip).limit(limit)
-        cursor = cursor.sort("publication_date", pymongo.DESCENDING)
+        cursor = self.collection.find(query).sort("publication_date", pymongo.DESCENDING).skip(skip).limit(limit)
         
         licitaciones = await cursor.to_list(length=limit)
         return licitaciones_entity(licitaciones)

@@ -29,9 +29,7 @@ services:
       context: ./backend
     ports:
       - "8000:8000"
-    volumes:
-      - ./backend:/app
-      - ./storage:/app/storage
+    
     depends_on:
       - db
       - elasticsearch
@@ -45,9 +43,7 @@ services:
       context: ./frontend
     ports:
       - "3000:3000"
-    volumes:
-      - ./frontend:/app
-      - /app/node_modules
+    
     depends_on:
       - backend
     restart: always
@@ -55,3 +51,4 @@ services:
 volumes:
   postgres_data:
   elasticsearch_data:
+  storage_data:
