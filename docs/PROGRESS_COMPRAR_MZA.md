@@ -91,3 +91,18 @@ Estado actual:
 5) **Persistencia**
    - Guardar `comprar_pliego_fields` en el modelo principal si queremos filtros/consultas directas.
 
+6) **Diagnóstico de enlaces**
+   - Verificar en UI que “Ir a COMPR.AR” solo aparezca cuando exista URL PLIEGO.
+   - Si se abre el listado, verificar si el proceso en cuestión no tiene PLIEGO (no hay URL pública).
+
+7) **Carga de datos**
+   - Verificar que la corrida del scraper termine con un JSON > 0 registros (`storage/comprar_mendoza_run.json`).
+   - Si queda en 0, revisar el filtro de fechas (debe permanecer desactivado para COMPR.AR).
+
+8) **Perf y resiliencia**
+   - El paso Selenium es lento: evaluar caching por proceso (no recalcular si ya existe).
+   - Agregar timeouts y reintentos por página en Selenium.
+
+9) **Campos adicionales del PLIEGO**
+   - Extraer más etiquetas del PLIEGO (Ej: “Tipo de adjudicación”, “Plazo mantenimiento de la oferta”, “Lugar de recepción”).
+   - Exponer los campos más relevantes en el detalle con labels legibles.
