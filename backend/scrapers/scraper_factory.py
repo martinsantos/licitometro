@@ -39,7 +39,7 @@ def create_scraper(config: ScraperConfig) -> Optional[BaseScraper]:
     
     # Normalize name for easier matching
     config_name_lower = config.name.lower()
-    config_url_lower = config.url.lower()
+    config_url_lower = str(config.url).lower()
     
     # === MENDOZA - Provincia ===
     

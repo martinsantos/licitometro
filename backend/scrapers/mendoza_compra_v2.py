@@ -774,3 +774,11 @@ class MendozaCompraScraperV2(BaseScraper):
             
         finally:
             await self.cleanup()
+    
+    async def extract_links(self, html: str) -> List[str]:
+        """Extract links to licitacion pages - not used in this scraper"""
+        return []
+    
+    async def get_next_page_url(self, html: str, current_url: str) -> Optional[str]:
+        """Get the URL of the next page - not used in this scraper"""
+        return None
