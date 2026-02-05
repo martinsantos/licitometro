@@ -1,0 +1,23 @@
+{
+  "name": "OSEP",
+  "url": "https://comprarosep.mendoza.gov.ar/",
+  "active": true,
+  "schedule": "0 9 * * 1-5",
+  "selectors": {
+    "links": "a",
+    "timezone": "America/Argentina/Mendoza",
+    "business_days_window": 4,
+    "disable_date_filter": true
+  },
+  "pagination": {
+    "list_urls": [
+      "https://comprarosep.mendoza.gov.ar/Compras.aspx?qs=W1HXHGHtH10="
+    ],
+    "max_pages": 5
+  },
+  "headers": {},
+  "cookies": {},
+  "wait_time": 1.5,
+  "max_items": 30,
+  "source_type": "website"
+}

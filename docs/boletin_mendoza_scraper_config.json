@@ -6,6 +6,9 @@
   "selectors": {
     "timezone": "America/Argentina/Mendoza",
     "business_days_window": 4,
+    "include_all": true,
+    "strict_filter_regex": "",
+    "include_types": ["NORMA", "EDICTO"],
     "keywords": [
       "licitacion",
       "licitación",

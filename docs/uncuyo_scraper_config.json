@@ -1,0 +1,22 @@
+{
+  "name": "UNCuyo",
+  "url": "https://licitaciones.uncuyo.edu.ar/",
+  "active": true,
+  "schedule": "0 10 * * 1-5",
+  "selectors": {
+    "links": "a",
+    "timezone": "America/Argentina/Mendoza",
+    "business_days_window": 4
+  },
+  "pagination": {
+    "max_pages": 5,
+    "next_page_selector": "a.next-page"
+  },
+  "headers": {
+    "User-Agent": "Mozilla/5.0 (compatible; Licitometro/2.0)"
+  },
+  "cookies": {},
+  "wait_time": 2.0,
+  "max_items": 50,
+  "source_type": "website"
+}

@@ -1,0 +1,22 @@
+{
+  "name": "AYSAM",
+  "url": "https://www.aysam.com.ar/pliegosdigitales/licitaciones/",
+  "active": true,
+  "schedule": "0 8 * * 1-5",
+  "selectors": {
+    "links": "a",
+    "timezone": "America/Argentina/Mendoza",
+    "business_days_window": 4
+  },
+  "pagination": {
+    "max_pages": 3,
+    "next_page_selector": "a.next-page"
+  },
+  "headers": {
+    "User-Agent": "Mozilla/5.0 (compatible; Licitometro/2.0)"
+  },
+  "cookies": {},
+  "wait_time": 2.0,
+  "max_items": 50,
+  "source_type": "website"
+}

@@ -1,52 +1,108 @@
-from typing import Optional
+"""
+Scraper Factory - Creates appropriate scraper instances based on configuration.
+"""
 
+from typing import Optional
+import logging
 
 from models.scraper_config import ScraperConfig
 from scrapers.base_scraper import BaseScraper
 from scrapers.comprar_gob_ar import ComprarGobArScraper
 from scrapers.boletin_oficial_mendoza_scraper import BoletinOficialMendozaScraper
-# Existing specific scrapers
-from scrapers.mendoza_compra import MendozaCompraScraper # Keep for now as per instructions
+from scrapers.mendoza_compra import MendozaCompraScraper
 
-# Newly added scrapers
+# Province scrapers
 from .buenos_aires_provincia_scraper import BuenosAiresProvinciaScraper
 from .caba_scraper import CabaScraper
 from .cordoba_provincia_scraper import CordobaProvinciaScraper
 from .santa_fe_provincia_scraper import SantaFeProvinciaScraper
 from .mendoza_provincia_scraper import MendozaProvinciaScraper
 
+# Mendoza-specific scrapers
+from .aysam_scraper import AysamScraper
+from .osep_scraper import OsepScraper
+from .uncuyo_scraper import UncuyoScraper
+from .vialidad_mendoza_scraper import VialidadMendozaScraper
+
+# Enhanced Mendoza scraper with URL caching
+from .mendoza_compra_v2 import MendozaCompraScraperV2
+
+logger = logging.getLogger("scraper_factory")
+
 
 def create_scraper(config: ScraperConfig) -> Optional[BaseScraper]:
-    """Create a scraper based on the configuration"""
+    """
+    Create a scraper based on the configuration.
+    
+    Matches by URL pattern first, then by name.
+    """
     
     # Normalize name for easier matching
     config_name_lower = config.name.lower()
-
-    # Check for known scrapers by URL or name
-    # Ordered from more specific URL patterns where possible, then by name
-    if "comprar.gob.ar" in config.url and "comprar" in config_name_lower: # Existing ComprarGobArScraper
-        return ComprarGobArScraper(config)
+    config_url_lower = config.url.lower()
     
-    # New Scrapers
-    elif "compras.gba.gob.ar" in config.url or "buenos-aires-provincia" in config_name_lower:
-        return BuenosAiresProvinciaScraper(config)
-    elif "buenosairescompras.gob.ar" in config.url or "caba" in config_name_lower:
-        return CabaScraper(config)
-    elif "compras.cba.gov.ar" in config.url or "cordoba-provincia" in config_name_lower:
-        return CordobaProvinciaScraper(config)
-    elif "santafe.gov.ar/portal_compras" in config.url or "santa-fe-provincia" in config_name_lower:
-        return SantaFeProvinciaScraper(config)
-    # New Mendoza scraper - specific URL first
-    elif "comprar.mendoza.gov.ar" in config.url or "mendoza-provincia" in config_name_lower: # This is for the new OCDS-focused one
-        return MendozaProvinciaScraper(config)
-    elif "boletinoficial.mendoza" in config.url or "boletin oficial mendoza" in config_name_lower:
+    # === MENDOZA - Provincia ===
+    
+    # COMPR.AR Mendoza (v2 with URL caching)
+    if "comprar.mendoza.gov.ar" in config_url_lower:
+        # Use v2 by default, v1 if explicitly requested
+        if "v1" in config_name_lower or "legacy" in config_name_lower:
+            logger.info(f"Using legacy MendozaCompraScraper for {config.name}")
+            return MendozaCompraScraper(config)
+        logger.info(f"Using MendozaCompraScraperV2 for {config.name}")
+        return MendozaCompraScraperV2(config)
+    
+    # Boletín Oficial Mendoza
+    if "boletinoficial.mendoza" in config_url_lower or "boletin oficial mendoza" in config_name_lower:
         return BoletinOficialMendozaScraper(config)
     
-    # Existing Mendoza scraper (potentially more general or different part of mendoza.gov.ar)
-    elif "mendoza.gov.ar" in config.url or "mendoza-compra" in config_name_lower: # Keep this for MendozaCompraScraper
+    # AYSAM
+    if "aysam" in config_url_lower or "aysam" in config_name_lower:
+        return AysamScraper(config)
+    
+    # OSEP
+    if "osep" in config_url_lower or "comprarosep" in config_url_lower or "osep" in config_name_lower:
+        return OsepScraper(config)
+    
+    # UNCuyo
+    if "uncuyo" in config_url_lower or "uncuyo" in config_name_lower:
+        return UncuyoScraper(config)
+    
+    # Vialidad Mendoza
+    if ("vialidad" in config_url_lower and "mendoza" in config_url_lower) or \
+       "vialidad mendoza" in config_name_lower:
+        return VialidadMendozaScraper(config)
+    
+    # Generic mendoza.gov.ar (fallback)
+    if "mendoza.gov.ar" in config_url_lower:
         return MendozaCompraScraper(config)
     
-    # For unknown URLs or names, log or raise error, or return None
-    # For now, returning None as per original structure for unhandled cases.
-    # Consider adding logging here: logger.warning(f"No specific scraper found for URL {config.url} or name {config.name}")
+    # === OTRAS PROVINCIAS ===
+    
+    # Buenos Aires
+    if "compras.gba.gob.ar" in config_url_lower or "buenos-aires-provincia" in config_name_lower:
+        return BuenosAiresProvinciaScraper(config)
+    
+    # CABA
+    if "buenosairescompras.gob.ar" in config_url_lower or "caba" in config_name_lower:
+        return CabaScraper(config)
+    
+    # Córdoba
+    if "compras.cba.gov.ar" in config_url_lower or "cordoba-provincia" in config_name_lower:
+        return CordobaProvinciaScraper(config)
+    
+    # Santa Fe
+    if "santafe.gov.ar/portal_compras" in config_url_lower or "santa-fe-provincia" in config_name_lower:
+        return SantaFeProvinciaScraper(config)
+    
+    # Mendoza Provincia (OCDS/API based)
+    if "mendoza-provincia" in config_name_lower:
+        return MendozaProvinciaScraper(config)
+    
+    # Comprar.gob.ar (nacional)
+    if "comprar.gob.ar" in config_url_lower and "comprar" in config_name_lower:
+        return ComprarGobArScraper(config)
+    
+    # No matching scraper found
+    logger.warning(f"No specific scraper found for URL {config.url} or name {config.name}")
     return None

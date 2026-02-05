@@ -8,7 +8,8 @@
     "timezone": "America/Argentina/Mendoza",
     "business_days_window": 4,
     "use_selenium_pliego": true,
-    "selenium_max_pages": 9
+    "selenium_max_pages": 9,
+    "disable_date_filter": true
   },
   "pagination": {
     "list_event_target": "ctl00$CPH1$CtrlConsultasFrecuentes$btnProcesoCompraTreintaDias",
