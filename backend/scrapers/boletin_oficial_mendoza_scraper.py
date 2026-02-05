@@ -55,7 +55,7 @@ class BoletinOficialMendozaScraper(BaseScraper):
         parsed = parse_date_guess(text)
         if parsed:
             return parsed
-        match = re.search(r"(\\d{1,2}[/-]\\d{1,2}[/-]\\d{4})", text)
+        match = re.search(r"(\d{1,2}[/-]\d{1,2}[/-]\d{4})", text)
         if match:
             return parse_date_guess(match.group(1))
         return None
@@ -116,7 +116,7 @@ class BoletinOficialMendozaScraper(BaseScraper):
 
         strict_pattern = self.config.selectors.get(
             "strict_filter_regex",
-            r"\\b(licitaci[oó]n|contrataci[oó]n|concurso|convocatoria|compulsa|comparaci[oó]n de precios|adjudicaci[oó]n)\\b",
+            r"\b(licitaci[oó]n|contrataci[oó]n|concurso|convocatoria|compulsa|comparaci[oó]n de precios|adjudicaci[oó]n)\b",
         )
         strict_re = None
         if strict_pattern:
@@ -152,12 +152,12 @@ class BoletinOficialMendozaScraper(BaseScraper):
                 details_text = details_row.get_text(" ", strip=True)
                 description = details_text[:1000] if details_text else None
                 # Try to extract Origen
-                origin_match = re.search(r"Origen:\\s*([A-ZÁÉÍÓÚÑ0-9 ,.-]+)", details_text or "")
+                origin_match = re.search(r"Origen:\s*([A-ZÁÉÍÓÚÑ0-9 ,.-]+)", details_text or "")
                 if origin_match:
                     organization = origin_match.group(1).strip()
                 # Try to extract page number for PDF deep link
                 page_num = None
-                page_match = re.search(r"(?:Pág\\.?|Página)\\s*(\\d+)", details_text or "", re.IGNORECASE)
+                page_match = re.search(r"(?:Pág\.?|Página)\s*(\d+)", details_text or "", re.IGNORECASE)
                 if page_match:
                     page_num = page_match.group(1)
                 # Attach 'Texto Publicado' link if present
@@ -182,7 +182,7 @@ class BoletinOficialMendozaScraper(BaseScraper):
 
             if boletin_link:
                 pdf_url = boletin_link
-                page_match = re.search(r"(?:Pág\\.?|Página)\\s*(\\d+)", (description or ""), re.IGNORECASE)
+                page_match = re.search(r"(?:Pág\.?|Página)\s*(\d+)", (description or ""), re.IGNORECASE)
                 if page_match:
                     pdf_url = f"{boletin_link}#page={page_match.group(1)}"
                 attached_files.append(
