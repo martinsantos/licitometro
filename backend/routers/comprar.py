@@ -830,6 +830,23 @@ async def enrich_licitacion(
         
         if all_files:
             update_data["attached_files"] = all_files
+            
+        # DEBUG: Write update_data to log file
+        try:
+            with open("enrich_debug.log", "a") as f:
+                import json
+                f.write(f"\n--- ENRICH DEBUG {datetime.now()} ---\n")
+                f.write(f"ID: {id}\n")
+                f.write(f"Parsed keys: {list(parsed_data.keys())}\n")
+                f.write(f"Update Data keys: {list(update_data.keys())}\n")
+                if "garantias" in update_data:
+                    f.write(f"Garantias count: {len(update_data['garantias'])}\n")
+                else:
+                    f.write("No garantias in update_data\n")
+        except Exception as e:
+            logger.error(f"Debug log error: {e}")
+
+        # Update metadata
 
 
         # CLASIFICACIÓN AUTOMÁTICA
