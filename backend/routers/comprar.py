@@ -21,6 +21,7 @@ from fastapi.encoders import jsonable_encoder
 from bs4 import BeautifulSoup
 import aiohttp
 import asyncio
+import os
 import logging
 import html as html_escape
 import re
@@ -124,22 +125,23 @@ def _extract_pliego_url_from_html(html: str, base_url: str = "https://comprar.me
     """Extraer URL PLIEGO desde el HTML de detalle"""
     soup = BeautifulSoup(html, 'html.parser')
 
-    # Estrategia 1: Link directo a VistaPreviaPliegoCiudadano
+    # Estrategia 1: Link directo a VistaPreviaPliegoCiudadano o VistaPreviaPliego
     for a in soup.find_all('a', href=True):
         href = a.get('href', '')
-        if 'VistaPreviaPliegoCiudadano.aspx?qs=' in href:
+        if 'VistaPreviaPliego' in href and '.aspx?qs=' in href:
             return urljoin(base_url, href)
 
     # Estrategia 2: Buscar en onclick handlers
     for elem in soup.find_all(onclick=True):
         onclick = elem.get('onclick', '')
-        m = re.search(r"window\.open\(['\"]([^'\"]+VistaPreviaPliegoCiudadano[^'\"]*)['\"]", onclick)
+        m = re.search(r"window\.open\(['\"]([^'\"]+VistaPreviaPliego[^'\"]*)['\"]", onclick)
         if m:
             return urljoin(base_url, m.group(1))
 
     # Estrategia 3: Buscar en el HTML raw
     patterns = [
         r'(PLIEGO[/\\]VistaPreviaPliegoCiudadano\.aspx\?qs=[^\s\"\'<>]+)',
+        r'(PLIEGO[/\\]VistaPreviaPliego\.aspx\?qs=[^\s\"\'<>]+)',
         r'(ComprasElectronicas\.aspx\?qs=[^\s\"\'<>]+)',
     ]
     for pattern in patterns:
@@ -175,7 +177,10 @@ def _find_process_row_in_list(html: str, numero: str) -> Optional[Dict[str, str]
         cell_text = cols[0].get_text(' ', strip=True).upper()
 
         if numero_normalized in cell_text:
-            # Encontrado! Buscar el link con postback
+            # Encontrado!
+            logger.info(f"DEBUG: Found row for {numero}. Row HTML: {row}")
+            
+            # Buscar el link con postback
             link = cols[0].find('a', href=True)
             if link:
                 href = link.get('href', '')
@@ -194,11 +199,7 @@ def _find_process_row_in_list(html: str, numero: str) -> Optional[Dict[str, str]
 async def _search_and_resolve_pliego(numero: str, list_url: str) -> Optional[str]:
     """
     Buscar un proceso por numero en COMPR.AR y resolver su URL PLIEGO.
-
-    1. Cargar la pagina de lista
-    2. Buscar el proceso por numero
-    3. Hacer postback para ir al detalle
-    4. Extraer la URL PLIEGO
+    Usa el flujo de Busqueda de Ciudadano para asegurar URLs publicas.
     """
     headers = {
         "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36",
@@ -207,36 +208,107 @@ async def _search_and_resolve_pliego(numero: str, list_url: str) -> Optional[str
 
     try:
         async with aiohttp.ClientSession(headers=headers, cookie_jar=jar) as session:
-            # Cargar la pagina de lista
-            async with session.get(list_url) as resp:
+            # 1. Inicializar sesión (Default.aspx)
+            async with session.get("https://comprar.mendoza.gov.ar/Default.aspx") as resp:
                 if resp.status != 200:
-                    logger.error(f"Failed to load list page: {resp.status}")
-                    return None
-                list_html = await resp.text()
+                    logger.error(f"Failed to load Default.aspx: {resp.status}")
+                await resp.read() # Consumir para cookies
 
-            # Buscar el proceso en la lista
-            row_info = _find_process_row_in_list(list_html, numero)
+            # 2. Ir al Buscador Ciudadano (BuscarAvanzado2.aspx)
+            search_url = "https://comprar.mendoza.gov.ar/BuscarAvanzado2.aspx"
+            async with session.get(search_url) as resp:
+                if resp.status != 200:
+                    logger.error(f"Failed to load search page: {resp.status}")
+                    return None
+                search_html = await resp.text()
+
+            # 3. Ejecutar busqueda
+            fields = _extract_hidden_fields(search_html)
+            # Parametros específicos del buscador ciudadano
+            fields["ctl00$CPH1$txtNumeroProceso"] = numero
+            fields["ctl00$CPH1$btnListarPliegoNumero"] = "Buscar"
+            
+            async with session.post(search_url, data=fields) as resp:
+                if resp.status != 200:
+                    logger.error(f"Search failed: {resp.status}")
+                    return None
+                results_html = await resp.text()
+
+            # 4. Buscar el proceso en la lista de resultados
+            row_info = _find_process_row_in_list(results_html, numero)
             if not row_info:
-                logger.warning(f"Process {numero} not found in list page")
+                logger.warning(f"Process {numero} not found in citizen search results")
                 return None
 
-            # Hacer postback para ir al detalle
-            fields = _extract_hidden_fields(list_html)
+            # 5. Hacer postback para ir al detalle
+            # En el buscador ciudadano, el click en el numero va a VistaPreviaPliego
+            fields = _extract_hidden_fields(results_html)
             fields["__EVENTTARGET"] = row_info['target']
             fields["__EVENTARGUMENT"] = row_info.get('arg', '')
+            # Limpiar el boton de busqueda para evitar conflicto
+            if "ctl00$CPH1$btnListarPliegoNumero" in fields:
+                del fields["ctl00$CPH1$btnListarPliegoNumero"]
 
-            async with session.post(list_url, data=fields) as resp:
-                if resp.status != 200:
-                    logger.error(f"Failed to load detail page: {resp.status}")
+            async with session.post(search_url, data=fields, allow_redirects=False) as resp:
+                if resp.status == 302:
+                    location = resp.headers.get("Location", "")
+                    logger.info(f"DEBUG: Redirected to: {location}")
+                    if "VistaPreviaPliego" in location:
+                        pliego_url = urljoin("https://comprar.mendoza.gov.ar", location)
+                        # Convertir a Ciudadano si es necesario
+                        if "VistaPreviaPliego.aspx" in pliego_url:
+                            pliego_url = pliego_url.replace("VistaPreviaPliego.aspx", "VistaPreviaPliegoCiudadano.aspx")
+                        
+                        _cache_pliego_url(numero, pliego_url)
+                        logger.info(f"Resolved Public PLIEGO URL from Redirect: {pliego_url}")
+                        return pliego_url
+                    
+                    # If not VistaPrevia, check if we should follow
+                    if "ComprasElectronicas.aspx" in location:
+                        # Falling back to vendor view but let's see if we can convert it?
+                        # Usually QS is different so we can't.
+                        logger.warning("Redirected to Vendor View (ComprasElectronicas)")
+                        
+                if resp.status != 200 and resp.status != 302:
+                    logger.error(f"Failed to load detail page via postback: {resp.status}")
                     return None
-                detail_html = await resp.text()
+                    
+                # If we are here, it's 200 or 302 (followed manually if needed? no we returned if lucky)
+                # If 302 and we didn't return, we might want to follow it to get HTML
+                if resp.status == 302:
+                     location = resp.headers.get("Location", "")
+                     new_url = urljoin("https://comprar.mendoza.gov.ar", location)
+                     async with session.get(new_url) as resp2:
+                         detail_html = await resp2.text()
+                else:
+                     detail_html = await resp.text()
 
-            # Extraer la URL PLIEGO del detalle
+            # 6. Extraer la URL PLIEGO del detalle
             pliego_url = _extract_pliego_url_from_html(detail_html)
-            if pliego_url:
-                # Cachear para futuras consultas
+            
+            # Check if URL is valid public url
+            if pliego_url and "VistaPreviaPliego" in pliego_url:
+                 # Convertir a Ciudadano si es necesario
+                if "VistaPreviaPliego.aspx" in pliego_url:
+                    pliego_url = pliego_url.replace("VistaPreviaPliego.aspx", "VistaPreviaPliegoCiudadano.aspx")
+                
+                _cache_pliego_url(numero, pliego_url)
+                logger.info(f"Resolved Public PLIEGO URL: {pliego_url}")
+                return pliego_url
+
+            # Fallback to Browser Scraper if aiohttp failed to get public URL
+            logger.info(f"Standard scraping failed to get Public URL for {numero}. Trying Browser Fallback...")
+            browser_result = await _enrich_via_browser_fallback(numero)
+            
+            if browser_result and browser_result.get("success") and browser_result.get("url"):
+                pliego_url = browser_result["url"]
+                logger.info(f"Resolved Public PLIEGO URL via Browser: {pliego_url}")
                 _cache_pliego_url(numero, pliego_url)
                 return pliego_url
+            
+            if pliego_url:
+                 logger.warning(f"Returning non-optimal URL: {pliego_url}")
+                 return pliego_url
 
             logger.warning(f"PLIEGO URL not found in detail page for {numero}")
             return None
@@ -244,6 +316,44 @@ async def _search_and_resolve_pliego(numero: str, list_url: str) -> Optional[str
     except Exception as e:
         logger.error(f"Error resolving PLIEGO for {numero}: {e}")
         return None
+
+async def _enrich_via_browser_fallback(numero: str) -> Optional[Dict[str, Any]]:
+    """
+    Ejecuta el scraper de navegador (Playwright) como fallback.
+    """
+    try:
+        script_path = os.path.join(os.path.dirname(__file__), "..", "scrapers", "browser_scraper.py")
+        
+        proc = await asyncio.create_subprocess_exec(
+            sys.executable, script_path, numero,
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE
+        )
+        
+        stdout, stderr = await proc.communicate()
+        
+        if proc.returncode != 0:
+            logger.error(f"Browser scraper failed: {stderr.decode()}")
+            return None
+            
+        output = stdout.decode().strip()
+        # El output puede contener logs de warnings de libs, buscar el ultimo JSON valido o limpiar
+        # Asumimos que el script solo imprime JSON en stdout
+        
+        try:
+            return json.loads(output)
+        except json.JSONDecodeError:
+            # Try to find JSON block if there is garbage
+            m = re.search(r'(\{.*\})', output, re.DOTALL)
+            if m:
+                return json.loads(m.group(1))
+            logger.error(f"Failed to parse browser scraper output: {output[:200]}...")
+            return None
+
+    except Exception as e:
+        logger.error(f"Error running browser fallback: {e}")
+        return None
+
 
 
 # ============================================================================
@@ -732,6 +842,8 @@ async def enrich_licitacion(
             "enriched_at": datetime.utcnow().isoformat(),
             "enriched_from_url": successful_url,
             "enriched_url_type": url_type,
+            # Asegurar que la URL del pliego esté disponible para el frontend
+            "comprar_pliego_url": successful_url,
             "comprar_pliego_fields": {
                 k: v for k, v in parsed_data.items()
                 if not k.startswith("_") and v
