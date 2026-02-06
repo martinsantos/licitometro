@@ -1,0 +1,6 @@
+
+--- ENRICH DEBUG 2026-02-06 12:25:42.151732 ---
+ID: <built-in function id>
+Parsed keys: ['Número de proceso', 'Número de expediente', 'Nombre descriptivo del proceso', 'Unidad Operativa de Contrataciones', 'Nº de proceso', 'Nombre descriptivo de proceso', 'Objeto de la contratación', 'Procedimiento de selección', 'Etapa', 'Modalidad', 'Alcance', 'Moneda', 'Encuadre legal', 'Tipo de cotización', 'Tipo de adjudicación', 'Tipo documento que genera el proceso', 'Lugar de recepción de documentación física', 'Plazo mantenimiento de la oferta', 'Requiere pago', 'Genera Recursos', 'Acepta prórroga', 'Fecha y hora estimada de publicación en el portal', 'Fecha y hora inicio de consultas', 'Fecha y hora final de consultas', 'Fecha y hora acto de apertura', 'Fecha estimada del inicio del contrato', 'Duración del contrato', '_garantias', '_items']
+Update Data keys: ['fecha_publicacion_portal', 'fecha_inicio_consultas', 'fecha_fin_consultas', 'opening_date', 'etapa', 'modalidad', 'alcance', 'encuadre_legal', 'tipo_cotizacion', 'tipo_adjudicacion', 'duracion_contrato', 'items', 'garantias']
+Garantias count: 3
