@@ -67,7 +67,13 @@ const LicitacionDetailPage = () => {
       }
     } catch (err) {
       console.error('Error enriching:', err);
-      setEnrichMessage({ type: 'error', text: 'Error al obtener datos adicionales' });
+      const errorMsg = err.response?.data?.message || err.response?.data?.detail || 'Error al obtener datos adicionales';
+      const errorDetails = err.response?.data?.errors || [];
+      setEnrichMessage({
+        type: 'error',
+        text: errorMsg,
+        details: errorDetails.length > 0 ? `Intentos: ${errorDetails.join(', ')}` : null
+      });
     } finally {
       setEnriching(false);
     }

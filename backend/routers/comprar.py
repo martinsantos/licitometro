@@ -19,6 +19,7 @@ from fastapi import APIRouter, HTTPException, Query, Depends
 from fastapi.responses import HTMLResponse, RedirectResponse, JSONResponse
 from bs4 import BeautifulSoup
 import aiohttp
+import asyncio
 import logging
 import html as html_escape
 import re
@@ -483,6 +484,10 @@ async def enrich_licitacion(
     o solicita "más información". Obtiene todos los datos detallados del
     proceso desde COMPR.AR y actualiza la base de datos.
 
+    Soporta dos tipos de páginas COMPR.AR:
+    - VistaPreviaPliegoCiudadano.aspx (PLIEGO) - vista previa
+    - ComprasElectronicas.aspx - página principal de detalle
+
     Extrae:
     - CRONOGRAMA completo
     - Listado de ITEMS/productos
@@ -507,47 +512,107 @@ async def enrich_licitacion(
                 "data": lic
             })
 
-        # Obtener la URL del PLIEGO
         metadata = lic.get('metadata', {}) or {}
+
+        # Lista de URLs a intentar (en orden de preferencia)
+        urls_to_try = []
+
+        # 1. URL PLIEGO si existe
         pliego_url = metadata.get('comprar_pliego_url')
+        if pliego_url:
+            urls_to_try.append(('pliego', pliego_url))
 
-        if not pliego_url:
-            source_url = lic.get('source_url', '')
-            if source_url and 'VistaPreviaPliegoCiudadano' in str(source_url):
-                pliego_url = str(source_url)
+        # 2. source_url con PLIEGO
+        source_url = str(lic.get('source_url', '') or '')
+        if source_url and 'VistaPreviaPliegoCiudadano' in source_url:
+            if source_url not in [u[1] for u in urls_to_try]:
+                urls_to_try.append(('pliego', source_url))
 
-        if not pliego_url:
-            # Intentar resolver por número
-            numero = lic.get('licitacion_number') or lic.get('id_licitacion')
-            if numero:
-                pliego_url = _get_cached_pliego_url(numero)
+        # 3. source_url con ComprasElectronicas
+        if source_url and 'ComprasElectronicas.aspx' in source_url:
+            urls_to_try.append(('compras', source_url))
 
-        if not pliego_url:
+        # 4. comprar_detail_url (ComprasElectronicas)
+        detail_url = metadata.get('comprar_detail_url')
+        if detail_url and 'ComprasElectronicas' in str(detail_url):
+            if detail_url not in [u[1] for u in urls_to_try]:
+                urls_to_try.append(('compras', detail_url))
+
+        # 5. canonical_url
+        canonical_url = str(lic.get('canonical_url', '') or '')
+        if canonical_url:
+            if 'VistaPreviaPliegoCiudadano' in canonical_url:
+                if canonical_url not in [u[1] for u in urls_to_try]:
+                    urls_to_try.append(('pliego', canonical_url))
+            elif 'ComprasElectronicas' in canonical_url:
+                if canonical_url not in [u[1] for u in urls_to_try]:
+                    urls_to_try.append(('compras', canonical_url))
+
+        # 6. Cache por número
+        numero = lic.get('licitacion_number') or lic.get('id_licitacion')
+        if numero:
+            cached = _get_cached_pliego_url(numero)
+            if cached and cached not in [u[1] for u in urls_to_try]:
+                urls_to_try.append(('cached', cached))
+
+        if not urls_to_try:
+            logger.warning(f"No URL found for licitacion {licitacion_id}")
             return JSONResponse(content={
                 "success": False,
-                "message": "No se pudo encontrar la URL del PLIEGO para enriquecer",
+                "message": "No se encontró URL de detalle para este proceso. El proceso puede no tener página de pliego disponible.",
+                "tried_sources": ["pliego_url", "source_url", "detail_url", "canonical_url", "cache"],
                 "data": lic
             })
 
-        # Fetch del PLIEGO
+        # Intentar cada URL hasta que una funcione
         headers = {
-            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+            "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+            "Accept-Language": "es-AR,es;q=0.9,en;q=0.8",
         }
 
+        page_html = None
+        successful_url = None
+        url_type = None
+        errors_log = []
+
         async with aiohttp.ClientSession(headers=headers) as session:
-            async with session.get(pliego_url, timeout=30) as resp:
-                if resp.status != 200:
-                    return JSONResponse(content={
-                        "success": False,
-                        "message": f"Error al acceder al PLIEGO: HTTP {resp.status}",
-                        "data": lic
-                    })
-                pliego_html = await resp.text()
+            for url_kind, url in urls_to_try:
+                try:
+                    logger.info(f"Trying {url_kind} URL: {url[:80]}...")
+                    async with session.get(url, timeout=aiohttp.ClientTimeout(total=30), ssl=False) as resp:
+                        if resp.status == 200:
+                            html = await resp.text()
+                            # Verificar que el HTML tiene contenido útil
+                            if len(html) > 1000 and ('CPH1' in html or 'ContentPlaceHolder' in html or 'Cronograma' in html):
+                                page_html = html
+                                successful_url = url
+                                url_type = url_kind
+                                logger.info(f"Successfully fetched {url_kind} URL ({len(html)} bytes)")
+                                break
+                            else:
+                                errors_log.append(f"{url_kind}: Página sin contenido útil")
+                        else:
+                            errors_log.append(f"{url_kind}: HTTP {resp.status}")
+                except asyncio.TimeoutError:
+                    errors_log.append(f"{url_kind}: Timeout")
+                except Exception as e:
+                    errors_log.append(f"{url_kind}: {str(e)[:50]}")
+
+        if not page_html:
+            logger.error(f"Could not fetch any URL for {licitacion_id}: {errors_log}")
+            return JSONResponse(content={
+                "success": False,
+                "message": f"No se pudo acceder a ninguna URL del proceso. Intentos: {len(urls_to_try)}",
+                "errors": errors_log,
+                "urls_tried": [u[1][:60] + "..." for u in urls_to_try],
+                "data": lic
+            })
 
         # Parsear los datos usando el scraper
         from scrapers.mendoza_compra import MendozaCompraScraper
         scraper = MendozaCompraScraper(config={})
-        parsed_data = scraper._parse_pliego_fields(pliego_html)
+        parsed_data = scraper._parse_pliego_fields(page_html)
 
         # Construir los datos a actualizar
         update_data = {}
@@ -611,6 +676,8 @@ async def enrich_licitacion(
         update_data["metadata"] = {
             **metadata,
             "enriched_at": datetime.utcnow().isoformat(),
+            "enriched_from_url": successful_url,
+            "enriched_url_type": url_type,
             "comprar_pliego_fields": {
                 k: v for k, v in parsed_data.items()
                 if not k.startswith("_") and v
@@ -620,23 +687,33 @@ async def enrich_licitacion(
         # Actualizar en MongoDB
         if update_data:
             await repo.update(licitacion_id, update_data)
-            logger.info(f"Enriched licitacion {licitacion_id} with {len(update_data)} fields")
+            logger.info(f"Enriched licitacion {licitacion_id} with {len(update_data)} fields from {url_type}")
 
         # Obtener el registro actualizado
         updated_lic = await repo.get_by_id(licitacion_id)
 
+        fields_count = len([k for k in update_data.keys() if k != 'metadata'])
+
         return JSONResponse(content={
             "success": True,
-            "message": f"Licitación enriquecida con {len(update_data)} campos",
-            "fields_updated": list(update_data.keys()),
+            "message": f"Datos actualizados: {fields_count} campos desde {url_type}",
+            "fields_updated": [k for k in update_data.keys() if k != 'metadata'],
+            "source_url_type": url_type,
             "data": updated_lic
         })
 
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"Error enriching licitacion {licitacion_id}: {e}")
-        raise HTTPException(status_code=500, detail=f"Error interno: {str(e)}")
+        logger.error(f"Error enriching licitacion {licitacion_id}: {e}", exc_info=True)
+        return JSONResponse(
+            status_code=500,
+            content={
+                "success": False,
+                "message": f"Error interno: {str(e)}",
+                "error_type": type(e).__name__
+            }
+        )
 
 
 @router.get("/cache/stats")
