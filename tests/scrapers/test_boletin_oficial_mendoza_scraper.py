@@ -59,8 +59,14 @@ def _make_config(**overrides) -> ScraperConfig:
     return ScraperConfig(**base)
 
 
+def _today_in_mza() -> date:
+    """Get today's date in Mendoza timezone (matches scraper logic)."""
+    from utils.dates import now_in_tz
+    return now_in_tz("America/Argentina/Mendoza").date()
+
+
 def _today_str() -> str:
-    return date.today().isoformat()
+    return _today_in_mza().isoformat()
 
 
 def _boletin_html_with_rows(rows_data: list[dict]) -> str:
@@ -75,10 +81,11 @@ def _boletin_html_with_rows(rows_data: list[dict]) -> str:
         tipo = r.get("tipo", "DECRETO")
         norma = r.get("norma", "123/2026")
         fec_pro = r.get("fec_pro", "03/02/2026")
-        fec_pub = r.get("fec_pub", _today_str().replace("-", "/"))
+        # Use dd/mm/yyyy format as expected by the scraper (Mendoza timezone)
+        fec_pub = r.get("fec_pub", _today_in_mza().strftime("%d/%m/%Y"))
         boletin_num = r.get("boletin_num", "35000")
         boletin_link = r.get("boletin_link", "https://example.com/boletin.pdf")
-        details_text = r.get("details_text", "Licitación Publica para obra vial")
+        details_text = r.get("details_text", "Licitacion Publica para obra vial")
         texto_url = r.get("texto_publicado_url", "")
 
         boletin_td = f'<td><a href="{boletin_link}">{boletin_num}</a></td>' if boletin_link else f"<td>{boletin_num}</td>"
@@ -96,7 +103,7 @@ def _boletin_html_with_rows(rows_data: list[dict]) -> str:
           {boletin_td}
         </tr>
         <tr class="toggle-body">
-          <td colspan="5">Origen: MINISTERIO DE OBRAS PUBLICAS {details_text} Pág. 15 {detail_extra}</td>
+          <td colspan="5">Origen: MINISTERIO DE OBRAS PUBLICAS {details_text} Pag. 15 {detail_extra}</td>
         </tr>
         """
 
@@ -120,17 +127,17 @@ class TestParseResultsHtml(unittest.TestCase):
         self.scraper = BoletinOficialMendozaScraper(self.config)
 
     def test_parse_single_row_with_licitacion_keyword(self):
-        """Una fila que contiene 'licitación' debe generar un LicitacionCreate."""
-        today = date.today()
+        """Una fila que contiene 'licitacion' debe generar un LicitacionCreate."""
+        today = _today_in_mza()
         fec_pub = today.strftime("%d/%m/%Y")
         html = _boletin_html_with_rows([{
             "tipo": "DECRETO",
             "norma": "456/2026",
             "fec_pub": fec_pub,
-            "details_text": "Licitación Publica Nacional N° 10/2026",
+            "details_text": "Licitacion Publica Nacional N 10/2026",
         }])
         results = self.scraper._parse_results_html(html, keyword="licitacion")
-        self.assertGreaterEqual(len(results), 1)
+        self.assertGreaterEqual(len(results), 1, f"Expected at least 1 result, HTML: {html[:500]}")
         lic = results[0]
         self.assertIsInstance(lic, LicitacionCreate)
         self.assertIn("456/2026", lic.title)
@@ -139,7 +146,7 @@ class TestParseResultsHtml(unittest.TestCase):
 
     def test_parse_extracts_organization_from_origen(self):
         """Debe extraer el organismo del texto 'Origen: ...'."""
-        today = date.today()
+        today = _today_in_mza()
         fec_pub = today.strftime("%d/%m/%Y")
         html = _boletin_html_with_rows([{
             "fec_pub": fec_pub,
@@ -152,7 +159,7 @@ class TestParseResultsHtml(unittest.TestCase):
 
     def test_parse_extracts_pdf_links(self):
         """Debe extraer links a PDFs (boletin y texto publicado)."""
-        today = date.today()
+        today = _today_in_mza()
         fec_pub = today.strftime("%d/%m/%Y")
         html = _boletin_html_with_rows([{
             "fec_pub": fec_pub,
@@ -183,7 +190,7 @@ class TestParseResultsHtml(unittest.TestCase):
 
     def test_parse_strict_regex_filters_noise(self):
         """Filas sin keywords de licitacion en el texto deben ser filtradas por el regex estricto."""
-        today = date.today()
+        today = _today_in_mza()
         fec_pub = today.strftime("%d/%m/%Y")
         html = _boletin_html_with_rows([{
             "tipo": "DECRETO",
@@ -201,7 +208,7 @@ class TestParseResultsHtml(unittest.TestCase):
 
     def test_parse_multiple_rows(self):
         """Multiples filas validas generan multiples LicitacionCreate."""
-        today = date.today()
+        today = _today_in_mza()
         fec_pub = today.strftime("%d/%m/%Y")
         rows = [
             {"norma": "100/2026", "fec_pub": fec_pub, "details_text": "Licitación uno"},
@@ -214,7 +221,7 @@ class TestParseResultsHtml(unittest.TestCase):
 
     def test_id_licitacion_format(self):
         """El id_licitacion debe tener formato 'boletin-mza:norma:...'."""
-        today = date.today()
+        today = _today_in_mza()
         fec_pub = today.strftime("%d/%m/%Y")
         html = _boletin_html_with_rows([{
             "norma": "777/2026",
@@ -261,8 +268,10 @@ class TestInBusinessWindow(unittest.TestCase):
         self.scraper = BoletinOficialMendozaScraper(self.config)
 
     def test_today_is_in_window(self):
-        now = datetime.now()
-        # Today (if weekday) should be in the 4-day business window
+        # Use Mendoza timezone to match scraper logic
+        from utils.dates import now_in_tz
+        now = now_in_tz("America/Argentina/Mendoza")
+        # Today in Mendoza (if weekday) should be in the 4-day business window
         if now.weekday() < 5:
             self.assertTrue(self.scraper._in_business_window(now))
 
@@ -283,7 +292,7 @@ class TestBoletinFullRun(unittest.IsolatedAsyncioTestCase):
 
     async def test_run_with_keyword_results(self):
         """run() debe retornar licitaciones cuando la API devuelve HTML con filas validas."""
-        today = date.today()
+        today = _today_in_mza()
         fec_pub = today.strftime("%d/%m/%Y")
         mock_html = _boletin_html_with_rows([{
             "tipo": "RESOLUCION",
@@ -373,7 +382,7 @@ class TestBoletinFullRun(unittest.IsolatedAsyncioTestCase):
 
     async def test_run_results_sorted_by_date_desc(self):
         """Los resultados deben estar ordenados por fecha de publicacion descendente."""
-        today = date.today()
+        today = _today_in_mza()
         yesterday = today - timedelta(days=1)
         # Skip weekends
         while yesterday.weekday() >= 5:
@@ -487,7 +496,7 @@ class TestBoletinLicitacionModel(unittest.TestCase):
     """Verifica que los objetos producidos por el scraper cumplen el modelo."""
 
     def test_all_required_fields_present(self):
-        today = date.today()
+        today = _today_in_mza()
         fec_pub = today.strftime("%d/%m/%Y")
         config = _make_config()
         scraper = BoletinOficialMendozaScraper(config)

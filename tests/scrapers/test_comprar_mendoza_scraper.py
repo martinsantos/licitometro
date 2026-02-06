@@ -535,6 +535,7 @@ class TestComprarFullRun(unittest.IsolatedAsyncioTestCase):
             "business_days_window": 4,
             "use_selenium_pliego": False,
             "max_pages": 1,
+            "disable_date_filter": False,  # Enable date filtering for this test
         })
         scraper = MendozaCompraScraper(config)
 
@@ -545,7 +546,7 @@ class TestComprarFullRun(unittest.IsolatedAsyncioTestCase):
 
             results = await scraper.run()
 
-        # Old dates should be filtered out
+        # Old dates should be filtered out when disable_date_filter=False
         old_ids = [r.id_licitacion for r in results if r.id_licitacion == "OLD-001"]
         self.assertEqual(len(old_ids), 0, "Old-dated processes should be filtered out")
 

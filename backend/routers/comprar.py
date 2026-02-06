@@ -1,9 +1,38 @@
-from fastapi import APIRouter, HTTPException, Query
-from fastapi.responses import HTMLResponse
+"""
+COMPR.AR Mendoza - Router para acceso a procesos de compra.
+
+Este modulo provee endpoints para acceder a procesos de COMPR.AR Mendoza.
+
+IMPORTANTE: El sistema COMPR.AR usa ASP.NET WebForms con postbacks que son
+dependientes de sesion. Los parametros `target` (ctl00$CPH1$Grid$ctlXX$lnk...)
+cambian con cada carga de pagina y expiran con la sesion.
+
+La UNICA URL estable es la URL PLIEGO: VistaPreviaPliegoCiudadano.aspx?qs=XXX
+
+Estrategia:
+1. Si tenemos URL PLIEGO guardada -> redirigir directamente
+2. Si no -> buscar proceso por numero en la pagina actual y extraer PLIEGO URL
+3. Cachear las URLs PLIEGO para futuras consultas
+"""
+
+from fastapi import APIRouter, HTTPException, Query, Depends
+from fastapi.responses import HTMLResponse, RedirectResponse, JSONResponse
 from bs4 import BeautifulSoup
 import aiohttp
 import logging
 import html as html_escape
+import re
+import json
+from pathlib import Path
+from datetime import datetime, timedelta
+from typing import Optional, Dict, Any, List
+from urllib.parse import urljoin, quote_plus, urlparse, parse_qs
+
+import sys
+sys.path.insert(0, str(Path(__file__).parent.parent))
+
+from dependencies import get_licitacion_repository
+from db.repositories import LicitacionRepository
 
 router = APIRouter(
     prefix="/api/comprar",
@@ -13,8 +42,73 @@ router = APIRouter(
 
 logger = logging.getLogger("comprar_proxy")
 
+# ============================================================================
+# Cache para URLs PLIEGO (persistente en archivo)
+# ============================================================================
+
+PLIEGO_CACHE_FILE = Path("storage/pliego_url_cache.json")
+PLIEGO_CACHE_TTL_HOURS = 168  # 7 dias
+
+
+def _load_pliego_cache() -> Dict[str, Dict[str, Any]]:
+    """Cargar cache de URLs PLIEGO desde disco"""
+    if PLIEGO_CACHE_FILE.exists():
+        try:
+            with open(PLIEGO_CACHE_FILE, 'r', encoding='utf-8') as f:
+                return json.load(f)
+        except Exception as e:
+            logger.error(f"Error loading cache: {e}")
+    return {}
+
+
+def _save_pliego_cache(cache: Dict[str, Dict[str, Any]]):
+    """Guardar cache de URLs PLIEGO a disco"""
+    try:
+        PLIEGO_CACHE_FILE.parent.mkdir(parents=True, exist_ok=True)
+        with open(PLIEGO_CACHE_FILE, 'w', encoding='utf-8') as f:
+            json.dump(cache, f, ensure_ascii=False, indent=2)
+    except Exception as e:
+        logger.error(f"Error saving cache: {e}")
+
+
+def _get_cached_pliego_url(numero: str) -> Optional[str]:
+    """Obtener URL PLIEGO cacheada si no expiro"""
+    cache = _load_pliego_cache()
+    # Normalizar el numero para busqueda
+    numero_key = numero.strip().upper()
+
+    if numero_key not in cache:
+        return None
+
+    entry = cache[numero_key]
+    cached_time = datetime.fromisoformat(entry['timestamp'])
+
+    if datetime.utcnow() - cached_time > timedelta(hours=PLIEGO_CACHE_TTL_HOURS):
+        del cache[numero_key]
+        _save_pliego_cache(cache)
+        return None
+
+    return entry.get('url')
+
+
+def _cache_pliego_url(numero: str, url: str):
+    """Guardar URL PLIEGO en cache"""
+    cache = _load_pliego_cache()
+    numero_key = numero.strip().upper()
+    cache[numero_key] = {
+        'url': url,
+        'timestamp': datetime.utcnow().isoformat()
+    }
+    _save_pliego_cache(cache)
+    logger.info(f"Cached PLIEGO URL for {numero_key}: {url}")
+
+
+# ============================================================================
+# Extraccion de datos de paginas COMPR.AR
+# ============================================================================
 
 def _extract_hidden_fields(html: str) -> dict:
+    """Extraer campos ocultos ASP.NET de una pagina"""
     soup = BeautifulSoup(html, "html.parser")
     fields = {}
     for inp in soup.find_all("input"):
@@ -24,11 +118,265 @@ def _extract_hidden_fields(html: str) -> dict:
     return fields
 
 
+def _extract_pliego_url_from_html(html: str, base_url: str = "https://comprar.mendoza.gov.ar/") -> Optional[str]:
+    """Extraer URL PLIEGO desde el HTML de detalle"""
+    soup = BeautifulSoup(html, 'html.parser')
+
+    # Estrategia 1: Link directo a VistaPreviaPliegoCiudadano
+    for a in soup.find_all('a', href=True):
+        href = a.get('href', '')
+        if 'VistaPreviaPliegoCiudadano.aspx?qs=' in href:
+            return urljoin(base_url, href)
+
+    # Estrategia 2: Buscar en onclick handlers
+    for elem in soup.find_all(onclick=True):
+        onclick = elem.get('onclick', '')
+        m = re.search(r"window\.open\(['\"]([^'\"]+VistaPreviaPliegoCiudadano[^'\"]*)['\"]", onclick)
+        if m:
+            return urljoin(base_url, m.group(1))
+
+    # Estrategia 3: Buscar en el HTML raw
+    patterns = [
+        r'(PLIEGO[/\\]VistaPreviaPliegoCiudadano\.aspx\?qs=[^\s\"\'<>]+)',
+        r'(ComprasElectronicas\.aspx\?qs=[^\s\"\'<>]+)',
+    ]
+    for pattern in patterns:
+        m = re.search(pattern, html, re.IGNORECASE)
+        if m:
+            url = m.group(1).replace('\\/', '/')
+            return urljoin(base_url, url)
+
+    return None
+
+
+def _find_process_row_in_list(html: str, numero: str) -> Optional[Dict[str, str]]:
+    """
+    Buscar un proceso por numero en la tabla del listado.
+    Retorna el target postback si lo encuentra.
+    """
+    soup = BeautifulSoup(html, 'html.parser')
+    table = soup.find('table', {'id': re.compile('GridListaPliegosAperturaProxima', re.I)})
+    if not table:
+        # Intentar otras tablas conocidas
+        table = soup.find('table', {'id': re.compile('GridListaPliegos', re.I)})
+    if not table:
+        return None
+
+    numero_normalized = numero.strip().upper()
+
+    for row in table.find_all('tr'):
+        cols = row.find_all('td')
+        if len(cols) < 2:
+            continue
+
+        # El numero suele estar en la primera columna
+        cell_text = cols[0].get_text(' ', strip=True).upper()
+
+        if numero_normalized in cell_text:
+            # Encontrado! Buscar el link con postback
+            link = cols[0].find('a', href=True)
+            if link:
+                href = link.get('href', '')
+                m = re.search(r"__doPostBack\('([^']+)'\s*,\s*'([^']*)'\)", href)
+                if m:
+                    return {
+                        'target': m.group(1),
+                        'arg': m.group(2),
+                        'numero': cols[0].get_text(' ', strip=True),
+                        'titulo': cols[1].get_text(' ', strip=True) if len(cols) > 1 else '',
+                    }
+
+    return None
+
+
+async def _search_and_resolve_pliego(numero: str, list_url: str) -> Optional[str]:
+    """
+    Buscar un proceso por numero en COMPR.AR y resolver su URL PLIEGO.
+
+    1. Cargar la pagina de lista
+    2. Buscar el proceso por numero
+    3. Hacer postback para ir al detalle
+    4. Extraer la URL PLIEGO
+    """
+    headers = {
+        "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36",
+    }
+    jar = aiohttp.CookieJar(unsafe=True)
+
+    try:
+        async with aiohttp.ClientSession(headers=headers, cookie_jar=jar) as session:
+            # Cargar la pagina de lista
+            async with session.get(list_url) as resp:
+                if resp.status != 200:
+                    logger.error(f"Failed to load list page: {resp.status}")
+                    return None
+                list_html = await resp.text()
+
+            # Buscar el proceso en la lista
+            row_info = _find_process_row_in_list(list_html, numero)
+            if not row_info:
+                logger.warning(f"Process {numero} not found in list page")
+                return None
+
+            # Hacer postback para ir al detalle
+            fields = _extract_hidden_fields(list_html)
+            fields["__EVENTTARGET"] = row_info['target']
+            fields["__EVENTARGUMENT"] = row_info.get('arg', '')
+
+            async with session.post(list_url, data=fields) as resp:
+                if resp.status != 200:
+                    logger.error(f"Failed to load detail page: {resp.status}")
+                    return None
+                detail_html = await resp.text()
+
+            # Extraer la URL PLIEGO del detalle
+            pliego_url = _extract_pliego_url_from_html(detail_html)
+            if pliego_url:
+                # Cachear para futuras consultas
+                _cache_pliego_url(numero, pliego_url)
+                return pliego_url
+
+            logger.warning(f"PLIEGO URL not found in detail page for {numero}")
+            return None
+
+    except Exception as e:
+        logger.error(f"Error resolving PLIEGO for {numero}: {e}")
+        return None
+
+
+# ============================================================================
+# Endpoints
+# ============================================================================
+
+@router.get("/resolve/{numero}")
+async def resolve_comprar_proceso(
+    numero: str,
+    repo: LicitacionRepository = Depends(get_licitacion_repository)
+):
+    """
+    Resolver la URL PLIEGO para un proceso de COMPR.AR por su numero.
+
+    Este endpoint es el reemplazo estable para el antiguo /proceso/open.
+
+    Estrategia:
+    1. Buscar en cache
+    2. Buscar en MongoDB (metadata.comprar_pliego_url)
+    3. Buscar en COMPR.AR en tiempo real
+    4. Redirigir a la URL PLIEGO o retornar error
+    """
+    numero = numero.strip()
+
+    # 1. Buscar en cache local
+    cached_url = _get_cached_pliego_url(numero)
+    if cached_url:
+        logger.info(f"Cache hit for {numero}")
+        return RedirectResponse(url=cached_url, status_code=302)
+
+    # 2. Buscar en MongoDB
+    try:
+        # Buscar por id_licitacion o licitacion_number
+        filters = {"$or": [
+            {"id_licitacion": numero},
+            {"licitacion_number": numero},
+            {"id_licitacion": numero.upper()},
+            {"licitacion_number": numero.upper()},
+        ]}
+        items = await repo.get_all(skip=0, limit=1, filters=filters)
+
+        if items:
+            lic = items[0]
+            # Buscar URL PLIEGO en metadata
+            metadata = lic.get('metadata', {}) or {}
+            pliego_url = metadata.get('comprar_pliego_url')
+
+            if pliego_url:
+                _cache_pliego_url(numero, pliego_url)
+                return RedirectResponse(url=pliego_url, status_code=302)
+
+            # Buscar en source_url
+            source_url = lic.get('source_url', '')
+            if source_url and 'VistaPreviaPliegoCiudadano' in str(source_url):
+                _cache_pliego_url(numero, str(source_url))
+                return RedirectResponse(url=str(source_url), status_code=302)
+    except Exception as e:
+        logger.error(f"Error searching MongoDB for {numero}: {e}")
+
+    # 3. Buscar en COMPR.AR en tiempo real
+    list_urls = [
+        "https://comprar.mendoza.gov.ar/Compras.aspx?qs=W1HXHGHtH10=",  # Apertura proxima
+        "https://comprar.mendoza.gov.ar/Compras.aspx?qs=V1HXLCHtH10=",  # Ultimos 30 dias
+    ]
+
+    for list_url in list_urls:
+        pliego_url = await _search_and_resolve_pliego(numero, list_url)
+        if pliego_url:
+            return RedirectResponse(url=pliego_url, status_code=302)
+
+    # No encontrado
+    return JSONResponse(
+        status_code=404,
+        content={
+            "error": "Proceso no encontrado",
+            "numero": numero,
+            "message": "El proceso no se encontro en COMPR.AR. Puede que haya expirado o el numero sea incorrecto."
+        }
+    )
+
+
+@router.get("/proceso/by-id/{licitacion_id}")
+async def comprar_proceso_by_id(
+    licitacion_id: str,
+    repo: LicitacionRepository = Depends(get_licitacion_repository)
+):
+    """
+    Resolver y redirigir a un proceso de COMPR.AR por ID de licitacion (MongoDB _id).
+    """
+    try:
+        lic = await repo.get_by_id(licitacion_id)
+        if not lic:
+            raise HTTPException(status_code=404, detail="Licitacion no encontrada")
+
+        # Buscar la mejor URL disponible
+        metadata = lic.get('metadata', {}) or {}
+
+        # Prioridad 1: URL PLIEGO directa
+        pliego_url = metadata.get('comprar_pliego_url')
+        if pliego_url:
+            return RedirectResponse(url=pliego_url, status_code=302)
+
+        # Prioridad 2: source_url con PLIEGO
+        source_url = lic.get('source_url', '')
+        if source_url and 'VistaPreviaPliegoCiudadano' in str(source_url):
+            return RedirectResponse(url=str(source_url), status_code=302)
+
+        # Prioridad 3: Resolver por numero
+        numero = lic.get('licitacion_number') or lic.get('id_licitacion')
+        if numero:
+            return await resolve_comprar_proceso(numero, repo)
+
+        raise HTTPException(
+            status_code=404,
+            detail="No se pudo resolver la URL del proceso"
+        )
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error resolving by ID {licitacion_id}: {e}")
+        raise HTTPException(status_code=500, detail="Error interno")
+
+
 @router.get("/proceso/open", response_class=HTMLResponse)
 async def comprar_proceso_open(
     list_url: str = Query(..., description="Lista Compras.aspx con qs"),
     target: str = Query(..., description="Postback target del proceso"),
 ):
+    """
+    [LEGACY] Abrir proceso usando postback.
+
+    ADVERTENCIA: Este endpoint usa targets ASP.NET que expiran con la sesion.
+    Preferir usar /resolve/{numero} o /proceso/by-id/{id} para URLs estables.
+    """
     try:
         headers = {
             "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
@@ -44,7 +392,16 @@ async def comprar_proceso_open(
             fields["__EVENTTARGET"] = target
             fields["__EVENTARGUMENT"] = ""
 
-            # Return an auto-submitting form so the browser lands on the original domain.
+            # Intentar extraer la URL PLIEGO primero
+            async with session.post(list_url, data=fields) as resp:
+                if resp.status == 200:
+                    detail_html = await resp.text()
+                    pliego_url = _extract_pliego_url_from_html(detail_html)
+                    if pliego_url:
+                        # Redirigir directamente a la URL PLIEGO estable
+                        return RedirectResponse(url=pliego_url, status_code=302)
+
+            # Fallback: formulario auto-submit (comportamiento legacy)
             inputs = "\n".join(
                 f'<input type="hidden" name="{html_escape.escape(k)}" value="{html_escape.escape(v)}" />'
                 for k, v in fields.items()
@@ -59,7 +416,7 @@ async def comprar_proceso_open(
     <form id="comprarForm" method="post" action="{html_escape.escape(list_url)}" target="_blank">
       {inputs}
       <noscript>
-        <p>Presioná el botón para abrir el proceso en COMPR.AR.</p>
+        <p>Presiona el boton para abrir el proceso en COMPR.AR.</p>
         <button type="submit">Abrir proceso</button>
       </noscript>
     </form>
@@ -79,6 +436,11 @@ async def comprar_proceso_html(
     list_url: str = Query(..., description="Lista Compras.aspx con qs"),
     target: str = Query(..., description="Postback target del proceso"),
 ):
+    """
+    [LEGACY] Obtener HTML del detalle de un proceso.
+
+    ADVERTENCIA: Este endpoint usa targets ASP.NET que expiran con la sesion.
+    """
     try:
         headers = {
             "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
@@ -107,3 +469,38 @@ async def comprar_proceso_html(
     except Exception as exc:
         logger.error(f"Error proxying proceso html: {exc}")
         raise HTTPException(status_code=500, detail="Error interno al abrir el proceso.")
+
+
+@router.get("/cache/stats")
+async def get_cache_stats():
+    """Obtener estadisticas del cache de URLs PLIEGO"""
+    cache = _load_pliego_cache()
+    now = datetime.utcnow()
+
+    valid = 0
+    expired = 0
+    for entry in cache.values():
+        cached_time = datetime.fromisoformat(entry['timestamp'])
+        if now - cached_time <= timedelta(hours=PLIEGO_CACHE_TTL_HOURS):
+            valid += 1
+        else:
+            expired += 1
+
+    return {
+        "total": len(cache),
+        "valid": valid,
+        "expired": expired,
+        "ttl_hours": PLIEGO_CACHE_TTL_HOURS
+    }
+
+
+@router.post("/cache/clear")
+async def clear_cache():
+    """Limpiar el cache de URLs PLIEGO"""
+    try:
+        if PLIEGO_CACHE_FILE.exists():
+            PLIEGO_CACHE_FILE.unlink()
+        return {"message": "Cache cleared", "success": True}
+    except Exception as e:
+        logger.error(f"Error clearing cache: {e}")
+        raise HTTPException(status_code=500, detail="Error clearing cache")

@@ -60,47 +60,47 @@ const LicitacionDetailPage = () => {
   };
 
   // Helper to get the correct COMPR.AR link
+  // IMPORTANTE: El sistema COMPR.AR usa ASP.NET con postbacks que expiran.
+  // La unica URL estable es VistaPreviaPliegoCiudadano.aspx?qs=XXX
+  // Si no tenemos esa URL, usamos el nuevo endpoint /api/comprar/proceso/by-id/{id}
+  // que busca y resuelve la URL dinamicamente.
   const getComprarUrl = () => {
     if (!licitacion) return null;
-    
-    // Function to sanitize legacy URLs pointing to hardcoded localhost
-    const sanitizeProxyUrl = (url) => {
-      if (!url) return null;
-      if (url.includes('localhost:8001')) {
-        return url.replace(/https?:\/\/localhost:8001/, BACKEND_URL);
-      }
-      if (url.startsWith('/api/comprar')) {
-        return `${BACKEND_URL}${url}`;
-      }
-      return url;
-    };
 
-    // Priority 1: Direct pliego URL (Most reliable)
+    // Priority 1: Direct pliego URL (VistaPreviaPliegoCiudadano - ESTABLE)
     if (licitacion.metadata?.comprar_pliego_url) {
       return licitacion.metadata.comprar_pliego_url;
     }
 
-    // Priority 2: Smart bridge URL (Fallback)
-    if (licitacion.metadata?.comprar_open_url) {
-      return sanitizeProxyUrl(licitacion.metadata.comprar_open_url);
-    }
-    
+    // Priority 2: source_url con PLIEGO (tambien estable)
     if (licitacion.source_url?.includes('VistaPreviaPliegoCiudadano')) {
       return licitacion.source_url;
     }
-    
+
+    // Priority 3: Resolver via nuevo endpoint estable (busca por numero)
+    // Este endpoint busca el proceso en COMPR.AR y resuelve la URL PLIEGO
+    if (licitacion.fuente?.includes('COMPR.AR') && licitacion.id) {
+      return `${BACKEND_URL}/api/comprar/proceso/by-id/${licitacion.id}`;
+    }
+
+    // Priority 4: Si tenemos numero de licitacion, resolver por numero
+    if (licitacion.fuente?.includes('COMPR.AR') && licitacion.licitacion_number) {
+      return `${BACKEND_URL}/api/comprar/resolve/${encodeURIComponent(licitacion.licitacion_number)}`;
+    }
+
     return null;
   };
 
   const getDetailUrl = () => {
     if (!licitacion) return null;
-    
-    // If we have a bridge URL, it's safer than the direct link
-    const comprarUrl = getComprarUrl();
-    if (comprarUrl && licitacion.fuente?.includes('COMPR.AR')) {
-        return comprarUrl;
+
+    // Para COMPR.AR, usar la URL estable
+    if (licitacion.fuente?.includes('COMPR.AR')) {
+      const comprarUrl = getComprarUrl();
+      if (comprarUrl) return comprarUrl;
     }
 
+    // Para otras fuentes, usar source_url directamente
     if (licitacion.metadata?.comprar_detail_url) {
       if (licitacion.metadata.comprar_detail_url.includes('localhost:8001')) {
         return licitacion.metadata.comprar_detail_url.replace(/https?:\/\/localhost:8001/, BACKEND_URL);
