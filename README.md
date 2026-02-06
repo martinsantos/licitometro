@@ -157,3 +157,12 @@ LICITOMETRO 2.0 con Módulo RECON Integrado y ASTRO
   - Realización de pruebas unitarias y de integración.
   - Optimización de performance y seguridad.
   - Despliegue en entorno de producción y monitoreo continuo.
+
+---
+
+**8. Módulo de Enriquecimiento (2025)**
+
+- **Arquitectura Híbrida de Scraping:**
+  - **Estrategia Principal:** Cliente HTTP asíncrono (`aiohttp`) para velocidad y eficiencia en portales estándar.
+  - **Estrategia Fallback (Browser):** Integración de **Playwright** para sitios con ofuscación por JavaScript (ej. DevExpress en COMPR.AR).
+  - **Flujo:** El sistema intenta primero la extracción estática ligera. Si detecta redirecciones a vistas de proveedor o falta de datos, activa automáticamente una instancia de navegador headless para simular la navegación humana y extraer la URL pública real.
