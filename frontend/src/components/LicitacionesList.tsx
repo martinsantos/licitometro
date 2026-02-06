@@ -1,352 +1,569 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { format } from 'date-fns';
+import { es } from 'date-fns/locale';
+import { useNavigate } from 'react-router-dom';
 
-const LicitacionesList = ({ apiUrl }) => {
-  const [licitaciones, setLicitaciones] = useState([]);
+interface AttachedFile {
+    name: string;
+    url: string;
+    type: string;
+}
+
+interface Licitacion {
+    id: string;
+    title: string;
+    organization: string;
+    publication_date: string;
+    opening_date: string;
+    expedient_number?: string;
+    licitacion_number?: string;
+    description?: string;
+    budget?: number;
+    currency?: string;
+    fuente?: string;
+    status?: string;
+    jurisdiccion?: string;
+    tipo_procedimiento?: string;
+    location?: string;
+    metadata?: {
+      comprar_estado?: string;
+      comprar_directa_tipo?: string;
+      comprar_unidad_ejecutora?: string;
+      comprar_open_url?: string;
+      comprar_pliego_url?: string;
+    };
+}
+
+interface Paginacion {
+    pagina: number;
+    total_paginas: number;
+    total_items: number;
+    por_pagina: number;
+}
+
+interface LicitacionesListProps {
+  apiUrl: string;
+}
+
+const LicitacionesList = ({ apiUrl }: LicitacionesListProps) => {
+  const navigate = useNavigate();
+  const [licitaciones, setLicitaciones] = useState<Licitacion[]>([]);
+  const [paginacion, setPaginacion] = useState<Paginacion | null>(null);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
-  const [filtros, setFiltros] = useState({
-    organismo: '',
-    estado: '',
-    texto: '',
-    fechaDesde: '',
-    fechaHasta: ''
-  });
-  const [paginacion, setPaginacion] = useState({
-    pagina: 1,
-    limite: 10,
-    total: 0
-  });
+  const [error, setError] = useState<string | null>(null);
+  const [pagina, setPagina] = useState(1);
+  const [busqueda, setBusqueda] = useState('');
+  const [fuenteFiltro, setFuenteFiltro] = useState('');
+  const [statusFiltro, setStatusFiltro] = useState('');
+  
+  // New: States for sorting and column visibility
+  const [sortBy, setSortBy] = useState<string>('publication_date');
+  const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
+  const [visibleColumns, setVisibleColumns] = useState<Set<string>>(new Set([
+    'expediente', 'titulo', 'org', 'publicacion', 'apertura', 'fuente', 'estado', 'acciones'
+  ]));
+  const [showColumnPicker, setShowColumnPicker] = useState(false);
 
-  const fetchLicitaciones = async () => {
-    try {
-      setLoading(true);
-      
-      // Construir parámetros de consulta
-      const params = new URLSearchParams();
-      params.append('skip', (paginacion.pagina - 1) * paginacion.limite);
-      params.append('limit', paginacion.limite);
-      
-      if (filtros.organismo) params.append('organismo', filtros.organismo);
-      if (filtros.estado) params.append('estado', filtros.estado);
-      if (filtros.texto) params.append('texto', filtros.texto);
-      if (filtros.fechaDesde) params.append('fecha_desde', filtros.fechaDesde);
-      if (filtros.fechaHasta) params.append('fecha_hasta', filtros.fechaHasta);
-      
-      const response = await fetch(`${apiUrl}/api/licitaciones/?${params.toString()}`);
-      
-      if (!response.ok) {
-        throw new Error('No se pudieron cargar las licitaciones');
-      }
-      
-      const data = await response.json();
-      setLicitaciones(data);
-      // En un API real, esto vendría en headers o en la respuesta
-      setPaginacion(prev => ({ ...prev, total: data.length }));
-      setLoading(false);
-    } catch (err) {
-      console.error('Error al cargar licitaciones:', err);
-      setError(err.message);
-      setLoading(false);
-      
-      // Para demostración, cargar datos de ejemplo
-      setLicitaciones(licitacionesEjemplo);
-    }
+  const columns = [
+    { id: 'expediente', label: 'Expediente' },
+    { id: 'titulo', label: 'Título' },
+    { id: 'org', label: 'Organización' },
+    { id: 'publicacion', label: 'Publicación' },
+    { id: 'apertura', label: 'Apertura' },
+    { id: 'fuente', label: 'Fuente' },
+    { id: 'estado', label: 'Estado' },
+    { id: 'jurisdiccion', label: 'Jurisdicción' },
+    { id: 'procedimiento', label: 'Procedimiento' },
+    { id: 'presupuesto', label: 'Presupuesto' },
+    { id: 'acciones', label: 'Acciones' },
+  ];
+
+  const sanitizeText = (text: string | undefined | null) => {
+    if (!text) return '';
+    return text.replace(/&nbsp;?/g, ' ').replace(/\s+/g, ' ').trim();
   };
 
   useEffect(() => {
-    fetchLicitaciones();
-  }, [apiUrl, paginacion.pagina, paginacion.limite]);
+    const fetchLicitaciones = async () => {
+      setLoading(true);
+      try {
+        const params = new URLSearchParams({
+          page: pagina.toString(),
+          size: '15',
+          sort_by: sortBy,
+          sort_order: sortOrder
+        });
+        
+        if (busqueda) params.append('q', busqueda);
+        if (fuenteFiltro) params.append('fuente', fuenteFiltro);
+        if (statusFiltro) params.append('status', statusFiltro);
 
-  const handleFiltroChange = (e) => {
-    const { name, value } = e.target;
-    setFiltros(prev => ({ ...prev, [name]: value }));
+        const response = await fetch(`${apiUrl}/api/licitaciones/?${params.toString()}`);
+        if (!response.ok) throw new Error('Error al cargar licitaciones');
+        const data = await response.json();
+        setLicitaciones(data.items || []);
+        setPaginacion(data.paginacion);
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'Error desconocido');
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    const timeoutId = setTimeout(fetchLicitaciones, 300);
+    return () => clearTimeout(timeoutId);
+  }, [apiUrl, pagina, busqueda, fuenteFiltro, statusFiltro, sortBy, sortOrder]);
+
+  const handleRowClick = (id: string) => {
+    navigate(`/licitacion/${id}`);
   };
 
-  const aplicarFiltros = (e) => {
-    e.preventDefault();
-    setPaginacion(prev => ({ ...prev, pagina: 1 })); // Resetear a primera página
-    fetchLicitaciones();
+  const handleSort = (columnId: string) => {
+    const sortMap: Record<string, string> = {
+      'publicacion': 'publication_date',
+      'apertura': 'opening_date',
+      'titulo': 'title',
+      'org': 'organization',
+      'presupuesto': 'budget'
+    };
+    
+    const dbField = sortMap[columnId];
+    if (!dbField) return;
+
+    if (sortBy === dbField) {
+      setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc');
+    } else {
+      setSortBy(dbField);
+      setSortOrder('desc');
+    }
+    setPagina(1);
   };
 
-  const limpiarFiltros = () => {
-    setFiltros({
-      organismo: '',
-      estado: '',
-      texto: '',
-      fechaDesde: '',
-      fechaHasta: ''
-    });
-    setPaginacion(prev => ({ ...prev, pagina: 1 }));
-    fetchLicitaciones();
+  const toggleColumn = (columnId: string) => {
+    const newVisible = new Set(visibleColumns);
+    if (newVisible.has(columnId)) {
+      if (newVisible.size > 2) newVisible.delete(columnId);
+    } else {
+      newVisible.add(columnId);
+    }
+    setVisibleColumns(newVisible);
   };
 
-  const cambiarPagina = (nuevaPagina) => {
-    setPaginacion(prev => ({ ...prev, pagina: nuevaPagina }));
-  };
-
-  if (loading) {
+  if (loading && licitaciones.length === 0) {
     return (
-      <div className="flex justify-center items-center p-8">
-        <div className="spinner mr-3"></div>
-        <p>Cargando licitaciones...</p>
+      <div className="flex flex-col items-center justify-center p-20 bg-white/50 backdrop-blur-md rounded-3xl border border-white/40 shadow-xl">
+        <div className="animate-spin rounded-full h-16 w-16 border-t-4 border-b-4 border-blue-600 mb-4"></div>
+        <p className="text-gray-500 font-bold animate-pulse">Buscando oportunidades...</p>
       </div>
     );
   }
 
   if (error && licitaciones.length === 0) {
     return (
-      <div className="bg-red-50 border-l-4 border-red-400 text-red-700 p-4 mb-4">
-        <div className="flex">
-          <div className="flex-shrink-0">
-            <svg className="h-5 w-5 text-red-400" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
-              <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
-            </svg>
-          </div>
-          <div className="ml-3">
-            <p className="text-sm">{error}</p>
-            <p className="text-sm mt-2">Mostrando datos de ejemplo para demostración.</p>
-          </div>
+      <div className="flex flex-col items-center justify-center p-20 bg-red-50 rounded-3xl border border-red-100 shadow-xl text-center">
+        <div className="w-20 h-20 rounded-full bg-red-100 flex items-center justify-center mb-4">
+          <svg className="w-10 h-10 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+          </svg>
         </div>
-      </div>
-    );
-  }
-
-  if (licitaciones.length === 0) {
-    return (
-      <div className="text-center p-8">
-        <p className="text-gray-600">No se encontraron licitaciones que coincidan con los criterios de búsqueda.</p>
-        <p className="mt-2 text-sm text-gray-500">Intente modificar los filtros o vuelva más tarde.</p>
+        <h3 className="text-xl font-black text-red-900 mb-2">Error al cargar datos</h3>
+        <p className="text-red-600 font-medium mb-6 max-w-md">{error}</p>
         <button 
-          onClick={limpiarFiltros}
-          className="mt-4 px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600 transition"
+          onClick={() => window.location.reload()}
+          className="px-6 py-3 bg-red-600 text-white rounded-xl font-bold hover:bg-red-700 transition-all active:scale-95"
         >
-          Limpiar filtros
+          Reintentar ahora
         </button>
       </div>
     );
   }
 
   return (
-    <div>
-      <div className="mb-6">
-        <form onSubmit={aplicarFiltros} className="bg-white p-4 rounded-lg shadow mb-4">
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
-            <div>
-              <label htmlFor="texto" className="block text-sm font-medium text-gray-700 mb-1">
-                Búsqueda
-              </label>
-              <input
-                type="text"
-                id="texto"
-                name="texto"
-                value={filtros.texto}
-                onChange={handleFiltroChange}
-                placeholder="Buscar por título o descripción"
-                className="w-full p-2 border border-gray-300 rounded"
-              />
-            </div>
-            <div>
-              <label htmlFor="organismo" className="block text-sm font-medium text-gray-700 mb-1">
-                Organismo
-              </label>
-              <input
-                type="text"
-                id="organismo"
-                name="organismo"
-                value={filtros.organismo}
-                onChange={handleFiltroChange}
-                placeholder="Filtrar por organismo"
-                className="w-full p-2 border border-gray-300 rounded"
-              />
-            </div>
-            <div>
-              <label htmlFor="estado" className="block text-sm font-medium text-gray-700 mb-1">
-                Estado
-              </label>
-              <select
-                id="estado"
-                name="estado"
-                value={filtros.estado}
-                onChange={handleFiltroChange}
-                className="w-full p-2 border border-gray-300 rounded"
-              >
-                <option value="">Todos</option>
-                <option value="activa">Activa</option>
-                <option value="cerrada">Cerrada</option>
-                <option value="adjudicada">Adjudicada</option>
-                <option value="cancelada">Cancelada</option>
-              </select>
-            </div>
-          </div>
-          
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
-            <div>
-              <label htmlFor="fechaDesde" className="block text-sm font-medium text-gray-700 mb-1">
-                Fecha desde
-              </label>
-              <input
-                type="date"
-                id="fechaDesde"
-                name="fechaDesde"
-                value={filtros.fechaDesde}
-                onChange={handleFiltroChange}
-                className="w-full p-2 border border-gray-300 rounded"
-              />
-            </div>
-            <div>
-              <label htmlFor="fechaHasta" className="block text-sm font-medium text-gray-700 mb-1">
-                Fecha hasta
-              </label>
-              <input
-                type="date"
-                id="fechaHasta"
-                name="fechaHasta"
-                value={filtros.fechaHasta}
-                onChange={handleFiltroChange}
-                className="w-full p-2 border border-gray-300 rounded"
-              />
-            </div>
-          </div>
-          
-          <div className="flex justify-end space-x-2">
-            <button
-              type="button"
-              onClick={limpiarFiltros}
-              className="px-4 py-2 border border-gray-300 rounded text-gray-700 hover:bg-gray-50 transition"
-            >
-              Limpiar
-            </button>
-            <button
-              type="submit"
-              className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 transition"
-            >
-              Aplicar filtros
-            </button>
-          </div>
-        </form>
+    <div className="space-y-6">
+      {/* Filters and Controls */}
+      <div className="grid grid-cols-1 md:grid-cols-12 gap-4 items-end">
+        <div className="md:col-span-12">
+           {/* Enhanced Search Header */}
+           <div className="flex flex-col md:flex-row gap-4 items-center justify-between bg-white p-4 rounded-2xl shadow-sm border border-gray-100">
+             <div className="relative flex-1 w-full group">
+                <input
+                  type="text"
+                  placeholder="Buscar por título, expediente o palabras clave..."
+                  className="w-full pl-12 pr-4 py-4 bg-gray-50 border-2 border-transparent focus:border-blue-500 rounded-2xl outline-none transition-all text-gray-700 font-medium group-hover:bg-gray-100/50"
+                  value={busqueda}
+                  onChange={(e) => {
+                    setBusqueda(e.target.value);
+                    setPagina(1);
+                  }}
+                />
+                <svg className="absolute left-4 top-1/2 -translate-y-1/2 w-6 h-6 text-gray-400 group-focus-within:text-blue-500 transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                </svg>
+             </div>
+             
+             <div className="flex gap-2 w-full md:w-auto">
+                <select
+                  className="px-4 py-4 bg-gray-50 border-2 border-transparent focus:border-blue-500 rounded-2xl outline-none transition-all text-gray-700 font-bold cursor-pointer"
+                  value={fuenteFiltro}
+                  onChange={(e) => {
+                    setFuenteFiltro(e.target.value);
+                    setPagina(1);
+                  }}
+                >
+                  <option value="">Todas las fuentes</option>
+                  <option value="Mendoza">Mendoza</option>
+                  <option value="CABA">CABA</option>
+                  <option value="Nación">Nación</option>
+                </select>
+
+                <div className="relative">
+                  <button 
+                    onClick={() => setShowColumnPicker(!showColumnPicker)}
+                    className="p-4 bg-gray-50 hover:bg-gray-100 rounded-2xl border-2 border-transparent transition-all group"
+                    title="Configurar columnas"
+                  >
+                    <svg className="w-6 h-6 text-gray-500 group-hover:rotate-45 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4" />
+                    </svg>
+                  </button>
+                  
+                  {showColumnPicker && (
+                    <div className="absolute right-0 mt-2 w-64 bg-white rounded-2xl shadow-2xl border border-gray-100 p-4 z-50">
+                      <h4 className="text-xs font-black text-gray-400 uppercase tracking-widest mb-3">Columnas visibles</h4>
+                      <div className="space-y-2">
+                        {columns.map(col => (
+                          <label key={col.id} className="flex items-center gap-3 p-2 hover:bg-gray-50 rounded-xl cursor-pointer transition-colors">
+                            <input
+                              type="checkbox"
+                              checked={visibleColumns.has(col.id)}
+                              onChange={() => toggleColumn(col.id)}
+                              className="w-4 h-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                            />
+                            <span className="text-sm font-bold text-gray-600">{col.label}</span>
+                          </label>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+             </div>
+           </div>
+        </div>
       </div>
 
-      <h3 className="text-xl font-bold mb-4">Resultados</h3>
-      <div className="overflow-x-auto bg-white rounded-lg shadow">
-        <table className="min-w-full">
-          <thead>
-            <tr className="bg-gray-50">
-              <th className="py-3 px-4 text-left">ID</th>
-              <th className="py-3 px-4 text-left">Título</th>
-              <th className="py-3 px-4 text-left">Organismo</th>
-              <th className="py-3 px-4 text-left">Fecha Publicación</th>
-              <th className="py-3 px-4 text-left">Estado</th>
-              <th className="py-3 px-4 text-left">Acciones</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-gray-200">
-            {licitaciones.map((licitacion) => (
-              <tr key={licitacion.id} className="hover:bg-gray-50">
-                <td className="py-3 px-4">{licitacion.id}</td>
-                <td className="py-3 px-4 font-medium">{licitacion.titulo}</td>
-                <td className="py-3 px-4">{licitacion.organismo}</td>
-                <td className="py-3 px-4">
-                  {licitacion.fecha_publicacion ? 
-                    format(new Date(licitacion.fecha_publicacion), 'dd/MM/yyyy') : 
-                    'N/A'}
-                </td>
-                <td className="py-3 px-4">
-                  <span className={`badge ${
-                    licitacion.estado === 'activa' ? 'badge-success' : 
-                    licitacion.estado === 'cerrada' ? 'badge-warning' : 
-                    licitacion.estado === 'adjudicada' ? 'badge-info' :
-                    'badge-error'
-                  }`}>
-                    {licitacion.estado}
-                  </span>
-                </td>
-                <td className="py-3 px-4">
-                  <a 
-                    href={`/licitaciones/${licitacion.id}`} 
-                    className="text-blue-600 hover:text-blue-800 mr-2"
+      {/* Table Container */}
+      <div className="bg-white rounded-[2rem] shadow-2xl border border-gray-100 overflow-hidden relative">
+        {loading && (
+          <div className="absolute inset-0 bg-white/60 backdrop-blur-[2px] z-10 flex items-center justify-center p-4 transition-all animate-in fade-in">
+             <div className="flex flex-col items-center">
+                <div className="w-10 h-10 border-4 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
+             </div>
+          </div>
+        )}
+
+        <div className="overflow-x-auto scrollbar-premium">
+          <table className="w-full text-left border-collapse min-w-[1400px]">
+            <thead>
+              <tr className="bg-slate-50 border-b border-gray-100">
+                {visibleColumns.has('expediente') && (
+                  <th className="px-6 py-5 text-xs font-black text-gray-400 uppercase tracking-wider">Expediente</th>
+                )}
+                {visibleColumns.has('titulo') && (
+                  <th 
+                    onClick={() => handleSort('titulo')}
+                    className="px-6 py-5 text-xs font-black text-gray-400 uppercase tracking-wider cursor-pointer hover:text-blue-600 transition-colors"
                   >
-                    Ver detalle
-                  </a>
-                </td>
+                    Título {sortBy === 'title' && (sortOrder === 'asc' ? '↑' : '↓')}
+                  </th>
+                )}
+                {visibleColumns.has('org') && (
+                  <th 
+                    onClick={() => handleSort('org')}
+                    className="px-6 py-5 text-xs font-black text-gray-400 uppercase tracking-wider cursor-pointer hover:text-blue-600 transition-colors"
+                  >
+                    Organización {sortBy === 'organization' && (sortOrder === 'asc' ? '↑' : '↓')}
+                  </th>
+                )}
+                {visibleColumns.has('publicacion') && (
+                  <th 
+                    onClick={() => handleSort('publicacion')}
+                    className="px-6 py-5 text-xs font-black text-gray-400 uppercase tracking-wider cursor-pointer hover:text-blue-600 transition-colors"
+                  >
+                    Publicación {sortBy === 'publication_date' && (sortOrder === 'asc' ? '↑' : '↓')}
+                  </th>
+                )}
+                {visibleColumns.has('apertura') && (
+                  <th 
+                    onClick={() => handleSort('apertura')}
+                    className="px-6 py-5 text-xs font-black text-gray-400 uppercase tracking-wider cursor-pointer hover:text-blue-600 transition-colors"
+                  >
+                    Apertura {sortBy === 'opening_date' && (sortOrder === 'asc' ? '↑' : '↓')}
+                  </th>
+                )}
+                {visibleColumns.has('fuente') && (
+                  <th className="px-6 py-5 text-xs font-black text-gray-400 uppercase tracking-wider">Fuente</th>
+                )}
+                {visibleColumns.has('estado') && (
+                  <th className="px-6 py-5 text-xs font-black text-gray-400 uppercase tracking-wider text-center">Estado</th>
+                )}
+                {visibleColumns.has('jurisdiccion') && (
+                  <th className="px-6 py-5 text-xs font-black text-gray-400 uppercase tracking-wider">Jurisdicción</th>
+                )}
+                {visibleColumns.has('procedimiento') && (
+                  <th className="px-6 py-5 text-xs font-black text-gray-400 uppercase tracking-wider">Procedimiento</th>
+                )}
+                {visibleColumns.has('presupuesto') && (
+                  <th 
+                    onClick={() => handleSort('presupuesto')}
+                    className="px-6 py-5 text-xs font-black text-gray-400 uppercase tracking-wider cursor-pointer hover:text-blue-600 transition-colors"
+                  >
+                    Presupuesto {sortBy === 'budget' && (sortOrder === 'asc' ? '↑' : '↓')}
+                  </th>
+                )}
+                {visibleColumns.has('acciones') && (
+                  <th className="px-6 py-5 text-xs font-black text-gray-400 uppercase tracking-wider text-right">Acciones</th>
+                )}
               </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-      
-      {/* Paginación */}
-      <div className="mt-4 flex justify-between items-center">
-        <div className="text-sm text-gray-700">
-          Mostrando {(paginacion.pagina - 1) * paginacion.limite + 1} a {Math.min(paginacion.pagina * paginacion.limite, paginacion.total)} de {paginacion.total} resultados
+            </thead>
+            <tbody className="divide-y divide-gray-50">
+              {licitaciones.length > 0 ? (
+                licitaciones.map((lic) => (
+                  <tr 
+                    key={lic.id} 
+                    className="group hover:bg-slate-50/80 transition-all duration-200 cursor-pointer"
+                    onClick={() => handleRowClick(lic.id)}
+                  >
+                    {visibleColumns.has('expediente') && (
+                      <td className="px-6 py-5 align-top">
+                        <div className="flex flex-col gap-1.5">
+                          {lic.expedient_number && (
+                            <span className="inline-flex items-center px-2.5 py-0.5 rounded-lg bg-blue-50 text-blue-700 text-xs font-black tracking-tight border border-blue-100/50">
+                              {sanitizeText(lic.expedient_number)}
+                            </span>
+                          )}
+                          {lic.licitacion_number && (
+                            <span className="inline-flex items-center px-2.5 py-0.5 rounded-lg bg-slate-100 text-slate-600 text-[10px] font-bold uppercase tracking-widest border border-slate-200">
+                              {sanitizeText(lic.licitacion_number)}
+                            </span>
+                          )}
+                        </div>
+                      </td>
+                    )}
+                    {visibleColumns.has('titulo') && (
+                      <td className="px-6 py-5 max-w-sm align-top">
+                        <div className="group-hover:text-blue-600 transition-colors">
+                          <p className="text-sm font-black text-gray-900 leading-snug line-clamp-2">
+                            {lic.title}
+                          </p>
+                          {lic.description && (
+                            <p className="text-xs text-gray-400 mt-1 line-clamp-1 italic">
+                              {lic.description}
+                            </p>
+                          )}
+                        </div>
+                      </td>
+                    )}
+                    {visibleColumns.has('org') && (
+                      <td className="px-6 py-5 max-w-[200px] align-top">
+                        <div 
+                          className="flex items-start gap-2 group/org cursor-pointer"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setBusqueda(lic.organization);
+                            setPagina(1);
+                          }}
+                          title="Filtrar por esta organización"
+                        >
+                          <div className="mt-1 w-1.5 h-4 bg-indigo-400/30 rounded-full flex-shrink-0 group-hover/org:bg-indigo-500 transition-colors"></div>
+                          <span className="text-xs font-bold text-gray-600 leading-tight group-hover/org:text-indigo-600 group-hover/org:underline transition-all">
+                            {lic.organization}
+                          </span>
+                        </div>
+                      </td>
+                    )}
+                    {visibleColumns.has('publicacion') && (
+                      <td className="px-6 py-5 whitespace-nowrap align-top">
+                        <div className="inline-flex flex-col items-center bg-blue-50/30 rounded-xl px-3 py-2 border border-blue-100/30">
+                          <span className="text-[10px] font-black text-blue-400 uppercase tracking-widest">Pub.</span>
+                          <span className="text-xs font-black text-blue-700">
+                            {lic.publication_date ? format(new Date(lic.publication_date), 'dd/MM/yyyy', { locale: es }) : 'N/A'}
+                          </span>
+                        </div>
+                      </td>
+                    )}
+                    {visibleColumns.has('apertura') && (
+                      <td className="px-6 py-5 whitespace-nowrap align-top">
+                        <div className="inline-flex flex-col items-center bg-orange-50/30 rounded-xl px-3 py-2 border border-orange-100/30">
+                          <span className="text-[10px] font-black text-orange-400 uppercase tracking-widest">Open</span>
+                          <span className="text-xs font-black text-orange-700">
+                            {lic.opening_date ? format(new Date(lic.opening_date), 'dd/MM/yyyy', { locale: es }) : 'N/A'}
+                          </span>
+                        </div>
+                      </td>
+                    )}
+                    {visibleColumns.has('fuente') && (
+                      <td className="px-6 py-5 whitespace-nowrap align-top">
+                        <span 
+                          className="inline-flex items-center px-3 py-1.5 rounded-xl bg-violet-50 text-violet-700 text-xs font-black border border-violet-100/50 cursor-pointer hover:bg-violet-100 hover:scale-105 transition-all"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            const val = lic.fuente || '';
+                            let filterVal = '';
+                            if (val.includes('Mendoza')) filterVal = 'Mendoza';
+                            else if (val.includes('CABA')) filterVal = 'CABA';
+                            else if (val.includes('Nación')) filterVal = 'Nación';
+                            
+                            setFuenteFiltro(filterVal);
+                            setPagina(1);
+                          }}
+                          title="Filtrar por esta fuente"
+                        >
+                          <svg className="w-3 h-3 mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101" />
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M10.172 13.828a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.102 1.101" />
+                          </svg>
+                          {lic.fuente || 'Desconocida'}
+                        </span>
+                      </td>
+                    )}
+                    {visibleColumns.has('estado') && (
+                      <td className="px-6 py-5 text-center align-top">
+                        <span className={`inline-flex items-center justify-center min-w-[80px] px-3 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-widest shadow-sm border ${
+                          lic.status === 'active' 
+                            ? 'bg-emerald-50 text-emerald-700 border-emerald-100/50' 
+                            : 'bg-red-50 text-red-700 border-red-100/50'
+                        }`}>
+                          {lic.status === 'active' ? 'Abierta' : 'Cerrada'}
+                        </span>
+                      </td>
+                    )}
+                    {visibleColumns.has('jurisdiccion') && (
+                      <td className="px-6 py-5 align-top">
+                        <span className="text-xs font-bold text-gray-500">{lic.jurisdiccion || 'N/A'}</span>
+                      </td>
+                    )}
+                    {visibleColumns.has('procedimiento') && (
+                      <td className="px-6 py-5 align-top">
+                        <span className="text-xs font-bold text-gray-500">{lic.tipo_procedimiento || 'N/A'}</span>
+                      </td>
+                    )}
+                    {visibleColumns.has('presupuesto') && (
+                      <td className="px-6 py-5 align-top">
+                        <span className="text-sm font-black text-emerald-600">
+                          {lic.budget ? new Intl.NumberFormat('es-AR', { style: 'currency', currency: lic.currency || 'ARS' }).format(lic.budget) : 'Consultar'}
+                        </span>
+                      </td>
+                    )}
+                    {visibleColumns.has('acciones') && (
+                      <td className="px-6 py-5 text-right align-top">
+                        <span 
+                          className="inline-flex items-center px-4 py-2 bg-white text-blue-600 text-xs font-black rounded-xl border-2 border-slate-100 hover:border-blue-500 hover:bg-blue-50 transition-all shadow-sm active:scale-95 group/btn"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleRowClick(lic.id);
+                          }}
+                        >
+                          Ver
+                          <svg className="w-4 h-4 ml-2 group-hover/btn:translate-x-1 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M14 5l7 7m0 0l-7 7m7-7H3" />
+                          </svg>
+                        </span>
+                      </td>
+                    )}
+                  </tr>
+                ))
+              ) : (
+                <tr>
+                  <td colSpan={visibleColumns.size} className="px-6 py-20 text-center">
+                    <div className="flex flex-col items-center">
+                       <div className="w-20 h-20 rounded-full bg-slate-50 flex items-center justify-center mb-4">
+                          <svg className="w-10 h-10 text-slate-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9.172 16.172a4 4 0 015.656 0M9 10h.01M15 10h.01M12 12h.01M12 12h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                          </svg>
+                       </div>
+                       <p className="text-xl font-black text-slate-400">No se encontraron licitaciones</p>
+                       <button 
+                         onClick={() => {setBusqueda(''); setFuenteFiltro(''); setStatusFiltro('');}}
+                         className="mt-4 text-blue-600 font-bold hover:underline"
+                       >
+                         Limpiar todos los filtros
+                       </button>
+                    </div>
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
         </div>
-        <div className="flex space-x-1">
-          <button
-            onClick={() => cambiarPagina(paginacion.pagina - 1)}
-            disabled={paginacion.pagina === 1}
-            className={`px-3 py-1 rounded ${paginacion.pagina === 1 ? 'bg-gray-100 text-gray-400 cursor-not-allowed' : 'bg-white border border-gray-300 text-gray-700 hover:bg-gray-50'}`}
-          >
-            Anterior
-          </button>
-          {[...Array(Math.ceil(paginacion.total / paginacion.limite)).keys()].map(i => (
-            <button
-              key={i + 1}
-              onClick={() => cambiarPagina(i + 1)}
-              className={`px-3 py-1 rounded ${paginacion.pagina === i + 1 ? 'bg-blue-600 text-white' : 'bg-white border border-gray-300 text-gray-700 hover:bg-gray-50'}`}
-            >
-              {i + 1}
-            </button>
-          ))}
-          <button
-            onClick={() => cambiarPagina(paginacion.pagina + 1)}
-            disabled={paginacion.pagina >= Math.ceil(paginacion.total / paginacion.limite)}
-            className={`px-3 py-1 rounded ${paginacion.pagina >= Math.ceil(paginacion.total / paginacion.limite) ? 'bg-gray-100 text-gray-400 cursor-not-allowed' : 'bg-white border border-gray-300 text-gray-700 hover:bg-gray-50'}`}
-          >
-            Siguiente
-          </button>
-        </div>
+
+        {/* Improved Pagination */}
+        {paginacion && paginacion.total_paginas > 1 && (
+          <div className="px-8 py-6 bg-slate-50/50 border-t border-gray-100 flex flex-col sm:flex-row items-center justify-between gap-4">
+            <div className="text-sm font-bold text-gray-500">
+              Mostrando <span className="text-gray-900">{licitaciones.length}</span> de <span className="text-gray-900">{paginacion.total_items}</span> resultados
+            </div>
+            <div className="flex items-center gap-2">
+              <button
+                className="p-2.5 rounded-xl border border-gray-200 bg-white hover:bg-slate-50 disabled:opacity-30 disabled:cursor-not-allowed transition-all"
+                onClick={(e) => {e.stopPropagation(); setPagina((prev) => Math.max(prev - 1, 1));}}
+                disabled={pagina === 1}
+              >
+                <svg className="w-5 h-5 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 19l-7-7 7-7" />
+                </svg>
+              </button>
+              
+              <div className="flex items-center gap-1">
+                {[...Array(Math.min(5, paginacion.total_paginas))].map((_, i) => {
+                  let pageNum = pagina;
+                  if (paginacion.total_paginas <= 5) {
+                    pageNum = i + 1;
+                  } else if (pagina <= 3) {
+                    pageNum = i + 1;
+                  } else if (pagina >= paginacion.total_paginas - 2) {
+                    pageNum = paginacion.total_paginas - 4 + i;
+                  } else {
+                    pageNum = pagina - 2 + i;
+                  }
+
+                  return (
+                    <button
+                      key={pageNum}
+                      className={`w-10 h-10 rounded-xl text-sm font-black transition-all ${
+                        pagina === pageNum
+                          ? 'bg-blue-600 text-white shadow-lg shadow-blue-200'
+                          : 'bg-white border border-gray-200 text-gray-600 hover:bg-slate-50'
+                      }`}
+                      onClick={(e) => {e.stopPropagation(); setPagina(pageNum);}}
+                    >
+                      {pageNum}
+                    </button>
+                  );
+                })}
+              </div>
+
+              <button
+                className="p-2.5 rounded-xl border border-gray-200 bg-white hover:bg-slate-50 disabled:opacity-30 disabled:cursor-not-allowed transition-all"
+                onClick={(e) => {e.stopPropagation(); setPagina((prev) => Math.min(prev + 1, paginacion.total_paginas));}}
+                disabled={pagina === paginacion.total_paginas}
+              >
+                <svg className="w-5 h-5 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 5l7 7-7 7" />
+                </svg>
+              </button>
+            </div>
+          </div>
+        )}
       </div>
+
+      <style dangerouslySetInnerHTML={{ __html: `
+        .scrollbar-premium::-webkit-scrollbar { height: 8px; }
+        .scrollbar-premium::-webkit-scrollbar-track { background: #f1f5f9; border-radius: 10px; }
+        .scrollbar-premium::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 10px; border: 2px solid #f1f5f9; }
+        .scrollbar-premium::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+      `}} />
     </div>
   );
 };
-
-// Datos de ejemplo para demostración
-const licitacionesEjemplo = [
-  {
-    id: 1,
-    titulo: "Construcción de puente peatonal en Avenida Principal",
-    organismo: "Ministerio de Obras Públicas",
-    fecha_publicacion: "2025-05-10T00:00:00.000Z",
-    estado: "activa"
-  },
-  {
-    id: 2,
-    titulo: "Adquisición de equipos informáticos para escuelas públicas",
-    organismo: "Ministerio de Educación",
-    fecha_publicacion: "2025-05-05T00:00:00.000Z",
-    estado: "cerrada"
-  },
-  {
-    id: 3,
-    titulo: "Servicio de mantenimiento de áreas verdes",
-    organismo: "Municipalidad de San Miguel",
-    fecha_publicacion: "2025-04-28T00:00:00.000Z",
-    estado: "adjudicada"
-  },
-  {
-    id: 4,
-    titulo: "Renovación de flota de vehículos oficiales",
-    organismo: "Ministerio del Interior",
-    fecha_publicacion: "2025-04-15T00:00:00.000Z",
-    estado: "cancelada"
-  },
-  {
-    id: 5,
-    titulo: "Construcción de centro de salud comunitario",
-    organismo: "Ministerio de Salud",
-    fecha_publicacion: "2025-05-12T00:00:00.000Z",
-    estado: "activa"
-  }
-];
 
 export default LicitacionesList;

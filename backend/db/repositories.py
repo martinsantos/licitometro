@@ -38,10 +38,17 @@ class LicitacionRepository:
         await self.collection.insert_one(licitacion_dict)
         return licitacion_entity(licitacion_dict)
     
-    async def get_all(self, skip: int = 0, limit: int = 100, filters: Dict = None) -> List[Licitacion]:
-        """Get all licitaciones with optional filtering"""
+    async def get_all(self, skip: int = 0, limit: int = 100, filters: Dict = None, 
+                      sort_by: str = "publication_date", sort_order: int = pymongo.DESCENDING) -> List[Licitacion]:
+        """Get all licitaciones with optional filtering and sorting"""
         query = filters or {}
-        cursor = self.collection.find(query).sort("publication_date", pymongo.DESCENDING).skip(skip).limit(limit)
+        
+        # Determine sort order
+        # Ensure sort_by is a valid field to prevent injection/errors
+        if sort_by not in Licitacion.model_fields and sort_by != "_id":
+            sort_by = "publication_date"
+            
+        cursor = self.collection.find(query).sort(sort_by, sort_order).skip(skip).limit(limit)
         
         licitaciones = await cursor.to_list(length=limit)
         return licitaciones_entity(licitaciones)
@@ -90,11 +97,16 @@ class LicitacionRepository:
         result = await self.collection.delete_one({"_id": query_id})
         return result.deleted_count > 0
     
-    async def search(self, query: str, skip: int = 0, limit: int = 100) -> List[Licitacion]:
-        """Search licitaciones by text"""
+    async def search(self, query: str, skip: int = 0, limit: int = 100,
+                     sort_by: str = "publication_date", sort_order: int = pymongo.DESCENDING) -> List[Licitacion]:
+        """Search licitaciones by text with optional sorting"""
+        # Ensure sort_by is a valid field
+        if sort_by not in Licitacion.model_fields and sort_by != "_id":
+            sort_by = "publication_date"
+
         cursor = self.collection.find(
             {"$text": {"$search": query}}
-        ).skip(skip).limit(limit)
+        ).sort(sort_by, sort_order).skip(skip).limit(limit)
         
         licitaciones = await cursor.to_list(length=limit)
         return licitaciones_entity(licitaciones)

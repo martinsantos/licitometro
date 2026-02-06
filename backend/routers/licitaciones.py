@@ -1,5 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException, Query, Body, Request
-from typing import List, Dict, Optional
+from typing import List, Dict, Optional, Any
 from uuid import UUID
 import sys
 from pathlib import Path
@@ -25,18 +25,20 @@ async def create_licitacion(
     """Create a new licitacion"""
     return await repo.create(licitacion)
 
-@router.get("/", response_model=List[Licitacion])
+@router.get("/", response_model=Dict[str, Any])
 async def get_licitaciones(
-    skip: int = Query(0, ge=0),
-    limit: int = Query(100, ge=1, le=1000),
+    page: int = Query(1, ge=1),
+    size: int = Query(15, ge=1, le=100),
     status: Optional[str] = None,
     organization: Optional[str] = None,
     location: Optional[str] = None,
     category: Optional[str] = None,
-    fuente: Optional[str] = None, # Added fuente filter
+    fuente: Optional[str] = None,
+    sort_by: str = Query("publication_date", description="Field to sort by"),
+    sort_order: str = Query("desc", description="Sort order: asc or desc"),
     repo: LicitacionRepository = Depends(get_licitacion_repository)
 ):
-    """Get all licitaciones with optional filtering"""
+    """Get all licitaciones with pagination, filtering and sorting"""
     
     # Build filter query
     filters = {}
@@ -48,20 +50,61 @@ async def get_licitaciones(
         filters["location"] = location
     if category:
         filters["category"] = category
-    if fuente: # Added fuente to filters
+    if fuente:
         filters["fuente"] = fuente
     
-    return await repo.get_all(skip=skip, limit=limit, filters=filters)
+    # Handle sort order
+    order_val = 1 if sort_order == "asc" else -1
+    
+    # Calculate skip
+    skip = (page - 1) * size
+    
+    # Get data and count
+    items = await repo.get_all(skip=skip, limit=size, filters=filters, sort_by=sort_by, sort_order=order_val)
+    total_items = await repo.count(filters=filters)
+    
+    return {
+        "items": items,
+        "paginacion": {
+            "pagina": page,
+            "por_pagina": size,
+            "total_items": total_items,
+            "total_paginas": (total_items + size - 1) // size
+        }
+    }
 
-@router.get("/search", response_model=List[Licitacion])
+@router.get("/search", response_model=Dict[str, Any])
 async def search_licitaciones(
     q: str = Query(..., min_length=1),
-    skip: int = Query(0, ge=0),
-    limit: int = Query(100, ge=1, le=1000),
+    page: int = Query(1, ge=1),
+    size: int = Query(15, ge=1, le=100),
+    sort_by: str = Query("publication_date", description="Field to sort by"),
+    sort_order: str = Query("desc", description="Sort order: asc or desc"),
     repo: LicitacionRepository = Depends(get_licitacion_repository)
 ):
-    """Search licitaciones by text"""
-    return await repo.search(q, skip=skip, limit=limit)
+    """Search licitaciones with pagination and sorting support"""
+    # Handle sort order
+    order_val = 1 if sort_order == "asc" else -1
+    
+    # Calculate skip
+    skip = (page - 1) * size
+    
+    items = await repo.search(q, skip=skip, limit=size, sort_by=sort_by, sort_order=order_val)
+    
+    # For total count in search, we need a separate count or use the repository search with count
+    # Since repo.search doesn't return count, let's use search filters for count
+    # Note: Mongo text search count is basically the same as text search query
+    total_items = await repo.collection.count_documents({"$text": {"$search": q}})
+    
+    return {
+        "items": items,
+        "paginacion": {
+            "pagina": page,
+            "por_pagina": size,
+            "total_items": total_items,
+            "total_paginas": (total_items + size - 1) // size
+        }
+    }
 
 @router.get("/count")
 async def count_licitaciones(

@@ -19,7 +19,7 @@ from pymongo import MongoClient
 
 # MongoDB connection
 MONGO_URL = "mongodb://localhost:27017"
-DB_NAME = "licitometro"
+DB_NAME = "licitaciones_db"  # Misma que usa el backend
 
 # Config files to load
 CONFIG_FILES = [

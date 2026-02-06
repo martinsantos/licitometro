@@ -628,7 +628,7 @@ class MendozaCompraScraperV2(BaseScraper):
                             entry["pliego_url"] = pliego_map[entry["numero"]]
             
             # Build Licitacion objects
-            api_base = self.config.selectors.get("api_base_url") or os.getenv("API_BASE_URL", "http://localhost:8001")
+            api_base = self.config.selectors.get("api_base_url") or os.getenv("API_BASE_URL", "")
             disable_date_filter = self.config.selectors.get("disable_date_filter", True)
             
             seen_ids = set()

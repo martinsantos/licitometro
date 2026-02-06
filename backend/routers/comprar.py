@@ -30,7 +30,11 @@ async def comprar_proceso_open(
     target: str = Query(..., description="Postback target del proceso"),
 ):
     try:
-        async with aiohttp.ClientSession() as session:
+        headers = {
+            "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+        }
+        jar = aiohttp.CookieJar(unsafe=True)
+        async with aiohttp.ClientSession(headers=headers, cookie_jar=jar) as session:
             async with session.get(list_url) as resp:
                 if resp.status != 200:
                     raise HTTPException(status_code=502, detail="No se pudo acceder a la lista de compras.")
@@ -76,7 +80,11 @@ async def comprar_proceso_html(
     target: str = Query(..., description="Postback target del proceso"),
 ):
     try:
-        async with aiohttp.ClientSession() as session:
+        headers = {
+            "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+        }
+        jar = aiohttp.CookieJar(unsafe=True)
+        async with aiohttp.ClientSession(headers=headers, cookie_jar=jar) as session:
             async with session.get(list_url) as resp:
                 if resp.status != 200:
                     raise HTTPException(status_code=502, detail="No se pudo acceder a la lista de compras.")

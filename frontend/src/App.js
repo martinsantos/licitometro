@@ -11,6 +11,7 @@ import Footer from "./components/Footer";
 import HomePage from "./pages/HomePage";
 import LicitacionesPage from "./pages/LicitacionesPage";
 import LicitacionDetailPage from "./pages/LicitacionDetailPage";
+import StatsPage from "./pages/StatsPage";
 import AdminPage from "./pages/AdminPage";
 import ScraperFormPage from "./pages/ScraperFormPage";
 
@@ -26,8 +27,10 @@ function App() {
         <main className="flex-grow">
           <Routes>
             <Route path="/" element={<HomePage />} />
-            <Route path="/licitaciones" element={<LicitacionesPage />} />
+            <Route path="/licitaciones" element={<LicitacionesPage apiUrl={BACKEND_URL} />} />
             <Route path="/licitaciones/:id" element={<LicitacionDetailPage />} />
+            <Route path="/licitacion/:id" element={<LicitacionDetailPage />} />
+            <Route path="/stats" element={<StatsPage />} />
             <Route path="/admin" element={<AdminPage />} />
             <Route path="/admin/scraper/:id" element={<ScraperFormPage />} />
           </Routes>

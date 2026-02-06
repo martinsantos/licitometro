@@ -1,7 +1,12 @@
-import React, { useState, useEffect } from 'react';
-import { format } from 'date-fns';
+import React, { useState } from 'react';
+import { format } from 'date-fns/format';
 
-const LicitacionForm = ({ apiUrl, onSuccess }) => {
+interface LicitacionFormProps {
+    apiUrl: string;
+    onSuccess?: (data: any) => void;
+}
+
+const LicitacionForm = ({ apiUrl, onSuccess }: LicitacionFormProps) => {
   const [formData, setFormData] = useState({
     titulo: '',
     descripcion: '',
@@ -13,17 +18,18 @@ const LicitacionForm = ({ apiUrl, onSuccess }) => {
     url_fuente: ''
   });
   
-  const [documentos, setDocumentos] = useState([]);
+  const [documentos, setDocumentos] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState(null);
+  const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
   
-  const handleInputChange = (e) => {
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
     const { name, value } = e.target;
     setFormData(prev => ({ ...prev, [name]: value }));
   };
   
-  const handleFileChange = (e) => {
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (!e.target.files) return;
     const files = Array.from(e.target.files);
     const newDocumentos = files.map(file => ({
       file,
@@ -35,11 +41,11 @@ const LicitacionForm = ({ apiUrl, onSuccess }) => {
     setDocumentos(prev => [...prev, ...newDocumentos]);
   };
   
-  const removeDocumento = (index) => {
+  const removeDocumento = (index: number) => {
     setDocumentos(prev => prev.filter((_, i) => i !== index));
   };
   
-  const handleSubmit = async (e) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
     setError(null);
@@ -63,14 +69,14 @@ const LicitacionForm = ({ apiUrl, onSuccess }) => {
       // Subir documentos si existen
       if (documentos.length > 0) {
         for (const doc of documentos) {
-          const formData = new FormData();
-          formData.append('nombre', doc.nombre);
-          formData.append('tipo', doc.tipo);
-          formData.append('archivo', doc.file);
+          const formDataDoc = new FormData();
+          formDataDoc.append('nombre', doc.nombre);
+          formDataDoc.append('tipo', doc.tipo);
+          formDataDoc.append('archivo', doc.file);
           
           const docResponse = await fetch(`${apiUrl}/api/licitaciones/${licitacionData.id}/documentos`, {
             method: 'POST',
-            body: formData,
+            body: formDataDoc,
           });
           
           if (!docResponse.ok) {
@@ -101,7 +107,7 @@ const LicitacionForm = ({ apiUrl, onSuccess }) => {
         setSuccess(false);
       }, 3000);
       
-    } catch (err) {
+    } catch (err: any) {
       console.error('Error en el formulario:', err);
       setError(err.message);
       

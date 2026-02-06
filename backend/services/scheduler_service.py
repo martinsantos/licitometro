@@ -17,6 +17,7 @@ import sys
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
+from bson import ObjectId
 from motor.motor_asyncio import AsyncIOMotorDatabase
 from models.scraper_config import ScraperConfig
 from models.scraper_run import ScraperRun, ScraperRunCreate, ScraperRunUpdate
@@ -63,11 +64,16 @@ class SchedulerService:
         configs_collection = self.db.scraper_configs
         configs = await configs_collection.find({"active": True}).to_list(length=100)
         
+        logger.info(f"DEBUG: Found {len(configs)} active scrapers in DB")
+        for c in configs:
+            logger.info(f"DEBUG: Config in DB: {c.get('name')} active={c.get('active')}")
+        
         scheduled_count = 0
         for config_data in configs:
             try:
                 config_data.pop('_id', None)
                 config = ScraperConfig(**config_data)
+                logger.info(f"DEBUG: Scheduling {config.name}")
                 if await self.schedule_scraper(config):
                     scheduled_count += 1
             except Exception as e:
@@ -214,7 +220,7 @@ class SchedulerService:
         try:
             # Update status to running
             await runs_collection.update_one(
-                {"id": run_id},
+                {"_id": ObjectId(run_id)},
                 {"$set": {"status": "running", "started_at": start_time}}
             )
             
@@ -256,7 +262,8 @@ class SchedulerService:
                             "id_licitacion": item.id_licitacion
                         })
                         
-                        item_data = item.model_dump()
+                        # mode='json' converts HttpUrl and other types to JSON-serializable strings
+                        item_data = item.model_dump(mode='json')
                         item_data["updated_at"] = datetime.utcnow()
                         
                         if existing:
@@ -301,8 +308,8 @@ class SchedulerService:
             )
             
             await runs_collection.update_one(
-                {"id": run_id},
-                {"$set": update.model_dump(exclude_unset=True)}
+                {"_id": ObjectId(run_id)},
+                {"$set": update.model_dump(exclude_unset=True, mode='json')}
             )
             
             # Update scraper config last_run
@@ -322,7 +329,7 @@ class SchedulerService:
             log(f"Scraper failed: {error_msg}", "error")
             
             await runs_collection.update_one(
-                {"id": run_id},
+                {"_id": ObjectId(run_id)},
                 {
                     "$set": {
                         "status": "failed",
@@ -378,7 +385,7 @@ class SchedulerService:
     async def get_run_by_id(self, run_id: str) -> Optional[ScraperRun]:
         """Get a specific run by ID"""
         runs_collection = self.db.scraper_runs
-        run_data = await runs_collection.find_one({"id": run_id})
+        run_data = await runs_collection.find_one({"_id": ObjectId(run_id)})
         if run_data:
             return ScraperRun(**run_data)
         return None

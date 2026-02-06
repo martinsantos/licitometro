@@ -10,6 +10,7 @@ const LicitacionDetailPage = () => {
   const [licitacion, setLicitacion] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [isSaved, setIsSaved] = useState(false);
 
   useEffect(() => {
     const fetchLicitacion = async () => {
@@ -17,6 +18,9 @@ const LicitacionDetailPage = () => {
         const response = await axios.get(`${API}/licitaciones/${id}`);
         setLicitacion(response.data);
         setLoading(false);
+        // Check if saved in localStorage
+        const savedItems = JSON.parse(localStorage.getItem('savedLicitaciones') || '[]');
+        setIsSaved(savedItems.includes(id));
       } catch (error) {
         console.error('Error fetching licitacion:', error);
         setError('Error cargando la licitación');
@@ -26,6 +30,19 @@ const LicitacionDetailPage = () => {
 
     fetchLicitacion();
   }, [id]);
+
+  const toggleSave = () => {
+    const savedItems = JSON.parse(localStorage.getItem('savedLicitaciones') || '[]');
+    if (isSaved) {
+      const newSaved = savedItems.filter(item => item !== id);
+      localStorage.setItem('savedLicitaciones', JSON.stringify(newSaved));
+      setIsSaved(false);
+    } else {
+      savedItems.push(id);
+      localStorage.setItem('savedLicitaciones', JSON.stringify(savedItems));
+      setIsSaved(true);
+    }
+  };
 
   const formatDate = (dateString) => {
     if (!dateString) return 'N/A';
@@ -37,36 +54,90 @@ const LicitacionDetailPage = () => {
     });
   };
 
-  const formatDateTime = (dateString) => {
-    if (!dateString) return 'N/A';
-    const date = new Date(dateString);
-    return date.toLocaleString('es-AR', {
-      day: '2-digit',
-      month: '2-digit',
-      year: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit'
-    });
+  const formatCurrency = (amount, currency = 'ARS') => {
+    if (!amount) return null;
+    return new Intl.NumberFormat('es-AR', { style: 'currency', currency }).format(amount);
+  };
+
+  // Helper to get the correct COMPR.AR link
+  const getComprarUrl = () => {
+    if (!licitacion) return null;
+    
+    // Function to sanitize legacy URLs pointing to hardcoded localhost
+    const sanitizeProxyUrl = (url) => {
+      if (!url) return null;
+      if (url.includes('localhost:8001')) {
+        return url.replace(/https?:\/\/localhost:8001/, BACKEND_URL);
+      }
+      if (url.startsWith('/api/comprar')) {
+        return `${BACKEND_URL}${url}`;
+      }
+      return url;
+    };
+
+    // Priority 1: Direct pliego URL (Most reliable)
+    if (licitacion.metadata?.comprar_pliego_url) {
+      return licitacion.metadata.comprar_pliego_url;
+    }
+
+    // Priority 2: Smart bridge URL (Fallback)
+    if (licitacion.metadata?.comprar_open_url) {
+      return sanitizeProxyUrl(licitacion.metadata.comprar_open_url);
+    }
+    
+    if (licitacion.source_url?.includes('VistaPreviaPliegoCiudadano')) {
+      return licitacion.source_url;
+    }
+    
+    return null;
+  };
+
+  const getDetailUrl = () => {
+    if (!licitacion) return null;
+    
+    // If we have a bridge URL, it's safer than the direct link
+    const comprarUrl = getComprarUrl();
+    if (comprarUrl && licitacion.fuente?.includes('COMPR.AR')) {
+        return comprarUrl;
+    }
+
+    if (licitacion.metadata?.comprar_detail_url) {
+      if (licitacion.metadata.comprar_detail_url.includes('localhost:8001')) {
+        return licitacion.metadata.comprar_detail_url.replace(/https?:\/\/localhost:8001/, BACKEND_URL);
+      }
+      return licitacion.metadata.comprar_detail_url;
+    }
+    
+    return licitacion.source_url;
   };
 
   if (loading) {
     return (
-      <div className="container mx-auto px-4 py-12 text-center">
-        <div className="inline-block animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-800 mb-4"></div>
-        <p className="text-xl">Cargando información de la licitación...</p>
+      <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-100 flex items-center justify-center">
+        <div className="text-center">
+          <div className="relative w-20 h-20 mx-auto mb-6">
+            <div className="absolute inset-0 rounded-full border-4 border-blue-200 animate-pulse"></div>
+            <div className="absolute inset-0 rounded-full border-4 border-transparent border-t-blue-600 animate-spin"></div>
+          </div>
+          <p className="text-xl font-bold text-gray-600 tracking-wide">Cargando licitación...</p>
+        </div>
       </div>
     );
   }
 
   if (error) {
     return (
-      <div className="container mx-auto px-4 py-12 text-center">
-        <div className="bg-red-100 text-red-800 p-4 rounded-lg inline-block mb-4">
-          <p>{error}</p>
-        </div>
-        <div>
-          <Link to="/licitaciones" className="text-blue-800 hover:underline">
-            Volver a la lista de licitaciones
+      <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-100 flex items-center justify-center px-4">
+        <div className="glass max-w-md w-full p-8 rounded-3xl text-center shadow-2xl border border-white/40">
+          <div className="w-16 h-16 mx-auto mb-6 rounded-full bg-red-100 flex items-center justify-center">
+            <svg className="w-8 h-8 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+            </svg>
+          </div>
+          <h2 className="text-2xl font-black text-gray-900 mb-2">Error</h2>
+          <p className="text-gray-500 mb-6">{error}</p>
+          <Link to="/licitaciones" className="btn-primary inline-block px-6 py-3">
+            Volver a la lista
           </Link>
         </div>
       </div>
@@ -75,275 +146,337 @@ const LicitacionDetailPage = () => {
 
   if (!licitacion) {
     return (
-      <div className="container mx-auto px-4 py-12 text-center">
-        <p className="text-xl mb-4">Licitación no encontrada</p>
-        <Link to="/licitaciones" className="text-blue-800 hover:underline">
-          Volver a la lista de licitaciones
-        </Link>
+      <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-100 flex items-center justify-center px-4">
+        <div className="glass max-w-md w-full p-8 rounded-3xl text-center shadow-2xl border border-white/40">
+          <div className="w-16 h-16 mx-auto mb-6 rounded-full bg-gray-100 flex items-center justify-center">
+            <svg className="w-8 h-8 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9.172 16.172a4 4 0 015.656 0M9 10h.01M15 10h.01M12 12h.01M12 12h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+          </div>
+          <h2 className="text-2xl font-black text-gray-900 mb-2">No encontrada</h2>
+          <p className="text-gray-500 mb-6">Esta licitación no existe o fue eliminada.</p>
+          <Link to="/licitaciones" className="btn-primary inline-block px-6 py-3">
+            Volver a la lista
+          </Link>
+        </div>
       </div>
     );
   }
 
-  return (
-    <div className="container mx-auto px-4 py-8">
-      <div className="mb-6">
-        <Link to="/licitaciones" className="text-blue-800 hover:underline flex items-center">
-          <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
-          </svg>
-          Volver a la lista de licitaciones
-        </Link>
-      </div>
+  const comprarUrl = getComprarUrl();
+  const detailUrl = getDetailUrl();
 
-      <div className="bg-white rounded-lg shadow-md overflow-hidden">
-        {/* Header */}
-        <div className="border-b border-gray-200 p-6">
-          <div className="flex flex-wrap items-start justify-between">
-            <div className="flex-1 min-w-0">
-              <h1 className="text-2xl font-bold text-gray-900 mb-2">{licitacion.title}</h1>
-              <div className="flex flex-wrap items-center text-sm text-gray-600">
-                <span className="mr-4">
-                  <strong>Organismo:</strong> {licitacion.organization}
-                </span>
-                {licitacion.location && (
-                  <span className="mr-4">
-                    <strong>Ubicación:</strong> {licitacion.location}
+  return (
+    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-100 py-8 px-4 sm:px-6 lg:px-8">
+      <div className="max-w-5xl mx-auto">
+        {/* Breadcrumb */}
+        <nav className="mb-8">
+          <Link to="/licitaciones" className="inline-flex items-center text-sm font-bold text-gray-500 hover:text-blue-600 transition-colors group">
+            <svg className="w-5 h-5 mr-2 transform group-hover:-translate-x-1 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M10 19l-7-7m0 0l7-7m-7 7h18" />
+            </svg>
+            Volver a licitaciones
+          </Link>
+        </nav>
+
+        {/* Main Card */}
+        <div className="glass rounded-[2.5rem] shadow-[0_20px_60px_rgba(0,0,0,0.1)] border border-white/40 overflow-hidden">
+          {/* Header */}
+          <div className="relative bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 p-8 sm:p-10">
+            <div className="absolute inset-0 bg-[url('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNjAiIGhlaWdodD0iNjAiIHZpZXdCb3g9IjAgMCA2MCA2MCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48ZyBmaWxsPSJub25lIiBmaWxsLXJ1bGU9ImV2ZW5vZGQiPjxnIGZpbGw9IiNmZmYiIGZpbGwtb3BhY2l0eT0iMC4wNSI+PHBhdGggZD0iTTM2IDM0djItSDI0di0yaDEyek0zNiAzMHYySDI0di0yaDEyeiBNMzYgMjZ2MkgyNHYtMmgxMnoiLz48L2c+PC9nPjwvc3ZnPg==')] opacity-30"></div>
+            
+            <div className="relative flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
+              <div className="flex-1">
+                <div className="flex items-center gap-3 mb-4">
+                  <span className={`px-4 py-1.5 rounded-full text-xs font-black uppercase tracking-wider ${
+                    licitacion.status === 'active' ? 'bg-emerald-400 text-emerald-900' :
+                    licitacion.status === 'closed' ? 'bg-red-400 text-red-900' :
+                    'bg-gray-300 text-gray-800'
+                  }`}>
+                    {licitacion.status === 'active' ? 'Activa' : 
+                     licitacion.status === 'closed' ? 'Cerrada' : 
+                     licitacion.status === 'awarded' ? 'Adjudicada' : licitacion.status}
                   </span>
-                )}
-                {licitacion.category && (
-                  <span>
-                    <strong>Categoría:</strong> {licitacion.category}
+                  {licitacion.fuente && (
+                    <span className="px-3 py-1 rounded-full bg-white/20 text-white/90 text-xs font-bold">
+                      {licitacion.fuente}
+                    </span>
+                  )}
+                </div>
+                <h1 className="text-2xl sm:text-3xl font-black text-white leading-tight mb-3">
+                  {licitacion.title}
+                </h1>
+                <p className="text-blue-100 font-medium flex items-center flex-wrap gap-x-4 gap-y-1">
+                  <span className="flex items-center">
+                    <svg className="w-4 h-4 mr-1.5 opacity-70" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
+                    </svg>
+                    {licitacion.organization}
                   </span>
-                )}
+                  {(licitacion.location || licitacion.jurisdiccion) && (
+                    <span className="flex items-center">
+                      <svg className="w-4 h-4 mr-1.5 opacity-70" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+                      </svg>
+                      {licitacion.location || licitacion.jurisdiccion}
+                    </span>
+                  )}
+                </p>
+              </div>
+              
+              {/* Action Buttons */}
+              <div className="flex sm:flex-col gap-3">
+                <button
+                  onClick={toggleSave}
+                  className={`p-3 rounded-2xl transition-all duration-300 ${
+                    isSaved 
+                      ? 'bg-yellow-400 text-yellow-900 shadow-lg shadow-yellow-400/30' 
+                      : 'bg-white/20 text-white hover:bg-white/30'
+                  }`}
+                  title={isSaved ? 'Quitar de guardados' : 'Guardar licitación'}
+                >
+                  <svg className="w-6 h-6" fill={isSaved ? 'currentColor' : 'none'} stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 5a2 2 0 012-2h10a2 2 0 012 2v16l-7-3.5L5 21V5z" />
+                  </svg>
+                </button>
               </div>
             </div>
-            <div className="mt-4 lg:mt-0">
-              <span className={`px-3 py-1 inline-flex text-sm leading-5 font-semibold rounded-full 
-                ${licitacion.status === 'active' ? 'bg-green-100 text-green-800' : 
-                  licitacion.status === 'closed' ? 'bg-red-100 text-red-800' : 
-                  licitacion.status === 'awarded' ? 'bg-blue-100 text-blue-800' : 
-                  'bg-gray-100 text-gray-800'}`}
-              >
-                {licitacion.status === 'active' ? 'Activa' : 
-                 licitacion.status === 'closed' ? 'Cerrada' : 
-                 licitacion.status === 'awarded' ? 'Adjudicada' : 'Desconocido'}
-              </span>
-            </div>
           </div>
-        </div>
 
-        {/* Details */}
-        <div className="p-6">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
-            <div>
-              <h3 className="text-lg font-medium text-gray-900 mb-4">Información General</h3>
-              <dl className="grid grid-cols-1 gap-x-4 gap-y-6 sm:grid-cols-2">
-                <div className="sm:col-span-1">
-                  <dt className="text-sm font-medium text-gray-500">Número de Expediente</dt>
-                  <dd className="mt-1 text-sm text-gray-900">{licitacion.expedient_number || 'N/A'}</dd>
-                </div>
-                <div className="sm:col-span-1">
-                  <dt className="text-sm font-medium text-gray-500">Número de Licitación</dt>
-                  <dd className="mt-1 text-sm text-gray-900">{licitacion.licitacion_number || 'N/A'}</dd>
-                </div>
-                {licitacion.tipo_procedimiento && (
-                  <div className="sm:col-span-1">
-                    <dt className="text-sm font-medium text-gray-500">Tipo de Procedimiento</dt>
-                    <dd className="mt-1 text-sm text-gray-900">{licitacion.tipo_procedimiento}</dd>
+          {/* Content */}
+          <div className="p-8 sm:p-10">
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+              {/* Left Column - Main Info */}
+              <div className="lg:col-span-2 space-y-8">
+                {/* Información General */}
+                <section>
+                  <h2 className="text-lg font-black text-gray-900 mb-6 flex items-center">
+                    <span className="w-8 h-8 rounded-xl bg-blue-100 text-blue-600 flex items-center justify-center mr-3">
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                      </svg>
+                    </span>
+                    Información General
+                  </h2>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+                    <InfoItem label="Número de Expediente" value={licitacion.expedient_number?.replace(/&nbsp;/g, ' ')} />
+                    <InfoItem label="Número de Licitación" value={licitacion.licitacion_number} />
+                    <InfoItem label="Fecha de Publicación" value={formatDate(licitacion.publication_date)} />
+                    <InfoItem label="Fecha de Apertura" value={formatDate(licitacion.opening_date)} />
+                    {licitacion.expiration_date && (
+                      <InfoItem label="Fecha de Vencimiento" value={formatDate(licitacion.expiration_date)} />
+                    )}
+                    {licitacion.tipo_procedimiento && (
+                      <InfoItem label="Procedimiento" value={licitacion.tipo_procedimiento} />
+                    )}
+                    {licitacion.metadata?.comprar_estado && (
+                      <InfoItem label="Estado (COMPR.AR)" value={licitacion.metadata.comprar_estado} />
+                    )}
+                    {licitacion.metadata?.comprar_unidad_ejecutora && (
+                      <InfoItem label="Unidad Ejecutora" value={licitacion.metadata.comprar_unidad_ejecutora} fullWidth />
+                    )}
+                    {licitacion.metadata?.comprar_servicio_admin && (
+                      <InfoItem label="Servicio Adm. Financiero" value={licitacion.metadata.comprar_servicio_admin} fullWidth />
+                    )}
+                    {/* Campos del pliego si existen */}
+                    {licitacion.metadata?.comprar_pliego_fields?.['Procedimiento de selección'] && (
+                      <InfoItem label="Procedimiento de Selección" value={licitacion.metadata.comprar_pliego_fields['Procedimiento de selección']} />
+                    )}
+                    {licitacion.metadata?.comprar_pliego_fields?.['Etapa'] && (
+                      <InfoItem label="Etapa" value={licitacion.metadata.comprar_pliego_fields['Etapa']} />
+                    )}
+                    {licitacion.metadata?.comprar_pliego_fields?.['Modalidad'] && (
+                      <InfoItem label="Modalidad" value={licitacion.metadata.comprar_pliego_fields['Modalidad']} />
+                    )}
+                    {licitacion.metadata?.comprar_pliego_fields?.['Alcance'] && (
+                      <InfoItem label="Alcance" value={licitacion.metadata.comprar_pliego_fields['Alcance']} />
+                    )}
+                    {(licitacion.currency || licitacion.metadata?.comprar_pliego_fields?.['Moneda']) && (
+                      <InfoItem label="Moneda" value={licitacion.metadata?.comprar_pliego_fields?.['Moneda'] || licitacion.currency} />
+                    )}
+                    {licitacion.metadata?.comprar_pliego_fields?.['Lugar de recepción de documentación física'] && (
+                      <InfoItem 
+                        label="Lugar recepción documentación" 
+                        value={licitacion.metadata.comprar_pliego_fields['Lugar de recepción de documentación física']} 
+                        fullWidth 
+                      />
+                    )}
                   </div>
-                )}
-                {licitacion.tipo_acceso && (
-                  <div className="sm:col-span-1">
-                    <dt className="text-sm font-medium text-gray-500">Tipo de Acceso</dt>
-                    <dd className="mt-1 text-sm text-gray-900">{licitacion.tipo_acceso}</dd>
-                  </div>
-                )}
-                {licitacion.jurisdiccion && (
-                  <div className="sm:col-span-1">
-                    <dt className="text-sm font-medium text-gray-500">Jurisdicción</dt>
-                    <dd className="mt-1 text-sm text-gray-900">{licitacion.jurisdiccion}</dd>
-                  </div>
-                )}
-                <div className="sm:col-span-1">
-                  <dt className="text-sm font-medium text-gray-500">Fecha de Publicación</dt>
-                  <dd className="mt-1 text-sm text-gray-900">{formatDate(licitacion.publication_date)}</dd>
-                </div>
-                <div className="sm:col-span-1">
-                  <dt className="text-sm font-medium text-gray-500">Fecha de Apertura</dt>
-                  <dd className="mt-1 text-sm text-gray-900">{formatDate(licitacion.opening_date)}</dd>
-                </div>
-                {licitacion.fecha_scraping && (
-                  <div className="sm:col-span-1">
-                    <dt className="text-sm font-medium text-gray-500">Fecha de Scraping</dt>
-                    <dd className="mt-1 text-sm text-gray-900">{formatDateTime(licitacion.fecha_scraping)}</dd>
-                  </div>
-                )}
-                {licitacion.fuente && (
-                  <div className="sm:col-span-1">
-                    <dt className="text-sm font-medium text-gray-500">Origen</dt>
-                    <dd className="mt-1 text-sm text-gray-900">{licitacion.fuente}</dd>
-                  </div>
-                )}
-                {licitacion.metadata?.comprar_estado && (
-                  <div className="sm:col-span-1">
-                    <dt className="text-sm font-medium text-gray-500">Estado (COMPR.AR)</dt>
-                    <dd className="mt-1 text-sm text-gray-900">{licitacion.metadata.comprar_estado}</dd>
-                  </div>
-                )}
-                {licitacion.metadata?.comprar_unidad_ejecutora && (
-                  <div className="sm:col-span-1">
-                    <dt className="text-sm font-medium text-gray-500">Unidad Ejecutora</dt>
-                    <dd className="mt-1 text-sm text-gray-900">{licitacion.metadata.comprar_unidad_ejecutora}</dd>
-                  </div>
-                )}
-                {licitacion.metadata?.comprar_servicio_admin && (
-                  <div className="sm:col-span-1">
-                    <dt className="text-sm font-medium text-gray-500">Servicio Adm. Financiero</dt>
-                    <dd className="mt-1 text-sm text-gray-900">{licitacion.metadata.comprar_servicio_admin}</dd>
-                  </div>
-                )}
-                {licitacion.metadata?.comprar_pliego_fields?.["Procedimiento de selección"] && (
-                  <div className="sm:col-span-1">
-                    <dt className="text-sm font-medium text-gray-500">Procedimiento</dt>
-                    <dd className="mt-1 text-sm text-gray-900">{licitacion.metadata.comprar_pliego_fields["Procedimiento de selección"]}</dd>
-                  </div>
-                )}
-                {licitacion.metadata?.comprar_pliego_fields?.["Etapa"] && (
-                  <div className="sm:col-span-1">
-                    <dt className="text-sm font-medium text-gray-500">Etapa</dt>
-                    <dd className="mt-1 text-sm text-gray-900">{licitacion.metadata.comprar_pliego_fields["Etapa"]}</dd>
-                  </div>
-                )}
-                {licitacion.metadata?.comprar_pliego_fields?.["Modalidad"] && (
-                  <div className="sm:col-span-1">
-                    <dt className="text-sm font-medium text-gray-500">Modalidad</dt>
-                    <dd className="mt-1 text-sm text-gray-900">{licitacion.metadata.comprar_pliego_fields["Modalidad"]}</dd>
-                  </div>
-                )}
-                {licitacion.metadata?.comprar_pliego_fields?.["Alcance"] && (
-                  <div className="sm:col-span-1">
-                    <dt className="text-sm font-medium text-gray-500">Alcance</dt>
-                    <dd className="mt-1 text-sm text-gray-900">{licitacion.metadata.comprar_pliego_fields["Alcance"]}</dd>
-                  </div>
-                )}
-                {licitacion.metadata?.comprar_pliego_fields?.["Moneda"] && (
-                  <div className="sm:col-span-1">
-                    <dt className="text-sm font-medium text-gray-500">Moneda</dt>
-                    <dd className="mt-1 text-sm text-gray-900">{licitacion.metadata.comprar_pliego_fields["Moneda"]}</dd>
-                  </div>
-                )}
-                {licitacion.metadata?.comprar_pliego_fields?.["Lugar de recepción de documentación física"] && (
-                  <div className="sm:col-span-2">
-                    <dt className="text-sm font-medium text-gray-500">Lugar recepción documentación</dt>
-                    <dd className="mt-1 text-sm text-gray-900">{licitacion.metadata.comprar_pliego_fields["Lugar de recepción de documentación física"]}</dd>
-                  </div>
-                )}
-                {licitacion.expiration_date && (
-                  <div className="sm:col-span-1">
-                    <dt className="text-sm font-medium text-gray-500">Fecha de Vencimiento</dt>
-                    <dd className="mt-1 text-sm text-gray-900">{formatDate(licitacion.expiration_date)}</dd>
-                  </div>
-                )}
+                </section>
+
+                {/* Presupuesto */}
                 {licitacion.budget && (
-                  <div className="sm:col-span-1">
-                    <dt className="text-sm font-medium text-gray-500">Presupuesto</dt>
-                    <dd className="mt-1 text-sm text-gray-900">
-                      {licitacion.budget.toLocaleString('es-AR')} {licitacion.currency || ''}
-                    </dd>
-                  </div>
+                  <section className="bg-gradient-to-r from-emerald-50 to-teal-50 rounded-2xl p-6 border border-emerald-100">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <p className="text-sm font-bold text-emerald-600 uppercase tracking-wider mb-1">Presupuesto Estimado</p>
+                        <p className="text-3xl font-black text-emerald-700">
+                          {formatCurrency(licitacion.budget, licitacion.currency)}
+                        </p>
+                      </div>
+                      <div className="w-14 h-14 rounded-2xl bg-emerald-100 flex items-center justify-center">
+                        <svg className="w-7 h-7 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                        </svg>
+                      </div>
+                    </div>
+                  </section>
                 )}
+
+                {/* Descripción */}
+                {licitacion.description && (
+                  <section>
+                    <h2 className="text-lg font-black text-gray-900 mb-4 flex items-center">
+                      <span className="w-8 h-8 rounded-xl bg-purple-100 text-purple-600 flex items-center justify-center mr-3">
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 6h16M4 12h16M4 18h7" />
+                        </svg>
+                      </span>
+                      Descripción
+                    </h2>
+                    <div className="bg-gray-50 rounded-2xl p-6 border border-gray-100">
+                      <p className="text-gray-700 leading-relaxed whitespace-pre-wrap">{licitacion.description}</p>
+                    </div>
+                  </section>
+                )}
+
+                {/* Contacto */}
                 {licitacion.contact && (
-                  <div className="sm:col-span-2">
-                    <dt className="text-sm font-medium text-gray-500">Contacto</dt>
-                    <dd className="mt-1 text-sm text-gray-900">{licitacion.contact}</dd>
-                  </div>
+                  <section>
+                    <h2 className="text-lg font-black text-gray-900 mb-4 flex items-center">
+                      <span className="w-8 h-8 rounded-xl bg-amber-100 text-amber-600 flex items-center justify-center mr-3">
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+                        </svg>
+                      </span>
+                      Contacto
+                    </h2>
+                    <p className="text-gray-700">{licitacion.contact}</p>
+                  </section>
                 )}
-              </dl>
-            </div>
-            
-            <div>
-              <h3 className="text-lg font-medium text-gray-900 mb-4">Archivos Adjuntos</h3>
-              {licitacion.attached_files && licitacion.attached_files.length > 0 ? (
-                <ul className="border border-gray-200 rounded-md divide-y divide-gray-200">
-                  {licitacion.attached_files.map((file, index) => (
-                    <li key={index} className="pl-3 pr-4 py-3 flex items-center justify-between text-sm">
-                      <div className="w-0 flex-1 flex items-center">
-                        <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
-                        </svg>
-                        <span className="ml-2 flex-1 w-0 truncate">{file.name}</span>
-                      </div>
-                      <div className="ml-4 flex-shrink-0">
-                        <a href={file.url} target="_blank" rel="noopener noreferrer" className="font-medium text-blue-800 hover:text-blue-600">
-                          Descargar
-                        </a>
-                      </div>
-                    </li>
-                  ))}
-                </ul>
-              ) : (
-                <p className="text-sm text-gray-500">No hay archivos adjuntos</p>
-              )}
-              
-              {licitacion.source_url && (
-                <div className="mt-6">
-                  <h4 className="text-sm font-medium text-gray-900 mb-2">Enlace Original</h4>
-                  <div className="flex flex-wrap gap-2">
-                    {licitacion.metadata?.comprar_detail_url ? (
-                      <a 
-                        href={licitacion.metadata.comprar_detail_url} 
-                        target="_blank" 
-                        rel="noopener noreferrer" 
-                        className="text-blue-800 hover:text-blue-600 text-sm inline-flex items-center"
-                      >
-                        Ver detalle del proceso
-                        <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 ml-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
-                        </svg>
-                      </a>
-                    ) : licitacion.source_url ? (
-                      <a 
-                        href={licitacion.source_url} 
-                        target="_blank" 
-                        rel="noopener noreferrer" 
-                        className="text-blue-800 hover:text-blue-600 text-sm inline-flex items-center"
-                      >
-                        Ver detalle del proceso
-                        <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 ml-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
-                        </svg>
-                      </a>
-                    ) : null}
-                    {(licitacion.metadata?.comprar_pliego_url || (licitacion.source_url && licitacion.source_url.includes('VistaPreviaPliegoCiudadano'))) && (
+              </div>
+
+              {/* Right Column - Actions & Files */}
+              <div className="space-y-6">
+                {/* Enlaces Externos */}
+                <section className="bg-white rounded-2xl p-6 shadow-lg border border-gray-100">
+                  <h3 className="text-sm font-black text-gray-500 uppercase tracking-wider mb-4">Enlace Original</h3>
+                  <div className="space-y-3">
+                    {detailUrl && (
                       <a
-                        href={licitacion.metadata?.comprar_pliego_url || (licitacion.source_url && licitacion.source_url.includes('VistaPreviaPliegoCiudadano') ? licitacion.source_url : '#')}
+                        href={detailUrl}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="text-blue-800 hover:text-blue-600 text-sm inline-flex items-center"
+                        className="flex items-center justify-between p-4 bg-gray-50 hover:bg-gray-100 rounded-xl transition-colors group"
                       >
-                        Abrir en COMPR.AR
-                        <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 ml-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                        <span className="font-bold text-gray-700">Ver detalle del proceso</span>
+                        <svg className="w-5 h-5 text-gray-400 group-hover:text-blue-600 transform group-hover:translate-x-1 transition-all" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                        </svg>
+                      </a>
+                    )}
+                    {comprarUrl && (
+                      <a
+                        href={comprarUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="flex items-center justify-center gap-3 p-4 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white rounded-xl transition-all shadow-lg shadow-blue-200 hover:shadow-xl hover:shadow-blue-300 font-bold"
+                      >
+                        <span>Abrir en COMPR.AR</span>
+                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
                         </svg>
                       </a>
                     )}
                   </div>
-                </div>
-              )}
-            </div>
-          </div>
+                </section>
 
-          {/* Description */}
-          {licitacion.description && (
-            <div className="border-t border-gray-200 pt-6">
-              <h3 className="text-lg font-medium text-gray-900 mb-4">Descripción</h3>
-              <div className="prose max-w-none text-gray-700">
-                <p>{licitacion.description}</p>
+                {/* Archivos Adjuntos */}
+                <section className="bg-white rounded-2xl p-6 shadow-lg border border-gray-100">
+                  <h3 className="text-sm font-black text-gray-500 uppercase tracking-wider mb-4">Archivos Adjuntos</h3>
+                  {licitacion.attached_files && licitacion.attached_files.length > 0 ? (
+                    <ul className="space-y-2">
+                      {licitacion.attached_files.map((file, index) => (
+                        <li key={index}>
+                          <a
+                            href={file.url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="flex items-center gap-3 p-3 bg-gray-50 hover:bg-blue-50 rounded-xl transition-colors group"
+                          >
+                            <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${
+                              file.type === 'pdf' ? 'bg-red-100 text-red-600' :
+                              file.type === 'docx' || file.type === 'doc' ? 'bg-blue-100 text-blue-600' :
+                              file.type === 'xlsx' || file.type === 'xls' ? 'bg-green-100 text-green-600' :
+                              'bg-gray-100 text-gray-600'
+                            }`}>
+                              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
+                              </svg>
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <p className="text-sm font-bold text-gray-700 truncate group-hover:text-blue-700">{file.name}</p>
+                              {file.type && <p className="text-xs text-gray-400 uppercase">{file.type}</p>}
+                            </div>
+                            <svg className="w-4 h-4 text-gray-300 group-hover:text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                            </svg>
+                          </a>
+                        </li>
+                      ))}
+                    </ul>
+                  ) : (
+                    <p className="text-sm text-gray-400 italic">No hay archivos adjuntos</p>
+                  )}
+                </section>
+
+                {/* Metadata */}
+                <section className="bg-gray-50 rounded-2xl p-6 border border-gray-100">
+                  <h3 className="text-xs font-black text-gray-400 uppercase tracking-wider mb-3">Información del Sistema</h3>
+                  <dl className="space-y-2 text-sm">
+                    <div className="flex justify-between">
+                      <dt className="text-gray-500">ID:</dt>
+                      <dd className="text-gray-700 font-mono text-xs">{licitacion.id?.substring(0, 12)}...</dd>
+                    </div>
+                    {licitacion.fecha_scraping && (
+                      <div className="flex justify-between">
+                        <dt className="text-gray-500">Actualizado:</dt>
+                        <dd className="text-gray-700">{formatDate(licitacion.fecha_scraping)}</dd>
+                      </div>
+                    )}
+                    {licitacion.fuente && (
+                      <div className="flex justify-between">
+                        <dt className="text-gray-500">Fuente:</dt>
+                        <dd className="text-gray-700">{licitacion.fuente}</dd>
+                      </div>
+                    )}
+                  </dl>
+                </section>
               </div>
             </div>
-          )}
+          </div>
         </div>
       </div>
+
+      {/* Estilos */}
+      <style dangerouslySetInnerHTML={{ __html: `
+        .glass { background: rgba(255, 255, 255, 0.7); backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px); }
+        .btn-primary { background: linear-gradient(135deg, #2563eb, #4f46e5); color: white; border-radius: 16px; font-weight: 800; letter-spacing: 0.03em; transition: all 0.3s ease; box-shadow: 0 8px 20px -5px rgba(37, 99, 235, 0.4); }
+        .btn-primary:hover { transform: translateY(-2px); box-shadow: 0 12px 25px -5px rgba(37, 99, 235, 0.5); }
+      `}} />
+    </div>
+  );
+};
+
+// Componente auxiliar para items de información
+const InfoItem = ({ label, value, fullWidth = false }) => {
+  if (!value || value === 'N/A') return null;
+  
+  return (
+    <div className={fullWidth ? 'sm:col-span-2' : ''}>
+      <dt className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-1">{label}</dt>
+      <dd className="text-gray-800 font-medium">{value}</dd>
     </div>
   );
 };
