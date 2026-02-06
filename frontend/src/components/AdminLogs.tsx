@@ -51,8 +51,8 @@ const AdminLogs = () => {
       setRuns(data);
 
       // Extract unique scraper names
-      const names = [...new Set(res.data.map((r: ScraperRun) => r.scraper_name))];
-      setScraperNames(names as string[]);
+      const nameSet = new Set<string>(res.data.map((r: ScraperRun) => r.scraper_name));
+      setScraperNames(Array.from(nameSet));
       setError(null);
     } catch (err: any) {
       setError('Error al cargar runs: ' + (err.response?.data?.detail || err.message));
