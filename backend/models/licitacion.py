@@ -34,6 +34,10 @@ class LicitacionBase(BaseModel):
     # Detalle de productos/servicios (lista de items)
     items: Optional[List[Dict[str, Any]]] = Field(default=[], description="Detalle de productos o servicios")
 
+    # Garantias
+    garantias: Optional[List[Dict[str, Any]]] = Field(default=[], description="Garantías requeridas")
+
+
     # Solicitudes de contratación asignadas
     solicitudes_contratacion: Optional[List[Dict[str, Any]]] = Field(default=[], description="Solicitudes de contratación asignadas al proceso")
 
@@ -137,6 +141,7 @@ class LicitacionUpdate(BaseModel):
     requisitos_participacion: Optional[List[str]] = None
     actos_administrativos: Optional[List[Dict[str, Any]]] = None
     circulares: Optional[List[Dict[str, Any]]] = None
+    garantias: Optional[List[Dict[str, Any]]] = None
 
 
 class Licitacion(LicitacionBase):

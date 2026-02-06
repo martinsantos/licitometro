@@ -811,6 +811,26 @@ async def enrich_licitacion(
             update_data["actos_administrativos"] = parsed_data["_actos_administrativos"]
         if parsed_data.get("_circulares"):
             update_data["circulares"] = parsed_data["_circulares"]
+        if parsed_data.get("_garantias"):
+            update_data["garantias"] = parsed_data["_garantias"]
+            
+        # Combine files and anexos into attached_files
+        all_files = []
+        if parsed_data.get("_attached_files"):
+            all_files.extend(parsed_data["_attached_files"])
+            
+        if parsed_data.get("_anexos"):
+            for a in parsed_data["_anexos"]:
+                 all_files.append({
+                     "name": f"ANEXO: {a.get('nombre', '')} - {a.get('descripcion', '')}".strip(),
+                     "url": a.get('link', ''),
+                     "type": "anexo",
+                     "metadata": a # Store original fields
+                 })
+        
+        if all_files:
+            update_data["attached_files"] = all_files
+
 
         # CLASIFICACIÓN AUTOMÁTICA
         # Intentar mejorar la clasificación con los nuevos datos
