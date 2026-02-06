@@ -49,10 +49,12 @@ const LicitacionesList = ({ apiUrl }: LicitacionesListProps) => {
   const [busqueda, setBusqueda] = useState('');
   const [fuenteFiltro, setFuenteFiltro] = useState('');
   const [statusFiltro, setStatusFiltro] = useState('');
+  const [categoryFiltro, setCategoryFiltro] = useState('');
 
   // Dynamic filter options from API
   const [fuenteOptions, setFuenteOptions] = useState<string[]>([]);
   const [statusOptions, setStatusOptions] = useState<string[]>([]);
+  const [categoryOptions, setCategoryOptions] = useState<{id: string, nombre: string}[]>([]);
 
   // Sorting and display
   const [sortBy, setSortBy] = useState<string>('publication_date');
@@ -170,9 +172,10 @@ const LicitacionesList = ({ apiUrl }: LicitacionesListProps) => {
   useEffect(() => {
     const loadFilterOptions = async () => {
       try {
-        const [fuenteRes, statusRes] = await Promise.all([
+        const [fuenteRes, statusRes, rubrosRes] = await Promise.all([
           fetch(`${apiUrl}/api/licitaciones/distinct/fuente`),
-          fetch(`${apiUrl}/api/licitaciones/distinct/status`)
+          fetch(`${apiUrl}/api/licitaciones/distinct/status`),
+          fetch(`${apiUrl}/api/licitaciones/rubros/list`)
         ]);
         if (fuenteRes.ok) {
           const fuentes = await fuenteRes.json();
@@ -181,6 +184,10 @@ const LicitacionesList = ({ apiUrl }: LicitacionesListProps) => {
         if (statusRes.ok) {
           const statuses = await statusRes.json();
           setStatusOptions(statuses.filter((s: string) => s && s.trim()));
+        }
+        if (rubrosRes.ok) {
+          const rubrosData = await rubrosRes.json();
+          setCategoryOptions(rubrosData.rubros || []);
         }
       } catch (err) {
         console.error('Error loading filter options:', err);
@@ -203,6 +210,7 @@ const LicitacionesList = ({ apiUrl }: LicitacionesListProps) => {
         if (busqueda) params.append('q', busqueda);
         if (fuenteFiltro) params.append('fuente', fuenteFiltro);
         if (statusFiltro) params.append('status', statusFiltro);
+        if (categoryFiltro) params.append('category', categoryFiltro);
 
         const response = await fetch(`${apiUrl}/api/licitaciones/?${params.toString()}`);
         if (!response.ok) throw new Error('Error al cargar licitaciones');
@@ -218,7 +226,7 @@ const LicitacionesList = ({ apiUrl }: LicitacionesListProps) => {
 
     const timeoutId = setTimeout(fetchLicitaciones, 300);
     return () => clearTimeout(timeoutId);
-  }, [apiUrl, pagina, busqueda, fuenteFiltro, statusFiltro, sortBy, sortOrder]);
+  }, [apiUrl, pagina, busqueda, fuenteFiltro, statusFiltro, categoryFiltro, sortBy, sortOrder]);
 
   const handleRowClick = (id: string) => {
     navigate(`/licitacion/${id}`);
@@ -316,6 +324,19 @@ const LicitacionesList = ({ apiUrl }: LicitacionesListProps) => {
             </select>
 
             <select
+              className="px-4 py-3 bg-gray-50 border-2 border-transparent focus:border-blue-500 rounded-xl outline-none text-gray-700 font-bold cursor-pointer text-sm max-w-[200px]"
+              value={categoryFiltro}
+              onChange={(e) => { setCategoryFiltro(e.target.value); setPagina(1); }}
+            >
+              <option value="">Todos los rubros</option>
+              {categoryOptions.map((cat) => (
+                <option key={cat.id} value={cat.nombre} title={cat.nombre}>
+                  {cat.nombre.length > 25 ? cat.nombre.substring(0, 25) + '...' : cat.nombre}
+                </option>
+              ))}
+            </select>
+
+            <select
               className="px-4 py-3 bg-gray-50 border-2 border-transparent focus:border-blue-500 rounded-xl outline-none text-gray-700 font-bold cursor-pointer text-sm"
               value={groupBy}
               onChange={(e) => setGroupBy(e.target.value)}
@@ -378,9 +399,9 @@ const LicitacionesList = ({ apiUrl }: LicitacionesListProps) => {
             <span className="px-4 py-2 bg-emerald-50 text-emerald-700 rounded-full text-sm font-bold">
               {paginacion.total_items} avisos encontrados
             </span>
-            {(busqueda || fuenteFiltro || statusFiltro) && (
+            {(busqueda || fuenteFiltro || statusFiltro || categoryFiltro) && (
               <button
-                onClick={() => { setBusqueda(''); setFuenteFiltro(''); setStatusFiltro(''); setPagina(1); }}
+                onClick={() => { setBusqueda(''); setFuenteFiltro(''); setStatusFiltro(''); setCategoryFiltro(''); setPagina(1); }}
                 className="text-sm text-gray-500 hover:text-red-600 font-medium flex items-center gap-1"
               >
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -621,7 +642,7 @@ const LicitacionesList = ({ apiUrl }: LicitacionesListProps) => {
                 </div>
                 <p className="text-xl font-black text-gray-400 mb-4">No se encontraron licitaciones</p>
                 <button
-                  onClick={() => { setBusqueda(''); setFuenteFiltro(''); setStatusFiltro(''); }}
+                  onClick={() => { setBusqueda(''); setFuenteFiltro(''); setStatusFiltro(''); setCategoryFiltro(''); }}
                   className="text-blue-600 font-bold hover:underline"
                 >
                   Limpiar todos los filtros
