@@ -1,0 +1,5 @@
+
+--- REPO UPDATE 2026-02-06 15:25:42.155165 ---
+ID: 6984c90b5333b6d056d53ddc
+Update keys: ['opening_date', 'metadata', 'fecha_publicacion_portal', 'fecha_inicio_consultas', 'fecha_fin_consultas', 'etapa', 'modalidad', 'alcance', 'encuadre_legal', 'tipo_cotizacion', 'tipo_adjudicacion', 'duracion_contrato', 'items', 'garantias', 'updated_at']
+Garantias in update_data: [{'titulo': 'Garantía de impugnación a la preadjudicación', 'detalle': 'Según Ley Nº 8706 Art. 148'}, {'titulo': 'Garantía de mantenimiento de oferta', 'detalle': 'Según Ley Nº 8706 Art. 148'}, {'titulo': 'Garantía de cumplimiento de contrato', 'detalle': 'Según Ley Nº 8706 Art. 148'}]
