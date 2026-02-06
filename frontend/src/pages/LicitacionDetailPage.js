@@ -643,6 +643,29 @@ const LicitacionDetailPage = () => {
                   </section>
                 )}
 
+                {/* GARANTIAS */}
+                {licitacion.garantias && licitacion.garantias.length > 0 && (
+                  <section className="bg-gradient-to-r from-red-50 to-rose-50 rounded-2xl p-6 border border-red-100">
+                     <h2 className="text-lg font-black text-gray-900 mb-6 flex items-center">
+                      <span className="w-8 h-8 rounded-xl bg-red-100 text-red-600 flex items-center justify-center mr-3">
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
+                        </svg>
+                      </span>
+                      Garantías Requeridas
+                    </h2>
+                    <div className="space-y-4">
+                      {licitacion.garantias.map((garantia, idx) => (
+                        <div key={idx} className="bg-white/80 rounded-xl p-4 shadow-sm">
+                          <h4 className="font-bold text-red-800 mb-1">{garantia.titulo}</h4>
+                          <p className="text-sm text-gray-700">{garantia.detalle}</p>
+                        </div>
+                      ))}
+                    </div>
+                  </section>
+                )}
+
+
                 {/* Pliegos de Bases y Condiciones */}
                 {licitacion.pliegos_bases && licitacion.pliegos_bases.length > 0 && (
                   <section>
