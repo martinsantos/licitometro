@@ -67,76 +67,118 @@ const LicitacionDetalle = ({ apiUrl, licitacionId }: { apiUrl: string, licitacio
     );
   }
 
-  // Ejemplo de cómo se vería si tuviéramos datos
-  const licitacionEjemplo = {
-    id: licitacionId,
-    titulo: `Licitación de ejemplo #${licitacionId}`,
-    descripcion: 'Esta es una licitación de ejemplo para mostrar el diseño de la página de detalle.',
-    organismo: 'Ministerio de Desarrollo',
-    fecha_publicacion: '2025-04-15',
-    fecha_cierre: '2025-05-30',
-    presupuesto: '1,500,000.00',
-    estado: 'activa',
-    documentos: [
-      { id: 1, nombre: 'Pliego de condiciones', tipo: 'PDF', tamano: '2.4 MB' },
-      { id: 2, nombre: 'Anexo técnico', tipo: 'DOCX', tamano: '1.8 MB' },
-      { id: 3, nombre: 'Formulario de propuesta', tipo: 'XLSX', tamano: '0.5 MB' }
-    ]
-  };
-
+  // Render logic using real data
   return (
     <div>
       <div className="bg-white rounded-lg shadow-lg p-6 mb-8">
         <div className="flex justify-between items-start mb-6">
-          <h2 className="text-2xl font-bold">{licitacionEjemplo.titulo}</h2>
+          <h2 className="text-2xl font-bold">{licitacion.title}</h2>
           <span className={`badge ${
-            licitacionEjemplo.estado === 'activa' ? 'badge-success' : 
-            licitacionEjemplo.estado === 'cerrada' ? 'badge-warning' : 'badge-error'
+            licitacion.status === 'active' || licitacion.status === 'Abierta' ? 'badge-success' : 
+            licitacion.status === 'closed' ? 'badge-warning' : 'badge-neutral'
           }`}>
-            {licitacionEjemplo.estado}
+            {licitacion.status}
           </span>
         </div>
         
         <div className="mb-6">
-          <p className="text-gray-700 mb-4">{licitacionEjemplo.descripcion}</p>
+          <p className="text-gray-700 mb-4">{licitacion.description || "Sin descripción disponible."}</p>
+          <div className="text-sm text-gray-500 flex gap-4">
+             <span><span className="font-semibold">ID:</span> {licitacion.licitacion_number || licitacion.id_licitacion}</span>
+             <span><span className="font-semibold">Expediente:</span> {licitacion.expedient_number}</span>
+          </div>
         </div>
         
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-8">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
           <div>
-            <h3 className="text-lg font-semibold mb-2">Información General</h3>
-            <ul className="space-y-2">
+            <h3 className="text-lg font-semibold mb-2 border-b pb-1">Información General</h3>
+            <ul className="space-y-2 mt-2">
               <li className="flex">
                 <span className="font-medium w-40">Organismo:</span>
-                <span>{licitacionEjemplo.organismo}</span>
+                <span>{licitacion.organization}</span>
               </li>
               <li className="flex">
-                <span className="font-medium w-40">Fecha Publicación:</span>
-                <span>{new Date(licitacionEjemplo.fecha_publicacion).toLocaleDateString()}</span>
-              </li>
-              <li className="flex">
-                <span className="font-medium w-40">Fecha Cierre:</span>
-                <span>{new Date(licitacionEjemplo.fecha_cierre).toLocaleDateString()}</span>
+                <span className="font-medium w-40">Ubicación:</span>
+                <span>{licitacion.location} ({licitacion.jurisdiccion})</span>
               </li>
               <li className="flex">
                 <span className="font-medium w-40">Presupuesto:</span>
-                <span>${licitacionEjemplo.presupuesto}</span>
+                <span>{licitacion.currency} {licitacion.budget?.toLocaleString() || "N/A"}</span>
+              </li>
+              <li className="flex">
+                <span className="font-medium w-40">Fecha Publicación:</span>
+                <span>{licitacion.publication_date ? new Date(licitacion.publication_date).toLocaleDateString() : 'N/A'}</span>
+              </li>
+              <li className="flex">
+                <span className="font-medium w-40">Fecha Apertura:</span>
+                <span>{licitacion.opening_date ? new Date(licitacion.opening_date).toLocaleString() : 'N/A'}</span>
               </li>
             </ul>
+
+            {/* CRONOGRAMA */}
+            {(licitacion.fecha_publicacion_portal || licitacion.fecha_inicio_consultas) && (
+                <div className="mt-6">
+                    <h3 className="text-lg font-semibold mb-2 border-b pb-1">Cronograma</h3>
+                    <ul className="space-y-2 mt-2 text-sm">
+                        {licitacion.fecha_publicacion_portal && <li><span className="font-medium">Publicación Portal:</span> {new Date(licitacion.fecha_publicacion_portal).toLocaleString()}</li>}
+                        {licitacion.fecha_inicio_consultas && <li><span className="font-medium">Inicio Consultas:</span> {new Date(licitacion.fecha_inicio_consultas).toLocaleString()}</li>}
+                        {licitacion.fecha_fin_consultas && <li><span className="font-medium">Fin Consultas:</span> {new Date(licitacion.fecha_fin_consultas).toLocaleString()}</li>}
+                    </ul>
+                </div>
+            )}
           </div>
           
           <div>
-            <h3 className="text-lg font-semibold mb-2">Documentos</h3>
-            <ul className="space-y-2">
-              {licitacionEjemplo.documentos.map(doc => (
-                <li key={doc.id} className="flex items-center opacity-50 cursor-not-allowed">
-                  <svg className="h-5 w-5 text-blue-500 mr-2" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
-                    <path fillRule="evenodd" d="M4 4a2 2 0 012-2h4.586A2 2 0 0112 2.586L15.414 6A2 2 0 0116 7.414V16a2 2 0 01-2 2H6a2 2 0 01-2-2V4z" clipRule="evenodd" />
-                  </svg>
-                  <span>{doc.nombre}</span>
-                  <span className="ml-2 text-xs text-gray-500">({doc.tipo} - {doc.tamano})</span>
-                </li>
-              ))}
-            </ul>
+             {/* GARANTIAS */}
+            {licitacion.garantias && licitacion.garantias.length > 0 && (
+                <div className="mb-6">
+                    <h3 className="text-lg font-semibold mb-2 border-b pb-1">Garantías</h3>
+                    <ul className="space-y-3 mt-2">
+                        {licitacion.garantias.map((g: any, idx: number) => (
+                            <li key={idx} className="bg-gray-50 p-2 rounded">
+                                <div className="font-medium text-blue-800">{g.titulo}</div>
+                                <div className="text-sm text-gray-600 mt-1">{g.detalle}</div>
+                            </li>
+                        ))}
+                    </ul>
+                </div>
+            )}
+
+            <h3 className="text-lg font-semibold mb-2 border-b pb-1">Documentos y Anexos</h3>
+            {licitacion.attached_files && licitacion.attached_files.length > 0 ? (
+                <ul className="space-y-2 mt-2">
+                {licitacion.attached_files.map((doc: any, idx: number) => (
+                    <li key={idx} className="flex items-start p-2 hover:bg-gray-50 rounded">
+                    <svg className="h-5 w-5 text-blue-500 mr-2 mt-1" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+                        <path fillRule="evenodd" d="M4 4a2 2 0 012-2h4.586A2 2 0 0112 2.586L15.414 6A2 2 0 0116 7.414V16a2 2 0 01-2 2H6a2 2 0 01-2-2V4z" clipRule="evenodd" />
+                    </svg>
+                    <div className="flex-1">
+                        <div className="font-medium text-sm">{doc.name || "Documento Adjunto"}</div>
+                        <div className="text-xs text-gray-500 flex gap-2">
+                            <span>{doc.type}</span>
+                            {/* Visual cue for JS links */}
+                            {doc.url && doc.url.includes("javascript") ? (
+                                <span className="text-orange-500" title="Requiere navegación en el portal oficial">(Link de Portal)</span>
+                            ) : (
+                                <a href={doc.url} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline">
+                                    Ver / Descargar
+                                </a>
+                            )}
+                        </div>
+                    </div>
+                    </li>
+                ))}
+                </ul>
+            ) : (
+                <p className="text-gray-500 text-sm italic">No hay documentos adjuntos disponibles.</p>
+            )}
+
+            <div className="mt-8 pt-4 border-t">
+                 <a href={licitacion.canonical_url || licitacion.source_url} target="_blank" rel="noopener noreferrer" 
+                    className="btn btn-primary w-full text-center block">
+                    Ver Licitación Original
+                 </a>
+            </div>
           </div>
         </div>
       </div>
