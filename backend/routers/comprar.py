@@ -471,6 +471,174 @@ async def comprar_proceso_html(
         raise HTTPException(status_code=500, detail="Error interno al abrir el proceso.")
 
 
+@router.post("/enrich/{licitacion_id}")
+async def enrich_licitacion(
+    licitacion_id: str,
+    repo: LicitacionRepository = Depends(get_licitacion_repository)
+):
+    """
+    Scraping de segunda generación: enriquecer una licitación con datos detallados.
+
+    Este endpoint se llama cuando un usuario marca como favorito un proceso
+    o solicita "más información". Obtiene todos los datos detallados del
+    proceso desde COMPR.AR y actualiza la base de datos.
+
+    Extrae:
+    - CRONOGRAMA completo
+    - Listado de ITEMS/productos
+    - CIRCULARES
+    - Pliegos de bases y condiciones
+    - Requisitos de participación
+    - Actos administrativos
+    - Solicitudes de contratación
+    """
+    try:
+        # Obtener la licitación actual
+        lic = await repo.get_by_id(licitacion_id)
+        if not lic:
+            raise HTTPException(status_code=404, detail="Licitación no encontrada")
+
+        # Verificar que sea de COMPR.AR
+        fuente = lic.get('fuente', '')
+        if 'COMPR.AR' not in fuente:
+            return JSONResponse(content={
+                "success": False,
+                "message": "Esta licitación no es de COMPR.AR, no se puede enriquecer",
+                "data": lic
+            })
+
+        # Obtener la URL del PLIEGO
+        metadata = lic.get('metadata', {}) or {}
+        pliego_url = metadata.get('comprar_pliego_url')
+
+        if not pliego_url:
+            source_url = lic.get('source_url', '')
+            if source_url and 'VistaPreviaPliegoCiudadano' in str(source_url):
+                pliego_url = str(source_url)
+
+        if not pliego_url:
+            # Intentar resolver por número
+            numero = lic.get('licitacion_number') or lic.get('id_licitacion')
+            if numero:
+                pliego_url = _get_cached_pliego_url(numero)
+
+        if not pliego_url:
+            return JSONResponse(content={
+                "success": False,
+                "message": "No se pudo encontrar la URL del PLIEGO para enriquecer",
+                "data": lic
+            })
+
+        # Fetch del PLIEGO
+        headers = {
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+        }
+
+        async with aiohttp.ClientSession(headers=headers) as session:
+            async with session.get(pliego_url, timeout=30) as resp:
+                if resp.status != 200:
+                    return JSONResponse(content={
+                        "success": False,
+                        "message": f"Error al acceder al PLIEGO: HTTP {resp.status}",
+                        "data": lic
+                    })
+                pliego_html = await resp.text()
+
+        # Parsear los datos usando el scraper
+        from scrapers.mendoza_compra import MendozaCompraScraper
+        scraper = MendozaCompraScraper(config={})
+        parsed_data = scraper._parse_pliego_fields(pliego_html)
+
+        # Construir los datos a actualizar
+        update_data = {}
+
+        # CRONOGRAMA
+        if parsed_data.get("Fecha y hora estimada de publicación en el portal"):
+            from scrapers.mendoza_compra import parse_date_guess
+            val = parse_date_guess(parsed_data["Fecha y hora estimada de publicación en el portal"])
+            if val:
+                update_data["fecha_publicacion_portal"] = val
+
+        if parsed_data.get("Fecha y hora inicio de consultas"):
+            from scrapers.mendoza_compra import parse_date_guess
+            val = parse_date_guess(parsed_data["Fecha y hora inicio de consultas"])
+            if val:
+                update_data["fecha_inicio_consultas"] = val
+
+        if parsed_data.get("Fecha y hora final de consultas"):
+            from scrapers.mendoza_compra import parse_date_guess
+            val = parse_date_guess(parsed_data["Fecha y hora final de consultas"])
+            if val:
+                update_data["fecha_fin_consultas"] = val
+
+        if parsed_data.get("Fecha y hora acto de apertura"):
+            from scrapers.mendoza_compra import parse_date_guess
+            val = parse_date_guess(parsed_data["Fecha y hora acto de apertura"])
+            if val:
+                update_data["opening_date"] = val
+
+        # INFO BÁSICA
+        if parsed_data.get("Etapa"):
+            update_data["etapa"] = parsed_data["Etapa"]
+        if parsed_data.get("Modalidad"):
+            update_data["modalidad"] = parsed_data["Modalidad"]
+        if parsed_data.get("Alcance"):
+            update_data["alcance"] = parsed_data["Alcance"]
+        if parsed_data.get("Encuadre legal"):
+            update_data["encuadre_legal"] = parsed_data["Encuadre legal"]
+        if parsed_data.get("Tipo de cotización"):
+            update_data["tipo_cotizacion"] = parsed_data["Tipo de cotización"]
+        if parsed_data.get("Tipo de adjudicación"):
+            update_data["tipo_adjudicacion"] = parsed_data["Tipo de adjudicación"]
+        if parsed_data.get("Duración del contrato"):
+            update_data["duracion_contrato"] = parsed_data["Duración del contrato"]
+
+        # LISTAS
+        if parsed_data.get("_items"):
+            update_data["items"] = parsed_data["_items"]
+        if parsed_data.get("_solicitudes"):
+            update_data["solicitudes_contratacion"] = parsed_data["_solicitudes"]
+        if parsed_data.get("_pliegos_bases"):
+            update_data["pliegos_bases"] = parsed_data["_pliegos_bases"]
+        if parsed_data.get("_requisitos_participacion"):
+            update_data["requisitos_participacion"] = parsed_data["_requisitos_participacion"]
+        if parsed_data.get("_actos_administrativos"):
+            update_data["actos_administrativos"] = parsed_data["_actos_administrativos"]
+        if parsed_data.get("_circulares"):
+            update_data["circulares"] = parsed_data["_circulares"]
+
+        # Metadata adicional
+        update_data["metadata"] = {
+            **metadata,
+            "enriched_at": datetime.utcnow().isoformat(),
+            "comprar_pliego_fields": {
+                k: v for k, v in parsed_data.items()
+                if not k.startswith("_") and v
+            }
+        }
+
+        # Actualizar en MongoDB
+        if update_data:
+            await repo.update(licitacion_id, update_data)
+            logger.info(f"Enriched licitacion {licitacion_id} with {len(update_data)} fields")
+
+        # Obtener el registro actualizado
+        updated_lic = await repo.get_by_id(licitacion_id)
+
+        return JSONResponse(content={
+            "success": True,
+            "message": f"Licitación enriquecida con {len(update_data)} campos",
+            "fields_updated": list(update_data.keys()),
+            "data": updated_lic
+        })
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error enriching licitacion {licitacion_id}: {e}")
+        raise HTTPException(status_code=500, detail=f"Error interno: {str(e)}")
+
+
 @router.get("/cache/stats")
 async def get_cache_stats():
     """Obtener estadisticas del cache de URLs PLIEGO"""

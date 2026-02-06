@@ -33,6 +33,22 @@ class LicitacionBase(BaseModel):
 
     # Detalle de productos/servicios (lista de items)
     items: Optional[List[Dict[str, Any]]] = Field(default=[], description="Detalle de productos o servicios")
+
+    # Solicitudes de contratación asignadas
+    solicitudes_contratacion: Optional[List[Dict[str, Any]]] = Field(default=[], description="Solicitudes de contratación asignadas al proceso")
+
+    # Pliegos de bases y condiciones
+    pliegos_bases: Optional[List[Dict[str, Any]]] = Field(default=[], description="Pliegos de bases y condiciones generales")
+
+    # Requisitos mínimos de participación
+    requisitos_participacion: Optional[List[str]] = Field(default=[], description="Requisitos mínimos de participación")
+
+    # Actos administrativos
+    actos_administrativos: Optional[List[Dict[str, Any]]] = Field(default=[], description="Actos administrativos vinculados")
+
+    # Circulares
+    circulares: Optional[List[Dict[str, Any]]] = Field(default=[], description="Circulares del proceso")
+
     expedient_number: Optional[str] = Field(None, description="File or expedient number")
     licitacion_number: Optional[str] = Field(None, description="Licitación number")
     description: Optional[str] = Field(None, description="Description of the licitación")
@@ -116,6 +132,11 @@ class LicitacionUpdate(BaseModel):
     duracion_contrato: Optional[str] = None
     fecha_inicio_contrato: Optional[str] = None
     items: Optional[List[Dict[str, Any]]] = None
+    solicitudes_contratacion: Optional[List[Dict[str, Any]]] = None
+    pliegos_bases: Optional[List[Dict[str, Any]]] = None
+    requisitos_participacion: Optional[List[str]] = None
+    actos_administrativos: Optional[List[Dict[str, Any]]] = None
+    circulares: Optional[List[Dict[str, Any]]] = None
 
 
 class Licitacion(LicitacionBase):
