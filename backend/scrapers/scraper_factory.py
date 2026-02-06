@@ -27,6 +27,9 @@ from .vialidad_mendoza_scraper import VialidadMendozaScraper
 # Enhanced Mendoza scraper with URL caching
 from .mendoza_compra_v2 import MendozaCompraScraperV2
 
+# ComprasApps Mendoza (hli00049 servlet)
+from .comprasapps_mendoza_scraper import ComprasAppsMendozaScraper
+
 logger = logging.getLogger("scraper_factory")
 
 
@@ -43,6 +46,11 @@ def create_scraper(config: ScraperConfig) -> Optional[BaseScraper]:
     
     # === MENDOZA - Provincia ===
     
+    # ComprasApps Mendoza (hli00049 servlet - Buscador de Licitaciones)
+    if "comprasapps.mendoza.gov.ar" in config_url_lower or "comprasapps" in config_name_lower:
+        logger.info(f"Using ComprasAppsMendozaScraper for {config.name}")
+        return ComprasAppsMendozaScraper(config)
+
     # COMPR.AR Mendoza (v2 with URL caching)
     if "comprar.mendoza.gov.ar" in config_url_lower:
         # Use v2 by default, v1 if explicitly requested

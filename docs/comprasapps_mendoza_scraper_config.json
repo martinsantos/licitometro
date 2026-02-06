@@ -1,0 +1,42 @@
+{
+  "name": "ComprasApps Mendoza",
+  "url": "https://comprasapps.mendoza.gov.ar/Compras/servlet/hli00049",
+  "active": true,
+  "schedule": "0 8,14,20 * * 1-5",
+  "selectors": {
+    "timezone": "America/Argentina/Mendoza",
+    "business_days_window": 30,
+    "max_pages": 10,
+    "fetch_details": true,
+    "estado": "vigentes",
+    "tipo_contratacion": "todas",
+    "anio_fiscal": null
+  },
+  "pagination": {},
+  "headers": {
+    "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+    "Accept-Language": "es-AR,es;q=0.9",
+    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+  },
+  "cookies": {},
+  "wait_time": 1.5,
+  "max_items": null,
+  "source_type": "website",
+  "_notes": {
+    "description": "Buscador de Licitaciones sin login - GeneXus servlet hli00049",
+    "network_restriction": "Este sitio puede tener restricciones de acceso por red. Solo es accesible desde IPs autorizadas (red provincial o VPN configurada).",
+    "estados_disponibles": {
+      "vigentes": "Licitaciones con apertura pendiente",
+      "en_tramite": "Licitaciones en proceso de evaluación",
+      "adjudicadas": "Licitaciones ya adjudicadas",
+      "todas": "Todas las licitaciones"
+    },
+    "tipos_contratacion": {
+      "licitacion_publica": "Licitación Pública",
+      "licitacion_privada": "Licitación Privada",
+      "contratacion_directa": "Contratación Directa",
+      "concurso": "Concurso",
+      "todas": "Todos los tipos"
+    }
+  }
+}
