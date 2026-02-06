@@ -71,6 +71,19 @@ class LicitacionRepository:
         update_data = {k: v for k, v in licitacion.model_dump().items() if v is not None}
         update_data["updated_at"] = datetime.utcnow()
         
+        # DEBUG: Log what's being sent to MongoDB
+        try:
+            with open("repo_debug.log", "a") as f:
+                f.write(f"\n--- REPO UPDATE {datetime.utcnow()} ---\n")
+                f.write(f"ID: {id}\n")
+                f.write(f"Update keys: {list(update_data.keys())}\n")
+                if "garantias" in update_data:
+                    f.write(f"Garantias in update_data: {update_data['garantias']}\n")
+                else:
+                    f.write("No garantias key in update_data\n")
+        except Exception as e:
+            pass
+        
         if update_data:
             query_id = id
             if isinstance(id, str):
