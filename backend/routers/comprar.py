@@ -600,11 +600,40 @@ async def enrich_licitacion(
                 except Exception as e:
                     errors_log.append(f"{url_kind}: {str(e)[:50]}")
 
+
+
+        # Si fallaron las URLs directas, intentar búsqueda por número
         if not page_html:
-            logger.error(f"Could not fetch any URL for {licitacion_id}: {errors_log}")
+            logger.info(f"Direct URLs failed, trying search by number: {numero}")
+            if numero:
+                # URL de la lista para buscar (usar la de metadata o default)
+                list_url = metadata.get('comprar_list_url') or "https://comprar.mendoza.gov.ar/Compras.aspx"
+                
+                try:
+                    found_url = await _search_and_resolve_pliego(numero, list_url)
+                    if found_url:
+                        logger.info(f"Found new URL via search: {found_url}")
+                        # Cachear para la próxima
+                        _cache_pliego_url(numero, found_url)
+                        
+                        # Intentar fetchear esta nueva URL
+                        async with aiohttp.ClientSession(headers=headers) as session:
+                            async with session.get(found_url, timeout=aiohttp.ClientTimeout(total=30), ssl=False) as resp:
+                                if resp.status == 200:
+                                    html = await resp.text()
+                                    if len(html) > 1000:
+                                        page_html = html
+                                        successful_url = found_url
+                                        url_type = "search_fallback"
+                except Exception as e:
+                    logger.error(f"Error in search fallback: {e}")
+                    errors_log.append(f"search_fallback: {str(e)}")
+
+        if not page_html:
+            logger.error(f"Could not fetch any URL for {licitacion_id} even after search: {errors_log}")
             return JSONResponse(content={
                 "success": False,
-                "message": f"No se pudo acceder a ninguna URL del proceso. Intentos: {len(urls_to_try)}",
+                "message": f"No se pudo acceder a ninguna URL del proceso. Intentos: {len(urls_to_try)} + búsqueda",
                 "errors": errors_log,
                 "urls_tried": [u[1][:60] + "..." for u in urls_to_try],
                 "data": jsonable_encoder(lic)
@@ -672,6 +701,30 @@ async def enrich_licitacion(
             update_data["actos_administrativos"] = parsed_data["_actos_administrativos"]
         if parsed_data.get("_circulares"):
             update_data["circulares"] = parsed_data["_circulares"]
+
+        # CLASIFICACIÓN AUTOMÁTICA
+        # Intentar mejorar la clasificación con los nuevos datos
+        try:
+            from services.category_classifier import classify_licitacion
+            
+            # Combinar datos existentes con nuevos
+            classify_data = {
+                "title": lic.get("title") or "",
+                "description": update_data.get("description") or lic.get("description") or "",
+                "keywords": lic.get("keywords") or []
+            }
+            
+            # Agregar items a verificar
+            if "items" in update_data:
+                items_text = [i.get("descripcion", "") for i in update_data["items"]]
+                classify_data["keywords"].extend(items_text)
+                
+            new_category = classify_licitacion(classify_data)
+            if new_category and new_category != lic.get("category"):
+                update_data["category"] = new_category
+                logger.info(f"Auto-classified as: {new_category}")
+        except Exception as e:
+            logger.error(f"Error auto-classifying: {e}")
 
         # Metadata adicional
         update_data["metadata"] = {

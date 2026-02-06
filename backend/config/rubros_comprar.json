@@ -61,7 +61,7 @@
     {
       "id": "47",
       "nombre": "ELEMENTOS DE LIMPIEZA",
-      "keywords": ["limpieza", "higiene", "desinfectante", "detergente", "lavandina", "sanitización"]
+      "keywords": ["limpieza", "higiene", "desinfectante", "detergente", "lavandina", "sanitización", "hipoclorito", "cloro", "residuos", "jabón"]
     },
     {
       "id": "56",
@@ -116,7 +116,7 @@
     {
       "id": "12",
       "nombre": "PRODUCTOS QUIMICOS",
-      "keywords": ["químico", "producto químico", "reactivo", "solvente", "ácido", "compuesto"]
+      "keywords": ["químico", "producto químico", "reactivo", "solvente", "ácido", "compuesto", "sodio", "potasio", "alcohol", "laboratorio"]
     },
     {
       "id": "83",
