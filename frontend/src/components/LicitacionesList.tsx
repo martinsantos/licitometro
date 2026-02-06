@@ -88,7 +88,7 @@ const LicitacionesList = ({ apiUrl }: LicitacionesListProps) => {
     }
 
     setFavorites(newFavorites);
-    localStorage.setItem('savedLicitaciones', JSON.stringify([...newFavorites]));
+    localStorage.setItem('savedLicitaciones', JSON.stringify(Array.from(newFavorites)));
     localStorage.setItem('savedLicitacionesDates', JSON.stringify(savedDates));
   };
 

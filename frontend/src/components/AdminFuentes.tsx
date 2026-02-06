@@ -1,9 +1,9 @@
 import React, { useState, useEffect } from 'react';
 
-const AdminFuentes = ({ apiUrl }) => {
-  const [fuentes, setFuentes] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
+const AdminFuentes = ({ apiUrl }: { apiUrl: string }) => {
+  const [fuentes, setFuentes] = useState<any[]>([]);
+  const [loading, setLoading] = useState<boolean>(true);
+  const [error, setError] = useState<string | null>(null);
   const [nuevaFuente, setNuevaFuente] = useState({
     nombre: '',
     url: '',
@@ -30,8 +30,8 @@ const AdminFuentes = ({ apiUrl }) => {
         const data = await response.json();
         setFuentes(data);
         setLoading(false);
-      } catch (err) {
-        setError(err.message);
+      } catch (err: any) {
+        setError(err.message || 'Error desconocido');
         setLoading(false);
       }
     };
@@ -45,7 +45,7 @@ const AdminFuentes = ({ apiUrl }) => {
     }, 1500);
   }, [apiUrl]);
 
-  const handleInputChange = (e) => {
+  const handleInputChange = (e: any) => {
     const { name, value, type, checked } = e.target;
     setNuevaFuente({
       ...nuevaFuente,
@@ -53,7 +53,7 @@ const AdminFuentes = ({ apiUrl }) => {
     });
   };
 
-  const handleConfigChange = (e) => {
+  const handleConfigChange = (e: any) => {
     try {
       // Validamos que sea un JSON válido
       JSON.parse(e.target.value);
@@ -70,7 +70,7 @@ const AdminFuentes = ({ apiUrl }) => {
     }
   };
 
-  const handleSubmit = async (e) => {
+  const handleSubmit = async (e: any) => {
     e.preventDefault();
     alert('Funcionalidad en desarrollo. La creación de fuentes estará disponible próximamente.');
   };
