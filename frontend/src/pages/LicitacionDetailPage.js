@@ -54,6 +54,24 @@ const LicitacionDetailPage = () => {
     });
   };
 
+  const formatDateTime = (dateString) => {
+    if (!dateString) return 'N/A';
+    const date = new Date(dateString);
+    return date.toLocaleDateString('es-AR', {
+      day: '2-digit',
+      month: '2-digit',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit'
+    });
+  };
+
+  // Check if there are any critical dates in the cronograma
+  const hasCronograma = licitacion?.fecha_publicacion_portal ||
+                        licitacion?.fecha_inicio_consultas ||
+                        licitacion?.fecha_fin_consultas ||
+                        licitacion?.opening_date;
+
   const formatCurrency = (amount, currency = 'ARS') => {
     if (!amount) return null;
     return new Intl.NumberFormat('es-AR', { style: 'currency', currency }).format(amount);
@@ -305,6 +323,146 @@ const LicitacionDetailPage = () => {
                   </div>
                 </section>
 
+                {/* CRONOGRAMA - Fechas Críticas */}
+                {hasCronograma && (
+                  <section className="bg-gradient-to-r from-orange-50 to-amber-50 rounded-2xl p-6 border border-orange-100">
+                    <h2 className="text-lg font-black text-gray-900 mb-6 flex items-center">
+                      <span className="w-8 h-8 rounded-xl bg-orange-100 text-orange-600 flex items-center justify-center mr-3">
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                        </svg>
+                      </span>
+                      Cronograma
+                    </h2>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                      {licitacion.fecha_publicacion_portal && (
+                        <DateItem
+                          label="Publicación en Portal"
+                          date={licitacion.fecha_publicacion_portal}
+                          formatFn={formatDateTime}
+                          icon="📢"
+                        />
+                      )}
+                      {licitacion.fecha_inicio_consultas && (
+                        <DateItem
+                          label="Inicio de Consultas"
+                          date={licitacion.fecha_inicio_consultas}
+                          formatFn={formatDateTime}
+                          icon="📝"
+                        />
+                      )}
+                      {licitacion.fecha_fin_consultas && (
+                        <DateItem
+                          label="Fin de Consultas"
+                          date={licitacion.fecha_fin_consultas}
+                          formatFn={formatDateTime}
+                          icon="⏰"
+                          isDeadline
+                        />
+                      )}
+                      {licitacion.opening_date && (
+                        <DateItem
+                          label="Acto de Apertura"
+                          date={licitacion.opening_date}
+                          formatFn={formatDateTime}
+                          icon="📦"
+                          isDeadline
+                        />
+                      )}
+                    </div>
+                  </section>
+                )}
+
+                {/* Información Adicional del Proceso */}
+                {(licitacion.etapa || licitacion.modalidad || licitacion.alcance || licitacion.encuadre_legal) && (
+                  <section>
+                    <h2 className="text-lg font-black text-gray-900 mb-6 flex items-center">
+                      <span className="w-8 h-8 rounded-xl bg-indigo-100 text-indigo-600 flex items-center justify-center mr-3">
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                        </svg>
+                      </span>
+                      Detalles del Proceso
+                    </h2>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+                      {licitacion.etapa && <InfoItem label="Etapa" value={licitacion.etapa} />}
+                      {licitacion.modalidad && <InfoItem label="Modalidad" value={licitacion.modalidad} />}
+                      {licitacion.alcance && <InfoItem label="Alcance" value={licitacion.alcance} />}
+                      {licitacion.encuadre_legal && <InfoItem label="Encuadre Legal" value={licitacion.encuadre_legal} fullWidth />}
+                      {licitacion.tipo_cotizacion && <InfoItem label="Tipo de Cotización" value={licitacion.tipo_cotizacion} fullWidth />}
+                      {licitacion.tipo_adjudicacion && <InfoItem label="Tipo de Adjudicación" value={licitacion.tipo_adjudicacion} fullWidth />}
+                      {licitacion.plazo_mantenimiento_oferta && <InfoItem label="Plazo Mantenimiento Oferta" value={licitacion.plazo_mantenimiento_oferta} />}
+                      {licitacion.requiere_pago !== null && licitacion.requiere_pago !== undefined && (
+                        <InfoItem label="Requiere Pago" value={licitacion.requiere_pago ? 'Sí' : 'No'} />
+                      )}
+                    </div>
+                  </section>
+                )}
+
+                {/* Información del Contrato */}
+                {(licitacion.duracion_contrato || licitacion.fecha_inicio_contrato) && (
+                  <section className="bg-gradient-to-r from-cyan-50 to-sky-50 rounded-2xl p-6 border border-cyan-100">
+                    <h2 className="text-lg font-black text-gray-900 mb-4 flex items-center">
+                      <span className="w-8 h-8 rounded-xl bg-cyan-100 text-cyan-600 flex items-center justify-center mr-3">
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                        </svg>
+                      </span>
+                      Información del Contrato
+                    </h2>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                      {licitacion.duracion_contrato && (
+                        <div className="bg-white/60 rounded-xl p-4">
+                          <p className="text-xs font-bold text-cyan-600 uppercase mb-1">Duración</p>
+                          <p className="text-lg font-bold text-gray-800">{licitacion.duracion_contrato}</p>
+                        </div>
+                      )}
+                      {licitacion.fecha_inicio_contrato && (
+                        <div className="bg-white/60 rounded-xl p-4">
+                          <p className="text-xs font-bold text-cyan-600 uppercase mb-1">Inicio Estimado</p>
+                          <p className="text-sm text-gray-700">{licitacion.fecha_inicio_contrato}</p>
+                        </div>
+                      )}
+                    </div>
+                  </section>
+                )}
+
+                {/* Detalle de Productos/Servicios */}
+                {licitacion.items && licitacion.items.length > 0 && (
+                  <section>
+                    <h2 className="text-lg font-black text-gray-900 mb-4 flex items-center">
+                      <span className="w-8 h-8 rounded-xl bg-green-100 text-green-600 flex items-center justify-center mr-3">
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+                        </svg>
+                      </span>
+                      Productos/Servicios
+                    </h2>
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-sm">
+                        <thead className="bg-gray-50">
+                          <tr>
+                            <th className="px-4 py-3 text-left font-bold text-gray-600">#</th>
+                            <th className="px-4 py-3 text-left font-bold text-gray-600">Código</th>
+                            <th className="px-4 py-3 text-left font-bold text-gray-600">Descripción</th>
+                            <th className="px-4 py-3 text-right font-bold text-gray-600">Cantidad</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-gray-100">
+                          {licitacion.items.map((item, idx) => (
+                            <tr key={idx} className="hover:bg-gray-50">
+                              <td className="px-4 py-3 text-gray-600">{item.numero_renglon || idx + 1}</td>
+                              <td className="px-4 py-3 text-gray-600 font-mono text-xs">{item.codigo_item || '-'}</td>
+                              <td className="px-4 py-3 text-gray-800">{item.descripcion}</td>
+                              <td className="px-4 py-3 text-right text-gray-700 font-medium">{item.cantidad || '-'}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </section>
+                )}
+
                 {/* Presupuesto */}
                 {licitacion.budget && (
                   <section className="bg-gradient-to-r from-emerald-50 to-teal-50 rounded-2xl p-6 border border-emerald-100">
@@ -472,11 +630,51 @@ const LicitacionDetailPage = () => {
 // Componente auxiliar para items de información
 const InfoItem = ({ label, value, fullWidth = false }) => {
   if (!value || value === 'N/A') return null;
-  
+
   return (
     <div className={fullWidth ? 'sm:col-span-2' : ''}>
       <dt className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-1">{label}</dt>
       <dd className="text-gray-800 font-medium">{value}</dd>
+    </div>
+  );
+};
+
+// Componente auxiliar para fechas del cronograma
+const DateItem = ({ label, date, formatFn, icon, isDeadline = false }) => {
+  if (!date || date === 'N/A') return null;
+
+  const dateObj = new Date(date);
+  const now = new Date();
+  const isPast = dateObj < now;
+  const isUpcoming = !isPast && (dateObj - now) < 7 * 24 * 60 * 60 * 1000; // 7 days
+
+  return (
+    <div className={`p-4 rounded-xl border ${
+      isDeadline && isUpcoming ? 'bg-red-50 border-red-200' :
+      isDeadline && isPast ? 'bg-gray-100 border-gray-200' :
+      'bg-white/60 border-orange-100'
+    }`}>
+      <div className="flex items-center gap-2 mb-1">
+        <span className="text-lg">{icon}</span>
+        <p className={`text-xs font-bold uppercase ${
+          isDeadline && isUpcoming ? 'text-red-600' :
+          isDeadline && isPast ? 'text-gray-500' :
+          'text-orange-600'
+        }`}>{label}</p>
+        {isDeadline && isUpcoming && (
+          <span className="px-2 py-0.5 rounded-full bg-red-100 text-red-700 text-[10px] font-bold uppercase">Próximo</span>
+        )}
+        {isDeadline && isPast && (
+          <span className="px-2 py-0.5 rounded-full bg-gray-200 text-gray-600 text-[10px] font-bold uppercase">Pasado</span>
+        )}
+      </div>
+      <p className={`text-lg font-bold ${
+        isDeadline && isUpcoming ? 'text-red-700' :
+        isDeadline && isPast ? 'text-gray-600' :
+        'text-gray-800'
+      }`}>
+        {formatFn(date)}
+      </p>
     </div>
   );
 };

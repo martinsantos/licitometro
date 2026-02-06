@@ -286,10 +286,12 @@ class MendozaCompraScraper(BaseScraper):
             return urljoin(base_url, m.group(1))
         return None
 
-    def _parse_pliego_fields(self, html: str) -> Dict[str, str]:
-        """Parse key fields from PLIEGO page."""
+    def _parse_pliego_fields(self, html: str) -> Dict[str, Any]:
+        """Parse key fields from PLIEGO page including cronograma, info básica, items."""
         soup = BeautifulSoup(html, 'html.parser')
-        data: Dict[str, str] = {}
+        data: Dict[str, Any] = {}
+
+        # Extract label/value pairs
         for lab in soup.find_all('label'):
             key = lab.get_text(' ', strip=True)
             if not key:
@@ -298,6 +300,133 @@ class MendozaCompraScraper(BaseScraper):
             val = nxt.get_text(' ', strip=True) if nxt else ''
             if val:
                 data[key] = val
+
+        # Also try div/span pairs (some fields use this pattern)
+        for div in soup.find_all('div', class_=re.compile('col|field|form-group')):
+            labels = div.find_all(['label', 'span', 'strong'])
+            for label in labels:
+                key = label.get_text(' ', strip=True).rstrip(':')
+                if not key:
+                    continue
+                # Find the next text element
+                nxt = label.find_next_sibling()
+                if nxt:
+                    val = nxt.get_text(' ', strip=True)
+                    if val and key not in data:
+                        data[key] = val
+
+        # Extract structured data from tables
+        # Detalle de productos o servicios
+        items = []
+        products_table = soup.find('table', {'id': re.compile('Renglon|Item|Producto', re.I)})
+        if not products_table:
+            # Try by section header
+            for header in soup.find_all(['h3', 'h4', 'div'], string=re.compile('Detalle de productos', re.I)):
+                products_table = header.find_next('table')
+                if products_table:
+                    break
+
+        if products_table:
+            rows = products_table.find_all('tr')
+            headers = []
+            for th in rows[0].find_all(['th', 'td']) if rows else []:
+                headers.append(th.get_text(' ', strip=True).lower())
+
+            for row in rows[1:]:
+                cols = row.find_all('td')
+                if len(cols) >= 4:
+                    item = {
+                        "numero_renglon": cols[0].get_text(' ', strip=True) if len(cols) > 0 else "",
+                        "objeto_gasto": cols[1].get_text(' ', strip=True) if len(cols) > 1 else "",
+                        "codigo_item": cols[2].get_text(' ', strip=True) if len(cols) > 2 else "",
+                        "descripcion": cols[3].get_text(' ', strip=True) if len(cols) > 3 else "",
+                        "cantidad": cols[4].get_text(' ', strip=True) if len(cols) > 4 else "",
+                    }
+                    if item["descripcion"]:
+                        items.append(item)
+
+        if items:
+            data["_items"] = items
+
+        # Extract solicitudes de contratación
+        solicitudes = []
+        solicitudes_table = soup.find('table', {'id': re.compile('Solicitud|Contratacion', re.I)})
+        if not solicitudes_table:
+            for header in soup.find_all(['h3', 'h4', 'div'], string=re.compile('Solicitudes de contrataci', re.I)):
+                solicitudes_table = header.find_next('table')
+                if solicitudes_table:
+                    break
+
+        if solicitudes_table:
+            rows = solicitudes_table.find_all('tr')
+            for row in rows[1:]:
+                cols = row.find_all('td')
+                if len(cols) >= 4:
+                    sol = {
+                        "numero_solicitud": cols[0].get_text(' ', strip=True) if len(cols) > 0 else "",
+                        "estado": cols[1].get_text(' ', strip=True) if len(cols) > 1 else "",
+                        "unidad_ejecutora": cols[2].get_text(' ', strip=True) if len(cols) > 2 else "",
+                        "rubro": cols[3].get_text(' ', strip=True) if len(cols) > 3 else "",
+                        "tipo_urgencia": cols[4].get_text(' ', strip=True) if len(cols) > 4 else "",
+                        "fecha_creacion": cols[5].get_text(' ', strip=True) if len(cols) > 5 else "",
+                    }
+                    if sol["numero_solicitud"]:
+                        solicitudes.append(sol)
+
+        if solicitudes:
+            data["_solicitudes"] = solicitudes
+
+        # Extract actos administrativos
+        actos = []
+        actos_table = soup.find('table', {'id': re.compile('Acto|Administrativo', re.I)})
+        if not actos_table:
+            for header in soup.find_all(['h3', 'h4', 'div'], string=re.compile('Actos administrativos', re.I)):
+                actos_table = header.find_next('table')
+                if actos_table:
+                    break
+
+        if actos_table:
+            rows = actos_table.find_all('tr')
+            for row in rows[1:]:
+                cols = row.find_all('td')
+                if len(cols) >= 3:
+                    acto = {
+                        "documento": cols[0].get_text(' ', strip=True) if len(cols) > 0 else "",
+                        "numero_gde": cols[1].get_text(' ', strip=True) if len(cols) > 1 else "",
+                        "numero_especial": cols[2].get_text(' ', strip=True) if len(cols) > 2 else "",
+                        "fecha_vinculacion": cols[3].get_text(' ', strip=True) if len(cols) > 3 else "",
+                    }
+                    if acto["documento"]:
+                        actos.append(acto)
+
+        if actos:
+            data["_actos_administrativos"] = actos
+
+        # Extract circulares
+        circulares = []
+        circulares_table = soup.find('table', {'id': re.compile('Circular', re.I)})
+        if not circulares_table:
+            for header in soup.find_all(['h3', 'h4', 'div'], string=re.compile('Circulares', re.I)):
+                circulares_table = header.find_next('table')
+                if circulares_table:
+                    break
+
+        if circulares_table:
+            rows = circulares_table.find_all('tr')
+            for row in rows[1:]:
+                cols = row.find_all('td')
+                if len(cols) >= 2:
+                    circ = {
+                        "numero": cols[0].get_text(' ', strip=True) if len(cols) > 0 else "",
+                        "fecha_publicacion": cols[1].get_text(' ', strip=True) if len(cols) > 1 else "",
+                        "tipo": cols[2].get_text(' ', strip=True) if len(cols) > 2 else "",
+                    }
+                    if circ["numero"]:
+                        circulares.append(circ)
+
+        if circulares:
+            data["_circulares"] = circulares
+
         return data
 
     def _collect_pliego_urls_selenium(self, list_url: str, max_pages: int = 5) -> Dict[str, str]:
@@ -625,11 +754,71 @@ class MendozaCompraScraper(BaseScraper):
                 contact = None
                 currency = None
                 budget = None
+
+                # Cronograma dates
+                fecha_publicacion_portal = None
+                fecha_inicio_consultas = None
+                fecha_fin_consultas = None
+                fecha_apertura = opening_date
+
+                # Info adicional
+                etapa = None
+                modalidad = None
+                alcance = None
+                encuadre_legal = None
+                tipo_cotizacion = None
+                tipo_adjudicacion = None
+                plazo_mantenimiento_oferta = None
+                requiere_pago = None
+                duracion_contrato = None
+                fecha_inicio_contrato = None
+                items = []
+
                 if pliego_fields:
                     expedient_number = pliego_fields.get("Número de expediente") or pliego_fields.get("Número de Expediente")
                     description = pliego_fields.get("Objeto de la contratación") or pliego_fields.get("Objeto") or description
                     currency = pliego_fields.get("Moneda")
                     contact = pliego_fields.get("Lugar de recepción de documentación física")
+
+                    # CRONOGRAMA - Fechas críticas
+                    pub_portal_raw = pliego_fields.get("Fecha y hora estimada de publicación en el portal")
+                    if pub_portal_raw:
+                        fecha_publicacion_portal = parse_date_guess(pub_portal_raw)
+
+                    inicio_consultas_raw = pliego_fields.get("Fecha y hora inicio de consultas")
+                    if inicio_consultas_raw:
+                        fecha_inicio_consultas = parse_date_guess(inicio_consultas_raw)
+
+                    fin_consultas_raw = pliego_fields.get("Fecha y hora final de consultas")
+                    if fin_consultas_raw:
+                        fecha_fin_consultas = parse_date_guess(fin_consultas_raw)
+
+                    apertura_raw = pliego_fields.get("Fecha y hora acto de apertura") or pliego_fields.get("Fecha de Apertura")
+                    if apertura_raw:
+                        fecha_apertura = parse_date_guess(apertura_raw)
+
+                    # INFO BÁSICA ADICIONAL
+                    etapa = pliego_fields.get("Etapa")
+                    modalidad = pliego_fields.get("Modalidad")
+                    alcance = pliego_fields.get("Alcance")
+                    encuadre_legal = pliego_fields.get("Encuadre legal")
+                    tipo_cotizacion = pliego_fields.get("Tipo de cotización")
+                    tipo_adjudicacion = pliego_fields.get("Tipo de adjudicación")
+                    plazo_mantenimiento_oferta = pliego_fields.get("Plazo mantenimiento de la oferta")
+                    requiere_pago_raw = pliego_fields.get("Requiere pago")
+                    if requiere_pago_raw:
+                        requiere_pago = requiere_pago_raw.lower() in ("sí", "si", "yes", "true", "1")
+
+                    # INFO DEL CONTRATO
+                    duracion_contrato = pliego_fields.get("Duración del contrato")
+                    fecha_inicio_contrato = pliego_fields.get("Fecha estimada del inicio del contrato")
+
+                    # ITEMS (productos/servicios)
+                    items = pliego_fields.get("_items", [])
+
+                # Update opening_date if we got it from pliego
+                if fecha_apertura:
+                    opening_date = fecha_apertura
 
                 # Compute content hash for deduplication
                 content_hash = hashlib.md5(
@@ -661,10 +850,30 @@ class MendozaCompraScraper(BaseScraper):
                     "fuente": "COMPR.AR Mendoza",
                     "currency": currency,
                     "budget": budget,
+                    # CRONOGRAMA - Fechas críticas
+                    "fecha_publicacion_portal": fecha_publicacion_portal,
+                    "fecha_inicio_consultas": fecha_inicio_consultas,
+                    "fecha_fin_consultas": fecha_fin_consultas,
+                    # INFO ADICIONAL
+                    "etapa": etapa,
+                    "modalidad": modalidad,
+                    "alcance": alcance,
+                    "encuadre_legal": encuadre_legal,
+                    "tipo_cotizacion": tipo_cotizacion,
+                    "tipo_adjudicacion": tipo_adjudicacion,
+                    "plazo_mantenimiento_oferta": plazo_mantenimiento_oferta,
+                    "requiere_pago": requiere_pago,
+                    "duracion_contrato": duracion_contrato,
+                    "fecha_inicio_contrato": fecha_inicio_contrato,
+                    "items": items,
                     "metadata": {
                         **meta,
                         "comprar_open_url": proxy_open_url,
                         "comprar_detail_url": proxy_html_url,
+                        # Guardar datos estructurados adicionales
+                        "solicitudes": pliego_fields.get("_solicitudes", []) if pliego_fields else [],
+                        "actos_administrativos": pliego_fields.get("_actos_administrativos", []) if pliego_fields else [],
+                        "circulares": pliego_fields.get("_circulares", []) if pliego_fields else [],
                     },
                 })
 

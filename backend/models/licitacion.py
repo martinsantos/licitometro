@@ -9,8 +9,30 @@ class LicitacionBase(BaseModel):
     title: str = Field(..., description="Title of the licitación")
     organization: str = Field(..., description="Organization publishing the licitación")
     publication_date: datetime = Field(..., description="Date when the licitación was published")
-    opening_date: Optional[datetime] = Field(None, description="Date when the licitación will be opened")
+    opening_date: Optional[datetime] = Field(None, description="Date when the licitación will be opened (acto de apertura)")
     expiration_date: Optional[datetime] = Field(None, description="Deadline for the licitación")
+
+    # CRONOGRAMA - Fechas críticas del proceso
+    fecha_publicacion_portal: Optional[datetime] = Field(None, description="Fecha y hora estimada de publicación en el portal")
+    fecha_inicio_consultas: Optional[datetime] = Field(None, description="Fecha y hora inicio de consultas")
+    fecha_fin_consultas: Optional[datetime] = Field(None, description="Fecha y hora final de consultas")
+
+    # Información adicional del proceso
+    etapa: Optional[str] = Field(None, description="Etapa del proceso (Única, Multiple, etc.)")
+    modalidad: Optional[str] = Field(None, description="Modalidad del proceso")
+    alcance: Optional[str] = Field(None, description="Alcance (Nacional, Provincial, etc.)")
+    encuadre_legal: Optional[str] = Field(None, description="Marco legal aplicable")
+    tipo_cotizacion: Optional[str] = Field(None, description="Tipo de cotización permitida")
+    tipo_adjudicacion: Optional[str] = Field(None, description="Tipo de adjudicación")
+    plazo_mantenimiento_oferta: Optional[str] = Field(None, description="Plazo de mantenimiento de la oferta")
+    requiere_pago: Optional[bool] = Field(None, description="Si el proceso requiere pago")
+
+    # Información del contrato
+    duracion_contrato: Optional[str] = Field(None, description="Duración estimada del contrato")
+    fecha_inicio_contrato: Optional[str] = Field(None, description="Fecha estimada inicio del contrato")
+
+    # Detalle de productos/servicios (lista de items)
+    items: Optional[List[Dict[str, Any]]] = Field(default=[], description="Detalle de productos o servicios")
     expedient_number: Optional[str] = Field(None, description="File or expedient number")
     licitacion_number: Optional[str] = Field(None, description="Licitación number")
     description: Optional[str] = Field(None, description="Description of the licitación")
@@ -78,6 +100,22 @@ class LicitacionUpdate(BaseModel):
     attached_files: Optional[List[Dict[str, Any]]] = None
     keywords: Optional[List[str]] = None
     metadata: Optional[Dict[str, Any]] = None
+    # Cronograma
+    fecha_publicacion_portal: Optional[datetime] = None
+    fecha_inicio_consultas: Optional[datetime] = None
+    fecha_fin_consultas: Optional[datetime] = None
+    # Info adicional
+    etapa: Optional[str] = None
+    modalidad: Optional[str] = None
+    alcance: Optional[str] = None
+    encuadre_legal: Optional[str] = None
+    tipo_cotizacion: Optional[str] = None
+    tipo_adjudicacion: Optional[str] = None
+    plazo_mantenimiento_oferta: Optional[str] = None
+    requiere_pago: Optional[bool] = None
+    duracion_contrato: Optional[str] = None
+    fecha_inicio_contrato: Optional[str] = None
+    items: Optional[List[Dict[str, Any]]] = None
 
 
 class Licitacion(LicitacionBase):
