@@ -3,6 +3,7 @@ import { useParams, Link } from 'react-router-dom';
 import axios from 'axios';
 import WorkflowStepper from '../components/WorkflowStepper';
 import WorkflowBadge from '../components/WorkflowBadge';
+import OfferChecklist from '../components/OfferChecklist';
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
 const API = `${BACKEND_URL}/api`;
@@ -466,6 +467,7 @@ const LicitacionDetailPage = () => {
                 { id: 'docs', label: 'Documentos', count: (licitacion.attached_files || []).length + (licitacion.pliegos_bases || []).length },
                 { id: 'cronograma', label: 'Cronograma', show: hasCronograma },
                 { id: 'workflow', label: 'Workflow' },
+                { id: 'oferta', label: 'Oferta', show: licitacion?.workflow_state === 'preparando' },
               ].filter(t => t.show !== false).map(tab => (
                 <button
                   key={tab.id}
@@ -516,8 +518,13 @@ const LicitacionDetailPage = () => {
               </div>
             )}
 
+            {/* Oferta Tab */}
+            {activeTab === 'oferta' && (
+              <OfferChecklist licitacionId={id} apiUrl={BACKEND_URL} />
+            )}
+
             {/* All other tabs show the existing grid layout */}
-            <div className={`grid grid-cols-1 lg:grid-cols-3 gap-8 ${activeTab === 'workflow' ? 'hidden' : ''}`}>
+            <div className={`grid grid-cols-1 lg:grid-cols-3 gap-8 ${activeTab === 'workflow' || activeTab === 'oferta' ? 'hidden' : ''}`}>
               {/* Left Column - Main Info */}
               <div className="lg:col-span-2 space-y-8">
                 {/* Información General */}

@@ -1,6 +1,35 @@
 from datetime import datetime
 from typing import List, Dict, Any, Optional
 from uuid import UUID
+from bson import Binary, ObjectId
+
+
+def mongo_id_to_str(raw_id) -> str:
+    """Convert any MongoDB _id type to a stable string representation."""
+    if isinstance(raw_id, ObjectId):
+        return str(raw_id)
+    if isinstance(raw_id, Binary) and raw_id.subtype == 4:
+        # UUID stored as Binary subtype 4
+        return str(UUID(bytes=bytes(raw_id)))
+    if isinstance(raw_id, UUID):
+        return str(raw_id)
+    return str(raw_id)
+
+
+def str_to_mongo_id(id_str: str):
+    """Convert a string ID back to the appropriate MongoDB _id type for querying."""
+    # Try ObjectId first (24-char hex)
+    try:
+        return ObjectId(id_str)
+    except Exception:
+        pass
+    # Try UUID
+    try:
+        uuid_val = UUID(id_str)
+        return Binary(uuid_val.bytes, subtype=4)
+    except Exception:
+        pass
+    return id_str
 
 def licitacion_entity(licitacion) -> dict:
     """Convert MongoDB document to dict"""
@@ -48,6 +77,7 @@ def licitacion_entity(licitacion) -> dict:
         "fecha_scraping": licitacion.get("fecha_scraping"),
         "tipo_procedimiento": licitacion.get("tipo_procedimiento"),
         "tipo_acceso": licitacion.get("tipo_acceso"),
+        "tipo": licitacion.get("tipo"),
         "jurisdiccion": licitacion.get("jurisdiccion"),
         "location": licitacion.get("location"),
         "category": licitacion.get("category"),
@@ -66,6 +96,9 @@ def licitacion_entity(licitacion) -> dict:
         "enrichment_level": licitacion.get("enrichment_level", 1),
         "last_enrichment": licitacion.get("last_enrichment"),
         "document_count": licitacion.get("document_count", 0),
+        # Auto-update
+        "last_auto_update": licitacion.get("last_auto_update"),
+        "auto_update_changes": licitacion.get("auto_update_changes", []),
         # Timestamps
         "created_at": licitacion.get("created_at", datetime.utcnow()),
         "updated_at": licitacion.get("updated_at", datetime.utcnow())
@@ -78,7 +111,7 @@ def licitaciones_entity(licitaciones) -> list:
 def scraper_config_entity(config) -> dict:
     """Convert MongoDB document to dict"""
     return {
-        "id": str(config["_id"]),
+        "id": mongo_id_to_str(config["_id"]),
         "name": config["name"],
         "url": config["url"],
         "active": config.get("active", True),
@@ -100,3 +133,36 @@ def scraper_config_entity(config) -> dict:
 def scraper_configs_entity(configs) -> list:
     """Convert a list of MongoDB documents to a list of dicts"""
     return [scraper_config_entity(config) for config in configs]
+
+
+def offer_template_entity(template) -> dict:
+    """Convert MongoDB document to dict"""
+    return {
+        "id": str(template["_id"]),
+        "name": template["name"],
+        "template_type": template["template_type"],
+        "description": template.get("description"),
+        "sections": template.get("sections", []),
+        "required_documents": template.get("required_documents", []),
+        "budget_structure": template.get("budget_structure", {}),
+        "tags": template.get("tags", []),
+        "applicable_rubros": template.get("applicable_rubros", []),
+        "usage_count": template.get("usage_count", 0),
+        "created_at": template.get("created_at", datetime.utcnow()),
+        "updated_at": template.get("updated_at", datetime.utcnow()),
+    }
+
+
+def offer_application_entity(app) -> dict:
+    """Convert MongoDB document to dict"""
+    return {
+        "id": str(app["_id"]),
+        "licitacion_id": app["licitacion_id"],
+        "template_id": app["template_id"],
+        "template_name": app["template_name"],
+        "checklist": app.get("checklist", []),
+        "progress_percent": app.get("progress_percent", 0.0),
+        "status": app.get("status", "in_progress"),
+        "created_at": app.get("created_at", datetime.utcnow()),
+        "updated_at": app.get("updated_at", datetime.utcnow()),
+    }

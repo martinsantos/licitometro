@@ -11,7 +11,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from models.licitacion import Licitacion, LicitacionCreate, LicitacionUpdate
 from models.scraper_config import ScraperConfig, ScraperConfigCreate, ScraperConfigUpdate
-from db.models import licitacion_entity, licitaciones_entity, scraper_config_entity, scraper_configs_entity
+from db.models import licitacion_entity, licitaciones_entity, scraper_config_entity, scraper_configs_entity, str_to_mongo_id
 
 
 class LicitacionRepository:
@@ -30,6 +30,9 @@ class LicitacionRepository:
         self.collection.create_index("workflow_state")
         self.collection.create_index("enrichment_level")
         self.collection.create_index([("publication_date", pymongo.DESCENDING), ("opening_date", pymongo.DESCENDING)])
+        self.collection.create_index([("workflow_state", 1), ("opening_date", 1)])
+        self.collection.create_index("created_at")
+        self.collection.create_index("fecha_scraping")
     
     async def create(self, licitacion: LicitacionCreate) -> Licitacion:
         """Create a new licitacion"""
@@ -41,19 +44,36 @@ class LicitacionRepository:
         await self.collection.insert_one(licitacion_dict)
         return licitacion_entity(licitacion_dict)
     
-    async def get_all(self, skip: int = 0, limit: int = 100, filters: Dict = None, 
-                      sort_by: str = "publication_date", sort_order: int = pymongo.DESCENDING) -> List[Licitacion]:
-        """Get all licitaciones with optional filtering and sorting"""
+    async def get_all(self, skip: int = 0, limit: int = 100, filters: Dict = None,
+                      sort_by: str = "publication_date", sort_order: int = pymongo.DESCENDING,
+                      nulls_last: bool = False) -> List[Licitacion]:
+        """Get all licitaciones with optional filtering and sorting.
+
+        When nulls_last=True, records where sort_by field is null are pushed to the end.
+        """
         query = filters or {}
-        
-        # Determine sort order
+
         # Ensure sort_by is a valid field to prevent injection/errors
         if sort_by not in Licitacion.model_fields and sort_by != "_id":
             sort_by = "publication_date"
-            
-        cursor = self.collection.find(query).sort(sort_by, sort_order).skip(skip).limit(limit)
-        
-        licitaciones = await cursor.to_list(length=limit)
+
+        if nulls_last:
+            # Use aggregation pipeline to sort nulls to end
+            pipeline = [
+                {"$match": query},
+                {"$addFields": {
+                    "_has_sort_field": {"$cond": [{"$ifNull": [f"${sort_by}", False]}, 0, 1]}
+                }},
+                {"$sort": {"_has_sort_field": 1, sort_by: sort_order}},
+                {"$skip": skip},
+                {"$limit": limit},
+                {"$project": {"_has_sort_field": 0}},
+            ]
+            licitaciones = await self.collection.aggregate(pipeline).to_list(length=limit)
+        else:
+            cursor = self.collection.find(query).sort(sort_by, sort_order).skip(skip).limit(limit)
+            licitaciones = await cursor.to_list(length=limit)
+
         return licitaciones_entity(licitaciones)
     
     async def get_by_id(self, id) -> Optional[Licitacion]:
@@ -145,6 +165,20 @@ class LicitacionRepository:
         # Filter out None or empty string values if necessary
         return [value for value in values if value]
 
+    async def get_active_for_update(self) -> List[dict]:
+        """Get licitaciones with active workflow states and future opening dates for auto-update."""
+        now = datetime.utcnow()
+        query = {
+            "workflow_state": {"$in": ["evaluando", "preparando"]},
+            "$or": [
+                {"opening_date": {"$gte": now}},
+                {"opening_date": None}
+            ]
+        }
+        cursor = self.collection.find(query)
+        licitaciones = await cursor.to_list(length=100)
+        return licitaciones_entity(licitaciones)
+
 
 class ScraperConfigRepository:
     def __init__(self, db):
@@ -178,12 +212,7 @@ class ScraperConfigRepository:
     
     async def get_by_id(self, id) -> Optional[ScraperConfig]:
         """Get a scraper configuration by id"""
-        query_id = id
-        if isinstance(id, str):
-            try:
-                query_id = ObjectId(id)
-            except Exception:
-                pass
+        query_id = str_to_mongo_id(id) if isinstance(id, str) else id
         config = await self.collection.find_one({"_id": query_id})
         if config:
             return scraper_config_entity(config)
@@ -202,28 +231,18 @@ class ScraperConfigRepository:
         update_data["updated_at"] = datetime.utcnow()
         
         if update_data:
-            query_id = id
-            if isinstance(id, str):
-                try:
-                    query_id = ObjectId(id)
-                except Exception:
-                    pass
+            query_id = str_to_mongo_id(id) if isinstance(id, str) else id
             result = await self.collection.update_one(
                 {"_id": query_id},
                 {"$set": update_data}
             )
             if result.modified_count:
-                return await self.get_by_id(query_id)
+                return await self.get_by_id(id)
         return None
-    
+
     async def delete(self, id) -> bool:
         """Delete a scraper configuration"""
-        query_id = id
-        if isinstance(id, str):
-            try:
-                query_id = ObjectId(id)
-            except Exception:
-                pass
+        query_id = str_to_mongo_id(id) if isinstance(id, str) else id
         result = await self.collection.delete_one({"_id": query_id})
         return result.deleted_count > 0
     

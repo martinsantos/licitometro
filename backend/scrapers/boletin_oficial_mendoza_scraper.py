@@ -333,6 +333,16 @@ class BoletinOficialMendozaScraper(BaseScraper):
 
         return processes
 
+    def _is_decreto(self, process_type: str, text: str = "") -> bool:
+        """Check if a process is a decreto/resolución (not an actual licitación)."""
+        decree_types = ("Decreto", "Resolución")
+        if process_type in decree_types:
+            # Only mark as decreto if title doesn't also reference a licitación
+            text_upper = text.upper()
+            if not any(kw in text_upper for kw in ("LICITACI", "CONTRATACI", "CONCURSO", "COMPULSA")):
+                return True
+        return False
+
     def _classify_process_type(self, matched_text: str) -> str:
         """Classify the type of procurement process from matched text."""
         text_upper = matched_text.upper()
@@ -464,17 +474,31 @@ class BoletinOficialMendozaScraper(BaseScraper):
 
         # Convert to LicitacionCreate objects
         for proc in processes:
-            # Generate unique ID
+            process_number = proc.get("process_number")
+
+            # Generate stable ID based on boletin + expediente/number (preferred) or content hash (fallback)
+            if process_number:
+                stable_key = f"{boletin_num}:{process_number}"
+            else:
+                # Fallback: hash of title + pub_date
+                stable_key = hashlib.md5(
+                    f"{proc['title']}|{pub_date.strftime('%Y-%m-%d')}".encode()
+                ).hexdigest()[:12]
+
             content_hash = hashlib.md5(
                 f"{proc['title']}|{proc['content'][:200]}|{pub_date.isoformat()}".encode()
             ).hexdigest()[:12]
 
-            id_licitacion = f"boletin-mza:pdf:{boletin_num}:{content_hash}"
+            id_licitacion = f"boletin-mza:pdf:{stable_key}"
 
             # Build description
             description = proc["content"]
             if base_description and base_description not in description:
                 description = f"{base_description}\n\n{description}"
+
+            # Detect decretos
+            is_decreto = self._is_decreto(proc["process_type"], proc.get("content", ""))
+            tipo = "decreto" if is_decreto else None
 
             licitacion = LicitacionCreate(
                 id_licitacion=id_licitacion,
@@ -482,17 +506,19 @@ class BoletinOficialMendozaScraper(BaseScraper):
                 organization=proc["organization"],
                 jurisdiccion="Mendoza",
                 publication_date=pub_date,
-                licitacion_number=proc.get("process_number"),
-                description=description[:3000],  # Extended limit for PDF content
+                licitacion_number=process_number,
+                description=description[:3000],
                 status="active",
                 source_url=pdf_url,
                 fuente="Boletin Oficial Mendoza (PDF)",
                 tipo_procedimiento=f"Boletin Oficial - {proc['process_type']}",
                 tipo_acceso="Boletin Oficial",
+                tipo=tipo,
                 fecha_scraping=datetime.utcnow(),
                 attached_files=[{"name": f"Boletín {boletin_num}", "url": pdf_url, "type": "pdf"}],
                 keywords=proc.get("keywords_found", []),
                 content_hash=content_hash,
+                metadata={"boe_apertura_raw": proc.get("content", "")[:500]},
             )
             licitaciones.append(licitacion)
 
@@ -620,7 +646,16 @@ class BoletinOficialMendozaScraper(BaseScraper):
                 )
 
             title = f"{tipo} {norma}".strip()
-            id_licitacion = f"boletin-mza:norma:{norma}:{pub_dt.date().isoformat() if pub_dt else 'unknown'}"
+            # Stable ID: use norma number (unique per boletin)
+            id_licitacion = f"boletin-mza:norma:{norma}" if norma else f"boletin-mza:norma:{boletin_num}:{hashlib.md5(title.encode()).hexdigest()[:8]}"
+
+            # Detect decretos
+            is_decreto = tipo.upper().startswith("DECRETO") or tipo.upper().startswith("RESOLUCI")
+            # But not if the description references an actual licitación
+            if is_decreto and description:
+                desc_upper = description.upper()
+                if any(kw in desc_upper for kw in ("LICITACI", "CONTRATACI", "CONCURSO", "COMPULSA")):
+                    is_decreto = False
 
             licitacion = LicitacionCreate(
                 id_licitacion=id_licitacion,
@@ -635,9 +670,11 @@ class BoletinOficialMendozaScraper(BaseScraper):
                 fuente="Boletin Oficial Mendoza",
                 tipo_procedimiento="Boletin Oficial - Norma",
                 tipo_acceso="Boletin Oficial",
+                tipo="decreto" if is_decreto else None,
                 fecha_scraping=datetime.utcnow(),
                 attached_files=attached_files,
                 keywords=[keyword] if keyword else [],
+                metadata={"boe_apertura_raw": description[:500] if description else ""},
             )
             licitaciones.append(licitacion)
 

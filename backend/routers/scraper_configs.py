@@ -66,8 +66,10 @@ async def update_scraper_config(
     # If name is being updated, check if it already exists
     if config.name:
         existing = await repo.get_by_name(config.name)
-        if existing and str(existing.id) != str(config_id):
-            raise HTTPException(status_code=400, detail="Scraper config with this name already exists")
+        if existing:
+            existing_id = existing["id"] if isinstance(existing, dict) else existing.id
+            if str(existing_id) != str(config_id):
+                raise HTTPException(status_code=400, detail="Scraper config with this name already exists")
     
     updated_config = await repo.update(config_id, config)
     if not updated_config:
@@ -84,6 +86,28 @@ async def delete_scraper_config(
     if not deleted:
         raise HTTPException(status_code=404, detail="Scraper config not found")
     return {"message": "Scraper config deleted successfully"}
+
+@router.post("/{config_id}/toggle")
+async def toggle_scraper_config(
+    config_id: str,
+    repo: ScraperConfigRepository = Depends(get_scraper_config_repository)
+):
+    """Toggle active status of a scraper configuration"""
+    config = await repo.get_by_id(config_id)
+    if not config:
+        raise HTTPException(status_code=404, detail="Scraper config not found")
+
+    # config is a dict from scraper_config_entity
+    current_active = config["active"] if isinstance(config, dict) else config.active
+    new_active = not current_active
+    update = ScraperConfigUpdate(active=new_active)
+    updated = await repo.update(config_id, update)
+    if not updated:
+        raise HTTPException(status_code=500, detail="Failed to toggle scraper config")
+    name = updated["name"] if isinstance(updated, dict) else updated.name
+    active = updated["active"] if isinstance(updated, dict) else updated.active
+    return {"name": name, "active": active}
+
 
 async def run_scraper(config_id: UUID, scraper_repo, licitacion_repo):
     """Background task to run a scraper"""

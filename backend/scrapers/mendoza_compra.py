@@ -760,6 +760,8 @@ class MendozaCompraScraper(BaseScraper):
                 target = entry.get("target")
 
                 opening_date = parse_date_guess(apertura) if apertura else None
+                if apertura and not opening_date:
+                    logger.warning(f"Could not parse apertura '{apertura}' for {numero}")
                 publication_date = opening_date or datetime.utcnow()
 
                 pliego_url = entry.get("pliego_url")
@@ -787,7 +789,7 @@ class MendozaCompraScraper(BaseScraper):
                         pliego_fields = self._parse_pliego_fields(compras_html)
                         detail_url_used = compras_url
 
-                # Build metadata
+                # Build metadata (store raw apertura for debugging/backfill)
                 meta = {
                     "comprar_list_url": list_url,
                     "comprar_target": target,
@@ -798,12 +800,13 @@ class MendozaCompraScraper(BaseScraper):
                     "comprar_compras_url": compras_url,  # Fallback direct URL
                     "comprar_detail_url_used": detail_url_used,  # URL used for data extraction
                     "comprar_pliego_fields": pliego_fields,
+                    "comprar_apertura_raw": apertura,
                 }
 
-                # Build proxy URLs
+                # Build proxy URLs (only if api_base is a valid absolute URL)
                 proxy_open_url = None
                 proxy_html_url = None
-                if target:
+                if target and api_base and api_base.startswith(("http://", "https://")):
                     proxy_open_url = f"{api_base}/api/comprar/proceso/open?list_url={quote_plus(list_url)}&target={quote_plus(target)}"
                     proxy_html_url = f"{api_base}/api/comprar/proceso/html?list_url={quote_plus(list_url)}&target={quote_plus(target)}"
 

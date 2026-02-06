@@ -3,6 +3,22 @@ import { Link } from 'react-router-dom';
 import ScraperList from '../components/admin/ScraperList';
 import LicitacionAdmin from '../components/admin/LicitacionAdmin';
 import SchedulerMonitor from '../components/admin/SchedulerMonitor';
+import AdminFuentes from '../components/AdminFuentes';
+import AdminLogs from '../components/AdminLogs';
+import DataQualityDashboard from '../components/DataQualityDashboard';
+import StorageQuotaPanel from '../components/StorageQuotaPanel';
+
+const API_URL = '';
+
+const TABS = [
+  { key: 'monitor', label: 'Monitoreo' },
+  { key: 'fuentes', label: 'Fuentes de Datos' },
+  { key: 'logs', label: 'Logs' },
+  { key: 'quality', label: 'Calidad de Datos' },
+  { key: 'storage', label: 'Almacenamiento' },
+  { key: 'scrapers', label: 'Scrapers' },
+  { key: 'licitaciones', label: 'Licitaciones' },
+];
 
 const AdminPage = () => {
   const [activeTab, setActiveTab] = useState('monitor');
@@ -10,43 +26,26 @@ const AdminPage = () => {
   return (
     <div className="container mx-auto px-4 py-8">
       <h1 className="text-3xl font-bold mb-6">Panel de Administración</h1>
-      
+
       <div className="bg-white rounded-lg shadow-md overflow-hidden">
         <div className="border-b border-gray-200">
           <nav className="-mb-px flex flex-wrap">
-            <button
-              onClick={() => setActiveTab('monitor')}
-              className={`px-6 py-4 text-center text-sm font-medium ${
-                activeTab === 'monitor'
-                  ? 'border-b-2 border-blue-800 text-blue-800'
-                  : 'border-b-2 border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-              }`}
-            >
-              Monitoreo del Scheduler
-            </button>
-            <button
-              onClick={() => setActiveTab('scrapers')}
-              className={`px-6 py-4 text-center text-sm font-medium ${
-                activeTab === 'scrapers'
-                  ? 'border-b-2 border-blue-800 text-blue-800'
-                  : 'border-b-2 border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-              }`}
-            >
-              Configuración de Scrapers
-            </button>
-            <button
-              onClick={() => setActiveTab('licitaciones')}
-              className={`px-6 py-4 text-center text-sm font-medium ${
-                activeTab === 'licitaciones'
-                  ? 'border-b-2 border-blue-800 text-blue-800'
-                  : 'border-b-2 border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-              }`}
-            >
-              Gestión de Licitaciones
-            </button>
+            {TABS.map((tab) => (
+              <button
+                key={tab.key}
+                onClick={() => setActiveTab(tab.key)}
+                className={`px-6 py-4 text-center text-sm font-medium ${
+                  activeTab === tab.key
+                    ? 'border-b-2 border-blue-800 text-blue-800'
+                    : 'border-b-2 border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                }`}
+              >
+                {tab.label}
+              </button>
+            ))}
           </nav>
         </div>
-        
+
         <div className="p-6">
           {activeTab === 'monitor' && (
             <div>
@@ -59,7 +58,43 @@ const AdminPage = () => {
               <SchedulerMonitor />
             </div>
           )}
-          
+
+          {activeTab === 'fuentes' && (
+            <div>
+              <div className="flex justify-between items-center mb-6">
+                <h2 className="text-xl font-semibold">Fuentes de Datos</h2>
+              </div>
+              <AdminFuentes apiUrl={API_URL} />
+            </div>
+          )}
+
+          {activeTab === 'logs' && (
+            <div>
+              <div className="flex justify-between items-center mb-6">
+                <h2 className="text-xl font-semibold">Logs de Ejecución</h2>
+              </div>
+              <AdminLogs />
+            </div>
+          )}
+
+          {activeTab === 'quality' && (
+            <div>
+              <div className="flex justify-between items-center mb-6">
+                <h2 className="text-xl font-semibold">Calidad de Datos</h2>
+              </div>
+              <DataQualityDashboard />
+            </div>
+          )}
+
+          {activeTab === 'storage' && (
+            <div>
+              <div className="flex justify-between items-center mb-6">
+                <h2 className="text-xl font-semibold">Almacenamiento y Cuota</h2>
+              </div>
+              <StorageQuotaPanel />
+            </div>
+          )}
+
           {activeTab === 'scrapers' && (
             <div>
               <div className="flex justify-between items-center mb-6">
@@ -74,7 +109,7 @@ const AdminPage = () => {
               <ScraperList />
             </div>
           )}
-          
+
           {activeTab === 'licitaciones' && (
             <div>
               <div className="flex justify-between items-center mb-6">

@@ -53,3 +53,7 @@ docs/boletin_mendoza_results.html
 .cursor/
 .superdesign/
 .windsurfrules
+
+# Production secrets
+.env.production
+backups/

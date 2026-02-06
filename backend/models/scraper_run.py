@@ -2,7 +2,6 @@
 
 from typing import Optional, List, Dict, Any
 from datetime import datetime
-from uuid import uuid4
 from pydantic import BaseModel, Field
 
 
@@ -21,6 +20,8 @@ class ScraperRunBase(BaseModel):
     errors: List[str] = Field(default=[], description="List of errors during execution")
     warnings: List[str] = Field(default=[], description="List of warnings during execution")
     logs: List[str] = Field(default=[], description="Execution logs")
+    record_errors: List[Dict[str, Any]] = Field(default=[], description="Per-record errors during execution")
+    duplicates_skipped: int = Field(0, description="Number of duplicates skipped during pipeline dedup")
     metadata: Dict[str, Any] = Field(default={}, description="Additional metadata")
 
 
@@ -44,12 +45,14 @@ class ScraperRunUpdate(BaseModel):
     errors: Optional[List[str]] = None
     warnings: Optional[List[str]] = None
     logs: Optional[List[str]] = None
+    record_errors: Optional[List[Dict[str, Any]]] = None
+    duplicates_skipped: Optional[int] = None
     metadata: Optional[Dict[str, Any]] = None
 
 
 class ScraperRun(ScraperRunBase):
     """Model for a scraper run stored in the database"""
-    id: str = Field(default_factory=lambda: str(uuid4()))
+    id: Optional[str] = Field(default=None)
     started_at: datetime = Field(default_factory=datetime.utcnow)
     ended_at: Optional[datetime] = None
     created_at: datetime = Field(default_factory=datetime.utcnow)

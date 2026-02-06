@@ -22,6 +22,7 @@ from motor.motor_asyncio import AsyncIOMotorDatabase
 from models.scraper_config import ScraperConfig
 from models.scraper_run import ScraperRun, ScraperRunCreate, ScraperRunUpdate
 from scrapers.scraper_factory import create_scraper
+from services.deduplication_service import DeduplicationService
 
 logger = logging.getLogger("scheduler_service")
 
@@ -250,22 +251,58 @@ class SchedulerService:
             items_saved = 0
             items_duplicated = 0
             items_updated = 0
+            duplicates_skipped = 0
             urls_with_pliego = 0
-            
+            record_errors: List[Dict] = []
+
+            # Initialize dedup service for content-hash checking
+            dedup_svc = DeduplicationService(self.db)
+
             # Save items to database
             if items:
                 licitaciones_collection = self.db.licitaciones
                 for item in items:
                     try:
-                        # Check if exists
+                        # Check if exists by id_licitacion
                         existing = await licitaciones_collection.find_one({
                             "id_licitacion": item.id_licitacion
                         })
-                        
+
+                        # Content-hash dedup: check if a different record has the same hash
+                        if not existing and item.content_hash:
+                            hash_match = await licitaciones_collection.find_one({
+                                "content_hash": item.content_hash,
+                                "id_licitacion": {"$ne": item.id_licitacion}
+                            })
+                            if hash_match:
+                                log(f"Skipped duplicate by content_hash: {item.id_licitacion} matches {hash_match.get('id_licitacion')}")
+                                duplicates_skipped += 1
+                                continue
+
+                        # BOE-specific dedup: same expediente + similar title
+                        if not existing and scraper_name.startswith("boletin"):
+                            title_words = (item.title or "").lower().split()[:5]
+                            if item.licitacion_number:
+                                boe_match = await licitaciones_collection.find_one({
+                                    "licitacion_number": item.licitacion_number,
+                                    "fuente": {"$regex": "Boletin", "$options": "i"},
+                                    "id_licitacion": {"$ne": item.id_licitacion}
+                                })
+                                if boe_match:
+                                    log(f"Skipped BOE duplicate: {item.id_licitacion} matches {boe_match.get('id_licitacion')} by licitacion_number")
+                                    duplicates_skipped += 1
+                                    continue
+
+                        # Compute content_hash if missing
+                        if not item.content_hash:
+                            item.content_hash = dedup_svc.compute_content_hash(
+                                item.title, item.organization, item.publication_date
+                            )
+
                         # mode='json' converts HttpUrl and other types to JSON-serializable strings
                         item_data = item.model_dump(mode='json')
                         item_data["updated_at"] = datetime.utcnow()
-                        
+
                         if existing:
                             # Update
                             await licitaciones_collection.update_one(
@@ -275,16 +312,22 @@ class SchedulerService:
                             items_updated += 1
                         else:
                             # Insert
+                            item_data["created_at"] = datetime.utcnow()
                             await licitaciones_collection.insert_one(item_data)
                             items_saved += 1
-                        
+
                         # Count URLs with PLIEGO
                         if item.metadata and item.metadata.get("comprar_pliego_url"):
                             urls_with_pliego += 1
-                            
+
                     except Exception as e:
                         log(f"Error saving item {item.id_licitacion}: {e}", "error")
-                        items_duplicated += 1  # Assume duplicate on error
+                        record_errors.append({
+                            "id_licitacion": item.id_licitacion,
+                            "error": str(e),
+                            "timestamp": datetime.utcnow().isoformat()
+                        })
+                        items_duplicated += 1
             
             # Determine status
             status = "success"
@@ -305,6 +348,8 @@ class SchedulerService:
                 errors=errors,
                 warnings=warnings,
                 logs=logs,
+                record_errors=record_errors,
+                duplicates_skipped=duplicates_skipped,
             )
             
             await runs_collection.update_one(
@@ -322,12 +367,22 @@ class SchedulerService:
             )
             
             log(f"Scraper '{scraper_name}' completed. Found: {items_found}, Saved: {items_saved}, Updated: {items_updated}")
-            
+
+            # Notify about new licitaciones
+            if items_saved > 0:
+                try:
+                    from services.notification_service import get_notification_service
+                    ns = get_notification_service(self.db)
+                    saved_items = [i.model_dump(mode='json') for i in items[:items_saved]]
+                    await ns.notify_new_licitaciones(saved_items, scraper_name)
+                except Exception as notify_err:
+                    log(f"Notification failed: {notify_err}", "warning")
+
         except Exception as e:
             duration = (datetime.utcnow() - start_time).total_seconds()
             error_msg = str(e)
             log(f"Scraper failed: {error_msg}", "error")
-            
+
             await runs_collection.update_one(
                 {"_id": ObjectId(run_id)},
                 {
@@ -341,6 +396,14 @@ class SchedulerService:
                     }
                 }
             )
+
+            # Notify about scraper error
+            try:
+                from services.notification_service import get_notification_service
+                ns = get_notification_service(self.db)
+                await ns.notify_scraper_error(scraper_name, error_msg)
+            except Exception as notify_err:
+                logger.warning(f"Error notification failed: {notify_err}")
     
     def _on_job_executed(self, event: JobExecutionEvent):
         """Handle job execution events"""
@@ -379,14 +442,19 @@ class SchedulerService:
         
         cursor = runs_collection.find(query).sort("started_at", -1).limit(limit)
         runs = await cursor.to_list(length=limit)
-        
-        return [ScraperRun(**run) for run in runs]
+
+        result = []
+        for run in runs:
+            run["id"] = str(run.pop("_id"))
+            result.append(ScraperRun(**run))
+        return result
     
     async def get_run_by_id(self, run_id: str) -> Optional[ScraperRun]:
         """Get a specific run by ID"""
         runs_collection = self.db.scraper_runs
         run_data = await runs_collection.find_one({"_id": ObjectId(run_id)})
         if run_data:
+            run_data["id"] = str(run_data.pop("_id"))
             return ScraperRun(**run_data)
         return None
 

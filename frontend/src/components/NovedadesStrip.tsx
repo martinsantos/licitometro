@@ -1,0 +1,139 @@
+import React, { useState, useEffect } from 'react';
+
+interface SourceActivity {
+  fuente: string;
+  count: number;
+  latest: string | null;
+  sample_titles: string[];
+}
+
+interface RecentActivity {
+  hours: number;
+  total_new: number;
+  by_source: SourceActivity[];
+}
+
+interface NovedadesStripProps {
+  apiUrl: string;
+  onSourceClick?: (fuente: string) => void;
+}
+
+const NovedadesStrip: React.FC<NovedadesStripProps> = ({ apiUrl, onSourceClick }) => {
+  const [activity, setActivity] = useState<RecentActivity | null>(null);
+  const [hours, setHours] = useState(24);
+  const [expanded, setExpanded] = useState(false);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const fetchActivity = async () => {
+      setLoading(true);
+      try {
+        const res = await fetch(`${apiUrl}/api/licitaciones/stats/recent-activity?hours=${hours}`);
+        if (res.ok) {
+          const data = await res.json();
+          setActivity(data);
+          if (data.total_new > 0) setExpanded(true);
+        }
+      } catch (err) {
+        console.error('Error fetching recent activity:', err);
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchActivity();
+  }, [apiUrl, hours]);
+
+  const formatTimeAgo = (isoStr: string | null) => {
+    if (!isoStr) return '';
+    const diff = Date.now() - new Date(isoStr).getTime();
+    const mins = Math.floor(diff / 60000);
+    if (mins < 60) return `hace ${mins}m`;
+    const hrs = Math.floor(mins / 60);
+    if (hrs < 24) return `hace ${hrs}h`;
+    const days = Math.floor(hrs / 24);
+    return `hace ${days}d`;
+  };
+
+  if (loading && !activity) return null;
+  if (!activity || activity.total_new === 0) return null;
+
+  return (
+    <div className="bg-white rounded-2xl shadow-lg border border-gray-100 overflow-hidden">
+      {/* Header - always visible */}
+      <button
+        onClick={() => setExpanded(!expanded)}
+        className="w-full px-4 py-3 flex items-center justify-between hover:bg-gray-50 transition-colors"
+      >
+        <div className="flex items-center gap-3">
+          <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+          <span className="text-sm font-black text-gray-800">NOVEDADES</span>
+          <span className="px-2.5 py-0.5 bg-emerald-100 text-emerald-700 rounded-full text-xs font-bold">
+            +{activity.total_new} nuevas
+          </span>
+        </div>
+        <div className="flex items-center gap-2">
+          {/* Period selector */}
+          <div className="flex bg-gray-100 rounded-lg p-0.5 text-xs" onClick={(e) => e.stopPropagation()}>
+            {[
+              { value: 24, label: '24h' },
+              { value: 48, label: '48h' },
+              { value: 168, label: '7d' },
+            ].map((opt) => (
+              <button
+                key={opt.value}
+                onClick={() => setHours(opt.value)}
+                className={`px-2 py-1 rounded-md font-bold transition-all ${
+                  hours === opt.value ? 'bg-white shadow-sm text-gray-800' : 'text-gray-500'
+                }`}
+              >
+                {opt.label}
+              </button>
+            ))}
+          </div>
+          <svg
+            className={`w-4 h-4 text-gray-400 transition-transform ${expanded ? 'rotate-180' : ''}`}
+            fill="none" stroke="currentColor" viewBox="0 0 24 24"
+          >
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7" />
+          </svg>
+        </div>
+      </button>
+
+      {/* Expanded content */}
+      {expanded && (
+        <div className="px-4 pb-4 border-t border-gray-100">
+          <div className="mt-3 space-y-2">
+            {activity.by_source.map((src) => (
+              <button
+                key={src.fuente}
+                onClick={() => onSourceClick?.(src.fuente)}
+                className="w-full flex items-center gap-3 px-3 py-2 rounded-xl hover:bg-gray-50 transition-colors text-left"
+              >
+                <span className="w-2 h-2 rounded-full bg-violet-500 flex-shrink-0" />
+                <span className="text-sm font-bold text-gray-700 flex-1 min-w-0 truncate">
+                  {src.fuente}
+                </span>
+                <span className="px-2 py-0.5 bg-emerald-50 text-emerald-700 rounded text-xs font-bold flex-shrink-0">
+                  +{src.count} nuevas
+                </span>
+                <span className="text-xs text-gray-400 flex-shrink-0">
+                  {formatTimeAgo(src.latest)}
+                </span>
+              </button>
+            ))}
+          </div>
+
+          {/* Last scraping summary */}
+          {activity.by_source.length > 0 && (
+            <div className="mt-3 pt-3 border-t border-gray-100 text-xs text-gray-400">
+              Ultimo scraping: {activity.by_source[0].fuente}{' '}
+              {formatTimeAgo(activity.by_source[0].latest)}
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+};
+
+export default NovedadesStrip;

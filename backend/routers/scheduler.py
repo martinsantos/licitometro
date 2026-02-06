@@ -5,6 +5,8 @@ Provides API endpoints to control the scraper scheduler, view job status,
 trigger manual executions, and review run history.
 """
 
+import re
+
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from typing import List, Optional
 from motor.motor_asyncio import AsyncIOMotorDatabase
@@ -174,6 +176,58 @@ async def get_run_logs(run_id: str, db: AsyncIOMotorDatabase = Depends(get_db)):
     except Exception as e:
         logger.error(f"Error getting run logs: {e}")
         raise HTTPException(status_code=500, detail=f"Failed to get logs: {str(e)}")
+
+
+@router.get("/source-health")
+async def get_source_health(db: AsyncIOMotorDatabase = Depends(get_db)):
+    """Get health status for each scraper source"""
+    try:
+        configs_collection = db.scraper_configs
+        runs_collection = db.scraper_runs
+        licitaciones_collection = db.licitaciones
+
+        configs = await configs_collection.find().to_list(length=100)
+        sources = []
+
+        for config in configs:
+            name = config.get("name", "unknown")
+
+            # Get last 5 runs for this scraper
+            recent_runs = await runs_collection.find(
+                {"scraper_name": name}
+            ).sort("started_at", -1).limit(5).to_list(length=5)
+
+            last_run = recent_runs[0] if recent_runs else None
+            recent_errors = [
+                r for r in recent_runs
+                if r.get("status") in ("failed", "partial")
+            ]
+
+            # Count records from this source (exact match or starts-with for subtypes like "Boletin Oficial Mendoza (PDF)")
+            escaped_name = re.escape(name)
+            total_records = await licitaciones_collection.count_documents(
+                {"fuente": {"$regex": f"^{escaped_name}", "$options": "i"}}
+            )
+
+            sources.append({
+                "name": name,
+                "active": config.get("active", False),
+                "schedule": config.get("schedule", ""),
+                "url": str(config.get("url", "")),
+                "last_run": last_run.get("started_at").isoformat() if last_run and last_run.get("started_at") else None,
+                "last_run_status": last_run.get("status") if last_run else None,
+                "last_run_duration": last_run.get("duration_seconds") if last_run else None,
+                "last_run_items_found": last_run.get("items_found", 0) if last_run else 0,
+                "last_run_items_saved": last_run.get("items_saved", 0) if last_run else 0,
+                "recent_errors": len(recent_errors),
+                "total_records": total_records,
+                "total_runs": len(recent_runs),
+            })
+
+        return {"sources": sources}
+    except Exception as e:
+        logger.error(f"Error getting source health: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to get source health: {str(e)}")
 
 
 @router.get("/stats")

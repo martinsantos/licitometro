@@ -79,6 +79,7 @@ class LicitacionBase(BaseModel):
     fecha_scraping: Optional[datetime] = Field(None, description="Date when the licitación was scraped")
     tipo_procedimiento: Optional[str] = Field(None, description="Type of procedure for the licitación")
     tipo_acceso: Optional[str] = Field(None, description="Type of access for the licitación")
+    tipo: Optional[str] = Field(None, description="Record type: None=licitación, 'decreto'=decreto/resolución")
     jurisdiccion: Optional[str] = Field(None, description="Jurisdiction of the licitación")
     location: Optional[str] = Field(None, description="Geographical location")
     category: Optional[str] = Field(None, description="Category of the licitación")
@@ -101,6 +102,10 @@ class LicitacionBase(BaseModel):
     enrichment_level: int = Field(1, description="Enrichment level: 1=basic, 2=detailed, 3=documents")
     last_enrichment: Optional[datetime] = Field(None, description="Timestamp of last enrichment")
     document_count: int = Field(0, description="Number of attached documents")
+
+    # Auto-update tracking
+    last_auto_update: Optional[datetime] = Field(None, description="Timestamp of last auto-update check")
+    auto_update_changes: Optional[List[Dict[str, Any]]] = Field(default=[], description="History of auto-update detected changes")
 
 
 class LicitacionCreate(LicitacionBase):
@@ -130,6 +135,7 @@ class LicitacionUpdate(BaseModel):
     fecha_scraping: Optional[datetime] = None
     tipo_procedimiento: Optional[str] = None
     tipo_acceso: Optional[str] = None
+    tipo: Optional[str] = None
     jurisdiccion: Optional[str] = None
     status: Optional[str] = None
     location: Optional[str] = None
@@ -168,6 +174,9 @@ class LicitacionUpdate(BaseModel):
     enrichment_level: Optional[int] = None
     last_enrichment: Optional[datetime] = None
     document_count: Optional[int] = None
+    # Auto-update
+    last_auto_update: Optional[datetime] = None
+    auto_update_changes: Optional[List[Dict[str, Any]]] = None
 
 
 class Licitacion(LicitacionBase):
