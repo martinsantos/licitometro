@@ -42,6 +42,28 @@ Notas tecnicas
 - Vialidad publica llamados y pliegos en su sitio oficial.
 - UNCuyo publica procesos con fechas de inicio/fin y adjuntos.
 
+ComprasApps Mendoza - Buscador de Licitaciones (hli00049)
+- URL: https://comprasapps.mendoza.gov.ar/Compras/servlet/hli00049
+- Scraper: ComprasAppsMendozaScraper
+- Tecnología: GeneXus servlet (aplicación Java/web típica de gobierno)
+- NOTA IMPORTANTE: Este sitio tiene restricciones de acceso por red. Solo es accesible desde:
+  - Red interna provincial de Mendoza
+  - VPN configurada para acceso a la red provincial
+  - Proxy con IP autorizada
+- Funcionalidades de búsqueda:
+  - Año fiscal
+  - Número de licitación
+  - CUC (Código Único de Contratación)
+  - Fechas de apertura (desde/hasta)
+  - Estado: Vigentes, En Trámite, Adjudicadas
+  - Tipo de contratación: Licitación Pública, Privada, Contratación Directa, Concurso
+- selectors:
+  - estado: "vigentes" | "en_tramite" | "adjudicadas" | "todas"
+  - tipo_contratacion: "licitacion_publica" | "licitacion_privada" | "contratacion_directa" | "concurso" | "todas"
+  - anio_fiscal: año específico o null para año actual
+  - fetch_details: true para obtener detalles completos de cada licitación
+  - max_pages: límite de páginas a navegar
+
 Boletin Oficial - configuracion sugerida para scraper
 - Scraper: BoletinOficialMendozaScraper
 - API detectada en el frontend:
