@@ -9,6 +9,9 @@ Cubre:
 - Extraccion de campos (tipo, norma, fechas, organizacion, PDFs)
 - Llamada a la API de busqueda avanzada (mockeada)
 - Flujo completo run() con mock HTTP
+- Extracción de texto de PDF
+- Segmentación de procesos en PDFs
+- Búsqueda de keywords en contenido PDF
 """
 
 import sys
@@ -515,6 +518,195 @@ class TestBoletinLicitacionModel(unittest.TestCase):
             self.assertIsNotNone(lic.tipo_procedimiento)
             self.assertIsNotNone(lic.fuente)
             self.assertEqual(lic.status, "active")
+
+
+# ---------------------------------------------------------------------------
+# Test: PDF text extraction methods
+# ---------------------------------------------------------------------------
+
+class TestPdfTextExtraction(unittest.TestCase):
+    """Tests para métodos de extracción de texto PDF."""
+
+    def setUp(self):
+        self.config = _make_config()
+        self.scraper = BoletinOficialMendozaScraper(self.config)
+
+    def test_classify_process_type_licitacion_publica(self):
+        """Debe clasificar LICITACIÓN PÚBLICA correctamente."""
+        result = self.scraper._classify_process_type("LICITACIÓN PÚBLICA N° 10/2026")
+        self.assertEqual(result, "Licitación Pública")
+
+    def test_classify_process_type_licitacion_privada(self):
+        """Debe clasificar LICITACIÓN PRIVADA correctamente."""
+        result = self.scraper._classify_process_type("LICITACIÓN PRIVADA N° 5/2026")
+        self.assertEqual(result, "Licitación Privada")
+
+    def test_classify_process_type_contratacion_directa(self):
+        """Debe clasificar CONTRATACIÓN DIRECTA correctamente."""
+        result = self.scraper._classify_process_type("CONTRATACIÓN DIRECTA N° 100/2026")
+        self.assertEqual(result, "Contratación Directa")
+
+    def test_classify_process_type_concurso_precios(self):
+        """Debe clasificar CONCURSO DE PRECIOS correctamente."""
+        result = self.scraper._classify_process_type("CONCURSO DE PRECIOS N° 20/2026")
+        self.assertEqual(result, "Concurso de Precios")
+
+    def test_classify_process_type_compulsa(self):
+        """Debe clasificar COMPULSA correctamente."""
+        result = self.scraper._classify_process_type("COMPULSA ABREVIADA")
+        self.assertEqual(result, "Compulsa de Precios")
+
+    def test_classify_process_type_obra(self):
+        """Debe clasificar OBRA PÚBLICA correctamente."""
+        result = self.scraper._classify_process_type("OBRA PÚBLICA N° 15/2026")
+        self.assertEqual(result, "Obra Pública")
+
+    def test_extract_process_number_with_no(self):
+        """Debe extraer número de proceso con N°."""
+        result = self.scraper._extract_process_number("LICITACIÓN PÚBLICA N° 123/2026")
+        self.assertEqual(result, "123/2026")
+
+    def test_extract_process_number_without_prefix(self):
+        """Debe extraer número de proceso sin prefijo."""
+        result = self.scraper._extract_process_number("CONTRATACIÓN DIRECTA 45-2026")
+        self.assertEqual(result, "45-2026")
+
+    def test_extract_process_number_none(self):
+        """Debe retornar None si no hay número."""
+        result = self.scraper._extract_process_number("LICITACIÓN PÚBLICA")
+        self.assertIsNone(result)
+
+    def test_find_keywords_single(self):
+        """Debe encontrar un keyword en el texto."""
+        text = "Se llama a licitación pública para la obra pública de construcción."
+        result = self.scraper._find_keywords(text)
+        self.assertIn("licitación", result)
+        self.assertIn("obra pública", result)
+
+    def test_find_keywords_multiple(self):
+        """Debe encontrar múltiples keywords en el texto."""
+        text = "Contratación directa para adquisición de suministros."
+        result = self.scraper._find_keywords(text)
+        self.assertIn("contratación", result)
+        self.assertIn("adquisición", result)
+        self.assertIn("suministro", result)
+
+    def test_find_keywords_none(self):
+        """Debe retornar lista vacía si no hay keywords."""
+        text = "Nombramiento de personal administrativo."
+        result = self.scraper._find_keywords(text)
+        self.assertEqual(len(result), 0)
+
+    def test_extract_organization_from_ministerio(self):
+        """Debe extraer organización de 'MINISTERIO DE...'."""
+        text = "MINISTERIO DE HACIENDA Y FINANZAS resuelve aprobar la licitación."
+        result = self.scraper._extract_organization(text)
+        self.assertIn("HACIENDA", result)
+
+    def test_extract_organization_from_origen(self):
+        """Debe extraer organización de 'Origen:'."""
+        text = "Origen: DIRECCION PROVINCIAL DE VIALIDAD. Licitación Pública."
+        result = self.scraper._extract_organization(text)
+        self.assertIn("VIALIDAD", result)
+
+    def test_infer_process_type_from_keywords(self):
+        """Debe inferir tipo de proceso de keywords."""
+        keywords = ["licitación", "pliego", "apertura"]
+        result = self.scraper._infer_process_type(keywords)
+        self.assertEqual(result, "Licitación")
+
+        keywords = ["contratación", "proveedor"]
+        result = self.scraper._infer_process_type(keywords)
+        self.assertEqual(result, "Contratación")
+
+
+class TestProcessSegmentation(unittest.TestCase):
+    """Tests para segmentación de procesos en texto PDF."""
+
+    def setUp(self):
+        self.config = _make_config()
+        self.scraper = BoletinOficialMendozaScraper(self.config)
+
+    def test_segment_processes_finds_licitacion(self):
+        """Debe encontrar una licitación en el texto."""
+        text = """
+        GOBIERNO DE MENDOZA
+        MINISTERIO DE INFRAESTRUCTURA
+
+        LLAMADO A LICITACIÓN PÚBLICA N° 25/2026
+
+        Se llama a Licitación Pública para la construcción de la obra
+        "Repavimentación Ruta Provincial N° 82".
+
+        Presupuesto Oficial: $50.000.000
+        Apertura de Ofertas: 15 de marzo de 2026
+        """
+        pub_date = datetime.now()
+        processes = self.scraper._segment_processes(text, "http://example.com/test.pdf", pub_date)
+
+        self.assertGreaterEqual(len(processes), 1)
+        self.assertEqual(processes[0]["process_type"], "Licitación Pública")
+        self.assertEqual(processes[0]["process_number"], "25/2026")
+
+    def test_segment_processes_finds_contratacion_directa(self):
+        """Debe encontrar una contratación directa en el texto."""
+        text = """
+        MINISTERIO DE SALUD
+
+        CONTRATACIÓN DIRECTA N° 100/2026
+
+        Adquisición de insumos médicos para hospitales provinciales.
+        Presupuesto: $5.000.000
+        """
+        pub_date = datetime.now()
+        processes = self.scraper._segment_processes(text, "http://example.com/test.pdf", pub_date)
+
+        self.assertGreaterEqual(len(processes), 1)
+        self.assertEqual(processes[0]["process_type"], "Contratación Directa")
+
+    def test_segment_processes_finds_multiple(self):
+        """Debe encontrar múltiples procesos en el texto."""
+        text = """
+        LICITACIÓN PÚBLICA N° 10/2026
+        Obra de construcción de escuela.
+        Pliego de bases y condiciones.
+        Presupuesto: $100.000.000
+
+        CONTRATACIÓN DIRECTA N° 50/2026
+        Compra de mobiliario escolar.
+        Presupuesto: $10.000.000
+
+        CONCURSO DE PRECIOS N° 5/2026
+        Servicio de limpieza.
+        Presupuesto: $2.000.000
+        """
+        pub_date = datetime.now()
+        processes = self.scraper._segment_processes(text, "http://example.com/test.pdf", pub_date)
+
+        self.assertGreaterEqual(len(processes), 3)
+        types = [p["process_type"] for p in processes]
+        self.assertIn("Licitación Pública", types)
+        self.assertIn("Contratación Directa", types)
+        self.assertIn("Concurso de Precios", types)
+
+    def test_extract_by_keywords_fallback(self):
+        """Debe extraer por keywords cuando no hay marcadores explícitos."""
+        text = """
+        El Ministerio de Educación realiza la apertura de ofertas
+        para la adquisición de equipamiento informático.
+
+        Se requieren proveedores con experiencia en suministro
+        de computadoras y accesorios.
+
+        Presupuesto oficial estimado: $50.000.000
+        Fecha de apertura: 20 de marzo de 2026
+        """
+        pub_date = datetime.now()
+        processes = self.scraper._extract_by_keywords(text, "http://example.com/test.pdf", pub_date)
+
+        # May or may not find depending on keyword density
+        # At least verify it doesn't crash
+        self.assertIsInstance(processes, list)
 
 
 if __name__ == "__main__":

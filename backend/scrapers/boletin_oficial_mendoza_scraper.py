@@ -1,9 +1,12 @@
 from __future__ import annotations
 
+import hashlib
+import io
 import logging
 import re
 from datetime import datetime
-from typing import List, Optional
+from typing import Any, Dict, List, Optional, Tuple
+from urllib.parse import urljoin
 
 from bs4 import BeautifulSoup
 
@@ -14,6 +17,51 @@ from utils.dates import last_business_days_set, parse_date_guess
 
 logger = logging.getLogger("scraper.boletin_oficial_mendoza")
 
+# Patrones para detectar inicio de procesos de compras/contrataciones
+PROCESS_START_PATTERNS = [
+    # Licitaciones
+    r"(?:LLAMADO\s+(?:A\s+)?)?LICITACI[OÓ]N\s+(?:P[UÚ]BLICA|PRIVADA|ABREVIADA)?\s*(?:N[°ºoO]?\.?\s*)?(\d+[/-]?\d*)",
+    r"LICITACI[OÓ]N\s+(?:P[UÚ]BLICA|PRIVADA)?\s+(?:NACIONAL|INTERNACIONAL)?",
+    # Contrataciones directas
+    r"CONTRATACI[OÓ]N\s+DIRECTA\s*(?:N[°ºoO]?\.?\s*)?(\d+[/-]?\d*)?",
+    r"CONTRATACI[OÓ]N\s+(?:MENOR|SIMPLIFICADA)",
+    # Concursos
+    r"CONCURSO\s+(?:DE\s+)?PRECIOS?\s*(?:N[°ºoO]?\.?\s*)?(\d+[/-]?\d*)?",
+    r"CONCURSO\s+P[UÚ]BLICO",
+    # Compulsas
+    r"COMPULSA\s+(?:ABREVIADA|DE\s+PRECIOS?)",
+    # Comparación de precios
+    r"COMPARACI[OÓ]N\s+DE\s+PRECIOS?",
+    # Llamados
+    r"LLAMADO\s+(?:A\s+)?(?:LICITACI[OÓ]N|CONCURSO|COMPULSA)",
+    # Adjudicaciones
+    r"ADJUDICACI[OÓ]N\s+(?:DEFINITIVA|PROVISORIA)?",
+    # Obras
+    r"OBRA\s+(?:P[UÚ]BLICA)?\s*(?:N[°ºoO]?\.?\s*)?(\d+[/-]?\d*)?",
+    # Decretos y resoluciones sobre compras
+    r"(?:DECRETO|RESOLUCI[OÓ]N)\s*(?:N[°ºoO]?\.?\s*)?(\d+[/-]?\d*)\s*[-–]\s*(?:ADJUDIC|LICITA|CONTRAT)",
+]
+
+# Keywords para filtrar secciones relevantes
+PROCUREMENT_KEYWORDS = [
+    "licitación", "licitacion", "licitaciones",
+    "contratación", "contratacion", "contrataciones",
+    "concurso", "concursos",
+    "compulsa", "compulsas",
+    "adjudicación", "adjudicacion",
+    "pliego", "pliegos",
+    "presupuesto oficial",
+    "apertura de ofertas", "apertura de sobres",
+    "llamado", "llamados",
+    "obra pública", "obras públicas",
+    "adquisición", "adquisicion",
+    "suministro", "suministros",
+    "compra", "compras directas",
+    "precio testigo",
+    "contratista", "contratistas",
+    "proveedor", "proveedores",
+]
+
 
 class BoletinOficialMendozaScraper(BaseScraper):
     """
@@ -23,10 +71,18 @@ class BoletinOficialMendozaScraper(BaseScraper):
     - https://portalgateway.mendoza.gov.ar/api/boe/advance-search
     - https://portalgateway.mendoza.gov.ar/api/boe/detail (optional)
 
+    Enhanced with PDF text extraction to:
+    - Download PDF documents
+    - Extract full text content
+    - Segment into individual procurement processes
+    - Search for specific keywords in PDF content
+
     Optional selectors/config:
     - selectors.keywords: list of keyword strings for filtering (default includes licitaciones terms)
     - selectors.timezone: tz name (default America/Argentina/Mendoza)
     - selectors.business_days_window: int (default 4)
+    - selectors.extract_pdf_content: bool (default True) - Enable PDF text extraction
+    - selectors.segment_processes: bool (default True) - Segment PDFs into individual processes
     - pagination.advance_search_url: override API endpoint
     - pagination.tipo_boletin: 1 or 2 (required by API, default 2)
     """
@@ -36,6 +92,7 @@ class BoletinOficialMendozaScraper(BaseScraper):
 
     def __init__(self, config: ScraperConfig):
         super().__init__(config)
+        self._pdf_cache: Dict[str, str] = {}  # Cache PDF text to avoid re-downloads
 
     def _business_date_range(self) -> tuple[str, str]:
         days = sorted(
@@ -69,6 +126,379 @@ class BoletinOficialMendozaScraper(BaseScraper):
         )
         allowed = last_business_days_set(count=window_days, tz_name=tz_name)
         return dt.date() in allowed
+
+    # ==================== PDF EXTRACTION METHODS ====================
+
+    async def _download_pdf(self, url: str) -> Optional[bytes]:
+        """Download PDF from URL and return bytes."""
+        if not url:
+            return None
+        try:
+            # Remove page anchor if present
+            clean_url = url.split("#")[0]
+            async with self.session.get(clean_url, timeout=60) as response:
+                if response.status == 200:
+                    content_type = response.headers.get("Content-Type", "")
+                    if "pdf" in content_type.lower() or clean_url.endswith(".pdf"):
+                        return await response.read()
+                    logger.warning(f"URL is not a PDF: {clean_url} (Content-Type: {content_type})")
+                else:
+                    logger.warning(f"Failed to download PDF: {url} (status {response.status})")
+        except Exception as exc:
+            logger.error(f"Error downloading PDF {url}: {exc}")
+        return None
+
+    def _extract_text_from_pdf(self, pdf_bytes: bytes) -> str:
+        """Extract text from PDF bytes using pdfplumber (better) or pypdf (fallback)."""
+        text_parts = []
+
+        # Try pdfplumber first (better for complex layouts)
+        try:
+            import pdfplumber
+            with pdfplumber.open(io.BytesIO(pdf_bytes)) as pdf:
+                for page in pdf.pages:
+                    page_text = page.extract_text()
+                    if page_text:
+                        text_parts.append(page_text)
+            if text_parts:
+                return "\n\n".join(text_parts)
+        except ImportError:
+            logger.debug("pdfplumber not available, using pypdf")
+        except Exception as exc:
+            logger.warning(f"pdfplumber extraction failed: {exc}")
+
+        # Fallback to pypdf
+        try:
+            from pypdf import PdfReader
+            reader = PdfReader(io.BytesIO(pdf_bytes))
+            for page in reader.pages:
+                page_text = page.extract_text()
+                if page_text:
+                    text_parts.append(page_text)
+            return "\n\n".join(text_parts)
+        except Exception as exc:
+            logger.error(f"PDF text extraction failed: {exc}")
+            return ""
+
+    def _extract_text_from_pdf_page(self, pdf_bytes: bytes, page_num: int) -> str:
+        """Extract text from a specific page of PDF."""
+        try:
+            import pdfplumber
+            with pdfplumber.open(io.BytesIO(pdf_bytes)) as pdf:
+                if 0 <= page_num - 1 < len(pdf.pages):
+                    return pdf.pages[page_num - 1].extract_text() or ""
+        except ImportError:
+            pass
+        except Exception:
+            pass
+
+        # Fallback to pypdf
+        try:
+            from pypdf import PdfReader
+            reader = PdfReader(io.BytesIO(pdf_bytes))
+            if 0 <= page_num - 1 < len(reader.pages):
+                return reader.pages[page_num - 1].extract_text() or ""
+        except Exception:
+            pass
+        return ""
+
+    def _segment_processes(self, text: str, source_url: str, pub_date: datetime) -> List[Dict[str, Any]]:
+        """
+        Segment PDF text into individual procurement processes.
+
+        Returns a list of dicts with:
+        - process_type: type of process (licitación, contratación directa, etc.)
+        - process_number: extracted number if available
+        - title: extracted title
+        - content: full text of the process section
+        - organization: extracted organization if found
+        - keywords_found: list of matching keywords
+        """
+        processes = []
+
+        # Build combined pattern for process detection
+        combined_pattern = "|".join(f"({p})" for p in PROCESS_START_PATTERNS)
+        process_regex = re.compile(combined_pattern, re.IGNORECASE | re.MULTILINE)
+
+        # Find all process starts
+        matches = list(process_regex.finditer(text))
+
+        if not matches:
+            # No explicit process markers found, try to extract based on keywords
+            return self._extract_by_keywords(text, source_url, pub_date)
+
+        # Extract each process section
+        for i, match in enumerate(matches):
+            start_pos = match.start()
+            # End position is either next match or end of text
+            end_pos = matches[i + 1].start() if i + 1 < len(matches) else len(text)
+
+            # Extract section with some context before
+            context_start = max(0, start_pos - 200)
+            section_text = text[context_start:end_pos].strip()
+
+            # Limit section size
+            if len(section_text) > 5000:
+                section_text = section_text[:5000] + "..."
+
+            # Determine process type
+            matched_text = match.group(0).upper()
+            process_type = self._classify_process_type(matched_text)
+
+            # Extract process number
+            process_number = self._extract_process_number(matched_text)
+
+            # Extract organization
+            organization = self._extract_organization(section_text)
+
+            # Find matching keywords
+            keywords_found = self._find_keywords(section_text)
+
+            if not keywords_found:
+                # Skip if no procurement keywords found
+                continue
+
+            # Build title
+            title = f"{process_type}"
+            if process_number:
+                title = f"{process_type} N° {process_number}"
+
+            processes.append({
+                "process_type": process_type,
+                "process_number": process_number,
+                "title": title,
+                "content": section_text,
+                "organization": organization,
+                "keywords_found": keywords_found,
+                "source_url": source_url,
+                "publication_date": pub_date,
+            })
+
+        return processes
+
+    def _extract_by_keywords(self, text: str, source_url: str, pub_date: datetime) -> List[Dict[str, Any]]:
+        """
+        Extract processes by searching for keyword clusters.
+        Used when no explicit process markers are found.
+        """
+        processes = []
+
+        # Split text into paragraphs
+        paragraphs = re.split(r'\n{2,}', text)
+
+        current_section = []
+        current_keywords = []
+
+        for para in paragraphs:
+            para_keywords = self._find_keywords(para)
+            if para_keywords:
+                current_section.append(para)
+                current_keywords.extend(para_keywords)
+            elif current_section:
+                # End of relevant section
+                if len(current_keywords) >= 2:  # Require at least 2 keywords
+                    section_text = "\n\n".join(current_section)
+                    if len(section_text) > 100:  # Minimum content length
+                        process_type = self._infer_process_type(current_keywords)
+                        organization = self._extract_organization(section_text)
+                        processes.append({
+                            "process_type": process_type,
+                            "process_number": None,
+                            "title": process_type,
+                            "content": section_text[:5000],
+                            "organization": organization,
+                            "keywords_found": list(set(current_keywords)),
+                            "source_url": source_url,
+                            "publication_date": pub_date,
+                        })
+                current_section = []
+                current_keywords = []
+
+        # Handle last section
+        if current_section and len(current_keywords) >= 2:
+            section_text = "\n\n".join(current_section)
+            if len(section_text) > 100:
+                process_type = self._infer_process_type(current_keywords)
+                organization = self._extract_organization(section_text)
+                processes.append({
+                    "process_type": process_type,
+                    "process_number": None,
+                    "title": process_type,
+                    "content": section_text[:5000],
+                    "organization": organization,
+                    "keywords_found": list(set(current_keywords)),
+                    "source_url": source_url,
+                    "publication_date": pub_date,
+                })
+
+        return processes
+
+    def _classify_process_type(self, matched_text: str) -> str:
+        """Classify the type of procurement process from matched text."""
+        text_upper = matched_text.upper()
+        if "LICITACI" in text_upper:
+            if "PRIVADA" in text_upper:
+                return "Licitación Privada"
+            elif "ABREVIADA" in text_upper:
+                return "Licitación Abreviada"
+            return "Licitación Pública"
+        elif "CONTRATACI" in text_upper:
+            if "DIRECTA" in text_upper:
+                return "Contratación Directa"
+            elif "MENOR" in text_upper:
+                return "Contratación Menor"
+            return "Contratación"
+        elif "CONCURSO" in text_upper:
+            if "PRECIO" in text_upper:
+                return "Concurso de Precios"
+            return "Concurso Público"
+        elif "COMPULSA" in text_upper:
+            return "Compulsa de Precios"
+        elif "COMPARACI" in text_upper:
+            return "Comparación de Precios"
+        elif "ADJUDICACI" in text_upper:
+            return "Adjudicación"
+        elif "OBRA" in text_upper:
+            return "Obra Pública"
+        elif "DECRETO" in text_upper:
+            return "Decreto"
+        elif "RESOLUCI" in text_upper:
+            return "Resolución"
+        return "Proceso de Compra"
+
+    def _infer_process_type(self, keywords: List[str]) -> str:
+        """Infer process type from found keywords."""
+        keywords_lower = [k.lower() for k in keywords]
+        if any("licitaci" in k for k in keywords_lower):
+            return "Licitación"
+        elif any("contrataci" in k for k in keywords_lower):
+            return "Contratación"
+        elif any("concurso" in k for k in keywords_lower):
+            return "Concurso"
+        elif any("compulsa" in k for k in keywords_lower):
+            return "Compulsa"
+        elif any("adjudicaci" in k for k in keywords_lower):
+            return "Adjudicación"
+        elif any("obra" in k for k in keywords_lower):
+            return "Obra Pública"
+        return "Proceso de Compra"
+
+    def _extract_process_number(self, text: str) -> Optional[str]:
+        """Extract process number from text."""
+        # Look for N° followed by number
+        match = re.search(r"N[°ºoO]?\s*\.?\s*(\d+[/-]?\d*(?:[/-]\d+)?)", text)
+        if match:
+            return match.group(1)
+        # Look for standalone number pattern
+        match = re.search(r"(\d+[/-]\d+(?:[/-]\d+)?)", text)
+        if match:
+            return match.group(1)
+        return None
+
+    def _extract_organization(self, text: str) -> str:
+        """Extract organization name from text."""
+        patterns = [
+            r"(?:MINISTERIO|SECRETAR[IÍ]A|DIRECCI[OÓ]N|SUBSECRETAR[IÍ]A|MUNICIPALIDAD|GOBIERNO)\s+(?:DE\s+)?([A-ZÁÉÍÓÚÑ\s,]+?)(?:\.|,|\n|$)",
+            r"Origen:\s*([A-ZÁÉÍÓÚÑ0-9\s,.-]+?)(?:\.|,|\n|$)",
+            r"(?:Organismo|Repartición|Dependencia):\s*([A-ZÁÉÍÓÚÑ0-9\s,.-]+?)(?:\.|,|\n|$)",
+        ]
+        for pattern in patterns:
+            match = re.search(pattern, text, re.IGNORECASE)
+            if match:
+                org = match.group(1).strip()
+                # Clean up
+                org = re.sub(r'\s+', ' ', org)
+                if len(org) > 5:
+                    return org[:150]  # Limit length
+        return "Gobierno de Mendoza"
+
+    def _find_keywords(self, text: str) -> List[str]:
+        """Find procurement keywords in text."""
+        text_lower = text.lower()
+        found = []
+        for kw in PROCUREMENT_KEYWORDS:
+            if kw.lower() in text_lower:
+                found.append(kw)
+        return found
+
+    async def _process_pdf_for_licitaciones(
+        self,
+        pdf_url: str,
+        boletin_num: str,
+        pub_date: datetime,
+        base_description: Optional[str] = None
+    ) -> List[LicitacionCreate]:
+        """
+        Download and process a PDF to extract individual licitaciones.
+        """
+        licitaciones = []
+
+        # Check cache
+        cache_key = hashlib.md5(pdf_url.encode()).hexdigest()
+        if cache_key in self._pdf_cache:
+            full_text = self._pdf_cache[cache_key]
+        else:
+            # Download PDF
+            pdf_bytes = await self._download_pdf(pdf_url)
+            if not pdf_bytes:
+                logger.warning(f"Could not download PDF: {pdf_url}")
+                return []
+
+            # Extract text
+            full_text = self._extract_text_from_pdf(pdf_bytes)
+            if not full_text:
+                logger.warning(f"Could not extract text from PDF: {pdf_url}")
+                return []
+
+            self._pdf_cache[cache_key] = full_text
+            logger.info(f"Extracted {len(full_text)} chars from PDF: {pdf_url}")
+
+        # Segment into processes
+        processes = self._segment_processes(full_text, pdf_url, pub_date)
+
+        if not processes:
+            logger.debug(f"No procurement processes found in PDF: {pdf_url}")
+            return []
+
+        logger.info(f"Found {len(processes)} processes in PDF: {pdf_url}")
+
+        # Convert to LicitacionCreate objects
+        for proc in processes:
+            # Generate unique ID
+            content_hash = hashlib.md5(
+                f"{proc['title']}|{proc['content'][:200]}|{pub_date.isoformat()}".encode()
+            ).hexdigest()[:12]
+
+            id_licitacion = f"boletin-mza:pdf:{boletin_num}:{content_hash}"
+
+            # Build description
+            description = proc["content"]
+            if base_description and base_description not in description:
+                description = f"{base_description}\n\n{description}"
+
+            licitacion = LicitacionCreate(
+                id_licitacion=id_licitacion,
+                title=proc["title"],
+                organization=proc["organization"],
+                jurisdiccion="Mendoza",
+                publication_date=pub_date,
+                licitacion_number=proc.get("process_number"),
+                description=description[:3000],  # Extended limit for PDF content
+                status="active",
+                source_url=pdf_url,
+                fuente="Boletin Oficial Mendoza (PDF)",
+                tipo_procedimiento=f"Boletin Oficial - {proc['process_type']}",
+                tipo_acceso="Boletin Oficial",
+                fecha_scraping=datetime.utcnow(),
+                attached_files=[{"name": f"Boletín {boletin_num}", "url": pdf_url, "type": "pdf"}],
+                keywords=proc.get("keywords_found", []),
+                content_hash=content_hash,
+            )
+            licitaciones.append(licitacion)
+
+        return licitaciones
+
+    # ==================== END PDF EXTRACTION METHODS ====================
 
     async def extract_licitacion_data(self, html: str, url: str) -> Optional[LicitacionCreate]:
         # Not used: Boletin is processed as a list page
@@ -217,6 +647,9 @@ class BoletinOficialMendozaScraper(BaseScraper):
         await self.setup()
         try:
             include_all = self.config.selectors.get("include_all", False)
+            extract_pdf = self.config.selectors.get("extract_pdf_content", True)
+            segment_processes = self.config.selectors.get("segment_processes", True)
+
             keywords = self.config.selectors.get(
                 "keywords",
                 [
@@ -233,27 +666,93 @@ class BoletinOficialMendozaScraper(BaseScraper):
                 ],
             )
             licitaciones: List[LicitacionCreate] = []
+            pdf_urls_processed: set = set()
+
             if include_all:
                 tipos = self.config.selectors.get("include_types", ["NORMA", "EDICTO"])
                 for t in tipos:
                     html = await self._fetch_advance_search(keyword=None, tipo_busqueda=t)
                     if html:
-                        licitaciones.extend(self._parse_results_html(html, keyword=None))
+                        parsed = self._parse_results_html(html, keyword=None)
+                        licitaciones.extend(parsed)
+
+                        # Extract PDFs for deep processing
+                        if extract_pdf and segment_processes:
+                            for lic in parsed:
+                                for att in lic.attached_files or []:
+                                    pdf_url = att.get("url", "")
+                                    if pdf_url and pdf_url not in pdf_urls_processed:
+                                        pdf_urls_processed.add(pdf_url)
+                                        # Get boletin number from attachment name
+                                        boletin_num = att.get("name", "").replace("Boletin ", "").strip()
+                                        pdf_lics = await self._process_pdf_for_licitaciones(
+                                            pdf_url,
+                                            boletin_num or "unknown",
+                                            lic.publication_date,
+                                            lic.description
+                                        )
+                                        licitaciones.extend(pdf_lics)
             else:
                 for keyword in keywords:
                     html = await self._fetch_advance_search(keyword=keyword, tipo_busqueda="NORMA")
                     if not html:
                         continue
-                    licitaciones.extend(self._parse_results_html(html, keyword=keyword))
+                    parsed = self._parse_results_html(html, keyword=keyword)
+                    licitaciones.extend(parsed)
+
+                    # Extract PDFs for deep processing
+                    if extract_pdf and segment_processes:
+                        for lic in parsed:
+                            for att in lic.attached_files or []:
+                                pdf_url = att.get("url", "")
+                                if pdf_url and pdf_url not in pdf_urls_processed:
+                                    pdf_urls_processed.add(pdf_url)
+                                    boletin_num = att.get("name", "").replace("Boletin ", "").strip()
+                                    pdf_lics = await self._process_pdf_for_licitaciones(
+                                        pdf_url,
+                                        boletin_num or "unknown",
+                                        lic.publication_date,
+                                        lic.description
+                                    )
+                                    licitaciones.extend(pdf_lics)
+
                     if self.config.max_items and len(licitaciones) >= self.config.max_items:
                         break
+
                 # Fallback: if no results with keywords, run a broad query and rely on strict filter
                 if not licitaciones:
                     html = await self._fetch_advance_search(keyword=None, tipo_busqueda="NORMA")
                     if html:
-                        licitaciones.extend(self._parse_results_html(html, keyword=None))
+                        parsed = self._parse_results_html(html, keyword=None)
+                        licitaciones.extend(parsed)
+
+                        if extract_pdf and segment_processes:
+                            for lic in parsed:
+                                for att in lic.attached_files or []:
+                                    pdf_url = att.get("url", "")
+                                    if pdf_url and pdf_url not in pdf_urls_processed:
+                                        pdf_urls_processed.add(pdf_url)
+                                        boletin_num = att.get("name", "").replace("Boletin ", "").strip()
+                                        pdf_lics = await self._process_pdf_for_licitaciones(
+                                            pdf_url,
+                                            boletin_num or "unknown",
+                                            lic.publication_date,
+                                            lic.description
+                                        )
+                                        licitaciones.extend(pdf_lics)
+
+            # Deduplicate by id_licitacion
+            seen_ids = set()
+            unique_lics = []
+            for lic in licitaciones:
+                if lic.id_licitacion not in seen_ids:
+                    seen_ids.add(lic.id_licitacion)
+                    unique_lics.append(lic)
+
             # Ordenar por fecha de publicacion (mas reciente primero)
-            licitaciones.sort(key=lambda l: l.publication_date, reverse=True)
-            return licitaciones
+            unique_lics.sort(key=lambda l: l.publication_date, reverse=True)
+
+            logger.info(f"Boletin scraper found {len(unique_lics)} licitaciones ({len(pdf_urls_processed)} PDFs processed)")
+            return unique_lics
         finally:
             await self.cleanup()
