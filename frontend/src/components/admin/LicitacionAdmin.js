@@ -9,23 +9,22 @@ const LicitacionAdmin = () => {
   const [licitaciones, setLicitaciones] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-  const [page, setPage] = useState(0);
-  const [pageSize, setPageSize] = useState(10);
+  const [page, setPage] = useState(1);
+  const [pageSize] = useState(15);
   const [totalItems, setTotalItems] = useState(0);
   const [searchQuery, setSearchQuery] = useState('');
 
   const fetchLicitaciones = async () => {
     setLoading(true);
     try {
-      let url = `${API}/licitaciones/?skip=${page * pageSize}&limit=${pageSize}`;
-      
-      const response = await axios.get(url);
-      setLicitaciones(response.data);
-      
-      // Fetch total count for pagination
-      const countResponse = await axios.get(`${API}/licitaciones/count`);
-      setTotalItems(countResponse.data.count);
-      
+      const response = await axios.get(`${API}/licitaciones/`, {
+        params: { page, size: pageSize }
+      });
+
+      // API returns { items: [], paginacion: {...} }
+      const data = response.data;
+      setLicitaciones(Array.isArray(data) ? data : (data.items || []));
+      setTotalItems(data.paginacion?.total_items || data.items?.length || 0);
       setLoading(false);
     } catch (error) {
       console.error('Error fetching licitaciones:', error);
@@ -39,13 +38,16 @@ const LicitacionAdmin = () => {
       fetchLicitaciones();
       return;
     }
-    
+
     setLoading(true);
     try {
-      const response = await axios.get(
-        `${API}/licitaciones/search?q=${searchQuery}&skip=${page * pageSize}&limit=${pageSize}`
-      );
-      setLicitaciones(response.data);
+      const response = await axios.get(`${API}/licitaciones/search`, {
+        params: { q: searchQuery, page, size: pageSize }
+      });
+
+      const data = response.data;
+      setLicitaciones(Array.isArray(data) ? data : (data.items || []));
+      setTotalItems(data.paginacion?.total_items || data.items?.length || 0);
       setLoading(false);
     } catch (error) {
       console.error('Error searching licitaciones:', error);
@@ -204,27 +206,27 @@ const LicitacionAdmin = () => {
           {/* Pagination */}
           <div className="px-6 py-4 flex items-center justify-between border-t border-gray-200 mt-4">
             <div className="text-sm text-gray-700">
-              Mostrando <span className="font-medium">{page * pageSize + 1}</span> a{' '}
+              Mostrando <span className="font-medium">{(page - 1) * pageSize + 1}</span> a{' '}
               <span className="font-medium">
-                {Math.min((page + 1) * pageSize, totalItems)}
+                {Math.min(page * pageSize, totalItems)}
               </span>{' '}
               de <span className="font-medium">{totalItems}</span> resultados
             </div>
             <div className="flex-1 flex justify-end">
               <button
-                onClick={() => setPage(Math.max(0, page - 1))}
-                disabled={page === 0}
+                onClick={() => setPage(Math.max(1, page - 1))}
+                disabled={page <= 1}
                 className={`relative inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md ${
-                  page === 0 ? 'bg-gray-100 text-gray-400 cursor-not-allowed' : 'bg-white text-gray-700 hover:bg-gray-50'
+                  page <= 1 ? 'bg-gray-100 text-gray-400 cursor-not-allowed' : 'bg-white text-gray-700 hover:bg-gray-50'
                 } mr-3`}
               >
                 Anterior
               </button>
               <button
                 onClick={() => setPage(page + 1)}
-                disabled={(page + 1) * pageSize >= totalItems}
+                disabled={page * pageSize >= totalItems}
                 className={`relative inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md ${
-                  (page + 1) * pageSize >= totalItems ? 'bg-gray-100 text-gray-400 cursor-not-allowed' : 'bg-white text-gray-700 hover:bg-gray-50'
+                  page * pageSize >= totalItems ? 'bg-gray-100 text-gray-400 cursor-not-allowed' : 'bg-white text-gray-700 hover:bg-gray-50'
                 }`}
               >
                 Siguiente

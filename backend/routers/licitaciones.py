@@ -182,6 +182,50 @@ async def get_distinct_values(
     return distinct_values
 
 
+@router.get("/rubros/list")
+async def get_rubros_list():
+    """Get list of all COMPR.AR rubros (categories) for filtering"""
+    from services.category_classifier import get_category_classifier
+
+    classifier = get_category_classifier()
+    return {
+        "rubros": classifier.get_all_rubros(),
+        "total": len(classifier.rubros)
+    }
+
+
+@router.post("/{licitacion_id}/classify")
+async def classify_licitacion_category(
+    licitacion_id: str,
+    repo: LicitacionRepository = Depends(get_licitacion_repository)
+):
+    """Classify a licitacion into a rubro category based on its content"""
+    from services.category_classifier import get_category_classifier
+
+    licitacion = await repo.get_by_id(licitacion_id)
+    if not licitacion:
+        raise HTTPException(status_code=404, detail="Licitación not found")
+
+    classifier = get_category_classifier()
+    category = classifier.classify(
+        title=licitacion.title,
+        description=licitacion.description,
+        keywords=licitacion.keywords
+    )
+
+    if category:
+        # Update the licitacion with the classified category
+        from models.licitacion import LicitacionUpdate
+        update_data = LicitacionUpdate(category=category)
+        await repo.update(licitacion_id, update_data)
+
+    return {
+        "id_licitacion": licitacion_id,
+        "category": category,
+        "classified": category is not None
+    }
+
+
 # NEW ENDPOINTS FOR URL RESOLUTION AND DEDUPLICATION
 
 @router.get("/{licitacion_id}/redirect")
