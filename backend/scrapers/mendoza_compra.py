@@ -287,13 +287,16 @@ class MendozaCompraScraper(BaseScraper):
         return None
 
     def _parse_pliego_fields(self, html: str) -> Dict[str, Any]:
-        """Parse key fields from PLIEGO page including cronograma, info básica, items."""
+        """Parse key fields from PLIEGO page including cronograma, info básica, items.
+
+        Improved version that handles multiple HTML patterns from COMPR.AR pages.
+        """
         soup = BeautifulSoup(html, 'html.parser')
         data: Dict[str, Any] = {}
 
-        # Extract label/value pairs
+        # Pattern 1: label followed by sibling element
         for lab in soup.find_all('label'):
-            key = lab.get_text(' ', strip=True)
+            key = lab.get_text(' ', strip=True).rstrip(':')
             if not key:
                 continue
             nxt = lab.find_next_sibling()
@@ -301,12 +304,12 @@ class MendozaCompraScraper(BaseScraper):
             if val:
                 data[key] = val
 
-        # Also try div/span pairs (some fields use this pattern)
-        for div in soup.find_all('div', class_=re.compile('col|field|form-group')):
-            labels = div.find_all(['label', 'span', 'strong'])
+        # Pattern 2: div/span pairs in form groups or columns
+        for div in soup.find_all('div', class_=re.compile('col|field|form-group|row')):
+            labels = div.find_all(['label', 'span', 'strong', 'b'])
             for label in labels:
                 key = label.get_text(' ', strip=True).rstrip(':')
-                if not key:
+                if not key or len(key) < 3:
                     continue
                 # Find the next text element
                 nxt = label.find_next_sibling()
@@ -315,53 +318,139 @@ class MendozaCompraScraper(BaseScraper):
                     if val and key not in data:
                         data[key] = val
 
-        # Extract structured data from tables
-        # Detalle de productos o servicios
+        # Pattern 3: dt/dd pairs (definition lists)
+        for dt in soup.find_all('dt'):
+            key = dt.get_text(' ', strip=True).rstrip(':')
+            dd = dt.find_next_sibling('dd')
+            if dd and key:
+                val = dd.get_text(' ', strip=True)
+                if val and key not in data:
+                    data[key] = val
+
+        # Pattern 4: Look for text patterns directly in HTML for CRONOGRAMA section
+        # These are the critical dates we need to extract
+        cronograma_patterns = [
+            ("Fecha y hora estimada de publicación en el portal", "fecha_publicacion_portal"),
+            ("Fecha y hora inicio de consultas", "fecha_inicio_consultas"),
+            ("Fecha y hora final de consultas", "fecha_fin_consultas"),
+            ("Fecha y hora acto de apertura", "fecha_apertura"),
+            ("Cantidad de días a publicar", "dias_publicacion"),
+        ]
+
+        # Search for section named "Cronograma"
+        cronograma_section = None
+        for elem in soup.find_all(['h3', 'h4', 'h5', 'div', 'section', 'fieldset']):
+            text = elem.get_text(' ', strip=True).lower()
+            if 'cronograma' in text:
+                cronograma_section = elem.find_parent(['div', 'section', 'fieldset']) or elem
+                break
+
+        if cronograma_section:
+            section_text = cronograma_section.get_text(' ')
+            for pattern, key in cronograma_patterns:
+                # Try to find the pattern and extract the value after it
+                match = re.search(rf'{re.escape(pattern)}\s*:?\s*([^\n]+)', section_text, re.I)
+                if match:
+                    val = match.group(1).strip()
+                    if val and val not in ['', '-', 'N/A']:
+                        data[pattern] = val
+
+        # Also try extracting from anywhere in the document
+        full_text = soup.get_text(' ')
+        for pattern, key in cronograma_patterns:
+            if pattern not in data:
+                match = re.search(rf'{re.escape(pattern)}\s*:?\s*(\d{{1,2}}/\d{{1,2}}/\d{{2,4}}[^\n]*)', full_text, re.I)
+                if match:
+                    data[pattern] = match.group(1).strip()
+
+        # ====== TABLES EXTRACTION ======
+
+        # Helper to find table by header text
+        def find_table_by_header(header_patterns):
+            for pattern in header_patterns:
+                # Search in headers
+                for header in soup.find_all(['h3', 'h4', 'h5', 'div', 'p', 'span', 'legend']):
+                    if re.search(pattern, header.get_text(' ', strip=True), re.I):
+                        # Look for table in parent or siblings
+                        parent = header.find_parent(['div', 'section', 'fieldset'])
+                        if parent:
+                            table = parent.find('table')
+                            if table:
+                                return table
+                        # Try next sibling
+                        table = header.find_next('table')
+                        if table:
+                            return table
+                # Search by table ID
+                table = soup.find('table', {'id': re.compile(pattern, re.I)})
+                if table:
+                    return table
+            return None
+
+        # Extract Detalle de productos o servicios
         items = []
-        products_table = soup.find('table', {'id': re.compile('Renglon|Item|Producto', re.I)})
-        if not products_table:
-            # Try by section header
-            for header in soup.find_all(['h3', 'h4', 'div'], string=re.compile('Detalle de productos', re.I)):
-                products_table = header.find_next('table')
-                if products_table:
-                    break
+        products_table = find_table_by_header([
+            r'Detalle de productos', r'productos o servicios', r'Renglon',
+            r'Item', r'Producto', r'GridDetalle'
+        ])
 
         if products_table:
             rows = products_table.find_all('tr')
-            headers = []
-            for th in rows[0].find_all(['th', 'td']) if rows else []:
-                headers.append(th.get_text(' ', strip=True).lower())
+            if rows:
+                # Get header indices
+                header_row = rows[0]
+                header_cells = header_row.find_all(['th', 'td'])
+                header_map = {}
+                for idx, cell in enumerate(header_cells):
+                    text = cell.get_text(' ', strip=True).lower()
+                    if 'renglon' in text or 'número' in text or '#' in text:
+                        header_map['numero'] = idx
+                    elif 'objeto' in text or 'gasto' in text:
+                        header_map['objeto_gasto'] = idx
+                    elif 'código' in text or 'codigo' in text or 'item' in text:
+                        header_map['codigo'] = idx
+                    elif 'descripción' in text or 'descripcion' in text:
+                        header_map['descripcion'] = idx
+                    elif 'cantidad' in text or 'cant' in text:
+                        header_map['cantidad'] = idx
+                    elif 'unidad' in text:
+                        header_map['unidad'] = idx
 
-            for row in rows[1:]:
-                cols = row.find_all('td')
-                if len(cols) >= 4:
-                    item = {
-                        "numero_renglon": cols[0].get_text(' ', strip=True) if len(cols) > 0 else "",
-                        "objeto_gasto": cols[1].get_text(' ', strip=True) if len(cols) > 1 else "",
-                        "codigo_item": cols[2].get_text(' ', strip=True) if len(cols) > 2 else "",
-                        "descripcion": cols[3].get_text(' ', strip=True) if len(cols) > 3 else "",
-                        "cantidad": cols[4].get_text(' ', strip=True) if len(cols) > 4 else "",
-                    }
-                    if item["descripcion"]:
-                        items.append(item)
+                for row in rows[1:]:
+                    cols = row.find_all('td')
+                    if len(cols) >= 3:
+                        item = {
+                            "numero_renglon": cols[header_map.get('numero', 0)].get_text(' ', strip=True) if header_map.get('numero', 0) < len(cols) else "",
+                            "objeto_gasto": cols[header_map.get('objeto_gasto', 1)].get_text(' ', strip=True) if header_map.get('objeto_gasto', 1) < len(cols) else "",
+                            "codigo_item": cols[header_map.get('codigo', 2)].get_text(' ', strip=True) if header_map.get('codigo', 2) < len(cols) else "",
+                            "descripcion": cols[header_map.get('descripcion', 3)].get_text(' ', strip=True) if header_map.get('descripcion', 3) < len(cols) else "",
+                            "cantidad": cols[header_map.get('cantidad', 4)].get_text(' ', strip=True) if header_map.get('cantidad', 4) < len(cols) else "",
+                        }
+                        # Fallback: if descripcion is empty, try concatenating non-empty cells
+                        if not item["descripcion"]:
+                            for i, col in enumerate(cols):
+                                text = col.get_text(' ', strip=True)
+                                if len(text) > 20:  # Likely description
+                                    item["descripcion"] = text
+                                    break
+                        if item["descripcion"]:
+                            items.append(item)
 
         if items:
             data["_items"] = items
 
         # Extract solicitudes de contratación
         solicitudes = []
-        solicitudes_table = soup.find('table', {'id': re.compile('Solicitud|Contratacion', re.I)})
-        if not solicitudes_table:
-            for header in soup.find_all(['h3', 'h4', 'div'], string=re.compile('Solicitudes de contrataci', re.I)):
-                solicitudes_table = header.find_next('table')
-                if solicitudes_table:
-                    break
+        solicitudes_table = find_table_by_header([
+            r'Solicitudes de contratación', r'Solicitud', r'Contratacion',
+            r'solicitudes asignadas', r'GridSolicitud'
+        ])
 
         if solicitudes_table:
             rows = solicitudes_table.find_all('tr')
             for row in rows[1:]:
                 cols = row.find_all('td')
-                if len(cols) >= 4:
+                if len(cols) >= 3:
                     sol = {
                         "numero_solicitud": cols[0].get_text(' ', strip=True) if len(cols) > 0 else "",
                         "estado": cols[1].get_text(' ', strip=True) if len(cols) > 1 else "",
@@ -376,20 +465,57 @@ class MendozaCompraScraper(BaseScraper):
         if solicitudes:
             data["_solicitudes"] = solicitudes
 
+        # Extract Pliego de bases y condiciones generales
+        pliegos = []
+        pliegos_table = find_table_by_header([
+            r'Pliego de bases', r'condiciones generales', r'GridPliego'
+        ])
+
+        if pliegos_table:
+            rows = pliegos_table.find_all('tr')
+            for row in rows[1:]:
+                cols = row.find_all('td')
+                if len(cols) >= 2:
+                    pliego = {
+                        "documento": cols[0].get_text(' ', strip=True) if len(cols) > 0 else "",
+                        "disposicion": cols[1].get_text(' ', strip=True) if len(cols) > 1 else "",
+                        "fecha_creacion": cols[2].get_text(' ', strip=True) if len(cols) > 2 else "",
+                    }
+                    # Try to extract links
+                    link = cols[0].find('a', href=True) if len(cols) > 0 else None
+                    if link:
+                        pliego["url"] = link.get('href', '')
+                    if pliego["documento"]:
+                        pliegos.append(pliego)
+
+        if pliegos:
+            data["_pliegos_bases"] = pliegos
+
+        # Extract Requisitos mínimos de participación
+        requisitos = []
+        for section_header in soup.find_all(['h3', 'h4', 'h5', 'div', 'legend'],
+                                            string=re.compile(r'requisitos.*participación|requisitos mínimos', re.I)):
+            parent = section_header.find_parent(['div', 'section', 'fieldset']) or section_header
+            # Get all text content
+            for item in parent.find_all(['p', 'li', 'div']):
+                text = item.get_text(' ', strip=True)
+                if text and len(text) > 10 and text not in requisitos:
+                    requisitos.append(text)
+
+        if requisitos:
+            data["_requisitos_participacion"] = requisitos[:20]  # Limit to 20
+
         # Extract actos administrativos
         actos = []
-        actos_table = soup.find('table', {'id': re.compile('Acto|Administrativo', re.I)})
-        if not actos_table:
-            for header in soup.find_all(['h3', 'h4', 'div'], string=re.compile('Actos administrativos', re.I)):
-                actos_table = header.find_next('table')
-                if actos_table:
-                    break
+        actos_table = find_table_by_header([
+            r'Actos administrativos', r'Acto', r'Administrativo', r'GridActo'
+        ])
 
         if actos_table:
             rows = actos_table.find_all('tr')
             for row in rows[1:]:
                 cols = row.find_all('td')
-                if len(cols) >= 3:
+                if len(cols) >= 2:
                     acto = {
                         "documento": cols[0].get_text(' ', strip=True) if len(cols) > 0 else "",
                         "numero_gde": cols[1].get_text(' ', strip=True) if len(cols) > 1 else "",
@@ -404,22 +530,20 @@ class MendozaCompraScraper(BaseScraper):
 
         # Extract circulares
         circulares = []
-        circulares_table = soup.find('table', {'id': re.compile('Circular', re.I)})
-        if not circulares_table:
-            for header in soup.find_all(['h3', 'h4', 'div'], string=re.compile('Circulares', re.I)):
-                circulares_table = header.find_next('table')
-                if circulares_table:
-                    break
+        circulares_table = find_table_by_header([
+            r'Circulares', r'Circular', r'GridCircular'
+        ])
 
         if circulares_table:
             rows = circulares_table.find_all('tr')
             for row in rows[1:]:
                 cols = row.find_all('td')
-                if len(cols) >= 2:
+                if len(cols) >= 1:
                     circ = {
                         "numero": cols[0].get_text(' ', strip=True) if len(cols) > 0 else "",
                         "fecha_publicacion": cols[1].get_text(' ', strip=True) if len(cols) > 1 else "",
                         "tipo": cols[2].get_text(' ', strip=True) if len(cols) > 2 else "",
+                        "descripcion": cols[3].get_text(' ', strip=True) if len(cols) > 3 else "",
                     }
                     if circ["numero"]:
                         circulares.append(circ)
@@ -816,6 +940,27 @@ class MendozaCompraScraper(BaseScraper):
                     # ITEMS (productos/servicios)
                     items = pliego_fields.get("_items", [])
 
+                    # SOLICITUDES DE CONTRATACIÓN
+                    solicitudes_contratacion = pliego_fields.get("_solicitudes", [])
+
+                    # PLIEGOS DE BASES Y CONDICIONES
+                    pliegos_bases = pliego_fields.get("_pliegos_bases", [])
+
+                    # REQUISITOS MÍNIMOS DE PARTICIPACIÓN
+                    requisitos_participacion = pliego_fields.get("_requisitos_participacion", [])
+
+                    # ACTOS ADMINISTRATIVOS
+                    actos_administrativos = pliego_fields.get("_actos_administrativos", [])
+
+                    # CIRCULARES
+                    circulares = pliego_fields.get("_circulares", [])
+                else:
+                    solicitudes_contratacion = []
+                    pliegos_bases = []
+                    requisitos_participacion = []
+                    actos_administrativos = []
+                    circulares = []
+
                 # Update opening_date if we got it from pliego
                 if fecha_apertura:
                     opening_date = fecha_apertura
@@ -866,14 +1011,15 @@ class MendozaCompraScraper(BaseScraper):
                     "duracion_contrato": duracion_contrato,
                     "fecha_inicio_contrato": fecha_inicio_contrato,
                     "items": items,
+                    "solicitudes_contratacion": solicitudes_contratacion,
+                    "pliegos_bases": pliegos_bases,
+                    "requisitos_participacion": requisitos_participacion,
+                    "actos_administrativos": actos_administrativos,
+                    "circulares": circulares,
                     "metadata": {
                         **meta,
                         "comprar_open_url": proxy_open_url,
                         "comprar_detail_url": proxy_html_url,
-                        # Guardar datos estructurados adicionales
-                        "solicitudes": pliego_fields.get("_solicitudes", []) if pliego_fields else [],
-                        "actos_administrativos": pliego_fields.get("_actos_administrativos", []) if pliego_fields else [],
-                        "circulares": pliego_fields.get("_circulares", []) if pliego_fields else [],
                     },
                 })
 

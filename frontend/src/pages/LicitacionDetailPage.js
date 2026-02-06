@@ -11,6 +11,8 @@ const LicitacionDetailPage = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [isSaved, setIsSaved] = useState(false);
+  const [enriching, setEnriching] = useState(false);
+  const [enrichMessage, setEnrichMessage] = useState(null);
 
   useEffect(() => {
     const fetchLicitacion = async () => {
@@ -31,7 +33,7 @@ const LicitacionDetailPage = () => {
     fetchLicitacion();
   }, [id]);
 
-  const toggleSave = () => {
+  const toggleSave = async () => {
     const savedItems = JSON.parse(localStorage.getItem('savedLicitaciones') || '[]');
     if (isSaved) {
       const newSaved = savedItems.filter(item => item !== id);
@@ -41,6 +43,33 @@ const LicitacionDetailPage = () => {
       savedItems.push(id);
       localStorage.setItem('savedLicitaciones', JSON.stringify(savedItems));
       setIsSaved(true);
+      // Trigger enrich when favoriting a COMPR.AR licitacion
+      if (licitacion?.fuente?.includes('COMPR.AR')) {
+        enrichLicitacion();
+      }
+    }
+  };
+
+  const enrichLicitacion = async () => {
+    if (enriching) return;
+    setEnriching(true);
+    setEnrichMessage(null);
+
+    try {
+      const response = await axios.post(`${API}/comprar/enrich/${id}`);
+      if (response.data.success) {
+        setEnrichMessage({ type: 'success', text: response.data.message });
+        // Reload licitacion data
+        const updatedResponse = await axios.get(`${API}/licitaciones/${id}`);
+        setLicitacion(updatedResponse.data);
+      } else {
+        setEnrichMessage({ type: 'info', text: response.data.message });
+      }
+    } catch (err) {
+      console.error('Error enriching:', err);
+      setEnrichMessage({ type: 'error', text: 'Error al obtener datos adicionales' });
+    } finally {
+      setEnriching(false);
     }
   };
 
@@ -197,6 +226,29 @@ const LicitacionDetailPage = () => {
           </Link>
         </nav>
 
+        {/* Enrich Message */}
+        {enrichMessage && (
+          <div className={`mb-4 p-4 rounded-xl flex items-center justify-between ${
+            enrichMessage.type === 'success' ? 'bg-green-100 text-green-800 border border-green-200' :
+            enrichMessage.type === 'error' ? 'bg-red-100 text-red-800 border border-red-200' :
+            'bg-blue-100 text-blue-800 border border-blue-200'
+          }`}>
+            <div className="flex items-center gap-3">
+              {enrichMessage.type === 'success' && (
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+              )}
+              <span className="font-medium">{enrichMessage.text}</span>
+            </div>
+            <button onClick={() => setEnrichMessage(null)} className="p-1 hover:bg-white/30 rounded">
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+          </div>
+        )}
+
         {/* Main Card */}
         <div className="glass rounded-[2.5rem] shadow-[0_20px_60px_rgba(0,0,0,0.1)] border border-white/40 overflow-hidden">
           {/* Header */}
@@ -248,8 +300,8 @@ const LicitacionDetailPage = () => {
                 <button
                   onClick={toggleSave}
                   className={`p-3 rounded-2xl transition-all duration-300 ${
-                    isSaved 
-                      ? 'bg-yellow-400 text-yellow-900 shadow-lg shadow-yellow-400/30' 
+                    isSaved
+                      ? 'bg-yellow-400 text-yellow-900 shadow-lg shadow-yellow-400/30'
                       : 'bg-white/20 text-white hover:bg-white/30'
                   }`}
                   title={isSaved ? 'Quitar de guardados' : 'Guardar licitación'}
@@ -258,6 +310,28 @@ const LicitacionDetailPage = () => {
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 5a2 2 0 012-2h10a2 2 0 012 2v16l-7-3.5L5 21V5z" />
                   </svg>
                 </button>
+                {licitacion?.fuente?.includes('COMPR.AR') && (
+                  <button
+                    onClick={enrichLicitacion}
+                    disabled={enriching}
+                    className={`p-3 rounded-2xl transition-all duration-300 ${
+                      enriching
+                        ? 'bg-blue-300 text-blue-700 cursor-wait'
+                        : 'bg-white/20 text-white hover:bg-white/30'
+                    }`}
+                    title="Obtener más información del proceso"
+                  >
+                    {enriching ? (
+                      <svg className="w-6 h-6 animate-spin" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                      </svg>
+                    ) : (
+                      <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                      </svg>
+                    )}
+                  </button>
+                )}
               </div>
             </div>
           </div>
@@ -455,6 +529,168 @@ const LicitacionDetailPage = () => {
                               <td className="px-4 py-3 text-gray-600 font-mono text-xs">{item.codigo_item || '-'}</td>
                               <td className="px-4 py-3 text-gray-800">{item.descripcion}</td>
                               <td className="px-4 py-3 text-right text-gray-700 font-medium">{item.cantidad || '-'}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </section>
+                )}
+
+                {/* Solicitudes de Contratación */}
+                {licitacion.solicitudes_contratacion && licitacion.solicitudes_contratacion.length > 0 && (
+                  <section>
+                    <h2 className="text-lg font-black text-gray-900 mb-4 flex items-center">
+                      <span className="w-8 h-8 rounded-xl bg-amber-100 text-amber-600 flex items-center justify-center mr-3">
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                        </svg>
+                      </span>
+                      Solicitudes de Contratación
+                    </h2>
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-sm">
+                        <thead className="bg-amber-50">
+                          <tr>
+                            <th className="px-4 py-3 text-left font-bold text-amber-700">N° Solicitud</th>
+                            <th className="px-4 py-3 text-left font-bold text-amber-700">Estado</th>
+                            <th className="px-4 py-3 text-left font-bold text-amber-700">Unidad Ejecutora</th>
+                            <th className="px-4 py-3 text-left font-bold text-amber-700">Rubro</th>
+                            <th className="px-4 py-3 text-left font-bold text-amber-700">Urgencia</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-gray-100">
+                          {licitacion.solicitudes_contratacion.map((sol, idx) => (
+                            <tr key={idx} className="hover:bg-gray-50">
+                              <td className="px-4 py-3 text-gray-800 font-mono text-xs">{sol.numero_solicitud || '-'}</td>
+                              <td className="px-4 py-3 text-gray-600">{sol.estado || '-'}</td>
+                              <td className="px-4 py-3 text-gray-600">{sol.unidad_ejecutora || '-'}</td>
+                              <td className="px-4 py-3 text-gray-600">{sol.rubro || '-'}</td>
+                              <td className="px-4 py-3 text-gray-600">{sol.tipo_urgencia || '-'}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </section>
+                )}
+
+                {/* Pliegos de Bases y Condiciones */}
+                {licitacion.pliegos_bases && licitacion.pliegos_bases.length > 0 && (
+                  <section>
+                    <h2 className="text-lg font-black text-gray-900 mb-4 flex items-center">
+                      <span className="w-8 h-8 rounded-xl bg-blue-100 text-blue-600 flex items-center justify-center mr-3">
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                        </svg>
+                      </span>
+                      Pliego de Bases y Condiciones
+                    </h2>
+                    <div className="space-y-2">
+                      {licitacion.pliegos_bases.map((pliego, idx) => (
+                        <div key={idx} className="bg-blue-50 rounded-xl p-4 border border-blue-100">
+                          <p className="font-bold text-blue-800">{pliego.documento}</p>
+                          {pliego.disposicion && (
+                            <p className="text-sm text-blue-600 mt-1">Disposición: {pliego.disposicion}</p>
+                          )}
+                          {pliego.fecha_creacion && (
+                            <p className="text-xs text-blue-500 mt-1">Fecha: {pliego.fecha_creacion}</p>
+                          )}
+                          {pliego.url && (
+                            <a href={pliego.url} target="_blank" rel="noopener noreferrer"
+                               className="inline-flex items-center gap-1 mt-2 text-sm text-blue-600 hover:text-blue-800">
+                              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                              </svg>
+                              Ver documento
+                            </a>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  </section>
+                )}
+
+                {/* Requisitos de Participación */}
+                {licitacion.requisitos_participacion && licitacion.requisitos_participacion.length > 0 && (
+                  <section>
+                    <h2 className="text-lg font-black text-gray-900 mb-4 flex items-center">
+                      <span className="w-8 h-8 rounded-xl bg-violet-100 text-violet-600 flex items-center justify-center mr-3">
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
+                        </svg>
+                      </span>
+                      Requisitos de Participación
+                    </h2>
+                    <ul className="space-y-2">
+                      {licitacion.requisitos_participacion.map((req, idx) => (
+                        <li key={idx} className="flex items-start gap-2 text-gray-700">
+                          <svg className="w-5 h-5 text-violet-500 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                          </svg>
+                          <span>{req}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  </section>
+                )}
+
+                {/* Circulares */}
+                {licitacion.circulares && licitacion.circulares.length > 0 && (
+                  <section className="bg-gradient-to-r from-rose-50 to-pink-50 rounded-2xl p-6 border border-rose-100">
+                    <h2 className="text-lg font-black text-gray-900 mb-4 flex items-center">
+                      <span className="w-8 h-8 rounded-xl bg-rose-100 text-rose-600 flex items-center justify-center mr-3">
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
+                        </svg>
+                      </span>
+                      Circulares
+                    </h2>
+                    <div className="space-y-3">
+                      {licitacion.circulares.map((circ, idx) => (
+                        <div key={idx} className="bg-white/60 rounded-xl p-4">
+                          <div className="flex items-center justify-between">
+                            <span className="font-bold text-rose-700">Circular N° {circ.numero}</span>
+                            {circ.fecha_publicacion && (
+                              <span className="text-sm text-rose-500">{circ.fecha_publicacion}</span>
+                            )}
+                          </div>
+                          {circ.descripcion && <p className="text-sm text-gray-600 mt-1">{circ.descripcion}</p>}
+                          {circ.tipo && <span className="text-xs text-rose-400">Tipo: {circ.tipo}</span>}
+                        </div>
+                      ))}
+                    </div>
+                  </section>
+                )}
+
+                {/* Actos Administrativos */}
+                {licitacion.actos_administrativos && licitacion.actos_administrativos.length > 0 && (
+                  <section>
+                    <h2 className="text-lg font-black text-gray-900 mb-4 flex items-center">
+                      <span className="w-8 h-8 rounded-xl bg-slate-100 text-slate-600 flex items-center justify-center mr-3">
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 20H5a2 2 0 01-2-2V6a2 2 0 012-2h10a2 2 0 012 2v1m2 13a2 2 0 01-2-2V7m2 13a2 2 0 002-2V9a2 2 0 00-2-2h-2m-4-3H9M7 16h6M7 8h6v4H7V8z" />
+                        </svg>
+                      </span>
+                      Actos Administrativos
+                    </h2>
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-sm">
+                        <thead className="bg-slate-50">
+                          <tr>
+                            <th className="px-4 py-3 text-left font-bold text-slate-600">Documento</th>
+                            <th className="px-4 py-3 text-left font-bold text-slate-600">N° GDE</th>
+                            <th className="px-4 py-3 text-left font-bold text-slate-600">N° Especial</th>
+                            <th className="px-4 py-3 text-left font-bold text-slate-600">Fecha</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-gray-100">
+                          {licitacion.actos_administrativos.map((acto, idx) => (
+                            <tr key={idx} className="hover:bg-gray-50">
+                              <td className="px-4 py-3 text-gray-800">{acto.documento || '-'}</td>
+                              <td className="px-4 py-3 text-gray-600 font-mono text-xs">{acto.numero_gde || '-'}</td>
+                              <td className="px-4 py-3 text-gray-600">{acto.numero_especial || '-'}</td>
+                              <td className="px-4 py-3 text-gray-600">{acto.fecha_vinculacion || '-'}</td>
                             </tr>
                           ))}
                         </tbody>
