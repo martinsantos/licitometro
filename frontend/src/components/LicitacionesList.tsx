@@ -55,7 +55,11 @@ const LicitacionesList = ({ apiUrl }: LicitacionesListProps) => {
   const [busqueda, setBusqueda] = useState('');
   const [fuenteFiltro, setFuenteFiltro] = useState('');
   const [statusFiltro, setStatusFiltro] = useState('');
-  
+
+  // Dynamic filter options from API
+  const [fuenteOptions, setFuenteOptions] = useState<string[]>([]);
+  const [statusOptions, setStatusOptions] = useState<string[]>([]);
+
   // New: States for sorting and column visibility
   const [sortBy, setSortBy] = useState<string>('publication_date');
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
@@ -63,6 +67,29 @@ const LicitacionesList = ({ apiUrl }: LicitacionesListProps) => {
     'expediente', 'titulo', 'org', 'publicacion', 'apertura', 'fuente', 'estado', 'acciones'
   ]));
   const [showColumnPicker, setShowColumnPicker] = useState(false);
+
+  // Load filter options on mount
+  useEffect(() => {
+    const loadFilterOptions = async () => {
+      try {
+        const [fuenteRes, statusRes] = await Promise.all([
+          fetch(`${apiUrl}/api/licitaciones/distinct/fuente`),
+          fetch(`${apiUrl}/api/licitaciones/distinct/status`)
+        ]);
+        if (fuenteRes.ok) {
+          const fuentes = await fuenteRes.json();
+          setFuenteOptions(fuentes.filter((f: string) => f && f.trim()));
+        }
+        if (statusRes.ok) {
+          const statuses = await statusRes.json();
+          setStatusOptions(statuses.filter((s: string) => s && s.trim()));
+        }
+      } catch (err) {
+        console.error('Error loading filter options:', err);
+      }
+    };
+    loadFilterOptions();
+  }, [apiUrl]);
 
   const columns = [
     { id: 'expediente', label: 'Expediente' },
@@ -203,7 +230,7 @@ const LicitacionesList = ({ apiUrl }: LicitacionesListProps) => {
              
              <div className="flex gap-2 w-full md:w-auto">
                 <select
-                  className="px-4 py-4 bg-gray-50 border-2 border-transparent focus:border-blue-500 rounded-2xl outline-none transition-all text-gray-700 font-bold cursor-pointer"
+                  className="px-4 py-4 bg-gray-50 border-2 border-transparent focus:border-blue-500 rounded-2xl outline-none transition-all text-gray-700 font-bold cursor-pointer min-w-[180px]"
                   value={fuenteFiltro}
                   onChange={(e) => {
                     setFuenteFiltro(e.target.value);
@@ -211,9 +238,23 @@ const LicitacionesList = ({ apiUrl }: LicitacionesListProps) => {
                   }}
                 >
                   <option value="">Todas las fuentes</option>
-                  <option value="Mendoza">Mendoza</option>
-                  <option value="CABA">CABA</option>
-                  <option value="Nación">Nación</option>
+                  {fuenteOptions.map((f) => (
+                    <option key={f} value={f}>{f}</option>
+                  ))}
+                </select>
+
+                <select
+                  className="px-4 py-4 bg-gray-50 border-2 border-transparent focus:border-blue-500 rounded-2xl outline-none transition-all text-gray-700 font-bold cursor-pointer"
+                  value={statusFiltro}
+                  onChange={(e) => {
+                    setStatusFiltro(e.target.value);
+                    setPagina(1);
+                  }}
+                >
+                  <option value="">Todos los estados</option>
+                  {statusOptions.map((s) => (
+                    <option key={s} value={s}>{s === 'active' ? 'Abierta' : s === 'closed' ? 'Cerrada' : s}</option>
+                  ))}
                 </select>
 
                 <div className="relative">
@@ -403,20 +444,17 @@ const LicitacionesList = ({ apiUrl }: LicitacionesListProps) => {
                     )}
                     {visibleColumns.has('fuente') && (
                       <td className="px-6 py-5 whitespace-nowrap align-top">
-                        <span 
+                        <span
                           className="inline-flex items-center px-3 py-1.5 rounded-xl bg-violet-50 text-violet-700 text-xs font-black border border-violet-100/50 cursor-pointer hover:bg-violet-100 hover:scale-105 transition-all"
                           onClick={(e) => {
                             e.stopPropagation();
-                            const val = lic.fuente || '';
-                            let filterVal = '';
-                            if (val.includes('Mendoza')) filterVal = 'Mendoza';
-                            else if (val.includes('CABA')) filterVal = 'CABA';
-                            else if (val.includes('Nación')) filterVal = 'Nación';
-                            
-                            setFuenteFiltro(filterVal);
-                            setPagina(1);
+                            // Use the exact fuente value for filtering
+                            if (lic.fuente) {
+                              setFuenteFiltro(lic.fuente);
+                              setPagina(1);
+                            }
                           }}
-                          title="Filtrar por esta fuente"
+                          title={`Filtrar por: ${lic.fuente || 'fuente desconocida'}`}
                         >
                           <svg className="w-3 h-3 mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101" />
