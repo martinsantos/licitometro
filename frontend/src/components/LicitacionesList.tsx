@@ -68,6 +68,74 @@ const LicitacionesList = ({ apiUrl }: LicitacionesListProps) => {
   ]));
   const [showColumnPicker, setShowColumnPicker] = useState(false);
 
+  // Grouping state
+  const [groupBy, setGroupBy] = useState<string>('none');
+
+  // Favorites state - load from localStorage
+  const [favorites, setFavorites] = useState<Set<string>>(() => {
+    const saved = localStorage.getItem('savedLicitaciones');
+    return new Set(saved ? JSON.parse(saved) : []);
+  });
+
+  // Toggle favorite
+  const toggleFavorite = (id: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    const newFavorites = new Set(favorites);
+    const savedDates = JSON.parse(localStorage.getItem('savedLicitacionesDates') || '{}');
+
+    if (newFavorites.has(id)) {
+      newFavorites.delete(id);
+      delete savedDates[id];
+    } else {
+      newFavorites.add(id);
+      savedDates[id] = new Date().toISOString();
+    }
+
+    setFavorites(newFavorites);
+    localStorage.setItem('savedLicitaciones', JSON.stringify([...newFavorites]));
+    localStorage.setItem('savedLicitacionesDates', JSON.stringify(savedDates));
+  };
+
+  // Group licitaciones
+  const groupedLicitaciones = useMemo(() => {
+    if (groupBy === 'none') {
+      return { 'all': licitaciones };
+    }
+
+    const groups: Record<string, Licitacion[]> = {};
+
+    licitaciones.forEach(lic => {
+      let key: string;
+
+      switch (groupBy) {
+        case 'organization':
+          key = lic.organization || 'Sin organización';
+          break;
+        case 'fuente':
+          key = lic.fuente || 'Sin fuente';
+          break;
+        case 'status':
+          key = lic.status === 'active' ? 'Abiertas' : 'Cerradas';
+          break;
+        case 'jurisdiccion':
+          key = lic.jurisdiccion || 'Sin jurisdicción';
+          break;
+        case 'procedimiento':
+          key = lic.tipo_procedimiento || 'Sin tipo';
+          break;
+        default:
+          key = 'Otros';
+      }
+
+      if (!groups[key]) {
+        groups[key] = [];
+      }
+      groups[key].push(lic);
+    });
+
+    return groups;
+  }, [licitaciones, groupBy]);
+
   // Load filter options on mount
   useEffect(() => {
     const loadFilterOptions = async () => {
@@ -257,6 +325,20 @@ const LicitacionesList = ({ apiUrl }: LicitacionesListProps) => {
                   ))}
                 </select>
 
+                <select
+                  className="px-4 py-4 bg-gray-50 border-2 border-transparent focus:border-blue-500 rounded-2xl outline-none transition-all text-gray-700 font-bold cursor-pointer"
+                  value={groupBy}
+                  onChange={(e) => setGroupBy(e.target.value)}
+                  title="Agrupar por"
+                >
+                  <option value="none">Sin agrupar</option>
+                  <option value="organization">Por Organización</option>
+                  <option value="fuente">Por Fuente</option>
+                  <option value="status">Por Estado</option>
+                  <option value="jurisdiccion">Por Jurisdicción</option>
+                  <option value="procedimiento">Por Procedimiento</option>
+                </select>
+
                 <div className="relative">
                   <button 
                     onClick={() => setShowColumnPicker(!showColumnPicker)}
@@ -368,7 +450,39 @@ const LicitacionesList = ({ apiUrl }: LicitacionesListProps) => {
             </thead>
             <tbody className="divide-y divide-gray-50">
               {licitaciones.length > 0 ? (
-                licitaciones.map((lic) => (
+                <>
+                  {Object.entries(groupedLicitaciones).map(([groupName, groupItems]) => (
+                    <React.Fragment key={groupName}>
+                      {/* Group Header - only show when grouping is active */}
+                      {groupBy !== 'none' && (
+                        <tr className="bg-gradient-to-r from-slate-100 to-gray-50">
+                          <td colSpan={visibleColumns.size} className="px-6 py-4">
+                            <div className="flex items-center justify-between">
+                              <div className="flex items-center gap-3">
+                                {groupBy === 'status' && (
+                                  <span className={`w-3 h-3 rounded-full ${groupName === 'Abiertas' ? 'bg-emerald-500' : 'bg-red-500'}`}></span>
+                                )}
+                                {groupBy === 'fuente' && (
+                                  <svg className="w-5 h-5 text-violet-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101" />
+                                  </svg>
+                                )}
+                                {groupBy === 'organization' && (
+                                  <svg className="w-5 h-5 text-indigo-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5" />
+                                  </svg>
+                                )}
+                                <span className="text-sm font-black text-gray-700">{groupName}</span>
+                              </div>
+                              <span className="px-3 py-1 bg-white text-gray-500 text-xs font-bold rounded-full shadow-sm">
+                                {groupItems.length} resultados
+                              </span>
+                            </div>
+                          </td>
+                        </tr>
+                      )}
+                      {/* Group Items */}
+                      {groupItems.map((lic) => (
                   <tr 
                     key={lic.id} 
                     className="group hover:bg-slate-50/80 transition-all duration-200 cursor-pointer"
@@ -494,22 +608,40 @@ const LicitacionesList = ({ apiUrl }: LicitacionesListProps) => {
                     )}
                     {visibleColumns.has('acciones') && (
                       <td className="px-6 py-5 text-right align-top">
-                        <span 
-                          className="inline-flex items-center px-4 py-2 bg-white text-blue-600 text-xs font-black rounded-xl border-2 border-slate-100 hover:border-blue-500 hover:bg-blue-50 transition-all shadow-sm active:scale-95 group/btn"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            handleRowClick(lic.id);
-                          }}
-                        >
-                          Ver
-                          <svg className="w-4 h-4 ml-2 group-hover/btn:translate-x-1 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M14 5l7 7m0 0l-7 7m7-7H3" />
-                          </svg>
-                        </span>
+                        <div className="flex items-center justify-end gap-2">
+                          <button
+                            onClick={(e) => toggleFavorite(lic.id, e)}
+                            className={`p-2 rounded-xl transition-all ${
+                              favorites.has(lic.id)
+                                ? 'bg-yellow-100 text-yellow-600 hover:bg-yellow-200'
+                                : 'bg-gray-50 text-gray-400 hover:bg-gray-100 hover:text-yellow-500'
+                            }`}
+                            title={favorites.has(lic.id) ? 'Quitar de favoritos' : 'Agregar a favoritos'}
+                          >
+                            <svg className="w-5 h-5" fill={favorites.has(lic.id) ? 'currentColor' : 'none'} stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 5a2 2 0 012-2h10a2 2 0 012 2v16l-7-3.5L5 21V5z" />
+                            </svg>
+                          </button>
+                          <span
+                            className="inline-flex items-center px-4 py-2 bg-white text-blue-600 text-xs font-black rounded-xl border-2 border-slate-100 hover:border-blue-500 hover:bg-blue-50 transition-all shadow-sm active:scale-95 group/btn"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleRowClick(lic.id);
+                            }}
+                          >
+                            Ver
+                            <svg className="w-4 h-4 ml-2 group-hover/btn:translate-x-1 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M14 5l7 7m0 0l-7 7m7-7H3" />
+                            </svg>
+                          </span>
+                        </div>
                       </td>
                     )}
-                  </tr>
-                ))
+                      </tr>
+                      ))}
+                    </React.Fragment>
+                  ))}
+                </>
               ) : (
                 <tr>
                   <td colSpan={visibleColumns.size} className="px-6 py-20 text-center">
