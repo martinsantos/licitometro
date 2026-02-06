@@ -286,6 +286,29 @@ class MendozaCompraScraper(BaseScraper):
             return urljoin(base_url, m.group(1))
         return None
 
+    def _extract_compras_url(self, html: str, base_url: str) -> Optional[str]:
+        """Extract ComprasElectronicas.aspx URL from detail HTML.
+
+        This is the main detail page URL which is stable (uses qs parameter).
+        Use as fallback when PLIEGO URL is not available.
+        """
+        soup = BeautifulSoup(html, 'html.parser')
+        for a in soup.find_all('a', href=True):
+            href = a.get('href', '')
+            if 'ComprasElectronicas.aspx?qs=' in href:
+                return urljoin(base_url, href)
+        # Also check for window.open calls or onclick handlers
+        for elem in soup.find_all(onclick=True):
+            onclick = elem.get('onclick', '')
+            m = re.search(r"ComprasElectronicas\.aspx\?qs=([^'\"]+)", onclick)
+            if m:
+                return urljoin(base_url, f"ComprasElectronicas.aspx?qs={m.group(1)}")
+        # Fallback: raw search in HTML
+        m = re.search(r"(ComprasElectronicas\.aspx\?qs=[^\s\"'<>]+)", html)
+        if m:
+            return urljoin(base_url, m.group(1))
+        return None
+
     def _parse_pliego_fields(self, html: str) -> Dict[str, Any]:
         """Parse key fields from PLIEGO page including cronograma, info básica, items.
 
@@ -730,10 +753,15 @@ class MendozaCompraScraper(BaseScraper):
                     pliego_url = self._extract_pliego_url(detail_html or "", base_url) if detail_html else None
                     if pliego_url and not pliego_url.startswith(("http://", "https://")):
                         pliego_url = None
+                    # Also extract ComprasElectronicas URL as fallback
+                    compras_url = self._extract_compras_url(detail_html or "", base_url) if detail_html else None
+                    if compras_url and not compras_url.startswith(("http://", "https://")):
+                        compras_url = None
                     row_entries.append({
                         **row,
                         "list_url": page_url,
                         "pliego_url": pliego_url,
+                        "compras_url": compras_url,
                     })
 
             async def process_list_seed(seed_html: str, seed_url: str):
@@ -827,11 +855,26 @@ class MendozaCompraScraper(BaseScraper):
                 if pliego_url and not pliego_url.startswith(("http://", "https://")):
                     pliego_url = None
 
+                # ComprasElectronicas URL as fallback
+                compras_url = entry.get("compras_url")
+                if compras_url and not compras_url.startswith(("http://", "https://")):
+                    compras_url = None
+
                 pliego_fields: Dict[str, str] = {}
+                detail_url_used = None
+
+                # Try PLIEGO first, then ComprasElectronicas
                 if pliego_url:
                     pliego_html = await self.fetch_page(pliego_url)
                     if pliego_html:
                         pliego_fields = self._parse_pliego_fields(pliego_html)
+                        detail_url_used = pliego_url
+                elif compras_url:
+                    # Fallback: try ComprasElectronicas URL
+                    compras_html = await self.fetch_page(compras_url)
+                    if compras_html:
+                        pliego_fields = self._parse_pliego_fields(compras_html)
+                        detail_url_used = compras_url
 
                 # Build metadata
                 meta = {
@@ -841,9 +884,11 @@ class MendozaCompraScraper(BaseScraper):
                     "comprar_unidad_ejecutora": unidad,
                     "comprar_servicio_admin": servicio_admin,
                     "comprar_pliego_url": pliego_url,
+                    "comprar_compras_url": compras_url,  # Fallback direct URL
+                    "comprar_detail_url_used": detail_url_used,  # URL used for data extraction
                     "comprar_pliego_fields": pliego_fields,
                 }
-                
+
                 # Build proxy URLs
                 proxy_open_url = None
                 proxy_html_url = None
@@ -852,15 +897,19 @@ class MendozaCompraScraper(BaseScraper):
                     proxy_html_url = f"{api_base}/api/comprar/proceso/html?list_url={quote_plus(list_url)}&target={quote_plus(target)}"
 
                 # Determine canonical URL and quality
-                # Priority: PLIEGO URL > Proxy URL > List URL
+                # Priority: PLIEGO URL > ComprasElectronicas URL > Proxy URL > List URL
                 canonical_url = None
                 url_quality = "partial"
                 source_urls = {}
-                
+
                 if pliego_url:
                     canonical_url = pliego_url
                     url_quality = "direct"
                     source_urls["comprar_pliego"] = pliego_url
+                elif compras_url:
+                    canonical_url = compras_url
+                    url_quality = "direct"
+                    source_urls["comprar_compras"] = compras_url
                 elif proxy_open_url:
                     canonical_url = proxy_open_url
                     url_quality = "proxy"
