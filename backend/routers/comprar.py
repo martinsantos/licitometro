@@ -586,6 +586,7 @@ async def comprar_proceso_html(
 @router.post("/enrich/{licitacion_id}")
 async def enrich_licitacion(
     licitacion_id: str,
+    level: int = Query(2, ge=2, le=3, description="Enrichment level: 2=detailed, 3=documents"),
     repo: LicitacionRepository = Depends(get_licitacion_repository)
 ):
     """
@@ -887,22 +888,29 @@ async def enrich_licitacion(
             }
         }
 
+        # Track enrichment level
+        update_data["enrichment_level"] = level
+        update_data["last_enrichment"] = datetime.utcnow()
+        if update_data.get("attached_files"):
+            update_data["document_count"] = len(update_data["attached_files"])
+
         # Actualizar en MongoDB
         if update_data:
             from models.licitacion import LicitacionUpdate
             lic_update_model = LicitacionUpdate(**update_data)
             await repo.update(licitacion_id, lic_update_model)
-            logger.info(f"Enriched licitacion {licitacion_id} with {len(update_data)} fields from {url_type}")
+            logger.info(f"Enriched licitacion {licitacion_id} with {len(update_data)} fields from {url_type} (level {level})")
 
         # Obtener el registro actualizado
         updated_lic = await repo.get_by_id(licitacion_id)
 
-        fields_count = len([k for k in update_data.keys() if k != 'metadata'])
+        fields_count = len([k for k in update_data.keys() if k not in ('metadata', 'enrichment_level', 'last_enrichment')])
 
         return JSONResponse(content={
             "success": True,
             "message": f"Datos actualizados: {fields_count} campos desde {url_type}",
-            "fields_updated": [k for k in update_data.keys() if k != 'metadata'],
+            "enrichment_level": level,
+            "fields_updated": [k for k in update_data.keys() if k not in ('metadata', 'enrichment_level', 'last_enrichment')],
             "source_url_type": url_type,
             "data": jsonable_encoder(updated_lic)
         })

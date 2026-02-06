@@ -101,6 +101,18 @@ class BaseScraper(ABC):
         
         return licitaciones
     
+    async def enrich_licitacion(self, lic: Dict[str, Any]) -> Dict[str, Any]:
+        """Optional Level 2 enrichment: extract detailed data from a licitacion's source.
+        Override in subclasses that support enrichment.
+        Returns dict of additional fields to merge into the licitacion."""
+        return {}
+
+    async def get_documents(self, lic: Dict[str, Any]) -> List[Dict[str, Any]]:
+        """Optional Level 3: download/list documents for a licitacion.
+        Override in subclasses that support document retrieval.
+        Returns list of document metadata dicts."""
+        return []
+
     async def run(self) -> List[LicitacionCreate]:
         """Run the scraper and extract licitaciones"""
         await self.setup()

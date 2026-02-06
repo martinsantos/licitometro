@@ -1,9 +1,17 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import axios from 'axios';
+import WorkflowStepper from '../components/WorkflowStepper';
+import WorkflowBadge from '../components/WorkflowBadge';
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
 const API = `${BACKEND_URL}/api`;
+
+const ENRICHMENT_LABELS = {
+  1: { label: 'Básico', color: 'bg-gray-100 text-gray-600' },
+  2: { label: 'Detallado', color: 'bg-blue-100 text-blue-700' },
+  3: { label: 'Completo', color: 'bg-emerald-100 text-emerald-700' },
+};
 
 const LicitacionDetailPage = () => {
   const { id } = useParams();
@@ -13,6 +21,7 @@ const LicitacionDetailPage = () => {
   const [isSaved, setIsSaved] = useState(false);
   const [enriching, setEnriching] = useState(false);
   const [enrichMessage, setEnrichMessage] = useState(null);
+  const [activeTab, setActiveTab] = useState('general');
 
   useEffect(() => {
     const fetchLicitacion = async () => {
@@ -50,13 +59,13 @@ const LicitacionDetailPage = () => {
     }
   };
 
-  const enrichLicitacion = async () => {
+  const enrichLicitacion = async (level = 2) => {
     if (enriching) return;
     setEnriching(true);
     setEnrichMessage(null);
 
     try {
-      const response = await axios.post(`${API}/comprar/enrich/${id}`);
+      const response = await axios.post(`${API}/comprar/enrich/${id}?level=${level}`);
       if (response.data.success) {
         setEnrichMessage({ type: 'success', text: response.data.message });
         // Reload licitacion data
@@ -76,6 +85,16 @@ const LicitacionDetailPage = () => {
       });
     } finally {
       setEnriching(false);
+    }
+  };
+
+  const handleWorkflowChange = async (newState) => {
+    // Reload licitacion to get updated workflow state
+    try {
+      const response = await axios.get(`${API}/licitaciones/${id}`);
+      setLicitacion(response.data);
+    } catch (err) {
+      console.error('Error reloading after workflow change:', err);
     }
   };
 
@@ -283,6 +302,16 @@ const LicitacionDetailPage = () => {
                       {licitacion.category}
                     </span>
                   )}
+                  {/* Enrichment Level Badge */}
+                  {(() => {
+                    const level = licitacion.enrichment_level || 1;
+                    const config = ENRICHMENT_LABELS[level] || ENRICHMENT_LABELS[1];
+                    return (
+                      <span className={`px-3 py-1 rounded-full text-xs font-bold ${config.color}`}>
+                        Nivel {level}: {config.label}
+                      </span>
+                    );
+                  })()}
                 </div>
                 <h1 className="text-2xl sm:text-3xl font-black text-white leading-tight mb-3">
                   {licitacion.title}
@@ -379,38 +408,120 @@ const LicitacionDetailPage = () => {
                 </div>
 
                 {licitacion?.fuente?.includes('COMPR.AR') && (
-                  <button
-                    onClick={enrichLicitacion}
-                    disabled={enriching}
-                    className={`p-3 rounded-2xl transition-all duration-300 ${
-                      enriching
-                        ? 'bg-blue-300 text-blue-700 cursor-wait'
-                        : 'bg-white/20 text-white hover:bg-white/30'
-                    }`}
-                    title="Obtener más información del proceso"
-                  >
-                    {enriching ? (
-                      <svg className="w-6 h-6 animate-spin" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-                      </svg>
-                    ) : (
-                      <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-                      </svg>
+                  <div className="flex sm:flex-col gap-2">
+                    <button
+                      onClick={() => enrichLicitacion(2)}
+                      disabled={enriching}
+                      className={`p-3 rounded-2xl transition-all duration-300 ${
+                        enriching
+                          ? 'bg-blue-300 text-blue-700 cursor-wait'
+                          : 'bg-white/20 text-white hover:bg-white/30'
+                      }`}
+                      title="Enriquecer datos (Nivel 2)"
+                    >
+                      {enriching ? (
+                        <svg className="w-6 h-6 animate-spin" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                        </svg>
+                      ) : (
+                        <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                        </svg>
+                      )}
+                    </button>
+                    {(licitacion.enrichment_level || 1) >= 2 && (
+                      <button
+                        onClick={() => enrichLicitacion(3)}
+                        disabled={enriching}
+                        className="p-3 rounded-2xl bg-white/20 text-white hover:bg-white/30 transition-all duration-300"
+                        title="Descargar documentos (Nivel 3)"
+                      >
+                        <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                        </svg>
+                      </button>
                     )}
-                  </button>
+                  </div>
                 )}
               </div>
             </div>
           </div>
 
+          {/* Workflow Stepper */}
+          <div className="px-8 sm:px-10 py-4 bg-gray-50 border-t border-gray-100">
+            <WorkflowStepper
+              licId={id}
+              currentState={licitacion.workflow_state || 'descubierta'}
+              history={licitacion.workflow_history || []}
+              onStateChange={handleWorkflowChange}
+            />
+          </div>
+
+          {/* Tabs Navigation */}
+          <div className="px-8 sm:px-10 border-b border-gray-200 bg-white">
+            <nav className="flex gap-1 overflow-x-auto -mb-px">
+              {[
+                { id: 'general', label: 'Info General' },
+                { id: 'items', label: 'Items', count: (licitacion.items || []).length },
+                { id: 'docs', label: 'Documentos', count: (licitacion.attached_files || []).length + (licitacion.pliegos_bases || []).length },
+                { id: 'cronograma', label: 'Cronograma', show: hasCronograma },
+                { id: 'workflow', label: 'Workflow' },
+              ].filter(t => t.show !== false).map(tab => (
+                <button
+                  key={tab.id}
+                  onClick={() => setActiveTab(tab.id)}
+                  className={`px-4 py-3 text-sm font-bold whitespace-nowrap border-b-2 transition-all ${
+                    activeTab === tab.id
+                      ? 'border-blue-600 text-blue-600'
+                      : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                  }`}
+                >
+                  {tab.label}
+                  {tab.count > 0 && (
+                    <span className="ml-1.5 px-1.5 py-0.5 bg-gray-100 text-gray-600 rounded text-xs">{tab.count}</span>
+                  )}
+                </button>
+              ))}
+            </nav>
+          </div>
+
           {/* Content */}
           <div className="p-8 sm:p-10">
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+            {/* Workflow Tab */}
+            {activeTab === 'workflow' && (
+              <div className="space-y-6">
+                <h2 className="text-lg font-black text-gray-900 mb-4">Estado del Workflow</h2>
+                <WorkflowStepper
+                  licId={id}
+                  currentState={licitacion.workflow_state || 'descubierta'}
+                  history={licitacion.workflow_history || []}
+                  onStateChange={handleWorkflowChange}
+                />
+                {licitacion.workflow_history && licitacion.workflow_history.length > 0 && (
+                  <div className="mt-6">
+                    <h3 className="font-bold text-gray-700 mb-3">Historial completo</h3>
+                    <div className="space-y-2">
+                      {licitacion.workflow_history.map((entry, i) => (
+                        <div key={i} className="flex items-center gap-3 p-3 bg-gray-50 rounded-xl">
+                          <WorkflowBadge state={entry.to_state} compact />
+                          <span className="text-sm text-gray-500">
+                            {new Date(entry.timestamp).toLocaleString('es-AR')}
+                          </span>
+                          {entry.notes && <span className="text-sm text-gray-400 italic">{entry.notes}</span>}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* All other tabs show the existing grid layout */}
+            <div className={`grid grid-cols-1 lg:grid-cols-3 gap-8 ${activeTab === 'workflow' ? 'hidden' : ''}`}>
               {/* Left Column - Main Info */}
               <div className="lg:col-span-2 space-y-8">
                 {/* Información General */}
-                <section>
+                <section className={activeTab !== 'general' ? 'hidden' : ''}>
                   <h2 className="text-lg font-black text-gray-900 mb-6 flex items-center">
                     <span className="w-8 h-8 rounded-xl bg-blue-100 text-blue-600 flex items-center justify-center mr-3">
                       <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -467,7 +578,7 @@ const LicitacionDetailPage = () => {
 
                 {/* CRONOGRAMA - Fechas Críticas */}
                 {hasCronograma && (
-                  <section className="bg-gradient-to-r from-orange-50 to-amber-50 rounded-2xl p-6 border border-orange-100">
+                  <section className={`bg-gradient-to-r from-orange-50 to-amber-50 rounded-2xl p-6 border border-orange-100 ${activeTab !== 'general' && activeTab !== 'cronograma' ? 'hidden' : ''}`}>
                     <h2 className="text-lg font-black text-gray-900 mb-6 flex items-center">
                       <span className="w-8 h-8 rounded-xl bg-orange-100 text-orange-600 flex items-center justify-center mr-3">
                         <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -571,7 +682,7 @@ const LicitacionDetailPage = () => {
 
                 {/* Detalle de Productos/Servicios */}
                 {licitacion.items && licitacion.items.length > 0 && (
-                  <section>
+                  <section className={activeTab !== 'general' && activeTab !== 'items' ? 'hidden' : ''}>
                     <h2 className="text-lg font-black text-gray-900 mb-4 flex items-center">
                       <span className="w-8 h-8 rounded-xl bg-green-100 text-green-600 flex items-center justify-center mr-3">
                         <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -607,7 +718,7 @@ const LicitacionDetailPage = () => {
 
                 {/* Solicitudes de Contratación */}
                 {licitacion.solicitudes_contratacion && licitacion.solicitudes_contratacion.length > 0 && (
-                  <section>
+                  <section className={activeTab !== 'general' && activeTab !== 'docs' ? 'hidden' : ''}>
                     <h2 className="text-lg font-black text-gray-900 mb-4 flex items-center">
                       <span className="w-8 h-8 rounded-xl bg-amber-100 text-amber-600 flex items-center justify-center mr-3">
                         <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -645,7 +756,7 @@ const LicitacionDetailPage = () => {
 
                 {/* GARANTIAS */}
                 {licitacion.garantias && licitacion.garantias.length > 0 && (
-                  <section className="bg-gradient-to-r from-red-50 to-rose-50 rounded-2xl p-6 border border-red-100">
+                  <section className={`bg-gradient-to-r from-red-50 to-rose-50 rounded-2xl p-6 border border-red-100 ${activeTab !== 'general' && activeTab !== 'docs' ? 'hidden' : ''}`}>
                      <h2 className="text-lg font-black text-gray-900 mb-6 flex items-center">
                       <span className="w-8 h-8 rounded-xl bg-red-100 text-red-600 flex items-center justify-center mr-3">
                         <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -668,7 +779,7 @@ const LicitacionDetailPage = () => {
 
                 {/* Pliegos de Bases y Condiciones */}
                 {licitacion.pliegos_bases && licitacion.pliegos_bases.length > 0 && (
-                  <section>
+                  <section className={activeTab !== 'general' && activeTab !== 'docs' ? 'hidden' : ''}>
                     <h2 className="text-lg font-black text-gray-900 mb-4 flex items-center">
                       <span className="w-8 h-8 rounded-xl bg-blue-100 text-blue-600 flex items-center justify-center mr-3">
                         <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -704,7 +815,7 @@ const LicitacionDetailPage = () => {
 
                 {/* Requisitos de Participación */}
                 {licitacion.requisitos_participacion && licitacion.requisitos_participacion.length > 0 && (
-                  <section>
+                  <section className={activeTab !== 'general' && activeTab !== 'docs' ? 'hidden' : ''}>
                     <h2 className="text-lg font-black text-gray-900 mb-4 flex items-center">
                       <span className="w-8 h-8 rounded-xl bg-violet-100 text-violet-600 flex items-center justify-center mr-3">
                         <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -728,7 +839,7 @@ const LicitacionDetailPage = () => {
 
                 {/* Circulares */}
                 {licitacion.circulares && licitacion.circulares.length > 0 && (
-                  <section className="bg-gradient-to-r from-rose-50 to-pink-50 rounded-2xl p-6 border border-rose-100">
+                  <section className={`bg-gradient-to-r from-rose-50 to-pink-50 rounded-2xl p-6 border border-rose-100 ${activeTab !== 'general' && activeTab !== 'docs' ? 'hidden' : ''}`}>
                     <h2 className="text-lg font-black text-gray-900 mb-4 flex items-center">
                       <span className="w-8 h-8 rounded-xl bg-rose-100 text-rose-600 flex items-center justify-center mr-3">
                         <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -756,7 +867,7 @@ const LicitacionDetailPage = () => {
 
                 {/* Actos Administrativos */}
                 {licitacion.actos_administrativos && licitacion.actos_administrativos.length > 0 && (
-                  <section>
+                  <section className={activeTab !== 'general' && activeTab !== 'docs' ? 'hidden' : ''}>
                     <h2 className="text-lg font-black text-gray-900 mb-4 flex items-center">
                       <span className="w-8 h-8 rounded-xl bg-slate-100 text-slate-600 flex items-center justify-center mr-3">
                         <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">

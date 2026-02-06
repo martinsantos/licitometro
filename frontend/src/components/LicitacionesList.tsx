@@ -2,6 +2,9 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { format, differenceInDays } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { useNavigate } from 'react-router-dom';
+import WorkflowBadge from './WorkflowBadge';
+import DateRangeFilter from './DateRangeFilter';
+import TimelineView from './TimelineView';
 
 interface Licitacion {
     id: string;
@@ -19,6 +22,8 @@ interface Licitacion {
     jurisdiccion?: string;
     tipo_procedimiento?: string;
     location?: string;
+    workflow_state?: string;
+    enrichment_level?: number;
     metadata?: {
       comprar_estado?: string;
       comprar_directa_tipo?: string;
@@ -59,7 +64,13 @@ const LicitacionesList = ({ apiUrl }: LicitacionesListProps) => {
   // Sorting and display
   const [sortBy, setSortBy] = useState<string>('publication_date');
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
-  const [viewMode, setViewMode] = useState<'cards' | 'table'>('cards');
+  const [viewMode, setViewMode] = useState<'cards' | 'table' | 'timeline'>('cards');
+  const [workflowFiltro, setWorkflowFiltro] = useState('');
+
+  // Date range filter state
+  const [fechaDesde, setFechaDesde] = useState('');
+  const [fechaHasta, setFechaHasta] = useState('');
+  const [fechaCampo, setFechaCampo] = useState('publication_date');
 
   // Grouping state
   const [groupBy, setGroupBy] = useState<string>('none');
@@ -211,6 +222,10 @@ const LicitacionesList = ({ apiUrl }: LicitacionesListProps) => {
         if (fuenteFiltro) params.append('fuente', fuenteFiltro);
         if (statusFiltro) params.append('status', statusFiltro);
         if (categoryFiltro) params.append('category', categoryFiltro);
+        if (workflowFiltro) params.append('workflow_state', workflowFiltro);
+        if (fechaDesde) params.append('fecha_desde', fechaDesde);
+        if (fechaHasta) params.append('fecha_hasta', fechaHasta);
+        if (fechaCampo) params.append('fecha_campo', fechaCampo);
 
         const response = await fetch(`${apiUrl}/api/licitaciones/?${params.toString()}`);
         if (!response.ok) throw new Error('Error al cargar licitaciones');
@@ -226,7 +241,7 @@ const LicitacionesList = ({ apiUrl }: LicitacionesListProps) => {
 
     const timeoutId = setTimeout(fetchLicitaciones, 300);
     return () => clearTimeout(timeoutId);
-  }, [apiUrl, pagina, busqueda, fuenteFiltro, statusFiltro, categoryFiltro, sortBy, sortOrder]);
+  }, [apiUrl, pagina, busqueda, fuenteFiltro, statusFiltro, categoryFiltro, workflowFiltro, fechaDesde, fechaHasta, fechaCampo, sortBy, sortOrder]);
 
   const handleRowClick = (id: string) => {
     navigate(`/licitacion/${id}`);
@@ -338,6 +353,19 @@ const LicitacionesList = ({ apiUrl }: LicitacionesListProps) => {
 
             <select
               className="px-4 py-3 bg-gray-50 border-2 border-transparent focus:border-blue-500 rounded-xl outline-none text-gray-700 font-bold cursor-pointer text-sm"
+              value={workflowFiltro}
+              onChange={(e) => { setWorkflowFiltro(e.target.value); setPagina(1); }}
+            >
+              <option value="">Todo workflow</option>
+              <option value="descubierta">Descubierta</option>
+              <option value="evaluando">Evaluando</option>
+              <option value="preparando">Preparando</option>
+              <option value="presentada">Presentada</option>
+              <option value="descartada">Descartada</option>
+            </select>
+
+            <select
+              className="px-4 py-3 bg-gray-50 border-2 border-transparent focus:border-blue-500 rounded-xl outline-none text-gray-700 font-bold cursor-pointer text-sm"
               value={groupBy}
               onChange={(e) => setGroupBy(e.target.value)}
             >
@@ -389,27 +417,76 @@ const LicitacionesList = ({ apiUrl }: LicitacionesListProps) => {
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 6h16M4 10h16M4 14h16M4 18h16" />
                 </svg>
               </button>
+              <button
+                onClick={() => setViewMode('timeline')}
+                className={`p-2 rounded-lg transition-all ${viewMode === 'timeline' ? 'bg-white shadow-sm text-blue-600' : 'text-gray-500 hover:text-gray-700'}`}
+                title="Vista de línea de tiempo"
+              >
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+                </svg>
+              </button>
             </div>
           </div>
         </div>
 
-        {/* Results count */}
+        {/* Date Range Filter */}
+        <div className="mt-4 pt-4 border-t border-gray-100">
+          <DateRangeFilter
+            fechaDesde={fechaDesde}
+            fechaHasta={fechaHasta}
+            fechaCampo={fechaCampo}
+            onFechaDesdeChange={(v) => { setFechaDesde(v); setPagina(1); }}
+            onFechaHastaChange={(v) => { setFechaHasta(v); setPagina(1); }}
+            onFechaCampoChange={setFechaCampo}
+            onClear={() => { setFechaDesde(''); setFechaHasta(''); setPagina(1); }}
+          />
+        </div>
+
+        {/* Results count and active filters */}
         {paginacion && (
-          <div className="mt-4 pt-4 border-t border-gray-100 flex items-center justify-between">
+          <div className="mt-4 pt-4 border-t border-gray-100 flex items-center justify-between flex-wrap gap-2">
             <span className="px-4 py-2 bg-emerald-50 text-emerald-700 rounded-full text-sm font-bold">
               {paginacion.total_items} avisos encontrados
             </span>
-            {(busqueda || fuenteFiltro || statusFiltro || categoryFiltro) && (
-              <button
-                onClick={() => { setBusqueda(''); setFuenteFiltro(''); setStatusFiltro(''); setCategoryFiltro(''); setPagina(1); }}
-                className="text-sm text-gray-500 hover:text-red-600 font-medium flex items-center gap-1"
-              >
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
-                </svg>
-                Limpiar filtros
-              </button>
-            )}
+            {/* Active filter chips */}
+            <div className="flex items-center gap-2 flex-wrap">
+              {fuenteFiltro && (
+                <span className="inline-flex items-center gap-1 px-3 py-1 bg-violet-100 text-violet-700 rounded-full text-xs font-bold">
+                  {fuenteFiltro}
+                  <button onClick={() => { setFuenteFiltro(''); setPagina(1); }} className="hover:text-red-600">&times;</button>
+                </span>
+              )}
+              {statusFiltro && (
+                <span className="inline-flex items-center gap-1 px-3 py-1 bg-blue-100 text-blue-700 rounded-full text-xs font-bold">
+                  {statusFiltro === 'active' ? 'Abierta' : statusFiltro}
+                  <button onClick={() => { setStatusFiltro(''); setPagina(1); }} className="hover:text-red-600">&times;</button>
+                </span>
+              )}
+              {workflowFiltro && (
+                <span className="inline-flex items-center gap-1 px-3 py-1 bg-amber-100 text-amber-700 rounded-full text-xs font-bold">
+                  {workflowFiltro}
+                  <button onClick={() => { setWorkflowFiltro(''); setPagina(1); }} className="hover:text-red-600">&times;</button>
+                </span>
+              )}
+              {(fechaDesde || fechaHasta) && (
+                <span className="inline-flex items-center gap-1 px-3 py-1 bg-green-100 text-green-700 rounded-full text-xs font-bold">
+                  {fechaDesde || '...'} a {fechaHasta || '...'}
+                  <button onClick={() => { setFechaDesde(''); setFechaHasta(''); setPagina(1); }} className="hover:text-red-600">&times;</button>
+                </span>
+              )}
+              {(busqueda || fuenteFiltro || statusFiltro || categoryFiltro || workflowFiltro || fechaDesde || fechaHasta) && (
+                <button
+                  onClick={() => { setBusqueda(''); setFuenteFiltro(''); setStatusFiltro(''); setCategoryFiltro(''); setWorkflowFiltro(''); setFechaDesde(''); setFechaHasta(''); setPagina(1); }}
+                  className="text-sm text-gray-500 hover:text-red-600 font-medium flex items-center gap-1"
+                >
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                  Limpiar todo
+                </button>
+              )}
+            </div>
           </div>
         )}
       </div>
@@ -422,7 +499,12 @@ const LicitacionesList = ({ apiUrl }: LicitacionesListProps) => {
           </div>
         )}
 
-        {viewMode === 'cards' ? (
+        {viewMode === 'timeline' ? (
+          <TimelineView
+            licitaciones={licitaciones}
+            onItemClick={(id) => handleRowClick(id)}
+          />
+        ) : viewMode === 'cards' ? (
           /* Card View - Mercados Transparentes Style */
           <div className="space-y-4">
             {Object.entries(groupedLicitaciones).map(([groupName, groupItems]) => (
@@ -604,8 +686,9 @@ const LicitacionesList = ({ apiUrl }: LicitacionesListProps) => {
                               </button>
                             </div>
 
-                            {/* Right: Status & View Button */}
+                            {/* Right: Status, Workflow & View Button */}
                             <div className="flex items-center gap-3">
+                              <WorkflowBadge state={lic.workflow_state || 'descubierta'} compact />
                               <span className={`px-3 py-1 rounded-full text-xs font-bold ${
                                 lic.status === 'active'
                                   ? 'bg-emerald-100 text-emerald-700'
@@ -642,7 +725,7 @@ const LicitacionesList = ({ apiUrl }: LicitacionesListProps) => {
                 </div>
                 <p className="text-xl font-black text-gray-400 mb-4">No se encontraron licitaciones</p>
                 <button
-                  onClick={() => { setBusqueda(''); setFuenteFiltro(''); setStatusFiltro(''); setCategoryFiltro(''); }}
+                  onClick={() => { setBusqueda(''); setFuenteFiltro(''); setStatusFiltro(''); setCategoryFiltro(''); setWorkflowFiltro(''); setFechaDesde(''); setFechaHasta(''); }}
                   className="text-blue-600 font-bold hover:underline"
                 >
                   Limpiar todos los filtros

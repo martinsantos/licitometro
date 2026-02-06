@@ -26,7 +26,10 @@ class LicitacionRepository:
         self.collection.create_index("status")
         self.collection.create_index("location")
         self.collection.create_index("category")
-        self.collection.create_index("fuente") # Added index for fuente
+        self.collection.create_index("fuente")
+        self.collection.create_index("workflow_state")
+        self.collection.create_index("enrichment_level")
+        self.collection.create_index([("publication_date", pymongo.DESCENDING), ("opening_date", pymongo.DESCENDING)])
     
     async def create(self, licitacion: LicitacionCreate) -> Licitacion:
         """Create a new licitacion"""

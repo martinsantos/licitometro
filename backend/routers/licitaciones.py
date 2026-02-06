@@ -1,6 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException, Query, Body, Request
 from typing import List, Dict, Optional, Any
 from uuid import UUID
+from datetime import date, datetime
 import sys
 from pathlib import Path
 
@@ -34,12 +35,16 @@ async def get_licitaciones(
     location: Optional[str] = None,
     category: Optional[str] = None,
     fuente: Optional[str] = None,
+    workflow_state: Optional[str] = None,
+    fecha_desde: Optional[date] = Query(None, description="Filter from date (inclusive)"),
+    fecha_hasta: Optional[date] = Query(None, description="Filter to date (inclusive)"),
+    fecha_campo: str = Query("publication_date", description="Date field to filter on"),
     sort_by: str = Query("publication_date", description="Field to sort by"),
     sort_order: str = Query("desc", description="Sort order: asc or desc"),
     repo: LicitacionRepository = Depends(get_licitacion_repository)
 ):
     """Get all licitaciones with pagination, filtering and sorting"""
-    
+
     # Build filter query
     filters = {}
     if status:
@@ -52,6 +57,23 @@ async def get_licitaciones(
         filters["category"] = category
     if fuente:
         filters["fuente"] = fuente
+    if workflow_state:
+        filters["workflow_state"] = workflow_state
+
+    # Date range filter
+    allowed_date_fields = ["publication_date", "opening_date", "expiration_date",
+                           "fecha_publicacion_portal", "fecha_inicio_consultas", "fecha_fin_consultas"]
+    if fecha_campo not in allowed_date_fields:
+        fecha_campo = "publication_date"
+
+    if fecha_desde or fecha_hasta:
+        date_filter = {}
+        if fecha_desde:
+            date_filter["$gte"] = datetime.combine(fecha_desde, datetime.min.time())
+        if fecha_hasta:
+            date_filter["$lte"] = datetime.combine(fecha_hasta, datetime.max.time())
+        if date_filter:
+            filters[fecha_campo] = date_filter
     
     # Handle sort order
     order_val = 1 if sort_order == "asc" else -1
@@ -174,7 +196,7 @@ async def get_distinct_values(
 ):
     """Get distinct values for a given field"""
     # Validate field_name to prevent arbitrary field access if necessary
-    allowed_fields = ["organization", "location", "category", "fuente", "status"]
+    allowed_fields = ["organization", "location", "category", "fuente", "status", "workflow_state"]
     if field_name not in allowed_fields:
         raise HTTPException(status_code=400, detail=f"Filtering by field '{field_name}' is not allowed.")
 

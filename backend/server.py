@@ -12,7 +12,7 @@ import uvicorn
 sys.path.insert(0, str(Path(__file__).parent))
 
 # Import routers directly (not as relative imports)
-from routers import licitaciones, scraper_configs, comprar, scheduler
+from routers import licitaciones, scraper_configs, comprar, scheduler, workflow
 
 # Load environment variables
 load_dotenv()
@@ -53,6 +53,7 @@ app.include_router(licitaciones.router)
 app.include_router(scraper_configs.router)
 app.include_router(comprar.router)
 app.include_router(scheduler.router)
+app.include_router(workflow.router)
 
 @app.on_event("startup")
 async def startup_db_client():
@@ -70,6 +71,19 @@ async def startup_db_client():
         await scheduler_service.load_and_schedule_scrapers()
         scheduler_service.start()
         logger.info("Scheduler initialized and started automatically")
+
+        # Schedule daily storage cleanup at 3am
+        from services.storage_cleanup_service import get_cleanup_service
+        cleanup_service = get_cleanup_service(database)
+        from apscheduler.triggers.cron import CronTrigger
+        scheduler_service.scheduler.add_job(
+            func=cleanup_service.run_cleanup,
+            trigger=CronTrigger(hour=3, minute=0),
+            id="storage_cleanup",
+            name="Daily storage cleanup",
+            replace_existing=True,
+        )
+        logger.info("Daily storage cleanup scheduled at 3:00 AM")
     except Exception as e:
         logger.error(f"Failed to auto-start scheduler: {e}")
 
@@ -87,7 +101,23 @@ async def health_check():
     try:
         # Check if MongoDB is connected
         await app.mongodb.command("ping")
-        return {"status": "healthy", "database": "connected"}
+
+        # Get basic stats
+        lic_count = await app.mongodb.licitaciones.estimated_document_count()
+        scraper_count = await app.mongodb.scraper_configs.count_documents({"active": True})
+
+        from services.scheduler_service import get_scheduler_service
+        scheduler_service = get_scheduler_service(database)
+        scheduler_status = scheduler_service.get_status()
+
+        return {
+            "status": "healthy",
+            "database": "connected",
+            "licitaciones_count": lic_count,
+            "active_scrapers": scraper_count,
+            "scheduler": scheduler_status["running"],
+            "scheduled_jobs": len(scheduler_status["jobs"]),
+        }
     except Exception as e:
         logger.error(f"Health check failed: {e}")
         raise HTTPException(status_code=500, detail="Database connection error")

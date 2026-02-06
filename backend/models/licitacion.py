@@ -3,6 +3,16 @@ from datetime import datetime
 from uuid import uuid4
 from pydantic import BaseModel, Field, HttpUrl
 
+# Workflow states
+WORKFLOW_STATES = ["descubierta", "evaluando", "preparando", "presentada", "descartada"]
+WORKFLOW_TRANSITIONS = {
+    "descubierta": ["evaluando", "descartada"],
+    "evaluando": ["preparando", "descartada"],
+    "preparando": ["presentada", "descartada"],
+    "presentada": [],
+    "descartada": [],
+}
+
 
 class LicitacionBase(BaseModel):
     """Base model for licitacion data"""
@@ -83,6 +93,15 @@ class LicitacionBase(BaseModel):
     merged_from: Optional[List[str]] = Field(default=[], description="IDs of merged licitaciones")
     is_merged: bool = Field(False, description="If this is a merged record")
 
+    # Workflow state
+    workflow_state: str = Field("descubierta", description="Workflow state: descubierta, evaluando, preparando, presentada, descartada")
+    workflow_history: List[Dict[str, Any]] = Field(default=[], description="History of workflow transitions")
+
+    # Enrichment tracking
+    enrichment_level: int = Field(1, description="Enrichment level: 1=basic, 2=detailed, 3=documents")
+    last_enrichment: Optional[datetime] = Field(None, description="Timestamp of last enrichment")
+    document_count: int = Field(0, description="Number of attached documents")
+
 
 class LicitacionCreate(LicitacionBase):
     """Model for creating a new licitación"""
@@ -142,6 +161,13 @@ class LicitacionUpdate(BaseModel):
     actos_administrativos: Optional[List[Dict[str, Any]]] = None
     circulares: Optional[List[Dict[str, Any]]] = None
     garantias: Optional[List[Dict[str, Any]]] = None
+    # Workflow
+    workflow_state: Optional[str] = None
+    workflow_history: Optional[List[Dict[str, Any]]] = None
+    # Enrichment
+    enrichment_level: Optional[int] = None
+    last_enrichment: Optional[datetime] = None
+    document_count: Optional[int] = None
 
 
 class Licitacion(LicitacionBase):

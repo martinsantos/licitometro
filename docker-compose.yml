@@ -1,54 +1,54 @@
-version: '3'
+version: '3.8'
 
 services:
-  db:
-    image: postgres:13
-    environment:
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: postgres
-      POSTGRES_DB: licitometro
+  mongodb:
+    image: mongo:7.0
     ports:
-      - "5432:5432"
+      - "27017:27017"
     volumes:
-      - postgres_data:/var/lib/postgresql/data
+      - mongo_data:/data/db
     restart: always
-
-  elasticsearch:
-    image: docker.elastic.co/elasticsearch/elasticsearch:7.14.0
-    environment:
-      - discovery.type=single-node
-      - "ES_JAVA_OPTS=-Xms512m -Xmx512m"
-    ports:
-      - "9200:9200"
-    volumes:
-      - elasticsearch_data:/usr/share/elasticsearch/data
-    restart: always
+    healthcheck:
+      test: ["CMD", "mongosh", "--eval", "db.runCommand('ping').ok"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
 
   backend:
     build:
       context: ./backend
     ports:
       - "8000:8000"
-    
     depends_on:
-      - db
-      - elasticsearch
+      mongodb:
+        condition: service_healthy
     environment:
-      - DATABASE_URL=postgresql://postgres:postgres@db:5432/licitometro
-      - ELASTICSEARCH_URL=http://elasticsearch:9200
+      - MONGO_URL=mongodb://mongodb:27017
+      - DB_NAME=licitaciones_db
+      - STORAGE_MAX_MB=500
+      - RUN_HISTORY_KEEP=10
+      - CACHE_TTL_HOURS=168
+      - LOG_RETENTION_DAYS=7
+    volumes:
+      - storage_data:/app/storage
     restart: always
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
 
   frontend:
     build:
       context: ./frontend
     ports:
       - "3000:3000"
-    
     depends_on:
       - backend
+    environment:
+      - REACT_APP_BACKEND_URL=http://localhost:8000
     restart: always
 
 volumes:
-  postgres_data:
-  elasticsearch_data:
+  mongo_data:
   storage_data:

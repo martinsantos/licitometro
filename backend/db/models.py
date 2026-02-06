@@ -59,6 +59,14 @@ def licitacion_entity(licitacion) -> dict:
         "content_hash": licitacion.get("content_hash"),
         "merged_from": licitacion.get("merged_from", []),
         "is_merged": licitacion.get("is_merged", False),
+        # Workflow
+        "workflow_state": licitacion.get("workflow_state", "descubierta"),
+        "workflow_history": licitacion.get("workflow_history", []),
+        # Enrichment
+        "enrichment_level": licitacion.get("enrichment_level", 1),
+        "last_enrichment": licitacion.get("last_enrichment"),
+        "document_count": licitacion.get("document_count", 0),
+        # Timestamps
         "created_at": licitacion.get("created_at", datetime.utcnow()),
         "updated_at": licitacion.get("updated_at", datetime.utcnow())
     }
