@@ -17,6 +17,7 @@ Estrategia:
 
 from fastapi import APIRouter, HTTPException, Query, Depends
 from fastapi.responses import HTMLResponse, RedirectResponse, JSONResponse
+from fastapi.encoders import jsonable_encoder
 from bs4 import BeautifulSoup
 import aiohttp
 import asyncio
@@ -509,7 +510,7 @@ async def enrich_licitacion(
             return JSONResponse(content={
                 "success": False,
                 "message": "Esta licitación no es de COMPR.AR, no se puede enriquecer",
-                "data": lic
+                "data": jsonable_encoder(lic)
             })
 
         metadata = lic.get('metadata', {}) or {}
@@ -561,7 +562,7 @@ async def enrich_licitacion(
                 "success": False,
                 "message": "No se encontró URL de detalle para este proceso. El proceso puede no tener página de pliego disponible.",
                 "tried_sources": ["pliego_url", "source_url", "detail_url", "canonical_url", "cache"],
-                "data": lic
+                "data": jsonable_encoder(lic)
             })
 
         # Intentar cada URL hasta que una funcione
@@ -606,7 +607,7 @@ async def enrich_licitacion(
                 "message": f"No se pudo acceder a ninguna URL del proceso. Intentos: {len(urls_to_try)}",
                 "errors": errors_log,
                 "urls_tried": [u[1][:60] + "..." for u in urls_to_try],
-                "data": lic
+                "data": jsonable_encoder(lic)
             })
 
         # Parsear los datos usando el scraper
@@ -686,7 +687,9 @@ async def enrich_licitacion(
 
         # Actualizar en MongoDB
         if update_data:
-            await repo.update(licitacion_id, update_data)
+            from models.licitacion import LicitacionUpdate
+            lic_update_model = LicitacionUpdate(**update_data)
+            await repo.update(licitacion_id, lic_update_model)
             logger.info(f"Enriched licitacion {licitacion_id} with {len(update_data)} fields from {url_type}")
 
         # Obtener el registro actualizado
@@ -699,7 +702,7 @@ async def enrich_licitacion(
             "message": f"Datos actualizados: {fields_count} campos desde {url_type}",
             "fields_updated": [k for k in update_data.keys() if k != 'metadata'],
             "source_url_type": url_type,
-            "data": updated_lic
+            "data": jsonable_encoder(updated_lic)
         })
 
     except HTTPException:

@@ -1,9 +1,9 @@
 import React, { useState, useEffect } from 'react';
 
-const LicitacionDetalle = ({ apiUrl, licitacionId }) => {
-  const [licitacion, setLicitacion] = useState(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
+const LicitacionDetalle = ({ apiUrl, licitacionId }: { apiUrl: string, licitacionId: string }) => {
+  const [licitacion, setLicitacion] = useState<any>(null);
+  const [loading, setLoading] = useState<boolean>(true);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     const fetchLicitacion = async () => {
@@ -18,8 +18,8 @@ const LicitacionDetalle = ({ apiUrl, licitacionId }) => {
         const data = await response.json();
         setLicitacion(data);
         setLoading(false);
-      } catch (err) {
-        setError(err.message);
+      } catch (err: any) {
+        setError(err.message || 'Error desconocido');
         setLoading(false);
       }
     };
