@@ -45,9 +45,22 @@ def last_business_days_set(count: int, tz_name: str, anchor: Optional[date] = No
 
 
 def parse_date_guess(value: str) -> Optional[datetime]:
+    """
+    Parse a date string in various formats.
+    Handles common suffixes like 'Hrs.', 'Hs.', etc.
+    """
     value = value.strip()
     if not value:
         return None
+    
+    # Strip common time suffixes used in Latin American date formats
+    # e.g., "12/02/2026 07:00 Hrs." -> "12/02/2026 07:00"
+    suffixes = [' Hrs.', ' Hrs', ' Hs.', ' Hs', ' hrs.', ' hrs', ' hs.', ' hs', ' horas', ' Horas']
+    for suffix in suffixes:
+        if value.endswith(suffix):
+            value = value[:-len(suffix)].strip()
+            break
+    
     formats = [
         "%d/%m/%Y",
         "%d-%m-%Y",
