@@ -30,6 +30,9 @@ from .mendoza_compra_v2 import MendozaCompraScraperV2
 # ComprasApps Mendoza (hli00049 servlet)
 from .comprasapps_mendoza_scraper import ComprasAppsMendozaScraper
 
+# EPRE Mendoza
+from .epre_scraper import EpreScraper
+
 # Generic HTML scraper for config-driven sites
 from .generic_html_scraper import GenericHtmlScraper
 
@@ -83,6 +86,10 @@ def create_scraper(config: ScraperConfig) -> Optional[BaseScraper]:
     if ("vialidad" in config_url_lower and "mendoza" in config_url_lower) or \
        "vialidad mendoza" in config_name_lower:
         return VialidadMendozaScraper(config)
+
+    # EPRE Mendoza
+    if "epremendoza" in config_url_lower or "epre" in config_name_lower:
+        return EpreScraper(config)
     
     # Generic mendoza.gov.ar (fallback)
     if "mendoza.gov.ar" in config_url_lower:
