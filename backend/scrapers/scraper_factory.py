@@ -30,6 +30,9 @@ from .mendoza_compra_v2 import MendozaCompraScraperV2
 # ComprasApps Mendoza (hli00049 servlet)
 from .comprasapps_mendoza_scraper import ComprasAppsMendozaScraper
 
+# Generic HTML scraper for config-driven sites
+from .generic_html_scraper import GenericHtmlScraper
+
 logger = logging.getLogger("scraper_factory")
 
 
@@ -61,7 +64,7 @@ def create_scraper(config: ScraperConfig) -> Optional[BaseScraper]:
         return MendozaCompraScraperV2(config)
     
     # Boletín Oficial Mendoza
-    if "boletinoficial.mendoza" in config_url_lower or "boletin oficial mendoza" in config_name_lower:
+    if "boe.mendoza" in config_url_lower or "boletinoficial.mendoza" in config_url_lower or "boletin oficial" in config_name_lower:
         return BoletinOficialMendozaScraper(config)
     
     # AYSAM
@@ -111,6 +114,13 @@ def create_scraper(config: ScraperConfig) -> Optional[BaseScraper]:
     if "comprar.gob.ar" in config_url_lower and "comprar" in config_name_lower:
         return ComprarGobArScraper(config)
     
+    # Generic HTML scraper (fallback for any site with scraper_type=generic_html or selectors configured)
+    if config.selectors and (config.selectors.get("scraper_type") == "generic_html" or
+                             config.selectors.get("link_selector") or
+                             config.selectors.get("list_item_selector")):
+        logger.info(f"Using GenericHtmlScraper for {config.name}")
+        return GenericHtmlScraper(config)
+
     # No matching scraper found
     logger.warning(f"No specific scraper found for URL {config.url} or name {config.name}")
     return None

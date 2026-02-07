@@ -129,52 +129,60 @@ class BoletinOficialMendozaScraper(BaseScraper):
 
     # ==================== PDF EXTRACTION METHODS ====================
 
+    MAX_PDF_BYTES = 5 * 1024 * 1024  # 5 MB max download
+    MAX_PDF_PAGES = 50  # max pages to process per PDF
+
     async def _download_pdf(self, url: str) -> Optional[bytes]:
-        """Download PDF from URL and return bytes."""
+        """Download PDF from URL with size limit to prevent OOM."""
         if not url:
             return None
         try:
-            # Remove page anchor if present
             clean_url = url.split("#")[0]
             async with self.session.get(clean_url) as response:
-                if response.status == 200:
-                    content_type = response.headers.get("Content-Type", "")
-                    if "pdf" in content_type.lower() or clean_url.endswith(".pdf"):
-                        return await response.read()
-                    logger.warning(f"URL is not a PDF: {clean_url} (Content-Type: {content_type})")
-                else:
+                if response.status != 200:
                     logger.warning(f"Failed to download PDF: {url} (status {response.status})")
+                    return None
+
+                content_type = response.headers.get("Content-Type", "")
+                if "pdf" not in content_type.lower() and not clean_url.endswith(".pdf"):
+                    logger.warning(f"URL is not a PDF: {clean_url} (Content-Type: {content_type})")
+                    return None
+
+                # Check Content-Length before downloading
+                content_length = int(response.headers.get("Content-Length", 0))
+                if content_length > self.MAX_PDF_BYTES:
+                    logger.warning(f"PDF too large ({content_length / 1024 / 1024:.1f}MB > {self.MAX_PDF_BYTES / 1024 / 1024:.0f}MB limit): {url}")
+                    return None
+
+                # Stream-read with size cap
+                chunks = []
+                total = 0
+                async for chunk in response.content.iter_chunked(64 * 1024):
+                    total += len(chunk)
+                    if total > self.MAX_PDF_BYTES:
+                        logger.warning(f"PDF exceeded size limit during download: {url}")
+                        return None
+                    chunks.append(chunk)
+
+                return b"".join(chunks)
         except Exception as exc:
             logger.error(f"Error downloading PDF {url}: {exc}")
         return None
 
     def _extract_text_from_pdf(self, pdf_bytes: bytes) -> str:
-        """Extract text from PDF bytes using pdfplumber (better) or pypdf (fallback)."""
-        text_parts = []
+        """Extract text from PDF using pypdf (memory-efficient). Max pages capped."""
+        from pypdf import PdfReader
 
-        # Try pdfplumber first (better for complex layouts)
         try:
-            import pdfplumber
-            with pdfplumber.open(io.BytesIO(pdf_bytes)) as pdf:
-                for page in pdf.pages:
-                    page_text = page.extract_text()
-                    if page_text:
-                        text_parts.append(page_text)
-            if text_parts:
-                return "\n\n".join(text_parts)
-        except ImportError:
-            logger.debug("pdfplumber not available, using pypdf")
-        except Exception as exc:
-            logger.warning(f"pdfplumber extraction failed: {exc}")
-
-        # Fallback to pypdf
-        try:
-            from pypdf import PdfReader
             reader = PdfReader(io.BytesIO(pdf_bytes))
-            for page in reader.pages:
-                page_text = page.extract_text()
+            num_pages = min(len(reader.pages), self.MAX_PDF_PAGES)
+            text_parts = []
+            for i in range(num_pages):
+                page_text = reader.pages[i].extract_text()
                 if page_text:
                     text_parts.append(page_text)
+            if num_pages < len(reader.pages):
+                logger.info(f"Processed {num_pages}/{len(reader.pages)} pages (capped)")
             return "\n\n".join(text_parts)
         except Exception as exc:
             logger.error(f"PDF text extraction failed: {exc}")
@@ -182,19 +190,9 @@ class BoletinOficialMendozaScraper(BaseScraper):
 
     def _extract_text_from_pdf_page(self, pdf_bytes: bytes, page_num: int) -> str:
         """Extract text from a specific page of PDF."""
-        try:
-            import pdfplumber
-            with pdfplumber.open(io.BytesIO(pdf_bytes)) as pdf:
-                if 0 <= page_num - 1 < len(pdf.pages):
-                    return pdf.pages[page_num - 1].extract_text() or ""
-        except ImportError:
-            pass
-        except Exception:
-            pass
+        from pypdf import PdfReader
 
-        # Fallback to pypdf
         try:
-            from pypdf import PdfReader
             reader = PdfReader(io.BytesIO(pdf_bytes))
             if 0 <= page_num - 1 < len(reader.pages):
                 return reader.pages[page_num - 1].extract_text() or ""
