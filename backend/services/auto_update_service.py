@@ -293,14 +293,15 @@ class AutoUpdateService:
                 "last_auto_update": datetime.utcnow().isoformat(),
             }
 
-            # Auto-classify category if missing
+            # Auto-classify category if missing (title-first to avoid boilerplate noise)
             if not lic_doc.get("category") and not update_data.get("category"):
                 from services.category_classifier import get_category_classifier
                 classifier = get_category_classifier()
-                cat = classifier.classify(
-                    title=lic_doc.get("title", ""),
-                    description=update_data.get("description", lic_doc.get("description", "")),
-                )
+                title = lic_doc.get("title", "")
+                cat = classifier.classify(title=title)
+                if not cat:
+                    desc = (update_data.get("description", lic_doc.get("description", "")) or "")[:500]
+                    cat = classifier.classify(title=title, description=desc)
                 if cat:
                     update_data["category"] = cat
 
@@ -347,14 +348,15 @@ class AutoUpdateService:
             if current_level < 2:
                 updates["enrichment_level"] = 2
 
-            # Auto-classify category if missing
+            # Auto-classify category if missing (title-first to avoid boilerplate noise)
             if not lic_doc.get("category") and not updates.get("category"):
                 from services.category_classifier import get_category_classifier
                 classifier = get_category_classifier()
-                cat = classifier.classify(
-                    title=lic_doc.get("title", ""),
-                    description=updates.get("description", lic_doc.get("description", "")),
-                )
+                title = lic_doc.get("title", "")
+                cat = classifier.classify(title=title)
+                if not cat:
+                    desc = (updates.get("description", lic_doc.get("description", "")) or "")[:500]
+                    cat = classifier.classify(title=title, description=desc)
                 if cat:
                     updates["category"] = cat
 

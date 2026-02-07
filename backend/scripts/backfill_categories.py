@@ -51,10 +51,13 @@ async def main():
     cursor = collection.find(query)
     async for doc in cursor:
         title = doc.get("title", "")
-        description = doc.get("description", "")
+        description = (doc.get("description", "") or "")[:500]  # Limit to avoid boilerplate noise
         keywords = doc.get("keywords", [])
 
-        category = classifier.classify(title=title, description=description, keywords=keywords)
+        # Title-first: try title alone, then title+short description
+        category = classifier.classify(title=title)
+        if not category:
+            category = classifier.classify(title=title, description=description, keywords=keywords)
 
         if category:
             await collection.update_one(
