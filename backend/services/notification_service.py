@@ -27,7 +27,8 @@ TELEGRAM_CHAT_ID = os.environ.get("TELEGRAM_CHAT_ID", "")
 
 # SMTP config
 SMTP_HOST = os.environ.get("SMTP_HOST", "")
-SMTP_PORT = int(os.environ.get("SMTP_PORT", "587"))
+SMTP_PORT = int(os.environ.get("SMTP_PORT", "25"))
+SMTP_FROM = os.environ.get("SMTP_FROM", "")
 SMTP_USER = os.environ.get("SMTP_USER", "")
 SMTP_PASSWORD = os.environ.get("SMTP_PASSWORD", "")
 NOTIFICATION_EMAIL_TO = os.environ.get("NOTIFICATION_EMAIL_TO", "")
@@ -43,7 +44,7 @@ class NotificationService:
 
     @property
     def email_enabled(self) -> bool:
-        return bool(SMTP_HOST and SMTP_USER and SMTP_PASSWORD and NOTIFICATION_EMAIL_TO)
+        return bool(SMTP_HOST and NOTIFICATION_EMAIL_TO and (SMTP_FROM or SMTP_USER))
 
     async def send_telegram(self, message: str) -> bool:
         """Send a message via Telegram Bot API."""
@@ -77,21 +78,23 @@ class NotificationService:
             logger.debug("Email not configured, skipping")
             return False
 
+        sender = SMTP_FROM or SMTP_USER
         msg = MIMEMultipart("alternative")
         msg["Subject"] = subject
-        msg["From"] = SMTP_USER
+        msg["From"] = sender
         msg["To"] = NOTIFICATION_EMAIL_TO
         msg.attach(MIMEText(html_body, "html"))
 
         try:
-            await aiosmtplib.send(
-                msg,
-                hostname=SMTP_HOST,
-                port=SMTP_PORT,
-                username=SMTP_USER,
-                password=SMTP_PASSWORD,
-                start_tls=True,
-            )
+            kwargs = {
+                "hostname": SMTP_HOST,
+                "port": SMTP_PORT,
+            }
+            if SMTP_USER and SMTP_PASSWORD:
+                kwargs["username"] = SMTP_USER
+                kwargs["password"] = SMTP_PASSWORD
+                kwargs["start_tls"] = True
+            await aiosmtplib.send(msg, **kwargs)
             return True
         except Exception as e:
             logger.error(f"Email send failed: {e}")
