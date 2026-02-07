@@ -14,7 +14,7 @@ import uvicorn
 sys.path.insert(0, str(Path(__file__).parent))
 
 # Import routers directly (not as relative imports)
-from routers import licitaciones, scraper_configs, comprar, scheduler, workflow, offer_templates, auth
+from routers import licitaciones, scraper_configs, comprar, scheduler, workflow, offer_templates, auth, public
 from services.auth_service import verify_token
 
 # Load environment variables
@@ -63,8 +63,8 @@ async def auth_middleware(request: Request, call_next):
     """Require authentication for all API routes except exempt ones."""
     path = request.url.path
 
-    # Skip auth for non-API routes and exempt paths
-    if not path.startswith("/api") or path in AUTH_EXEMPT_PATHS:
+    # Skip auth for non-API routes, exempt paths, and public API
+    if not path.startswith("/api") or path in AUTH_EXEMPT_PATHS or path.startswith("/api/public/"):
         return await call_next(request)
 
     token = request.cookies.get("access_token")
@@ -89,6 +89,7 @@ app.include_router(comprar.router)
 app.include_router(scheduler.router)
 app.include_router(workflow.router)
 app.include_router(offer_templates.router)
+app.include_router(public.router)
 
 @app.on_event("startup")
 async def startup_db_client():

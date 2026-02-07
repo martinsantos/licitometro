@@ -138,11 +138,7 @@ async def search_licitaciones(
     skip = (page - 1) * size
     
     items = await repo.search(q, skip=skip, limit=size, sort_by=sort_by, sort_order=order_val)
-    
-    # For total count in search, we need a separate count or use the repository search with count
-    # Since repo.search doesn't return count, let's use search filters for count
-    # Note: Mongo text search count is basically the same as text search query
-    total_items = await repo.collection.count_documents({"$text": {"$search": q}})
+    total_items = await repo.search_count(q)
     
     return {
         "items": items,
@@ -507,6 +503,52 @@ async def get_storage_stats(request: Request):
             "monthly_growth_kb": monthly_growth_kb,
             "at_milestones": projections,
         },
+    }
+
+
+@router.post("/{licitacion_id}/toggle-public")
+async def toggle_public(
+    licitacion_id: str,
+    repo: LicitacionRepository = Depends(get_licitacion_repository),
+):
+    """Toggle public visibility of a licitacion (requires auth)."""
+    import re as _re
+    import hashlib
+    from unicodedata import normalize, category as ucat
+
+    def _make_slug(title: str, id_str: str) -> str:
+        nfkd = normalize("NFKD", title.lower())
+        ascii_text = "".join(c for c in nfkd if ucat(c) != "Mn")
+        slug = _re.sub(r"[^a-z0-9\s]", "", ascii_text)
+        slug = _re.sub(r"\s+", "-", slug.strip())
+        slug = slug[:60].rstrip("-")
+        short_hash = hashlib.md5(id_str.encode()).hexdigest()[:6]
+        return f"{slug}-{short_hash}"
+
+    lic = await repo.get_by_id(licitacion_id)
+    if not lic:
+        raise HTTPException(status_code=404, detail="Licitación no encontrada")
+
+    currently_public = lic.get("is_public", False) if isinstance(lic, dict) else getattr(lic, "is_public", False)
+    new_public = not currently_public
+
+    update_data = {"is_public": new_public}
+    if new_public:
+        title = lic.get("title", "") if isinstance(lic, dict) else getattr(lic, "title", "")
+        lid = lic.get("id", licitacion_id) if isinstance(lic, dict) else getattr(lic, "id", licitacion_id)
+        update_data["public_slug"] = _make_slug(title, str(lid))
+
+    update = LicitacionUpdate(**update_data)
+    updated = await repo.update(licitacion_id, update)
+
+    slug = None
+    if updated:
+        slug = updated.get("public_slug") if isinstance(updated, dict) else getattr(updated, "public_slug", None)
+
+    return {
+        "id": licitacion_id,
+        "is_public": new_public,
+        "public_slug": slug,
     }
 
 

@@ -107,6 +107,20 @@ const LicitacionesList = ({ apiUrl }: LicitacionesListProps) => {
   // Share modal state
   const [shareModalOpen, setShareModalOpen] = useState<string | null>(null);
 
+  // Ref to scroll target (top of list)
+  const listTopRef = useRef<HTMLDivElement>(null);
+
+  // Scroll to top when page changes
+  useEffect(() => {
+    if (pagina > 1 || licitaciones.length > 0) {
+      if (listTopRef.current) {
+        listTopRef.current.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      } else {
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+      }
+    }
+  }, [pagina]);
+
   // "NUEVO" badge: track last visit timestamp
   const lastVisitRef = useRef<string | null>(localStorage.getItem('lastVisitTimestamp'));
   useEffect(() => {
@@ -401,7 +415,7 @@ const LicitacionesList = ({ apiUrl }: LicitacionesListProps) => {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6" ref={listTopRef}>
       {/* Daily Digest Strip */}
       <DailyDigestStrip
         apiUrl={apiUrl}

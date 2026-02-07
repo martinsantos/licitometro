@@ -1,7 +1,7 @@
 {
   "description": "Catálogo de Rubros COMPR.AR Mendoza basado en UNSPSC (United Nations Standard Products and Services Code)",
   "source": "https://comprar.mendoza.gov.ar/RIUPP/FormularioInscripcionProveedor.aspx",
-  "last_updated": "2026-02-06",
+  "last_updated": "2026-02-07",
   "rubros": [
     {
       "id": "10",
@@ -46,7 +46,7 @@
     {
       "id": "30",
       "nombre": "CONSTRUCCION",
-      "keywords": ["construcción", "obra", "edificación", "civil", "arquitectura", "ingeniería", "refacción", "remodelación"]
+      "keywords": ["construcción", "obra", "edificación", "civil", "arquitectura", "ingeniería", "refacción", "remodelación", "pavimentación", "asfalto", "repavimentación", "puente", "cordón cuneta", "veredas", "desagüe", "cloacas", "acueducto", "riego", "modernización", "viviendas", "ampliación", "demolición", "calle", "ruta", "camino", "autopista", "bacheo", "alcantarillado", "red vial", "infraestructura", "pluvial"]
     },
     {
       "id": "60",
@@ -56,22 +56,22 @@
     {
       "id": "26",
       "nombre": "ELECTRICIDAD Y TELEFONIA",
-      "keywords": ["electricidad", "telefonía", "eléctrico", "cable", "instalación", "telecomunicaciones", "fibra óptica"]
+      "keywords": ["electricidad", "telefonía", "eléctrico", "cable", "instalación", "telecomunicaciones", "fibra óptica", "alumbrado", "luminaria", "tendido eléctrico", "transformador", "cableado", "antena"]
     },
     {
       "id": "47",
       "nombre": "ELEMENTOS DE LIMPIEZA",
-      "keywords": ["limpieza", "higiene", "desinfectante", "detergente", "lavandina", "sanitización", "hipoclorito", "cloro", "residuos", "jabón"]
+      "keywords": ["limpieza", "higiene", "desinfectante", "detergente", "lavandina", "sanitización", "hipoclorito", "cloro", "residuos", "jabón", "recolección", "barrido", "higiene urbana", "contenedores", "residuos sólidos"]
     },
     {
       "id": "56",
       "nombre": "EQUIPAMIENTO DE OFICINA Y MUEBLES",
-      "keywords": ["oficina", "mueble", "escritorio", "silla", "estantería", "archivo", "mobiliario"]
+      "keywords": ["oficina", "mueble", "escritorio", "silla", "estantería", "archivo", "mobiliario", "armario", "mesa", "biblioteca"]
     },
     {
       "id": "42",
       "nombre": "EQUIPAMIENTO MEDICO, FARMACEUTICO Y DE LABORATORIO",
-      "keywords": ["médico", "farmacéutico", "laboratorio", "salud", "hospital", "medicamento", "insumo médico", "quirúrgico", "diagnóstico"]
+      "keywords": ["médico", "farmacéutico", "laboratorio", "salud", "hospital", "medicamento", "insumo médico", "quirúrgico", "diagnóstico", "sanitario", "ambulancia", "prótesis", "vacuna", "descartable"]
     },
     {
       "id": "46",
@@ -101,12 +101,12 @@
     {
       "id": "72",
       "nombre": "MANTENIMIENTO Y REPARACION",
-      "keywords": ["mantenimiento", "reparación", "servicio técnico", "conservación", "preventivo", "correctivo"]
+      "keywords": ["mantenimiento", "reparación", "servicio técnico", "conservación", "preventivo", "correctivo", "poda", "arbolado", "espacios verdes", "forestación"]
     },
     {
       "id": "31",
       "nombre": "MATERIALES DE CONSTRUCCION",
-      "keywords": ["material de construcción", "cemento", "ladrillo", "arena", "hierro", "hormigón", "pintura"]
+      "keywords": ["material de construcción", "cemento", "ladrillo", "arena", "hierro", "hormigón", "pintura", "caño", "tubo", "membrana", "aislante", "cerámica", "porcelanato"]
     },
     {
       "id": "11",
@@ -146,7 +146,7 @@
     {
       "id": "25",
       "nombre": "VEHICULOS, AUTOMOTORES Y REPUESTOS",
-      "keywords": ["vehículo", "automotor", "repuesto", "automóvil", "camión", "moto", "autopartes", "neumático"]
+      "keywords": ["vehículo", "automotor", "repuesto", "automóvil", "camión", "moto", "autopartes", "neumático", "ambulancia", "camioneta", "colectivo", "utilitario"]
     }
   ]
 }

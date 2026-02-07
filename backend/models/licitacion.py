@@ -107,6 +107,10 @@ class LicitacionBase(BaseModel):
     last_auto_update: Optional[datetime] = Field(None, description="Timestamp of last auto-update check")
     auto_update_changes: Optional[List[Dict[str, Any]]] = Field(default=[], description="History of auto-update detected changes")
 
+    # Public sharing
+    is_public: bool = Field(False, description="Whether this licitacion is publicly accessible without auth")
+    public_slug: Optional[str] = Field(None, description="URL-safe slug for public access")
+
 
 class LicitacionCreate(LicitacionBase):
     """Model for creating a new licitación"""
@@ -177,6 +181,9 @@ class LicitacionUpdate(BaseModel):
     # Auto-update
     last_auto_update: Optional[datetime] = None
     auto_update_changes: Optional[List[Dict[str, Any]]] = None
+    # Public sharing
+    is_public: Optional[bool] = None
+    public_slug: Optional[str] = None
 
 
 class Licitacion(LicitacionBase):

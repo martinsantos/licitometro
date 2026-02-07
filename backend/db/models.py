@@ -99,6 +99,9 @@ def licitacion_entity(licitacion) -> dict:
         # Auto-update
         "last_auto_update": licitacion.get("last_auto_update"),
         "auto_update_changes": licitacion.get("auto_update_changes", []),
+        # Public sharing
+        "is_public": licitacion.get("is_public", False),
+        "public_slug": licitacion.get("public_slug"),
         # Timestamps
         "created_at": licitacion.get("created_at", datetime.utcnow()),
         "updated_at": licitacion.get("updated_at", datetime.utcnow())

@@ -23,12 +23,17 @@ const LicitacionDetailPage = () => {
   const [enriching, setEnriching] = useState(false);
   const [enrichMessage, setEnrichMessage] = useState(null);
   const [activeTab, setActiveTab] = useState('general');
+  const [isPublic, setIsPublic] = useState(false);
+  const [publicSlug, setPublicSlug] = useState(null);
+  const [togglingPublic, setTogglingPublic] = useState(false);
 
   useEffect(() => {
     const fetchLicitacion = async () => {
       try {
         const response = await axios.get(`${API}/licitaciones/${id}`);
         setLicitacion(response.data);
+        setIsPublic(response.data.is_public || false);
+        setPublicSlug(response.data.public_slug || null);
         setLoading(false);
         // Check if saved in localStorage
         const savedItems = JSON.parse(localStorage.getItem('savedLicitaciones') || '[]');
@@ -1031,6 +1036,61 @@ const LicitacionDetailPage = () => {
                     </ul>
                   ) : (
                     <p className="text-sm text-gray-400 italic">No hay archivos adjuntos</p>
+                  )}
+                </section>
+
+                {/* Public Sharing Toggle */}
+                <section className="bg-white rounded-2xl p-6 shadow-lg border border-gray-100">
+                  <h3 className="text-sm font-black text-gray-500 uppercase tracking-wider mb-4">Compartir Públicamente</h3>
+                  <div className="flex items-center justify-between mb-3">
+                    <span className="text-sm text-gray-600">
+                      {isPublic ? 'Visible sin login' : 'Solo usuarios autenticados'}
+                    </span>
+                    <button
+                      onClick={async () => {
+                        setTogglingPublic(true);
+                        try {
+                          const res = await axios.post(`${API}/licitaciones/${id}/toggle-public`);
+                          setIsPublic(res.data.is_public);
+                          setPublicSlug(res.data.public_slug);
+                        } catch (err) {
+                          console.error('Error toggling public:', err);
+                        } finally {
+                          setTogglingPublic(false);
+                        }
+                      }}
+                      disabled={togglingPublic}
+                      className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+                        isPublic ? 'bg-emerald-500' : 'bg-gray-300'
+                      } ${togglingPublic ? 'opacity-50' : ''}`}
+                    >
+                      <span
+                        className={`inline-block h-4 w-4 rounded-full bg-white transition-transform ${
+                          isPublic ? 'translate-x-6' : 'translate-x-1'
+                        }`}
+                      />
+                    </button>
+                  </div>
+                  {isPublic && publicSlug && (
+                    <div className="mt-3">
+                      <div className="flex items-center gap-2">
+                        <input
+                          type="text"
+                          readOnly
+                          value={`${window.location.origin}/p/${publicSlug}`}
+                          className="flex-1 text-xs bg-gray-50 border border-gray-200 rounded-lg px-3 py-2 text-gray-600 font-mono"
+                        />
+                        <button
+                          onClick={() => {
+                            navigator.clipboard.writeText(`${window.location.origin}/p/${publicSlug}`);
+                            alert('Link público copiado');
+                          }}
+                          className="px-3 py-2 bg-emerald-100 text-emerald-700 rounded-lg text-xs font-bold hover:bg-emerald-200 transition-colors"
+                        >
+                          Copiar
+                        </button>
+                      </div>
+                    </div>
                   )}
                 </section>
 

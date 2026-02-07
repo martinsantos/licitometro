@@ -35,12 +35,22 @@ class LicitacionRepository:
         self.collection.create_index("fecha_scraping")
     
     async def create(self, licitacion: LicitacionCreate) -> Licitacion:
-        """Create a new licitacion"""
+        """Create a new licitacion with auto-classification"""
         licitacion_dict = licitacion.model_dump()
         licitacion_dict["_id"] = uuid4()
         licitacion_dict["created_at"] = datetime.utcnow()
         licitacion_dict["updated_at"] = datetime.utcnow()
-        
+
+        # Auto-classify if no category set
+        if not licitacion_dict.get("category"):
+            try:
+                from services.category_classifier import classify_licitacion
+                category = classify_licitacion(licitacion_dict)
+                if category:
+                    licitacion_dict["category"] = category
+            except Exception:
+                pass
+
         await self.collection.insert_one(licitacion_dict)
         return licitacion_entity(licitacion_dict)
     
@@ -94,19 +104,6 @@ class LicitacionRepository:
         update_data = {k: v for k, v in licitacion.model_dump().items() if v is not None}
         update_data["updated_at"] = datetime.utcnow()
         
-        # DEBUG: Log what's being sent to MongoDB
-        try:
-            with open("repo_debug.log", "a") as f:
-                f.write(f"\n--- REPO UPDATE {datetime.utcnow()} ---\n")
-                f.write(f"ID: {id}\n")
-                f.write(f"Update keys: {list(update_data.keys())}\n")
-                if "garantias" in update_data:
-                    f.write(f"Garantias in update_data: {update_data['garantias']}\n")
-                else:
-                    f.write("No garantias key in update_data\n")
-        except Exception as e:
-            pass
-        
         if update_data:
             query_id = id
             if isinstance(id, str):
@@ -135,17 +132,84 @@ class LicitacionRepository:
     
     async def search(self, query: str, skip: int = 0, limit: int = 100,
                      sort_by: str = "publication_date", sort_order: int = pymongo.DESCENDING) -> List[Licitacion]:
-        """Search licitaciones by text with optional sorting"""
-        # Ensure sort_by is a valid field
+        """Hybrid search: $text first, then regex fallback for partial matches."""
+        import re as _re
+
         if sort_by not in Licitacion.model_fields and sort_by != "_id":
             sort_by = "publication_date"
 
-        cursor = self.collection.find(
-            {"$text": {"$search": query}}
-        ).sort(sort_by, sort_order).skip(skip).limit(limit)
-        
-        licitaciones = await cursor.to_list(length=limit)
-        return licitaciones_entity(licitaciones)
+        # --- Phase 1: MongoDB $text search (fast, uses index) ---
+        text_results = []
+        try:
+            cursor = self.collection.find(
+                {"$text": {"$search": query}}
+            ).sort(sort_by, sort_order).skip(skip).limit(limit)
+            text_results = await cursor.to_list(length=limit)
+        except Exception:
+            pass
+
+        if len(text_results) >= 3:
+            return licitaciones_entity(text_results)
+
+        # --- Phase 2: Regex fallback for partial/fuzzy matching ---
+        seen_ids = {doc["_id"] for doc in text_results}
+        tokens = query.strip().split()
+        regex_fields = ["title", "description", "organization", "expedient_number", "licitacion_number"]
+
+        # Build per-token regex conditions (case-insensitive partial match)
+        token_conditions = []
+        for token in tokens:
+            escaped = _re.escape(token)
+            field_or = [
+                {field: {"$regex": escaped, "$options": "i"}}
+                for field in regex_fields
+            ]
+            token_conditions.append({"$or": field_or})
+
+        if token_conditions:
+            regex_query = {"$and": token_conditions} if len(token_conditions) > 1 else token_conditions[0]
+            remaining = limit - len(text_results) + skip
+            regex_cursor = self.collection.find(regex_query).sort(sort_by, sort_order).limit(remaining + skip)
+            regex_results = await regex_cursor.to_list(length=remaining + skip)
+
+            # Merge, skipping duplicates
+            for doc in regex_results:
+                if doc["_id"] not in seen_ids:
+                    text_results.append(doc)
+                    seen_ids.add(doc["_id"])
+
+        # Apply skip/limit on merged results
+        final = text_results[skip:skip + limit] if skip > 0 else text_results[:limit]
+        return licitaciones_entity(final)
+
+    async def search_count(self, query: str) -> int:
+        """Count results for hybrid search."""
+        import re as _re
+
+        # $text count
+        text_count = 0
+        try:
+            text_count = await self.collection.count_documents({"$text": {"$search": query}})
+        except Exception:
+            pass
+
+        if text_count >= 3:
+            return text_count
+
+        # Regex count
+        tokens = query.strip().split()
+        regex_fields = ["title", "description", "organization", "expedient_number", "licitacion_number"]
+        token_conditions = []
+        for token in tokens:
+            escaped = _re.escape(token)
+            field_or = [{field: {"$regex": escaped, "$options": "i"}} for field in regex_fields]
+            token_conditions.append({"$or": field_or})
+
+        if token_conditions:
+            regex_query = {"$and": token_conditions} if len(token_conditions) > 1 else token_conditions[0]
+            return await self.collection.count_documents(regex_query)
+
+        return text_count
     
     async def count(self, filters: Dict = None) -> int:
         """Count licitaciones with optional filtering"""
