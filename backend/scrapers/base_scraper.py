@@ -34,9 +34,11 @@ class BaseScraper(ABC):
             cookies=self.config.cookies,
         )
         # Keep a raw aiohttp session for subclasses that use self.session directly
+        timeout = aiohttp.ClientTimeout(total=60, connect=15, sock_read=30)
         self.session = aiohttp.ClientSession(
             headers=self.config.headers,
             cookies=self.config.cookies,
+            timeout=timeout,
         )
 
     async def cleanup(self):

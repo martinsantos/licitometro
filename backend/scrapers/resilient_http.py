@@ -101,7 +101,11 @@ class ResilientHttpClient:
 
     async def _ensure_session(self):
         if self._session is None or self._session.closed:
-            self._session = aiohttp.ClientSession(cookies=self.extra_cookies)
+            timeout = aiohttp.ClientTimeout(total=60, connect=15, sock_read=30)
+            self._session = aiohttp.ClientSession(
+                cookies=self.extra_cookies,
+                timeout=timeout,
+            )
 
     async def fetch(self, url: str, method: str = "GET", **kwargs) -> Optional[str]:
         """Fetch a URL with retries, backoff, and anti-ban protections."""

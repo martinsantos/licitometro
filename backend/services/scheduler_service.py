@@ -11,6 +11,7 @@ from datetime import datetime, timedelta
 from typing import Optional, List, Dict, Any
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from apscheduler.triggers.cron import CronTrigger
+from apscheduler.triggers.interval import IntervalTrigger
 from apscheduler.events import EVENT_JOB_EXECUTED, EVENT_JOB_ERROR, JobExecutionEvent
 
 import sys
@@ -49,9 +50,10 @@ class SchedulerService:
             logger.info("Scheduler initialized")
 
     async def _cleanup_orphaned_runs(self):
-        """Mark runs stuck in 'running' as failed (from previous crashes/restarts)"""
-        # Only clean up runs older than 2 minutes to avoid killing freshly created runs
-        cutoff = datetime.utcnow() - timedelta(minutes=2)
+        """Mark runs stuck in 'running' as failed (from previous crashes/restarts).
+        Runs every 10 min via scheduler + on startup."""
+        # Only clean up runs older than 15 minutes to avoid killing legitimately running scrapers
+        cutoff = datetime.utcnow() - timedelta(minutes=15)
         result = await self.db.scraper_runs.update_many(
             {"status": {"$in": ["running", "pending"]}, "started_at": {"$lt": cutoff}},
             {"$set": {
@@ -66,6 +68,14 @@ class SchedulerService:
     def start(self):
         """Start the scheduler"""
         if self.scheduler and not self._is_running:
+            # Add periodic orphan cleanup (every 10 min, catches runs orphaned by restarts)
+            self.scheduler.add_job(
+                func=self._cleanup_orphaned_runs,
+                trigger=IntervalTrigger(minutes=10),
+                id="orphan_cleanup",
+                name="Orphan Run Cleanup",
+                replace_existing=True,
+            )
             self.scheduler.start()
             self._is_running = True
             logger.info("Scheduler started")

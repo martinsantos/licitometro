@@ -136,7 +136,7 @@ class BoletinOficialMendozaScraper(BaseScraper):
         try:
             # Remove page anchor if present
             clean_url = url.split("#")[0]
-            async with self.session.get(clean_url, timeout=60) as response:
+            async with self.session.get(clean_url) as response:
                 if response.status == 200:
                     content_type = response.headers.get("Content-Type", "")
                     if "pdf" in content_type.lower() or clean_url.endswith(".pdf"):
