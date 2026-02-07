@@ -184,13 +184,14 @@ class GenericEnrichmentService:
             meta["expediente"] = exp_match.group(1).strip()
             updates["metadata"] = meta
 
-        # Auto-classify category if missing
+        # Auto-classify category if missing (use title + short desc to avoid boilerplate noise)
         if not lic_doc.get("category"):
             from services.category_classifier import get_category_classifier
             classifier = get_category_classifier()
+            desc_for_classify = (updates.get("description", lic_doc.get("description", "")) or "")[:500]
             cat = classifier.classify(
                 title=lic_doc.get("title", ""),
-                description=updates.get("description", lic_doc.get("description", "")),
+                description=desc_for_classify,
             )
             if cat:
                 updates["category"] = cat
@@ -270,13 +271,14 @@ class GenericEnrichmentService:
             current_meta.update(extra)
             updates["metadata"] = current_meta
 
-        # 5. Auto-classify category if missing
+        # 5. Auto-classify category if missing (use title + short desc to avoid boilerplate noise)
         if not lic_doc.get("category"):
             from services.category_classifier import get_category_classifier
             classifier = get_category_classifier()
+            desc_for_classify = (updates.get("description", lic_doc.get("description", "")) or "")[:500]
             cat = classifier.classify(
                 title=lic_doc.get("title", ""),
-                description=updates.get("description", lic_doc.get("description", "")),
+                description=desc_for_classify,
             )
             if cat:
                 updates["category"] = cat
