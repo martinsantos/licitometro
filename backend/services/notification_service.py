@@ -8,6 +8,7 @@ Triggers:
 """
 
 import os
+import uuid
 import logging
 from datetime import datetime, timedelta
 from typing import List, Dict, Any, Optional
@@ -16,6 +17,7 @@ import aiohttp
 import aiosmtplib
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
+from email.utils import formatdate, make_msgid
 
 from motor.motor_asyncio import AsyncIOMotorDatabase
 
@@ -83,6 +85,8 @@ class NotificationService:
         msg["Subject"] = subject
         msg["From"] = sender
         msg["To"] = NOTIFICATION_EMAIL_TO
+        msg["Message-ID"] = make_msgid(domain="licitometro.ar")
+        msg["Date"] = formatdate(localtime=True)
         msg.attach(MIMEText(html_body, "html"))
 
         try:
@@ -94,6 +98,9 @@ class NotificationService:
                 kwargs["username"] = SMTP_USER
                 kwargs["password"] = SMTP_PASSWORD
                 kwargs["start_tls"] = True
+            else:
+                kwargs["start_tls"] = False
+                kwargs["use_tls"] = False
             await aiosmtplib.send(msg, **kwargs)
             return True
         except Exception as e:
