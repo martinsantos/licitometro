@@ -58,8 +58,8 @@ const LicitacionDetailPage = () => {
       savedItems.push(id);
       localStorage.setItem('savedLicitaciones', JSON.stringify(savedItems));
       setIsSaved(true);
-      // Trigger enrich when favoriting a COMPR.AR licitacion
-      if (licitacion?.fuente?.includes('COMPR.AR')) {
+      // Trigger enrich when favoriting any licitacion with a source URL
+      if (licitacion?.source_url) {
         enrichLicitacion();
       }
     }
@@ -71,7 +71,7 @@ const LicitacionDetailPage = () => {
     setEnrichMessage(null);
 
     try {
-      const response = await axios.post(`${API}/comprar/enrich/${id}?level=${level}`);
+      const response = await axios.post(`${API}/licitaciones/${id}/enrich?level=${level}`);
       if (response.data.success) {
         setEnrichMessage({ type: 'success', text: response.data.message });
         // Reload licitacion data
@@ -413,7 +413,7 @@ const LicitacionDetailPage = () => {
                   </div>
                 </div>
 
-                {licitacion?.fuente?.includes('COMPR.AR') && (
+                {licitacion?.source_url && (
                   <div className="flex sm:flex-col gap-2">
                     <button
                       onClick={() => enrichLicitacion(2)}

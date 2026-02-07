@@ -62,15 +62,14 @@ class AutoUpdateService:
                 lic_id = str(lic_doc["_id"])
                 fuente = lic_doc.get("fuente", "")
 
-                if "COMPR.AR" not in fuente:
-                    stats["skipped"] += 1
-                    continue
-
                 # Take snapshot of key fields before enrichment
                 before_snapshot = self._take_snapshot(lic_doc)
 
-                # Run enrichment
-                success = await self._enrich_licitacion(lic_doc)
+                # Run enrichment (COMPR.AR uses specialized logic, others use generic)
+                if "COMPR.AR" in fuente:
+                    success = await self._enrich_licitacion(lic_doc)
+                else:
+                    success = await self._enrich_generic(lic_doc)
 
                 if not success:
                     stats["skipped"] += 1
@@ -132,7 +131,7 @@ class AutoUpdateService:
             "fecha_fin_consultas", "etapa", "modalidad", "items", "circulares",
             "garantias", "pliegos_bases", "requisitos_participacion",
             "actos_administrativos", "solicitudes_contratacion", "attached_files",
-            "enrichment_level", "document_count",
+            "enrichment_level", "document_count", "description",
         ]
         return {f: doc.get(f) for f in fields}
 
@@ -306,6 +305,52 @@ class AutoUpdateService:
 
         except Exception as e:
             logger.error(f"Enrichment error for {lic_doc.get('_id')}: {e}")
+            return False
+
+    async def _enrich_generic(self, lic_doc: dict) -> bool:
+        """Run generic enrichment for non-COMPR.AR licitaciones."""
+        try:
+            source_url = str(lic_doc.get("source_url", "") or "")
+            if not source_url:
+                return False
+
+            # Look up scraper config for CSS selectors
+            fuente = lic_doc.get("fuente", "")
+            selectors = None
+            import re
+            config_doc = await self.db.scraper_configs.find_one({
+                "name": {"$regex": re.escape(fuente), "$options": "i"},
+                "active": True,
+            })
+            if config_doc:
+                selectors = config_doc.get("selectors", {})
+
+            from services.generic_enrichment import GenericEnrichmentService
+            service = GenericEnrichmentService()
+            updates = await service.enrich(lic_doc, selectors)
+
+            if not updates:
+                return False
+
+            current_level = lic_doc.get("enrichment_level", 1)
+            if current_level < 2:
+                updates["enrichment_level"] = 2
+
+            metadata = lic_doc.get("metadata", {}) or {}
+            updates["metadata"] = {
+                **metadata,
+                "auto_updated": True,
+                "last_auto_update": datetime.utcnow().isoformat(),
+            }
+
+            await self.collection.update_one(
+                {"_id": lic_doc["_id"]},
+                {"$set": updates}
+            )
+            return True
+
+        except Exception as e:
+            logger.error(f"Generic enrichment error for {lic_doc.get('_id')}: {e}")
             return False
 
 

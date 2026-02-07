@@ -1,7 +1,11 @@
 from fastapi import APIRouter, Depends, HTTPException, Query, Body, Request
+from fastapi.responses import JSONResponse
+from fastapi.encoders import jsonable_encoder
 from typing import List, Dict, Optional, Any
 from uuid import UUID
 from datetime import date, datetime
+import logging
+import re
 import sys
 from pathlib import Path
 
@@ -11,6 +15,8 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 from db.repositories import LicitacionRepository
 from models.licitacion import Licitacion, LicitacionCreate, LicitacionUpdate
 from dependencies import get_licitacion_repository
+
+logger = logging.getLogger("licitaciones_router")
 
 router = APIRouter(
     prefix="/api/licitaciones",
@@ -581,6 +587,102 @@ async def toggle_public(
         "is_public": new_public,
         "public_slug": slug,
     }
+
+
+@router.post("/{licitacion_id}/enrich")
+async def enrich_licitacion_universal(
+    licitacion_id: str,
+    level: int = Query(2, ge=2, le=3, description="Enrichment level"),
+    repo: LicitacionRepository = Depends(get_licitacion_repository),
+):
+    """
+    Universal enrichment: re-fetch source page and extract additional data.
+    Works for ALL sources. COMPR.AR delegates to its specialized enrichment.
+    """
+    lic = await repo.get_by_id(licitacion_id)
+    if not lic:
+        raise HTTPException(status_code=404, detail="Licitación no encontrada")
+
+    fuente = lic.get("fuente", "") if isinstance(lic, dict) else getattr(lic, "fuente", "")
+
+    # COMPR.AR: delegate to specialized enrichment
+    if "COMPR.AR" in fuente:
+        from routers.comprar import enrich_licitacion as comprar_enrich
+        return await comprar_enrich(licitacion_id, level, repo)
+
+    # Generic enrichment for all other sources
+    source_url = lic.get("source_url", "") if isinstance(lic, dict) else getattr(lic, "source_url", "")
+    if not source_url:
+        return JSONResponse(content={
+            "success": False,
+            "message": "Esta licitación no tiene URL de origen para re-consultar",
+        })
+
+    try:
+        # Look up scraper config for CSS selectors
+        from dependencies import database as db
+        selectors = None
+        if db is not None:
+            config_doc = await db.scraper_configs.find_one({
+                "name": {"$regex": re.escape(fuente), "$options": "i"},
+                "active": True,
+            })
+            if config_doc:
+                selectors = config_doc.get("selectors", {})
+
+        from services.generic_enrichment import GenericEnrichmentService
+        service = GenericEnrichmentService()
+        lic_dict = lic if isinstance(lic, dict) else lic.dict()
+        updates = await service.enrich(lic_dict, selectors)
+
+        if not updates:
+            return JSONResponse(content={
+                "success": True,
+                "message": "No se encontraron datos adicionales en la fuente",
+                "fields_updated": 0,
+            })
+
+        # Set enrichment level
+        current_level = lic_dict.get("enrichment_level", 1)
+        if current_level < 2:
+            updates["enrichment_level"] = 2
+
+        # Apply updates
+        update_obj = LicitacionUpdate(**{k: v for k, v in updates.items()
+                                         if k in LicitacionUpdate.__fields__})
+        # For fields not in LicitacionUpdate, update directly
+        extra_fields = {k: v for k, v in updates.items()
+                        if k not in LicitacionUpdate.__fields__}
+
+        updated = await repo.update(licitacion_id, update_obj)
+
+        if extra_fields:
+            from bson import ObjectId
+            query_id = licitacion_id
+            try:
+                query_id = ObjectId(licitacion_id)
+            except Exception:
+                pass
+            await db.licitaciones.update_one(
+                {"_id": query_id},
+                {"$set": extra_fields}
+            )
+
+        field_names = list(updates.keys())
+        logger.info(f"Enriched {licitacion_id} ({fuente}): {field_names}")
+
+        return JSONResponse(content={
+            "success": True,
+            "message": f"Enriquecido con {len(updates)} campos: {', '.join(field_names)}",
+            "fields_updated": len(updates),
+        })
+
+    except Exception as e:
+        logger.error(f"Error enriching {licitacion_id}: {e}", exc_info=True)
+        return JSONResponse(content={
+            "success": False,
+            "message": f"Error al enriquecer: {str(e)}",
+        })
 
 
 @router.get("/{licitacion_id}", response_model=Licitacion)
