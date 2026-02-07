@@ -5,7 +5,7 @@ Authentication service - shared password with JWT tokens.
 import os
 import logging
 from datetime import datetime, timedelta, timezone
-from passlib.hash import bcrypt
+import bcrypt as _bcrypt
 import jwt
 
 logger = logging.getLogger("auth_service")
@@ -22,7 +22,10 @@ def verify_password(plain_password: str) -> bool:
         logger.warning("AUTH_PASSWORD_HASH not set - authentication disabled")
         return True
     try:
-        return bcrypt.verify(plain_password, AUTH_PASSWORD_HASH)
+        return _bcrypt.checkpw(
+            plain_password.encode("utf-8"),
+            AUTH_PASSWORD_HASH.encode("utf-8"),
+        )
     except Exception as e:
         logger.error(f"Password verification error: {e}")
         return False
@@ -52,4 +55,7 @@ def verify_token(token: str) -> bool:
 
 def hash_password(plain_password: str) -> str:
     """Generate a bcrypt hash for a password. Utility for setup."""
-    return bcrypt.hash(plain_password)
+    return _bcrypt.hashpw(
+        plain_password.encode("utf-8"),
+        _bcrypt.gensalt(),
+    ).decode("utf-8")
