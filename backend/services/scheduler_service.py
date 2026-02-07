@@ -44,7 +44,22 @@ class SchedulerService:
                 self._on_job_executed,
                 EVENT_JOB_EXECUTED | EVENT_JOB_ERROR
             )
+            # Clean up orphaned runs stuck in "running" from previous crashes
+            await self._cleanup_orphaned_runs()
             logger.info("Scheduler initialized")
+
+    async def _cleanup_orphaned_runs(self):
+        """Mark runs stuck in 'running' as failed (from previous crashes/restarts)"""
+        result = await self.db.scraper_runs.update_many(
+            {"status": "running"},
+            {"$set": {
+                "status": "failed",
+                "error_message": "Orphaned run - process restarted",
+                "ended_at": datetime.utcnow(),
+            }}
+        )
+        if result.modified_count:
+            logger.info(f"Cleaned up {result.modified_count} orphaned scraper runs")
     
     def start(self):
         """Start the scheduler"""
@@ -240,9 +255,13 @@ class SchedulerService:
                 raise ValueError(f"Could not create scraper for: {scraper_name}")
             
             log(f"Created scraper instance for {scraper_name}")
-            
-            # Execute scraper
-            items = await scraper.run()
+
+            # Execute scraper with timeout (10 min default, 20 min for Selenium scrapers)
+            timeout_seconds = 1200 if getattr(config, 'selectors', None) and isinstance(config.selectors, dict) and config.selectors.get('use_selenium_pliego') else 600
+            try:
+                items = await asyncio.wait_for(scraper.run(), timeout=timeout_seconds)
+            except asyncio.TimeoutError:
+                raise TimeoutError(f"Scraper timed out after {timeout_seconds}s")
             
             duration = (datetime.utcnow() - start_time).total_seconds()
             
