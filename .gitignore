@@ -54,6 +54,8 @@ docs/boletin_mendoza_results.html
 .superdesign/
 .windsurfrules
 
-# Production secrets
+# Production secrets (root-level Docker Compose env)
 .env.production
+# But track frontend's .env.production (just sets empty BACKEND_URL)
+!frontend/.env.production
 backups/
