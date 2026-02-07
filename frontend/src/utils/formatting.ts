@@ -1,0 +1,66 @@
+import { differenceInDays, format } from 'date-fns';
+import { es } from 'date-fns/locale';
+import type { Licitacion } from '../types/licitacion';
+
+export const getDaysUntilOpening = (openingDate: string | null | undefined): number | null => {
+  if (!openingDate) return null;
+  return differenceInDays(new Date(openingDate), new Date());
+};
+
+export const isUrgentLic = (lic: Licitacion): boolean => {
+  if (!lic.opening_date) return false;
+  const days = differenceInDays(new Date(lic.opening_date), new Date());
+  return days >= 0 && days <= 7;
+};
+
+export const isCriticalRubro = (lic: Licitacion, criticalRubros: Set<string>): boolean => {
+  return lic.category ? criticalRubros.has(lic.category) : false;
+};
+
+export const formatFechaScraping = (dateStr?: string): string | null => {
+  if (!dateStr) return null;
+  try {
+    return format(new Date(dateStr), 'dd/MM HH:mm', { locale: es });
+  } catch {
+    return null;
+  }
+};
+
+export const getUrgencyColor = (days: number | null): string => {
+  if (days === null) return 'bg-gray-100 text-gray-600';
+  if (days < 0) return 'bg-red-100 text-red-700';
+  if (days <= 3) return 'bg-orange-100 text-orange-700';
+  if (days <= 7) return 'bg-yellow-100 text-yellow-700';
+  return 'bg-emerald-100 text-emerald-700';
+};
+
+export const getShareUrl = (id: string): string => {
+  return `${window.location.origin}/licitacion/${id}`;
+};
+
+export const shareViaEmail = (lic: Licitacion) => {
+  const subject = encodeURIComponent(`Licitacion: ${lic.title}`);
+  const body = encodeURIComponent(
+    `Te comparto esta licitacion que puede interesarte:\n\n` +
+    `${lic.title}\n` +
+    `${lic.organization}\n` +
+    `Apertura: ${lic.opening_date ? format(new Date(lic.opening_date), 'dd/MM/yyyy HH:mm', { locale: es }) : 'A confirmar'}\n\n` +
+    `Ver mas: ${getShareUrl(lic.id)}`
+  );
+  window.open(`mailto:?subject=${subject}&body=${body}`, '_blank');
+};
+
+export const shareViaWhatsApp = (lic: Licitacion) => {
+  const text = encodeURIComponent(
+    `*${lic.title}*\n` +
+    `${lic.organization}\n` +
+    `Apertura: ${lic.opening_date ? format(new Date(lic.opening_date), 'dd/MM/yyyy HH:mm', { locale: es }) : 'A confirmar'}\n\n` +
+    `${getShareUrl(lic.id)}`
+  );
+  window.open(`https://wa.me/?text=${text}`, '_blank');
+};
+
+export const copyLink = (id: string) => {
+  navigator.clipboard.writeText(getShareUrl(id));
+  alert('Link copiado al portapapeles');
+};

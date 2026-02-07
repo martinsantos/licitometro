@@ -54,86 +54,95 @@ const NovedadesStrip: React.FC<NovedadesStripProps> = ({ apiUrl, onSourceClick }
     return `hace ${days}d`;
   };
 
-  if (loading && !activity) return null;
-  if (!activity || activity.total_new === 0) return null;
+  const hasActivity = !loading && activity && activity.total_new > 0;
 
+  // Never return null - use CSS transition for smooth appearance/disappearance
   return (
-    <div className="bg-white rounded-2xl shadow-lg border border-gray-100 overflow-hidden">
-      {/* Header - always visible */}
-      <button
-        onClick={() => setExpanded(!expanded)}
-        className="w-full px-4 py-3 flex items-center justify-between hover:bg-gray-50 transition-colors"
-      >
-        <div className="flex items-center gap-3">
-          <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-          <span className="text-sm font-black text-gray-800">NOVEDADES</span>
-          <span className="px-2.5 py-0.5 bg-emerald-100 text-emerald-700 rounded-full text-xs font-bold">
-            +{activity.total_new} nuevas
-          </span>
-        </div>
-        <div className="flex items-center gap-2">
-          {/* Period selector */}
-          <div className="flex bg-gray-100 rounded-lg p-0.5 text-xs" onClick={(e) => e.stopPropagation()}>
-            {[
-              { value: 24, label: '24h' },
-              { value: 48, label: '48h' },
-              { value: 168, label: '7d' },
-            ].map((opt) => (
-              <button
-                key={opt.value}
-                onClick={() => setHours(opt.value)}
-                className={`px-2 py-1 rounded-md font-bold transition-all ${
-                  hours === opt.value ? 'bg-white shadow-sm text-gray-800' : 'text-gray-500'
-                }`}
-              >
-                {opt.label}
-              </button>
-            ))}
+    <div
+      className="transition-all duration-300 overflow-hidden"
+      style={{
+        maxHeight: hasActivity ? '500px' : '0px',
+        opacity: hasActivity ? 1 : 0,
+        marginBottom: hasActivity ? undefined : 0,
+      }}
+    >
+      <div className="bg-white rounded-2xl shadow-lg border border-gray-100 overflow-hidden">
+        {/* Header - always visible when has activity */}
+        <button
+          onClick={() => setExpanded(!expanded)}
+          className="w-full px-4 py-3 flex items-center justify-between hover:bg-gray-50 transition-colors"
+        >
+          <div className="flex items-center gap-3">
+            <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+            <span className="text-sm font-black text-gray-800">NOVEDADES</span>
+            {activity && (
+              <span className="px-2.5 py-0.5 bg-emerald-100 text-emerald-700 rounded-full text-xs font-bold">
+                +{activity.total_new} nuevas
+              </span>
+            )}
           </div>
-          <svg
-            className={`w-4 h-4 text-gray-400 transition-transform ${expanded ? 'rotate-180' : ''}`}
-            fill="none" stroke="currentColor" viewBox="0 0 24 24"
-          >
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7" />
-          </svg>
-        </div>
-      </button>
-
-      {/* Expanded content */}
-      {expanded && (
-        <div className="px-4 pb-4 border-t border-gray-100">
-          <div className="mt-3 space-y-2">
-            {activity.by_source.map((src) => (
-              <button
-                key={src.fuente}
-                onClick={() => onSourceClick?.(src.fuente)}
-                className="w-full flex items-center gap-3 px-3 py-2 rounded-xl hover:bg-gray-50 transition-colors text-left"
-              >
-                <span className="w-2 h-2 rounded-full bg-violet-500 flex-shrink-0" />
-                <span className="text-sm font-bold text-gray-700 flex-1 min-w-0 truncate">
-                  {src.fuente}
-                </span>
-                <span className="px-2 py-0.5 bg-emerald-50 text-emerald-700 rounded text-xs font-bold flex-shrink-0">
-                  +{src.count} nuevas
-                </span>
-                <span className="text-xs text-gray-400 flex-shrink-0">
-                  {formatTimeAgo(src.latest)}
-                </span>
-              </button>
-            ))}
-          </div>
-
-          {/* Last scraping summary */}
-          {activity.by_source.length > 0 && (
-            <div className="mt-3 pt-3 border-t border-gray-100 text-xs text-gray-400">
-              Ultimo scraping: {activity.by_source[0].fuente}{' '}
-              {formatTimeAgo(activity.by_source[0].latest)}
+          <div className="flex items-center gap-2">
+            <div className="flex bg-gray-100 rounded-lg p-0.5 text-xs" onClick={(e) => e.stopPropagation()}>
+              {[
+                { value: 24, label: '24h' },
+                { value: 48, label: '48h' },
+                { value: 168, label: '7d' },
+              ].map((opt) => (
+                <button
+                  key={opt.value}
+                  onClick={() => setHours(opt.value)}
+                  className={`px-2 py-1 rounded-md font-bold transition-all ${
+                    hours === opt.value ? 'bg-white shadow-sm text-gray-800' : 'text-gray-500'
+                  }`}
+                >
+                  {opt.label}
+                </button>
+              ))}
             </div>
-          )}
-        </div>
-      )}
+            <svg
+              className={`w-4 h-4 text-gray-400 transition-transform ${expanded ? 'rotate-180' : ''}`}
+              fill="none" stroke="currentColor" viewBox="0 0 24 24"
+            >
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7" />
+            </svg>
+          </div>
+        </button>
+
+        {/* Expanded content */}
+        {expanded && activity && (
+          <div className="px-4 pb-4 border-t border-gray-100">
+            <div className="mt-3 space-y-2">
+              {activity.by_source.map((src) => (
+                <button
+                  key={src.fuente}
+                  onClick={() => onSourceClick?.(src.fuente)}
+                  className="w-full flex items-center gap-3 px-3 py-2 rounded-xl hover:bg-gray-50 transition-colors text-left"
+                >
+                  <span className="w-2 h-2 rounded-full bg-violet-500 flex-shrink-0" />
+                  <span className="text-sm font-bold text-gray-700 flex-1 min-w-0 truncate">
+                    {src.fuente}
+                  </span>
+                  <span className="px-2 py-0.5 bg-emerald-50 text-emerald-700 rounded text-xs font-bold flex-shrink-0">
+                    +{src.count} nuevas
+                  </span>
+                  <span className="text-xs text-gray-400 flex-shrink-0">
+                    {formatTimeAgo(src.latest)}
+                  </span>
+                </button>
+              ))}
+            </div>
+
+            {activity.by_source.length > 0 && (
+              <div className="mt-3 pt-3 border-t border-gray-100 text-xs text-gray-400">
+                Ultimo scraping: {activity.by_source[0].fuente}{' '}
+                {formatTimeAgo(activity.by_source[0].latest)}
+              </div>
+            )}
+          </div>
+        )}
+      </div>
     </div>
   );
 };
 
-export default NovedadesStrip;
+export default React.memo(NovedadesStrip);
