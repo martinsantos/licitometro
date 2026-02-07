@@ -20,6 +20,8 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from motor.motor_asyncio import AsyncIOMotorClient
+from bson.codec_options import CodecOptions, DEFAULT_CODEC_OPTIONS
+from bson.binary import UuidRepresentation
 from dotenv import load_dotenv
 from db.repositories import ScraperConfigRepository
 from models.scraper_config import ScraperConfigCreate
@@ -52,7 +54,7 @@ CONFIG = ScraperConfigCreate(
 
 
 async def main():
-    client = AsyncIOMotorClient(MONGO_URL)
+    client = AsyncIOMotorClient(MONGO_URL, uuidRepresentation="standard")
     db = client[DB_NAME]
     repo = ScraperConfigRepository(db)
 
