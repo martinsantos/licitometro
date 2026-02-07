@@ -8,45 +8,37 @@ interface SortModeBarProps {
   onToggleOrder: () => void;
 }
 
-const SORT_TABS: { value: SortField; label: string; subtitle: string }[] = [
-  { value: 'publication_date', label: 'Por Publicacion', subtitle: 'Mas recientes' },
-  { value: 'opening_date', label: 'Por Apertura', subtitle: 'Proximas' },
-  { value: 'fecha_scraping', label: 'Por Indexacion', subtitle: 'Ultimos scrapeos' },
-  { value: 'title', label: 'A-Z', subtitle: 'Alfabetico' },
+const SORT_TABS: { value: SortField; label: string }[] = [
+  { value: 'publication_date', label: 'Pub' },
+  { value: 'opening_date', label: 'Apert' },
+  { value: 'fecha_scraping', label: 'Idx' },
+  { value: 'title', label: 'A-Z' },
 ];
 
 const SortModeBar: React.FC<SortModeBarProps> = ({ sortBy, sortOrder, onSortChange, onToggleOrder }) => (
-  <div className="bg-white rounded-2xl shadow-lg border border-gray-100 px-2 py-2">
-    <div className="flex items-center gap-1">
-      {SORT_TABS.map((tab) => (
-        <button
-          key={tab.value}
-          onClick={() => onSortChange(tab.value)}
-          className={`flex-1 px-3 py-2.5 rounded-xl text-center transition-all ${
-            sortBy === tab.value
-              ? 'bg-emerald-50 border-b-2 border-emerald-500 text-emerald-800'
-              : 'text-gray-500 hover:bg-gray-50 hover:text-gray-700'
-          }`}
-        >
-          <span className={`text-sm font-bold block ${sortBy === tab.value ? 'text-emerald-800' : ''}`}>
-            {tab.label}
-          </span>
-          {sortBy === tab.value && (
-            <span className="text-[10px] text-emerald-600">{tab.subtitle}</span>
-          )}
-        </button>
-      ))}
-
+  <div className="flex items-center gap-0.5 bg-gray-100 rounded-lg p-0.5">
+    {SORT_TABS.map((tab) => (
       <button
-        onClick={onToggleOrder}
-        className="p-2.5 rounded-xl hover:bg-gray-100 transition-all flex-shrink-0"
-        title={sortOrder === 'asc' ? 'Ascendente' : 'Descendente'}
+        key={tab.value}
+        onClick={() => onSortChange(tab.value)}
+        className={`px-2 py-1 rounded-md text-xs font-bold transition-all whitespace-nowrap ${
+          sortBy === tab.value
+            ? 'bg-white shadow-sm text-emerald-700'
+            : 'text-gray-500 hover:text-gray-700'
+        }`}
       >
-        <svg className={`w-5 h-5 text-gray-600 transition-transform ${sortOrder === 'asc' ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 4h13M3 8h9m-9 4h6m4 0l4-4m0 0l4 4m-4-4v12" />
-        </svg>
+        {tab.label}
       </button>
-    </div>
+    ))}
+    <button
+      onClick={onToggleOrder}
+      className="p-1 rounded-md hover:bg-white transition-all flex-shrink-0"
+      title={sortOrder === 'asc' ? 'Ascendente' : 'Descendente'}
+    >
+      <svg className={`w-3.5 h-3.5 text-gray-500 transition-transform ${sortOrder === 'asc' ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 4h13M3 8h9m-9 4h6m4 0l4-4m0 0l4 4m-4-4v12" />
+      </svg>
+    </button>
   </div>
 );
 

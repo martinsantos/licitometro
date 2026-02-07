@@ -39,6 +39,7 @@ async def login(body: LoginRequest, response: Response):
         value=token,
         httponly=True,
         samesite="lax",
+        secure=True,
         max_age=86400,  # 24 hours
         path="/",
     )

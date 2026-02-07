@@ -12,6 +12,7 @@ interface DailyDigestStripProps {
 const DailyDigestStrip = ({ apiUrl, onDaySelect, selectedDate, fechaCampo }: DailyDigestStripProps) => {
   const [counts, setCounts] = useState<Record<string, number>>({});
   const [loading, setLoading] = useState(true);
+  const [expanded, setExpanded] = useState(false);
 
   useEffect(() => {
     const fetchCounts = async () => {
@@ -52,70 +53,79 @@ const DailyDigestStrip = ({ apiUrl, onDaySelect, selectedDate, fechaCampo }: Dai
 
   const maxCount = Math.max(...Object.values(counts), 1);
 
-  // Always render outer container with fixed min-height - swap inner content between skeleton and real data
-  return (
-    <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-4 min-h-[120px]">
-      {loading ? (
-        <div className="flex gap-2 animate-pulse">
-          {Array.from({ length: 14 }).map((_, i) => (
-            <div key={i} className="w-12 h-16 bg-gray-100 rounded-lg flex-shrink-0" />
-          ))}
-        </div>
-      ) : (
-        <>
-          {/* Quick buttons */}
-          <div className="flex items-center gap-2 mb-3 flex-wrap">
-            <span className="text-xs font-bold text-gray-400 uppercase mr-1">Rapido:</span>
-            <button
-              onClick={() => onDaySelect(selectedDate === today ? null : today)}
-              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
-                selectedDate === today
-                  ? 'bg-emerald-600 text-white'
-                  : 'bg-emerald-50 text-emerald-700 hover:bg-emerald-100'
-              }`}
-            >
-              Hoy ({todayCount})
-            </button>
-            <button
-              onClick={() => onDaySelect(selectedDate === yesterday ? null : yesterday)}
-              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
-                selectedDate === yesterday
-                  ? 'bg-blue-600 text-white'
-                  : 'bg-blue-50 text-blue-700 hover:bg-blue-100'
-              }`}
-            >
-              Ayer ({yesterdayCount})
-            </button>
-            <span className="px-3 py-1.5 bg-gray-50 text-gray-600 rounded-lg text-xs font-bold">
-              Semana: {weekTotal}
-            </span>
-            <span className="px-3 py-1.5 bg-gray-50 text-gray-600 rounded-lg text-xs font-bold">
-              Mes: {monthTotal}
-            </span>
-            {selectedDate && (
-              <button
-                onClick={() => onDaySelect(null)}
-                className="px-3 py-1.5 bg-red-50 text-red-600 hover:bg-red-100 rounded-lg text-xs font-bold transition-all"
-              >
-                Limpiar filtro
-              </button>
-            )}
-          </div>
+  if (loading) {
+    return (
+      <div className="h-9 bg-gray-50 rounded-lg animate-pulse" />
+    );
+  }
 
-          {/* Day strip */}
-          <div className="flex gap-1.5 overflow-x-auto pb-1 scrollbar-thin">
+  return (
+    <div className="bg-white rounded-xl border border-gray-100 overflow-hidden">
+      {/* Compact summary bar - always visible */}
+      <button
+        onClick={() => setExpanded(!expanded)}
+        className="w-full px-3 py-2 flex items-center justify-between hover:bg-gray-50 transition-colors"
+      >
+        <div className="flex items-center gap-3 text-xs font-bold">
+          <span className="text-gray-400 uppercase tracking-wide">Actividad</span>
+          <button
+            onClick={(e) => { e.stopPropagation(); onDaySelect(selectedDate === today ? null : today); }}
+            className={`px-2 py-0.5 rounded transition-all ${
+              selectedDate === today
+                ? 'bg-emerald-600 text-white'
+                : 'bg-emerald-50 text-emerald-700 hover:bg-emerald-100'
+            }`}
+          >
+            Hoy {todayCount}
+          </button>
+          <button
+            onClick={(e) => { e.stopPropagation(); onDaySelect(selectedDate === yesterday ? null : yesterday); }}
+            className={`px-2 py-0.5 rounded transition-all ${
+              selectedDate === yesterday
+                ? 'bg-blue-600 text-white'
+                : 'bg-blue-50 text-blue-700 hover:bg-blue-100'
+            }`}
+          >
+            Ayer {yesterdayCount}
+          </button>
+          <span className="text-gray-400">Sem {weekTotal}</span>
+          <span className="text-gray-400">Mes {monthTotal}</span>
+          {selectedDate && (
+            <button
+              onClick={(e) => { e.stopPropagation(); onDaySelect(null); }}
+              className="px-2 py-0.5 bg-red-50 text-red-600 rounded hover:bg-red-100"
+            >
+              &times;
+            </button>
+          )}
+        </div>
+        <svg
+          className={`w-4 h-4 text-gray-400 transition-transform flex-shrink-0 ${expanded ? 'rotate-180' : ''}`}
+          fill="none" stroke="currentColor" viewBox="0 0 24 24"
+        >
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7" />
+        </svg>
+      </button>
+
+      {/* Expandable day strip */}
+      <div
+        className="transition-all duration-300 overflow-hidden"
+        style={{ maxHeight: expanded ? '120px' : '0px', opacity: expanded ? 1 : 0 }}
+      >
+        <div className="px-3 pb-3 pt-1 border-t border-gray-50">
+          <div className="flex gap-1 overflow-x-auto pb-1 scrollbar-thin">
             {days.map((dateStr) => {
               const count = counts[dateStr] || 0;
               const isToday = dateStr === today;
               const isSelected = selectedDate === dateStr;
               const d = new Date(dateStr + 'T12:00:00');
-              const barHeight = count > 0 ? Math.max(8, (count / maxCount) * 32) : 2;
+              const barHeight = count > 0 ? Math.max(6, (count / maxCount) * 24) : 2;
 
               return (
                 <button
                   key={dateStr}
                   onClick={() => onDaySelect(isSelected ? null : dateStr)}
-                  className={`flex flex-col items-center justify-end min-w-[3rem] p-1.5 rounded-lg transition-all ${
+                  className={`flex flex-col items-center justify-end min-w-[2.5rem] p-1 rounded-lg transition-all ${
                     isSelected
                       ? 'bg-emerald-100 ring-2 ring-emerald-500'
                       : isToday
@@ -125,14 +135,14 @@ const DailyDigestStrip = ({ apiUrl, onDaySelect, selectedDate, fechaCampo }: Dai
                   title={`${format(d, 'EEEE d MMMM', { locale: es })}: ${count} licitaciones`}
                 >
                   {count > 0 && (
-                    <span className={`text-[10px] font-black mb-1 ${
+                    <span className={`text-[9px] font-black mb-0.5 ${
                       isSelected ? 'text-emerald-700' : isToday ? 'text-blue-700' : 'text-gray-600'
                     }`}>
                       {count}
                     </span>
                   )}
                   <div
-                    className={`w-6 rounded-t transition-all ${
+                    className={`w-5 rounded-t transition-all ${
                       isSelected
                         ? 'bg-emerald-500'
                         : isToday
@@ -143,20 +153,20 @@ const DailyDigestStrip = ({ apiUrl, onDaySelect, selectedDate, fechaCampo }: Dai
                     }`}
                     style={{ height: `${barHeight}px` }}
                   />
-                  <span className={`text-[10px] mt-1 ${
+                  <span className={`text-[9px] mt-0.5 ${
                     isToday ? 'font-black text-blue-700' : 'font-medium text-gray-500'
                   }`}>
                     {isToday ? 'HOY' : format(d, 'd', { locale: es })}
                   </span>
-                  <span className="text-[8px] text-gray-400 uppercase">
+                  <span className="text-[7px] text-gray-400 uppercase">
                     {format(d, 'EEE', { locale: es })}
                   </span>
                 </button>
               );
             })}
           </div>
-        </>
-      )}
+        </div>
+      </div>
     </div>
   );
 };

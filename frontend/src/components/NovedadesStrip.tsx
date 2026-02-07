@@ -32,7 +32,7 @@ const NovedadesStrip: React.FC<NovedadesStripProps> = ({ apiUrl, onSourceClick }
         if (res.ok) {
           const data = await res.json();
           setActivity(data);
-          if (data.total_new > 0) setExpanded(true);
+          // Start collapsed — user can expand on click
         }
       } catch (err) {
         console.error('Error fetching recent activity:', err);
@@ -66,11 +66,11 @@ const NovedadesStrip: React.FC<NovedadesStripProps> = ({ apiUrl, onSourceClick }
         marginBottom: hasActivity ? undefined : 0,
       }}
     >
-      <div className="bg-white rounded-2xl shadow-lg border border-gray-100 overflow-hidden">
+      <div className="bg-white rounded-xl border border-gray-100 overflow-hidden">
         {/* Header - always visible when has activity */}
         <button
           onClick={() => setExpanded(!expanded)}
-          className="w-full px-4 py-3 flex items-center justify-between hover:bg-gray-50 transition-colors"
+          className="w-full px-3 py-2 flex items-center justify-between hover:bg-gray-50 transition-colors"
         >
           <div className="flex items-center gap-3">
             <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
