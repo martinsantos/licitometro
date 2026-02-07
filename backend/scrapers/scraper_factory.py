@@ -33,6 +33,9 @@ from .comprasapps_mendoza_scraper import ComprasAppsMendozaScraper
 # EPRE Mendoza
 from .epre_scraper import EpreScraper
 
+# Las Heras Municipality (Oracle APEX)
+from .las_heras_scraper import LasHerasScraper
+
 # Generic HTML scraper for config-driven sites
 from .generic_html_scraper import GenericHtmlScraper
 
@@ -90,7 +93,12 @@ def create_scraper(config: ScraperConfig) -> Optional[BaseScraper]:
     # EPRE Mendoza
     if "epremendoza" in config_url_lower or "epre" in config_name_lower:
         return EpreScraper(config)
-    
+
+    # Las Heras Municipality (Oracle APEX)
+    if "lasheras" in config_url_lower or "las heras" in config_name_lower:
+        logger.info(f"Using LasHerasScraper for {config.name}")
+        return LasHerasScraper(config)
+
     # Generic mendoza.gov.ar (fallback)
     if "mendoza.gov.ar" in config_url_lower:
         return MendozaCompraScraper(config)
