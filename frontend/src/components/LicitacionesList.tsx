@@ -1,6 +1,5 @@
 import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { List } from 'react-window';
 import type { Licitacion, FilterState } from '../types/licitacion';
 import { useDebounce } from '../hooks/useDebounce';
 import { useLicitacionFilters } from '../hooks/useLicitacionFilters';
@@ -48,8 +47,7 @@ const LicitacionesList = ({ apiUrl }: LicitacionesListProps) => {
     busqueda: debouncedBusqueda,
   }), [filters, debouncedBusqueda]);
 
-  const useVirtualization = prefs.groupBy === 'none' && prefs.viewMode === 'cards';
-  const pageSize = useVirtualization ? 50 : 15;
+  const pageSize = 25;
 
   const { licitaciones, paginacion, isInitialLoading, isFetching, error } = useLicitacionData({
     apiUrl,
@@ -368,33 +366,7 @@ const LicitacionesList = ({ apiUrl }: LicitacionesListProps) => {
           <TimelineView licitaciones={licitaciones} onItemClick={handleRowClick} />
         ) : prefs.viewMode === 'cards' ? (
           <div className="space-y-3">
-            {useVirtualization && licitaciones.length > 0 ? (
-              <List
-                rowCount={licitaciones.length}
-                rowHeight={200}
-                rowProps={{}}
-                overscanCount={5}
-                style={{ height: Math.min(licitaciones.length * 210, window.innerHeight * 2) }}
-                rowComponent={({ index, style: rowStyle }) => {
-                  const lic = licitaciones[index];
-                  return (
-                    <div style={{ ...rowStyle, paddingBottom: 12 }}>
-                      <LicitacionCard
-                        lic={lic}
-                        sortBy={prefs.sortBy}
-                        isFavorite={prefs.favorites.has(lic.id)}
-                        isNew={prefs.isNewItem(lic)}
-                        isCritical={isCriticalRubroUtil(lic, prefs.criticalRubros)}
-                        isUrgent={isUrgentLic(lic)}
-                        onToggleFavorite={prefs.toggleFavorite}
-                        onRowClick={handleRowClick}
-                      />
-                    </div>
-                  );
-                }}
-              />
-            ) : (
-              Object.entries(groupedLicitaciones).map(([groupName, groupItems]) => (
+            {Object.entries(groupedLicitaciones).map(([groupName, groupItems]) => (
                 <React.Fragment key={groupName}>
                   {prefs.groupBy !== 'none' && (
                     <div className={`rounded-lg p-3 flex items-center justify-between ${
@@ -431,8 +403,7 @@ const LicitacionesList = ({ apiUrl }: LicitacionesListProps) => {
                     />
                   ))}
                 </React.Fragment>
-              ))
-            )}
+              ))}
 
             {licitaciones.length === 0 && !isFetching && (
               <div className="bg-white rounded-xl p-12 text-center border border-gray-100">
