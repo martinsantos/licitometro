@@ -7,69 +7,61 @@ Uses GenericHtmlScraper with inline_mode.
 
 Usage (from Docker):
   docker exec -w /app -e PYTHONPATH=/app licitometro-backend-1 python scripts/add_irrigacion_source.py
-
-Usage (local):
-  cd backend && PYTHONPATH=. python scripts/add_irrigacion_source.py
 """
 
 import asyncio
 import os
 import sys
+from datetime import datetime
 from pathlib import Path
+from uuid import uuid4
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
-
 from motor.motor_asyncio import AsyncIOMotorClient
-from bson.codec_options import CodecOptions, DEFAULT_CODEC_OPTIONS
-from bson.binary import UuidRepresentation
-from dotenv import load_dotenv
-from db.repositories import ScraperConfigRepository
-from models.scraper_config import ScraperConfigCreate
-
-load_dotenv()
-
-MONGO_URL = os.environ.get("MONGO_URL", "mongodb://localhost:27017")
-DB_NAME = os.environ.get("DB_NAME", "licitaciones_db")
-
-CONFIG = ScraperConfigCreate(
-    name="Irrigacion",
-    url="https://www.irrigacion.gov.ar/web/category/licitaciones/",
-    active=True,
-    schedule="0 8 * * 1-5",
-    max_items=50,
-    selectors={
-        "scraper_type": "generic_html",
-        "inline_mode": True,
-        "list_item_selector": "article, .vc_gitem-zone-mini",
-        "list_title_selector": "h4 a, .entry-title a, h2 a",
-        "list_date_selector": ".vc_gitem-post-date, time, .published",
-        "list_link_selector": "h4 a[href], .entry-title a[href], h2 a[href]",
-        "organization": "Departamento General de Irrigación",
-        "tipo_procedimiento": "Licitación",
-        "id_prefix": "irrigacion-",
-    },
-    pagination={"max_pages": 3},
-    source_type="website",
-)
 
 
 async def main():
-    client = AsyncIOMotorClient(MONGO_URL, uuidRepresentation="standard")
-    db = client[DB_NAME]
-    repo = ScraperConfigRepository(db)
+    mongo_url = os.environ.get("MONGO_URL", "mongodb://localhost:27017/licitaciones_db")
+    db_name = os.environ.get("DB_NAME", "licitaciones_db")
 
-    # Check if already exists
-    existing = await repo.get_by_name("Irrigacion")
+    client = AsyncIOMotorClient(mongo_url)
+    db = client[db_name]
+
+    existing = await db.scraper_configs.find_one({"name": "Irrigacion"})
     if existing:
-        print(f"Irrigacion config already exists (id={existing['id']})")
+        print(f"SKIP (exists): Irrigacion (id={existing.get('_id')})")
         client.close()
         return
 
-    result = await repo.create(CONFIG)
-    print(f"Created Irrigacion config: id={result['id']}")
-    print(f"  URL: {CONFIG.url}")
-    print(f"  Schedule: {CONFIG.schedule}")
-    print(f"  Max items: {CONFIG.max_items}")
+    doc = {
+        "_id": str(uuid4()),
+        "name": "Irrigacion",
+        "url": "https://www.irrigacion.gov.ar/web/category/licitaciones/",
+        "active": True,
+        "schedule": "0 8 * * 1-5",
+        "max_items": 50,
+        "selectors": {
+            "scraper_type": "generic_html",
+            "inline_mode": True,
+            "list_item_selector": "article, .vc_gitem-zone-mini",
+            "list_title_selector": "h4 a, .entry-title a, h2 a",
+            "list_date_selector": ".vc_gitem-post-date, time, .published",
+            "list_link_selector": "h4 a[href], .entry-title a[href], h2 a[href]",
+            "organization": "Departamento General de Irrigación",
+            "tipo_procedimiento": "Licitación",
+            "id_prefix": "irrigacion-",
+        },
+        "pagination": {"max_pages": 3},
+        "source_type": "website",
+        "created_at": datetime.utcnow(),
+        "updated_at": datetime.utcnow(),
+    }
+
+    await db.scraper_configs.insert_one(doc)
+    print(f"Created Irrigacion config: id={doc['_id']}")
+    print(f"  URL: {doc['url']}")
+    print(f"  Schedule: {doc['schedule']}")
+    print(f"  Max items: {doc['max_items']}")
 
     client.close()
 
