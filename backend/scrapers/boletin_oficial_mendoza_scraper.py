@@ -129,8 +129,8 @@ class BoletinOficialMendozaScraper(BaseScraper):
 
     # ==================== PDF EXTRACTION METHODS ====================
 
-    MAX_PDF_BYTES = 5 * 1024 * 1024  # 5 MB max download
-    MAX_PDF_PAGES = 50  # max pages to process per PDF
+    MAX_PDF_BYTES = 25 * 1024 * 1024  # 25 MB max download (pypdf uses ~2x RAM)
+    MAX_PDF_PAGES = 200  # max pages to process per PDF
 
     async def _download_pdf(self, url: str) -> Optional[bytes]:
         """Download PDF from URL with size limit to prevent OOM."""

@@ -30,6 +30,16 @@ async def create_licitacion(
     repo: LicitacionRepository = Depends(get_licitacion_repository)
 ):
     """Create a new licitacion"""
+    # Auto-classify category if not provided
+    if not licitacion.category:
+        from services.category_classifier import get_category_classifier
+        classifier = get_category_classifier()
+        cat = classifier.classify(
+            title=licitacion.title,
+            description=licitacion.description or "",
+        )
+        if cat:
+            licitacion.category = cat
     return await repo.create(licitacion)
 
 @router.get("/", response_model=Dict[str, Any])

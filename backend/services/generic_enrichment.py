@@ -4,10 +4,15 @@ and extracts description, dates, and document attachments.
 
 For sources with scraper configs (GenericHtmlScraper), uses CSS selectors
 for targeted extraction. Otherwise falls back to common HTML patterns.
+
+Supports PDF and ZIP binary downloads for sources that link to pliegos
+(e.g. Maipú ZIPs, Ciudad de Mendoza Google Drive PDFs, Tupungato).
 """
 
+import io
 import logging
 import re
+import zipfile
 from datetime import datetime
 from typing import Dict, Any, List, Optional
 from urllib.parse import urljoin
@@ -18,6 +23,11 @@ from scrapers.resilient_http import ResilientHttpClient
 from utils.dates import parse_date_guess
 
 logger = logging.getLogger("generic_enrichment")
+
+MAX_PDF_BYTES = 25 * 1024 * 1024    # 25 MB
+MAX_ZIP_BYTES = 50 * 1024 * 1024    # 50 MB
+MAX_PDF_PAGES = 200
+MAX_DESCRIPTION_LEN = 10000
 
 # Common content selectors (tried in order)
 CONTENT_SELECTORS = [
@@ -44,6 +54,156 @@ class GenericEnrichmentService:
     def __init__(self):
         self.http = ResilientHttpClient()
 
+    # ---- Binary download & PDF/ZIP helpers ----
+
+    async def _download_binary(self, url: str, max_bytes: int) -> Optional[bytes]:
+        """Stream-download binary content with size limit."""
+        try:
+            import aiohttp
+            headers = {
+                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+            }
+            async with aiohttp.ClientSession(headers=headers) as session:
+                async with session.get(url, timeout=aiohttp.ClientTimeout(total=60), ssl=False) as resp:
+                    if resp.status != 200:
+                        logger.warning(f"Binary download failed ({resp.status}): {url}")
+                        return None
+                    content_length = int(resp.headers.get("Content-Length", 0))
+                    if content_length > max_bytes:
+                        logger.warning(f"Binary too large ({content_length / 1024 / 1024:.1f}MB): {url}")
+                        return None
+                    chunks = []
+                    total = 0
+                    async for chunk in resp.content.iter_chunked(64 * 1024):
+                        total += len(chunk)
+                        if total > max_bytes:
+                            logger.warning(f"Binary exceeded size limit during download: {url}")
+                            return None
+                        chunks.append(chunk)
+                    return b"".join(chunks)
+        except Exception as e:
+            logger.error(f"Error downloading binary {url}: {e}")
+            return None
+
+    def _extract_text_from_pdf_bytes(self, pdf_bytes: bytes) -> str:
+        """Extract text from PDF bytes using pypdf. Page count capped."""
+        from pypdf import PdfReader
+        try:
+            reader = PdfReader(io.BytesIO(pdf_bytes))
+            num_pages = min(len(reader.pages), MAX_PDF_PAGES)
+            parts = []
+            for i in range(num_pages):
+                page_text = reader.pages[i].extract_text()
+                if page_text:
+                    parts.append(page_text)
+            if num_pages < len(reader.pages):
+                logger.info(f"PDF capped at {num_pages}/{len(reader.pages)} pages")
+            return "\n\n".join(parts)
+        except Exception as e:
+            logger.error(f"PDF text extraction failed: {e}")
+            return ""
+
+    async def _extract_text_from_pdf_url(self, url: str) -> Optional[str]:
+        """Download a PDF and extract text."""
+        data = await self._download_binary(url, MAX_PDF_BYTES)
+        if not data:
+            return None
+        text = self._extract_text_from_pdf_bytes(data)
+        return text if text else None
+
+    async def _extract_text_from_zip(self, url: str) -> Optional[str]:
+        """Download a ZIP, find PDFs inside, extract text from all."""
+        data = await self._download_binary(url, MAX_ZIP_BYTES)
+        if not data:
+            return None
+        try:
+            zf = zipfile.ZipFile(io.BytesIO(data))
+            texts = []
+            for name in zf.namelist():
+                if name.lower().endswith(".pdf"):
+                    pdf_bytes = zf.read(name)
+                    if len(pdf_bytes) <= MAX_PDF_BYTES:
+                        text = self._extract_text_from_pdf_bytes(pdf_bytes)
+                        if text:
+                            texts.append(text)
+            zf.close()
+            return "\n\n".join(texts) if texts else None
+        except Exception as e:
+            logger.error(f"ZIP extraction failed for {url}: {e}")
+            return None
+
+    def _analyze_extracted_text(self, text: str, lic_doc: dict) -> Dict[str, Any]:
+        """Run date/budget/expediente extraction on plain text from PDF/ZIP."""
+        updates: Dict[str, Any] = {}
+
+        # Description: use extracted text if longer than current
+        current_desc = lic_doc.get("description", "") or ""
+        if len(text) > len(current_desc) + 20:
+            updates["description"] = text[:MAX_DESCRIPTION_LEN]
+
+        # Opening date (only if missing)
+        if not lic_doc.get("opening_date"):
+            normalized = re.sub(r'\s+', ' ', text)
+            patterns = [
+                r"fecha\s*(?:de\s+)?(?:y\s+lugar\s+de\s+)?apertura\s*(?:de\s+ofertas)?\s*[:\s]+(\d{1,2}[/-]\d{1,2}[/-]\d{2,4}(?:\s+(?:a\s+las\s+)?\d{1,2}[:.]\d{2})?)",
+                r"apertura\s+(?:de\s+(?:las\s+)?(?:propuestas|ofertas|sobres)\s+)?(?:se\s+realizará\s+el\s+)?(\d{1,2}\s+de\s+\w+\s+(?:de\s+)?\d{4}(?:\s*[,a]\s*las?\s*\d{1,2}[:.]\d{2})?)",
+                r"apertura\s*[:\s]+(\d{1,2}[/-]\d{1,2}[/-]\d{2,4})",
+                r"apertura[^.]{0,30}?(\d{1,2}\s+de\s+\w+\s+(?:de\s+)?\d{4})",
+            ]
+            for pat in patterns:
+                m = re.search(pat, normalized, re.IGNORECASE)
+                if m:
+                    dt = parse_date_guess(m.group(1).strip())
+                    if dt:
+                        updates["opening_date"] = dt
+                        break
+
+        # Budget / presupuesto
+        budget_match = re.search(
+            r"(?:presupuesto|monto|importe)\s*(?:oficial|estimado)?[:\s]*\$?\s*([\d.,]+)",
+            text, re.IGNORECASE
+        )
+        if budget_match:
+            try:
+                amount_str = budget_match.group(1).replace(".", "").replace(",", ".")
+                val = float(amount_str)
+                if val > 0:
+                    meta = lic_doc.get("metadata", {}) or {}
+                    meta["budget_extracted"] = val
+                    updates["metadata"] = meta
+            except (ValueError, IndexError):
+                pass
+
+        # Expediente
+        exp_match = re.search(
+            r"(?:expediente|expte\.?|EX-)\s*[:\s]*([A-Z0-9][\w\-/]+)",
+            text, re.IGNORECASE
+        )
+        if exp_match:
+            meta = updates.get("metadata", lic_doc.get("metadata", {}) or {})
+            meta["expediente"] = exp_match.group(1).strip()
+            updates["metadata"] = meta
+
+        # Auto-classify category if missing
+        if not lic_doc.get("category"):
+            from services.category_classifier import get_category_classifier
+            classifier = get_category_classifier()
+            cat = classifier.classify(
+                title=lic_doc.get("title", ""),
+                description=updates.get("description", lic_doc.get("description", "")),
+            )
+            if cat:
+                updates["category"] = cat
+
+        if updates:
+            updates["last_enrichment"] = datetime.utcnow()
+            updates["updated_at"] = datetime.utcnow()
+            logger.info(f"PDF/ZIP enrichment extracted {len(updates)} fields")
+
+        return updates
+
+    # ---- Main enrich method ----
+
     async def enrich(self, lic_doc: dict, selectors: Optional[dict] = None) -> Dict[str, Any]:
         """
         Fetch source_url, extract all available data.
@@ -58,6 +218,17 @@ class GenericEnrichmentService:
         source_url = str(lic_doc.get("source_url", "") or "")
         if not source_url:
             return {}
+
+        # Handle binary URLs (PDF/ZIP) before attempting HTML fetch
+        url_lower = source_url.lower().split("?")[0].split("#")[0]
+        if url_lower.endswith(".pdf"):
+            text = await self._extract_text_from_pdf_url(source_url)
+            if text:
+                return self._analyze_extracted_text(text, lic_doc)
+        elif url_lower.endswith(".zip"):
+            text = await self._extract_text_from_zip(source_url)
+            if text:
+                return self._analyze_extracted_text(text, lic_doc)
 
         try:
             html = await self.http.fetch(source_url)
@@ -76,7 +247,7 @@ class GenericEnrichmentService:
         description = self._extract_description(soup, sel)
         current_desc = lic_doc.get("description", "") or ""
         if description and len(description) > len(current_desc) + 20:
-            updates["description"] = description[:5000]
+            updates["description"] = description[:MAX_DESCRIPTION_LEN]
 
         # 2. Extract opening date (only if missing)
         if not lic_doc.get("opening_date"):
@@ -98,6 +269,17 @@ class GenericEnrichmentService:
             current_meta = lic_doc.get("metadata", {}) or {}
             current_meta.update(extra)
             updates["metadata"] = current_meta
+
+        # 5. Auto-classify category if missing
+        if not lic_doc.get("category"):
+            from services.category_classifier import get_category_classifier
+            classifier = get_category_classifier()
+            cat = classifier.classify(
+                title=lic_doc.get("title", ""),
+                description=updates.get("description", lic_doc.get("description", "")),
+            )
+            if cat:
+                updates["category"] = cat
 
         if updates:
             updates["last_enrichment"] = datetime.utcnow()
