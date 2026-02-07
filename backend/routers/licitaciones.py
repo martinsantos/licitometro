@@ -30,6 +30,7 @@ async def create_licitacion(
 async def get_licitaciones(
     page: int = Query(1, ge=1),
     size: int = Query(15, ge=1, le=100),
+    q: Optional[str] = Query(None, min_length=1, description="Search query (partial match)"),
     status: Optional[str] = None,
     organization: Optional[str] = None,
     location: Optional[str] = None,
@@ -47,7 +48,37 @@ async def get_licitaciones(
     sort_order: str = Query("desc", description="Sort order: asc or desc"),
     repo: LicitacionRepository = Depends(get_licitacion_repository)
 ):
-    """Get all licitaciones with pagination, filtering and sorting"""
+    """Get all licitaciones with pagination, filtering and sorting.
+    When q is provided, uses hybrid search (text index + regex fallback)."""
+
+    # If there's a search query, use hybrid search with filters
+    if q:
+        skip = (page - 1) * size
+        order_val = 1 if sort_order == "asc" else -1
+
+        # Build additional filters
+        extra_filters = {}
+        if status: extra_filters["status"] = status
+        if organization: extra_filters["organization"] = organization
+        if category: extra_filters["category"] = category
+        if fuente: extra_filters["fuente"] = fuente
+        if workflow_state: extra_filters["workflow_state"] = workflow_state
+        if jurisdiccion: extra_filters["jurisdiccion"] = jurisdiccion
+        if tipo_procedimiento: extra_filters["tipo_procedimiento"] = tipo_procedimiento
+
+        items = await repo.search(q, skip=skip, limit=size,
+                                   sort_by=sort_by, sort_order=order_val,
+                                   extra_filters=extra_filters)
+        total_items = await repo.search_count(q, extra_filters=extra_filters)
+        return {
+            "items": items,
+            "paginacion": {
+                "pagina": page,
+                "por_pagina": size,
+                "total_items": total_items,
+                "total_paginas": (total_items + size - 1) // size
+            }
+        }
 
     # Build filter query
     filters = {}

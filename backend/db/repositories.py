@@ -130,33 +130,12 @@ class LicitacionRepository:
         result = await self.collection.delete_one({"_id": query_id})
         return result.deleted_count > 0
     
-    async def search(self, query: str, skip: int = 0, limit: int = 100,
-                     sort_by: str = "publication_date", sort_order: int = pymongo.DESCENDING) -> List[Licitacion]:
-        """Hybrid search: $text first, then regex fallback for partial matches."""
+    def _build_regex_query(self, query: str, extra_filters: Dict = None) -> Dict:
+        """Build a regex-based search query from text tokens."""
         import re as _re
-
-        if sort_by not in Licitacion.model_fields and sort_by != "_id":
-            sort_by = "publication_date"
-
-        # --- Phase 1: MongoDB $text search (fast, uses index) ---
-        text_results = []
-        try:
-            cursor = self.collection.find(
-                {"$text": {"$search": query}}
-            ).sort(sort_by, sort_order).skip(skip).limit(limit)
-            text_results = await cursor.to_list(length=limit)
-        except Exception:
-            pass
-
-        if len(text_results) >= 3:
-            return licitaciones_entity(text_results)
-
-        # --- Phase 2: Regex fallback for partial/fuzzy matching ---
-        seen_ids = {doc["_id"] for doc in text_results}
         tokens = query.strip().split()
         regex_fields = ["title", "description", "organization", "expedient_number", "licitacion_number"]
 
-        # Build per-token regex conditions (case-insensitive partial match)
         token_conditions = []
         for token in tokens:
             escaped = _re.escape(token)
@@ -166,30 +145,65 @@ class LicitacionRepository:
             ]
             token_conditions.append({"$or": field_or})
 
-        if token_conditions:
-            regex_query = {"$and": token_conditions} if len(token_conditions) > 1 else token_conditions[0]
+        if not token_conditions:
+            return extra_filters or {}
+
+        regex_q = {"$and": token_conditions} if len(token_conditions) > 1 else token_conditions[0]
+        if extra_filters:
+            return {"$and": [regex_q, extra_filters]}
+        return regex_q
+
+    async def search(self, query: str, skip: int = 0, limit: int = 100,
+                     sort_by: str = "publication_date", sort_order: int = pymongo.DESCENDING,
+                     extra_filters: Dict = None) -> List[Licitacion]:
+        """Hybrid search: $text first, then regex fallback for partial matches."""
+
+        if sort_by not in Licitacion.model_fields and sort_by != "_id":
+            sort_by = "publication_date"
+
+        # --- Phase 1: MongoDB $text search (fast, uses index) ---
+        text_query = {"$text": {"$search": query}}
+        if extra_filters:
+            text_query.update(extra_filters)
+
+        text_results = []
+        try:
+            cursor = self.collection.find(text_query).sort(sort_by, sort_order).skip(skip).limit(limit)
+            text_results = await cursor.to_list(length=limit)
+        except Exception:
+            pass
+
+        if len(text_results) >= 3:
+            return licitaciones_entity(text_results)
+
+        # --- Phase 2: Regex fallback for partial/fuzzy matching ---
+        seen_ids = {doc["_id"] for doc in text_results}
+        regex_query = self._build_regex_query(query, extra_filters)
+
+        if regex_query:
             remaining = limit - len(text_results) + skip
             regex_cursor = self.collection.find(regex_query).sort(sort_by, sort_order).limit(remaining + skip)
             regex_results = await regex_cursor.to_list(length=remaining + skip)
 
-            # Merge, skipping duplicates
             for doc in regex_results:
                 if doc["_id"] not in seen_ids:
                     text_results.append(doc)
                     seen_ids.add(doc["_id"])
 
-        # Apply skip/limit on merged results
         final = text_results[skip:skip + limit] if skip > 0 else text_results[:limit]
         return licitaciones_entity(final)
 
-    async def search_count(self, query: str) -> int:
+    async def search_count(self, query: str, extra_filters: Dict = None) -> int:
         """Count results for hybrid search."""
-        import re as _re
 
         # $text count
+        text_query = {"$text": {"$search": query}}
+        if extra_filters:
+            text_query.update(extra_filters)
+
         text_count = 0
         try:
-            text_count = await self.collection.count_documents({"$text": {"$search": query}})
+            text_count = await self.collection.count_documents(text_query)
         except Exception:
             pass
 
@@ -197,16 +211,8 @@ class LicitacionRepository:
             return text_count
 
         # Regex count
-        tokens = query.strip().split()
-        regex_fields = ["title", "description", "organization", "expedient_number", "licitacion_number"]
-        token_conditions = []
-        for token in tokens:
-            escaped = _re.escape(token)
-            field_or = [{field: {"$regex": escaped, "$options": "i"}} for field in regex_fields]
-            token_conditions.append({"$or": field_or})
-
-        if token_conditions:
-            regex_query = {"$and": token_conditions} if len(token_conditions) > 1 else token_conditions[0]
+        regex_query = self._build_regex_query(query, extra_filters)
+        if regex_query:
             return await self.collection.count_documents(regex_query)
 
         return text_count

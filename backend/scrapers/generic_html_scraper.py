@@ -170,7 +170,20 @@ class GenericHtmlScraper(BaseScraper):
             if date_el:
                 pub_date = parse_date_guess(date_el.get_text(strip=True))
 
-            description = item.get_text(strip=True)[:1000]
+            # Use description selector if configured, otherwise use title as description
+            desc_sel = self._sel("list_description_selector", "")
+            if desc_sel:
+                desc_el = item.select_one(desc_sel)
+                description = desc_el.get_text(strip=True)[:1000] if desc_el else title
+            else:
+                # Extract text from each cell with separator to avoid garbled concatenation
+                cells = item.find_all("td")
+                if cells:
+                    description = " | ".join(
+                        c.get_text(strip=True) for c in cells if c.get_text(strip=True)
+                    )[:1000]
+                else:
+                    description = item.get_text(" ", strip=True)[:1000]
 
             licitaciones.append(LicitacionCreate(
                 id_licitacion=self._make_id(url or title, title),
