@@ -7,7 +7,7 @@ Tracks execution history and provides monitoring capabilities.
 
 import asyncio
 import logging
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import Optional, List, Dict, Any
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from apscheduler.triggers.cron import CronTrigger
@@ -50,8 +50,10 @@ class SchedulerService:
 
     async def _cleanup_orphaned_runs(self):
         """Mark runs stuck in 'running' as failed (from previous crashes/restarts)"""
+        # Only clean up runs older than 2 minutes to avoid killing freshly created runs
+        cutoff = datetime.utcnow() - timedelta(minutes=2)
         result = await self.db.scraper_runs.update_many(
-            {"status": "running"},
+            {"status": {"$in": ["running", "pending"]}, "started_at": {"$lt": cutoff}},
             {"$set": {
                 "status": "failed",
                 "error_message": "Orphaned run - process restarted",
