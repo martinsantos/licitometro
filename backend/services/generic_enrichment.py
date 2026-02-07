@@ -129,8 +129,14 @@ class GenericEnrichmentService:
         return None
 
     def _extract_opening_date(self, soup: BeautifulSoup, sel: dict) -> Optional[datetime]:
-        """Try to find an opening/apertura date on the page."""
-        # Try config selector
+        """Try to find an opening/apertura date on the page.
+
+        Strategy:
+        1. CSS selector from config (if set)
+        2. Structured table cells with 'fecha de apertura' label (Rivadavia, etc.)
+        3. Regex patterns on full page text (Junin, Santa Rosa, Malargue, etc.)
+        """
+        # 1. Try config selector
         for key in ("detail_opening_date_selector", "opening_date_selector"):
             css = sel.get(key, "")
             if css:
@@ -140,20 +146,70 @@ class GenericEnrichmentService:
                     if dt:
                         return dt
 
-        # Look for apertura text patterns in the page
-        text = soup.get_text()
+        # 2. Look for table cells / structured labels with 'apertura'
+        for label_el in soup.find_all(["span", "td", "th", "label", "strong", "b"]):
+            label_text = label_el.get_text(strip=True).lower()
+            if "fecha" in label_text and "apertura" in label_text:
+                # Look for sibling or next element with the date value
+                value_el = label_el.find_next_sibling()
+                if not value_el:
+                    value_el = label_el.find_next(["span", "td", "div", "p"])
+                if value_el:
+                    dt = parse_date_guess(value_el.get_text(strip=True))
+                    if dt:
+                        # Also look for hora de apertura nearby
+                        return self._combine_date_time(dt, soup, label_el)
+                # Also try parent's next sibling (for table layouts)
+                parent = label_el.parent
+                if parent:
+                    next_cell = parent.find_next_sibling("td")
+                    if next_cell:
+                        dt = parse_date_guess(next_cell.get_text(strip=True))
+                        if dt:
+                            return dt
+
+        # 3. Regex patterns on full page text (cleaned of HTML entities)
+        text = soup.get_text(separator=" ")
+        text = re.sub(r'\s+', ' ', text)  # normalize whitespace
+
+        # Patterns ordered from most specific to least specific
         patterns = [
-            r"(?:apertura|fecha\s+de\s+apertura)[:\s]+(\d{1,2}[/-]\d{1,2}[/-]\d{2,4}(?:\s+\d{1,2}:\d{2})?)",
-            r"(?:apertura|fecha\s+de\s+apertura)[:\s]+(\d{1,2}\s+de\s+\w+\s+(?:de\s+)?\d{4})",
+            # "fecha de apertura: DD/MM/YYYY" or "fecha apertura: DD/MM/YYYY HH:MM"
+            r"fecha\s*(?:de\s+)?(?:y\s+lugar\s+de\s+)?apertura\s*(?:de\s+ofertas)?\s*[:\s]+(\d{1,2}[/-]\d{1,2}[/-]\d{2,4}(?:\s+(?:a\s+las\s+)?\d{1,2}[:.]\d{2})?)",
+            # "apertura de las propuestas se realizará el DD de MONTH de YYYY"
+            r"apertura\s+(?:de\s+(?:las\s+)?(?:propuestas|ofertas|sobres)\s+)?(?:se\s+realizará\s+el\s+)?(\d{1,2}\s+de\s+\w+\s+(?:de\s+)?\d{4}(?:\s*[,a]\s*las?\s*\d{1,2}[:.]\d{2})?)",
+            # "fecha apertura de ofertas: día DD de MONTH de YYYY hora HH:MM"
+            r"fecha\s*(?:de\s+)?apertura\s*(?:de\s+ofertas)?\s*[:\s]+d[ií]a\s+(\d{1,2}\s+de\s+\w+\s+(?:de\s+)?\d{4}(?:\s+hora\s+\d{1,2}[:.]\d{2})?)",
+            # "fecha y lugar de apertura: [weekday] DD de MONTH de YYYY a las HH:MM"
+            r"fecha\s+y\s+lugar\s+de\s+apertura\s*[:\s]+(?:(?:lunes|martes|mi[eé]rcoles|jueves|viernes|s[aá]bado|domingo)\s+)?(\d{1,2}\s+de\s+\w+\s+(?:de\s+)?\d{4}(?:\s+a\s+las\s+\d{1,2}[:.]\d{2})?)",
+            # Simple: "apertura: DD/MM/YYYY"
+            r"apertura\s*[:\s]+(\d{1,2}[/-]\d{1,2}[/-]\d{2,4})",
+            # "apertura ... DD de MONTH de YYYY" (looser match)
+            r"apertura[^.]{0,30}?(\d{1,2}\s+de\s+\w+\s+(?:de\s+)?\d{4})",
         ]
         for pattern in patterns:
             m = re.search(pattern, text, re.IGNORECASE)
             if m:
-                dt = parse_date_guess(m.group(1))
+                dt = parse_date_guess(m.group(1).strip())
                 if dt:
                     return dt
 
         return None
+
+    def _combine_date_time(self, date_val: datetime, soup: BeautifulSoup, near_el) -> datetime:
+        """Try to find 'hora de apertura' near the date element and combine."""
+        # Search nearby elements for time
+        for el in near_el.find_all_next(["span", "td", "label", "strong", "b"], limit=10):
+            text = el.get_text(strip=True).lower()
+            if "hora" in text and "apertura" in text:
+                time_el = el.find_next(["span", "td", "div"])
+                if time_el:
+                    time_text = time_el.get_text(strip=True)
+                    time_match = re.search(r'(\d{1,2})[:.:](\d{2})', time_text)
+                    if time_match:
+                        h, m = int(time_match.group(1)), int(time_match.group(2))
+                        return date_val.replace(hour=h, minute=m)
+        return date_val
 
     def _extract_attachments(self, soup: BeautifulSoup, base_url: str) -> List[dict]:
         """Find all downloadable document links on the page."""
