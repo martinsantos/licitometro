@@ -53,8 +53,7 @@ export function useLicitacionPreferences() {
         }
       })
       .catch(() => {}); // Fallback to localStorage-only
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, []); // eslint-disable-line
 
   const toggleFavorite = useCallback((id: string, e: React.MouseEvent) => {
     e.stopPropagation();
