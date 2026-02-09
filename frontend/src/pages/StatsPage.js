@@ -16,21 +16,24 @@ const StatsPage = () => {
   useEffect(() => {
     const fetchData = async () => {
       try {
-        // Fetch total count
-        const statsResponse = await axios.get(`${API}/licitaciones/`, {
-          params: { page: 1, size: 1 }
-        });
-
-        // Get licitaciones for stats calculation
-        const allResponse = await axios.get(`${API}/licitaciones/`, {
-          params: { page: 1, size: 1000 }
-        });
-
-        const licitaciones = allResponse.data.items || [];
+        // Fetch all licitaciones in pages of 100 (backend max)
+        let allLicitaciones = [];
+        let page = 1;
+        let totalItems = 0;
+        while (true) {
+          const res = await axios.get(`${API}/licitaciones/`, {
+            params: { page, size: 100 }
+          });
+          const items = res.data.items || [];
+          totalItems = res.data.paginacion?.total_items || 0;
+          allLicitaciones = allLicitaciones.concat(items);
+          if (allLicitaciones.length >= totalItems || items.length === 0) break;
+          page++;
+        }
 
         // Calculate stats
         const calculatedStats = {
-          total: statsResponse.data.paginacion?.total_items || licitaciones.length,
+          total: totalItems,
           byFuente: {},
           byStatus: {},
           byJurisdiccion: {},
@@ -40,20 +43,16 @@ const StatsPage = () => {
         const oneWeekAgo = new Date();
         oneWeekAgo.setDate(oneWeekAgo.getDate() - 7);
 
-        licitaciones.forEach(lic => {
-          // By fuente
+        allLicitaciones.forEach(lic => {
           const fuente = lic.fuente || 'Sin fuente';
           calculatedStats.byFuente[fuente] = (calculatedStats.byFuente[fuente] || 0) + 1;
 
-          // By status
           const status = lic.status || 'unknown';
           calculatedStats.byStatus[status] = (calculatedStats.byStatus[status] || 0) + 1;
 
-          // By jurisdiccion
           const jurisdiccion = lic.jurisdiccion || lic.location || 'Sin especificar';
           calculatedStats.byJurisdiccion[jurisdiccion] = (calculatedStats.byJurisdiccion[jurisdiccion] || 0) + 1;
 
-          // Recent (last 7 days)
           if (lic.publication_date) {
             const pubDate = new Date(lic.publication_date);
             if (pubDate >= oneWeekAgo) {
@@ -69,14 +68,16 @@ const StatsPage = () => {
         setSavedItems(saved);
 
         if (saved.length > 0) {
-          const savedData = licitaciones.filter(lic => saved.includes(lic.id));
+          const savedData = allLicitaciones.filter(lic => saved.includes(lic.id));
           setSavedLicitaciones(savedData);
         }
 
         setLoading(false);
       } catch (err) {
         console.error('Error fetching stats:', err);
-        setError(err.response?.data?.detail || err.message || 'Error al cargar estadísticas');
+        const detail = err.response?.data?.detail;
+        const msg = typeof detail === 'string' ? detail : err.message || 'Error al cargar estadísticas';
+        setError(msg);
         setLoading(false);
       }
     };
