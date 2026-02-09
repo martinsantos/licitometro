@@ -68,17 +68,31 @@ class LicitacionRepository:
             sort_by = "publication_date"
 
         if nulls_last:
-            # Use aggregation pipeline to sort nulls to end
-            pipeline = [
-                {"$match": query},
-                {"$addFields": {
-                    "_has_sort_field": {"$cond": [{"$ifNull": [f"${sort_by}", False]}, 0, 1]}
-                }},
-                {"$sort": {"_has_sort_field": 1, sort_by: sort_order}},
-                {"$skip": skip},
-                {"$limit": limit},
-                {"$project": {"_has_sort_field": 0}},
-            ]
+            if sort_by == "budget":
+                # Budget sort: group by currency (USD first), then by amount, nulls last
+                pipeline = [
+                    {"$match": query},
+                    {"$addFields": {
+                        "_has_sort_field": {"$cond": [{"$ifNull": ["$budget", False]}, 0, 1]},
+                        "_currency_order": {"$cond": [{"$eq": ["$currency", "USD"]}, 0, 1]},
+                    }},
+                    {"$sort": {"_has_sort_field": 1, "_currency_order": 1, "budget": sort_order}},
+                    {"$skip": skip},
+                    {"$limit": limit},
+                    {"$project": {"_has_sort_field": 0, "_currency_order": 0}},
+                ]
+            else:
+                # Generic nulls-last sort
+                pipeline = [
+                    {"$match": query},
+                    {"$addFields": {
+                        "_has_sort_field": {"$cond": [{"$ifNull": [f"${sort_by}", False]}, 0, 1]}
+                    }},
+                    {"$sort": {"_has_sort_field": 1, sort_by: sort_order}},
+                    {"$skip": skip},
+                    {"$limit": limit},
+                    {"$project": {"_has_sort_field": 0}},
+                ]
             licitaciones = await self.collection.aggregate(pipeline).to_list(length=limit)
         else:
             cursor = self.collection.find(query).sort(sort_by, sort_order).skip(skip).limit(limit)

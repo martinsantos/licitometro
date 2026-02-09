@@ -38,7 +38,9 @@ const LicitacionCard: React.FC<LicitacionCardProps> = ({
       <div className="flex flex-col lg:flex-row">
         {/* Adaptive Date Column */}
         <div className={`lg:w-28 flex-shrink-0 p-4 flex flex-col items-center justify-center border-b lg:border-b-0 lg:border-r border-gray-100 ${
-          sortBy === 'opening_date' && daysUntil !== null
+          sortBy === 'budget'
+            ? lic.budget != null && lic.budget > 0 ? 'bg-green-50' : 'bg-gray-50'
+            : sortBy === 'opening_date' && daysUntil !== null
             ? urgencyClass
             : sortBy === 'opening_date' && daysUntil === null
             ? 'bg-amber-50'
@@ -46,7 +48,24 @@ const LicitacionCard: React.FC<LicitacionCardProps> = ({
             ? 'bg-violet-50'
             : 'bg-slate-50'
         }`}>
-          {sortBy === 'opening_date' ? (
+          {sortBy === 'budget' ? (
+            lic.budget != null && lic.budget > 0 ? (
+              <>
+                <span className="text-[10px] font-bold text-green-600 uppercase">
+                  {lic.currency === 'USD' ? 'US$' : 'ARS'}
+                </span>
+                <span className="text-lg font-black text-green-800 leading-tight">
+                  {lic.budget >= 1_000_000
+                    ? `${(lic.budget / 1_000_000).toFixed(1)}M`
+                    : lic.budget >= 1_000
+                    ? `${(lic.budget / 1_000).toFixed(0)}K`
+                    : lic.budget.toLocaleString('es-AR')}
+                </span>
+              </>
+            ) : (
+              <span className="text-[10px] font-bold text-gray-400 leading-tight block text-center">SIN<br/>MONTO</span>
+            )
+          ) : sortBy === 'opening_date' ? (
             daysUntil !== null ? (
               <>
                 <span className="text-3xl font-black">{Math.abs(daysUntil)}</span>
