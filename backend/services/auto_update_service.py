@@ -305,6 +305,14 @@ class AutoUpdateService:
                 if cat:
                     update_data["category"] = cat
 
+            # Promote budget if extracted during enrichment
+            if not lic_doc.get("budget") and not update_data.get("budget"):
+                meta = update_data.get("metadata", metadata) or {}
+                if meta.get("budget_extracted"):
+                    update_data["budget"] = meta["budget_extracted"]
+                    if not lic_doc.get("currency"):
+                        update_data["currency"] = "ARS"
+
             # Save to MongoDB
             if update_data:
                 await self.collection.update_one(
@@ -359,6 +367,14 @@ class AutoUpdateService:
                     cat = classifier.classify(title=title, description=desc)
                 if cat:
                     updates["category"] = cat
+
+            # Promote budget if extracted during enrichment
+            if not lic_doc.get("budget") and not updates.get("budget"):
+                meta = updates.get("metadata", lic_doc.get("metadata", {})) or {}
+                if meta.get("budget_extracted"):
+                    updates["budget"] = meta["budget_extracted"]
+                    if not lic_doc.get("currency"):
+                        updates["currency"] = "ARS"
 
             metadata = lic_doc.get("metadata", {}) or {}
             updates["metadata"] = {

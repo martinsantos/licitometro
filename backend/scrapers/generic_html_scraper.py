@@ -68,6 +68,23 @@ class GenericHtmlScraper(BaseScraper):
         s = f"{(title or '').lower().strip()}|{self.config.name}|{(pub_date or datetime.utcnow()).strftime('%Y%m%d')}"
         return hashlib.md5(s.encode()).hexdigest()
 
+    def _parse_budget_text(self, text: str) -> tuple:
+        """Parse Argentine budget: $1.234.567,89 -> (1234567.89, 'ARS')"""
+        currency = "USD" if re.search(r"USD|U\$S", text, re.I) else "ARS"
+        m = re.search(
+            r"(?:presupuesto|monto|importe|valor)\s*(?:oficial|estimado)?[:\s]*\$?\s*([\d]+(?:\.[\d]{3})*(?:,[\d]{1,2})?)",
+            text, re.IGNORECASE
+        )
+        if m:
+            clean = m.group(1).replace(".", "").replace(",", ".")
+            try:
+                val = float(clean)
+                if val > 100:
+                    return val, currency
+            except ValueError:
+                pass
+        return None, currency
+
     async def extract_licitacion_data(self, html: str, url: str) -> Optional[LicitacionCreate]:
         soup = BeautifulSoup(html, "html.parser")
 
@@ -78,6 +95,18 @@ class GenericHtmlScraper(BaseScraper):
         description = self._extract_text(soup, self._sel("description_selector", ".entry-content, .descripcion, .objeto, article"))
         pub_date = self._extract_date(soup, self._sel("date_selector", "time, .date, .fecha, .published"))
         opening_date = self._extract_date(soup, self._sel("opening_date_selector", ""))
+
+        # Extract budget
+        budget = None
+        currency = "ARS"
+        budget_sel = self._sel("budget_selector", "")
+        if budget_sel:
+            el = soup.select_one(budget_sel)
+            if el:
+                budget, currency = self._parse_budget_text(el.get_text(strip=True))
+        if not budget:
+            # Fallback: scan full page text for budget patterns
+            budget, currency = self._parse_budget_text(soup.get_text())
 
         # Extract attached files
         attached_files = []
@@ -106,6 +135,8 @@ class GenericHtmlScraper(BaseScraper):
             fecha_scraping=datetime.utcnow(),
             attached_files=attached_files,
             content_hash=self._content_hash(title, pub_date),
+            budget=budget,
+            currency=currency if budget else None,
         )
 
     async def extract_links(self, html: str) -> List[str]:

@@ -397,6 +397,8 @@ class MendozaCompraScraper(BaseScraper):
                     elif 'descripción' in txt: h_map['descripcion'] = idx
                     elif 'cantidad' in txt: h_map['cantidad'] = idx
                     elif 'unidad' in txt: h_map['unidad'] = idx
+                    elif 'precio' in txt or 'valor' in txt or 'unitario' in txt: h_map['precio'] = idx
+                    elif 'total' in txt: h_map['total'] = idx
                 
                 # Rows parsing
                 for row in rows[1:]:
@@ -409,7 +411,9 @@ class MendozaCompraScraper(BaseScraper):
                         "codigo_item": get_col('codigo'),
                         "descripcion": get_col('descripcion'),
                         "cantidad": get_col('cantidad'),
-                        "unidad": get_col('unidad')
+                        "unidad": get_col('unidad'),
+                        "precio_unitario": get_col('precio'),
+                        "precio_total": get_col('total'),
                     }
                     if not item['descripcion'] and len(cols)>1:
                         # Fallback heuristic
@@ -867,6 +871,23 @@ class MendozaCompraScraper(BaseScraper):
                     currency = pliego_fields.get("Moneda")
                     contact = pliego_fields.get("Lugar de recepción de documentación física")
 
+                    # Budget - try multiple known label variations
+                    for bl in ["Presupuesto oficial", "Presupuesto estimado", "Presupuesto",
+                               "Monto estimado", "Monto total", "Importe total",
+                               "Valor estimado", "Precio referencial"]:
+                        budget_raw = pliego_fields.get(bl)
+                        if budget_raw:
+                            clean = budget_raw.replace("$", "").replace(".", "").replace(",", ".").strip()
+                            bm = re.search(r"[\d.]+", clean)
+                            if bm:
+                                try:
+                                    budget = float(bm.group())
+                                    if budget <= 0:
+                                        budget = None
+                                except ValueError:
+                                    pass
+                            break
+
                     # CRONOGRAMA - Fechas críticas
                     pub_portal_raw = pliego_fields.get("Fecha y hora estimada de publicación en el portal")
                     if pub_portal_raw:
@@ -902,6 +923,22 @@ class MendozaCompraScraper(BaseScraper):
 
                     # ITEMS (productos/servicios)
                     items = pliego_fields.get("_items", [])
+
+                    # Fallback budget: sum item prices if no label-based budget found
+                    if not budget and items:
+                        total_sum = 0
+                        for it in items:
+                            precio_str = it.get("precio_total") or it.get("precio_unitario", "")
+                            if precio_str:
+                                pc = precio_str.replace("$", "").replace(".", "").replace(",", ".").strip()
+                                pm = re.search(r"[\d.]+", pc)
+                                if pm:
+                                    try:
+                                        total_sum += float(pm.group())
+                                    except ValueError:
+                                        pass
+                        if total_sum > 0:
+                            budget = total_sum
 
                     # SOLICITUDES DE CONTRATACIÓN
                     solicitudes_contratacion = pliego_fields.get("_solicitudes", [])

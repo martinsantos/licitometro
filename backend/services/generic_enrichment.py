@@ -54,6 +54,33 @@ class GenericEnrichmentService:
     def __init__(self):
         self.http = ResilientHttpClient()
 
+    @staticmethod
+    def _extract_budget_from_text(text: str) -> tuple:
+        """Extract budget amount and currency from text. Returns (amount, currency)."""
+        currency = "ARS"
+        if re.search(r"(?:USD|U\$S|dólar)", text, re.I):
+            currency = "USD"
+
+        patterns = [
+            # "Presupuesto oficial: $1.234.567,89"
+            r"(?:presupuesto|monto|importe|valor)\s*(?:oficial|estimado|total|aproximado|referencial)?[:\s]*\$?\s*([\d]+(?:\.[\d]{3})*(?:,[\d]{1,2})?)",
+            # "$ 1.234.567,89" standalone large amounts
+            r"\$\s*([\d]+(?:\.[\d]{3})+(?:,[\d]{1,2})?)",
+            # Decimal format: "1234567.89"
+            r"(?:presupuesto|monto|importe)\s*(?:oficial|estimado)?[:\s]*\$?\s*([\d]+\.[\d]{2})\b",
+        ]
+        for pat in patterns:
+            m = re.search(pat, text, re.IGNORECASE)
+            if m:
+                try:
+                    amount_str = m.group(1).replace(".", "").replace(",", ".")
+                    val = float(amount_str)
+                    if val > 100:  # Minimum threshold to avoid false positives
+                        return val, currency
+                except (ValueError, IndexError):
+                    continue
+        return None, currency
+
     # ---- Binary download & PDF/ZIP helpers ----
 
     async def _download_binary(self, url: str, max_bytes: int) -> Optional[bytes]:
@@ -159,20 +186,16 @@ class GenericEnrichmentService:
                         break
 
         # Budget / presupuesto
-        budget_match = re.search(
-            r"(?:presupuesto|monto|importe)\s*(?:oficial|estimado)?[:\s]*\$?\s*([\d.,]+)",
-            text, re.IGNORECASE
-        )
-        if budget_match:
-            try:
-                amount_str = budget_match.group(1).replace(".", "").replace(",", ".")
-                val = float(amount_str)
-                if val > 0:
-                    meta = lic_doc.get("metadata", {}) or {}
-                    meta["budget_extracted"] = val
-                    updates["metadata"] = meta
-            except (ValueError, IndexError):
-                pass
+        budget_val, budget_currency = self._extract_budget_from_text(text)
+        if budget_val:
+            meta = lic_doc.get("metadata", {}) or {}
+            meta["budget_extracted"] = budget_val
+            updates["metadata"] = meta
+            # Promote to top-level field
+            if not lic_doc.get("budget"):
+                updates["budget"] = budget_val
+                if not lic_doc.get("currency"):
+                    updates["currency"] = budget_currency
 
         # Expediente
         exp_match = re.search(
@@ -271,7 +294,14 @@ class GenericEnrichmentService:
             current_meta.update(extra)
             updates["metadata"] = current_meta
 
-        # 5. Auto-classify category if missing (title-first to avoid pliego boilerplate noise)
+        # 5. Promote budget from metadata to top-level field
+        merged_meta = updates.get("metadata", lic_doc.get("metadata", {})) or {}
+        if merged_meta.get("budget_extracted") and not lic_doc.get("budget"):
+            updates["budget"] = merged_meta["budget_extracted"]
+            if not lic_doc.get("currency"):
+                updates["currency"] = "ARS"
+
+        # 6. Auto-classify category if missing (title-first to avoid pliego boilerplate noise)
         if not lic_doc.get("category"):
             from services.category_classifier import get_category_classifier
             classifier = get_category_classifier()
@@ -436,16 +466,9 @@ class GenericEnrichmentService:
         text = soup.get_text()
 
         # Look for budget/presupuesto
-        budget_match = re.search(
-            r"(?:presupuesto|monto|importe)\s*(?:oficial|estimado)?[:\s]*\$?\s*([\d.,]+)",
-            text, re.IGNORECASE
-        )
-        if budget_match:
-            try:
-                amount_str = budget_match.group(1).replace(".", "").replace(",", ".")
-                meta["budget_extracted"] = float(amount_str)
-            except (ValueError, IndexError):
-                pass
+        budget_val, _ = self._extract_budget_from_text(text)
+        if budget_val:
+            meta["budget_extracted"] = budget_val
 
         # Look for expediente number
         exp_match = re.search(

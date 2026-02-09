@@ -141,6 +141,13 @@ const LicitacionCard: React.FC<LicitacionCardProps> = ({
                 )}
               </div>
 
+              {lic.budget != null && lic.budget > 0 && (
+                <p className="text-sm font-semibold text-green-700 mb-1">
+                  {lic.currency === 'USD' ? 'US$ ' : '$ '}
+                  {lic.budget.toLocaleString('es-AR', { minimumFractionDigits: 0, maximumFractionDigits: 2 })}
+                </p>
+              )}
+
               <p className="text-base text-gray-800 font-medium leading-relaxed line-clamp-2">
                 {lic.description || lic.title}
               </p>
