@@ -8,12 +8,12 @@ interface SortModeBarProps {
   onToggleOrder: () => void;
 }
 
-const SORT_TABS: { value: SortField; label: string }[] = [
-  { value: 'publication_date', label: 'Pub' },
-  { value: 'opening_date', label: 'Apert' },
-  { value: 'fecha_scraping', label: 'Idx' },
-  { value: 'budget', label: '$' },
-  { value: 'title', label: 'A-Z' },
+const SORT_TABS: { value: SortField; label: string; title: string }[] = [
+  { value: 'publication_date', label: 'Pub', title: 'Ordenar por fecha de publicacion' },
+  { value: 'opening_date', label: 'Apert', title: 'Ordenar por fecha de apertura' },
+  { value: 'fecha_scraping', label: 'Idx', title: 'Ordenar por fecha de indexacion' },
+  { value: 'budget', label: '$', title: 'Ordenar por presupuesto' },
+  { value: 'title', label: 'A-Z', title: 'Ordenar alfabeticamente' },
 ];
 
 const SortModeBar: React.FC<SortModeBarProps> = ({ sortBy, sortOrder, onSortChange, onToggleOrder }) => (
@@ -22,6 +22,7 @@ const SortModeBar: React.FC<SortModeBarProps> = ({ sortBy, sortOrder, onSortChan
       <button
         key={tab.value}
         onClick={() => onSortChange(tab.value)}
+        title={tab.title}
         className={`px-2 py-1 rounded-md text-xs font-bold transition-all whitespace-nowrap ${
           sortBy === tab.value
             ? 'bg-white shadow-sm text-emerald-700'

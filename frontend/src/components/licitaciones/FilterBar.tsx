@@ -118,7 +118,7 @@ const FilterBar: React.FC<FilterBarProps> = ({
         <option value="category">Rubro</option>
       </select>
 
-      {/* Budget filter — compact $ button with dropdown */}
+      {/* Budget range filter — funnel icon, distinct from sort $ */}
       <div className="relative hidden lg:block">
         <button
           onClick={() => setShowBudget(!showBudget)}
@@ -127,9 +127,11 @@ const FilterBar: React.FC<FilterBarProps> = ({
               ? 'bg-green-100 text-green-700'
               : 'bg-gray-50 text-gray-500 hover:text-gray-700'
           }`}
-          title="Filtrar por presupuesto"
+          title="Filtrar por rango de presupuesto"
         >
-          $
+          <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z" />
+          </svg>
         </button>
         {showBudget && (
           <div className="absolute right-0 top-full mt-1 bg-white border border-gray-200 rounded-xl shadow-lg p-3 z-30 w-56">

@@ -50,7 +50,7 @@ export function useLicitacionPreferences() {
   const handleSortChange = useCallback((newSort: SortField) => {
     if (newSort === 'opening_date') {
       setSortOrder('asc');
-    } else if (newSort === 'fecha_scraping') {
+    } else if (newSort === 'fecha_scraping' || newSort === 'budget') {
       setSortOrder('desc');
     }
     setSortBy(newSort);
