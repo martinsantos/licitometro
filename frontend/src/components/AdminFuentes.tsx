@@ -35,6 +35,36 @@ interface EditForm {
   active: boolean;
 }
 
+const SCHEDULE_PRESETS = [
+  { label: 'Cada hora', value: '0 * * * *' },
+  { label: 'Cada 6 horas', value: '0 */6 * * *' },
+  { label: 'Cada 12 horas', value: '0 */12 * * *' },
+  { label: 'Diario 8am', value: '0 8 * * *' },
+  { label: 'Diario 8am y 20pm', value: '0 8,20 * * *' },
+  { label: 'Lunes a viernes 8am', value: '0 8 * * 1-5' },
+  { label: 'Semanal (lunes)', value: '0 8 * * 1' },
+];
+
+function describeCron(cron: string): string {
+  const presetMatch = SCHEDULE_PRESETS.find(p => p.value === cron);
+  if (presetMatch) return presetMatch.label;
+  const parts = cron.trim().split(/\s+/);
+  if (parts.length !== 5) return cron;
+  const [min, hour, , , dow] = parts;
+  const dowNames: Record<string, string> = { '0': 'dom', '1': 'lun', '2': 'mar', '3': 'mie', '4': 'jue', '5': 'vie', '6': 'sab' };
+  let desc = '';
+  if (hour === '*') { desc = `Cada hora, min ${min}`; }
+  else if (hour.includes('/')) { desc = `Cada ${hour.split('/')[1]}h`; }
+  else if (hour.includes(',')) { desc = `A las ${hour.replace(/,/g, 'h, ')}h`; }
+  else { desc = `A las ${hour}:${min.padStart(2, '0')}`; }
+  if (dow === '1-5') desc += ' (L-V)';
+  else if (dow !== '*') {
+    const dayLabels = dow.split(',').map(d => dowNames[d] || d).join(', ');
+    desc += ` (${dayLabels})`;
+  }
+  return desc;
+}
+
 const AdminFuentes = ({ apiUrl }: { apiUrl: string }) => {
   const [configs, setConfigs] = useState<ScraperConfig[]>([]);
   const [health, setHealth] = useState<Record<string, SourceHealth>>({});
@@ -224,13 +254,28 @@ const AdminFuentes = ({ apiUrl }: { apiUrl: string }) => {
                         />
                       </div>
                       <div>
-                        <label className="block text-xs text-gray-500 mb-1">Schedule (cron)</label>
-                        <input
-                          value={editForm.schedule}
-                          onChange={(e) => setEditForm({ ...editForm, schedule: e.target.value })}
-                          className="w-full border rounded px-3 py-1.5 text-sm font-mono"
-                          placeholder="0 7,13,19 * * 1-5"
-                        />
+                        <label className="block text-xs text-gray-500 mb-1">Schedule</label>
+                        <select
+                          value={SCHEDULE_PRESETS.some(p => p.value === editForm.schedule) ? editForm.schedule : 'custom'}
+                          onChange={(e) => {
+                            if (e.target.value !== 'custom') setEditForm({ ...editForm, schedule: e.target.value });
+                          }}
+                          className="w-full border rounded px-3 py-1.5 text-sm mb-1"
+                        >
+                          {SCHEDULE_PRESETS.map(p => (
+                            <option key={p.value} value={p.value}>{p.label}</option>
+                          ))}
+                          <option value="custom">Personalizado</option>
+                        </select>
+                        {!SCHEDULE_PRESETS.some(p => p.value === editForm.schedule) && (
+                          <input
+                            value={editForm.schedule}
+                            onChange={(e) => setEditForm({ ...editForm, schedule: e.target.value })}
+                            className="w-full border rounded px-3 py-1.5 text-sm font-mono"
+                            placeholder="0 7,13,19 * * 1-5"
+                          />
+                        )}
+                        <p className="text-[10px] text-gray-400 mt-0.5">{describeCron(editForm.schedule)}</p>
                       </div>
                       <div>
                         <label className="block text-xs text-gray-500 mb-1">Tipo</label>
@@ -336,7 +381,8 @@ const AdminFuentes = ({ apiUrl }: { apiUrl: string }) => {
                       <div>
                         <span className="text-gray-500 text-xs">Schedule</span>
                         <div className="mt-0.5">
-                          <code className="text-xs bg-gray-100 px-1.5 py-0.5 rounded">{config.schedule}</code>
+                          <span className="text-xs font-medium">{describeCron(config.schedule)}</span>
+                          <code className="text-[10px] bg-gray-100 px-1 py-0.5 rounded ml-1 text-gray-400">{config.schedule}</code>
                         </div>
                       </div>
 

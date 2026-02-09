@@ -20,7 +20,9 @@ interface FilterBarProps {
   onBudgetMaxChange?: (v: string) => void;
 }
 
-const selectClass = "px-2 py-1.5 bg-gray-50 border border-transparent focus:border-emerald-500 rounded-lg outline-none text-gray-700 font-bold cursor-pointer text-xs";
+const selectBase = "px-2 py-1.5 bg-gray-50 border rounded-lg outline-none text-gray-700 font-bold cursor-pointer text-xs";
+const selectClass = `${selectBase} border-transparent focus:border-emerald-500`;
+const selectActive = `${selectBase} border-emerald-500 bg-emerald-50 text-emerald-700`;
 
 const FilterBar: React.FC<FilterBarProps> = ({
   filters, onFilterChange, filterOptions, viewMode, onViewModeChange,
@@ -34,7 +36,7 @@ const FilterBar: React.FC<FilterBarProps> = ({
   return (
     <div className="flex items-center gap-1.5 flex-nowrap">
       <select
-        className={`${selectClass} hidden lg:block max-w-[140px]`}
+        className={`${filters.fuenteFiltro ? selectActive : selectClass} hidden lg:block max-w-[140px]`}
         value={filters.fuenteFiltro}
         onChange={(e) => onFilterChange('fuenteFiltro', e.target.value)}
       >
@@ -45,7 +47,7 @@ const FilterBar: React.FC<FilterBarProps> = ({
       </select>
 
       <select
-        className={`${selectClass} hidden lg:block`}
+        className={`${filters.statusFiltro ? selectActive : selectClass} hidden lg:block`}
         value={filters.statusFiltro}
         onChange={(e) => onFilterChange('statusFiltro', e.target.value)}
       >
@@ -58,7 +60,7 @@ const FilterBar: React.FC<FilterBarProps> = ({
       <div className="relative hidden lg:block">
         <div className="flex items-center gap-0.5">
           <select
-            className={`${selectClass} max-w-[140px]`}
+            className={`${filters.categoryFiltro ? selectActive : selectClass} max-w-[140px]`}
             value={filters.categoryFiltro}
             onChange={(e) => onFilterChange('categoryFiltro', e.target.value)}
           >
@@ -92,7 +94,7 @@ const FilterBar: React.FC<FilterBarProps> = ({
       </div>
 
       <select
-        className={`${selectClass} hidden lg:block`}
+        className={`${filters.workflowFiltro ? selectActive : selectClass} hidden lg:block`}
         value={filters.workflowFiltro}
         onChange={(e) => onFilterChange('workflowFiltro', e.target.value)}
       >

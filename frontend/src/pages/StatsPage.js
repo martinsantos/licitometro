@@ -10,26 +10,27 @@ const StatsPage = () => {
   const [savedItems, setSavedItems] = useState([]);
   const [savedLicitaciones, setSavedLicitaciones] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
   const [activeTab, setActiveTab] = useState('overview');
 
   useEffect(() => {
     const fetchData = async () => {
       try {
-        // Fetch stats from backend
-        const statsResponse = await axios.get(`${API}/licitaciones/search`, {
-          params: { page: 1, page_size: 1 }
+        // Fetch total count
+        const statsResponse = await axios.get(`${API}/licitaciones/`, {
+          params: { page: 1, size: 1 }
         });
-        
-        // Get all licitaciones for stats calculation
-        const allResponse = await axios.get(`${API}/licitaciones/search`, {
-          params: { page: 1, page_size: 1000 }
+
+        // Get licitaciones for stats calculation
+        const allResponse = await axios.get(`${API}/licitaciones/`, {
+          params: { page: 1, size: 1000 }
         });
-        
+
         const licitaciones = allResponse.data.items || [];
-        
+
         // Calculate stats
         const calculatedStats = {
-          total: statsResponse.data.total || 0,
+          total: statsResponse.data.paginacion?.total_items || licitaciones.length,
           byFuente: {},
           byStatus: {},
           byJurisdiccion: {},
@@ -43,15 +44,15 @@ const StatsPage = () => {
           // By fuente
           const fuente = lic.fuente || 'Sin fuente';
           calculatedStats.byFuente[fuente] = (calculatedStats.byFuente[fuente] || 0) + 1;
-          
+
           // By status
           const status = lic.status || 'unknown';
           calculatedStats.byStatus[status] = (calculatedStats.byStatus[status] || 0) + 1;
-          
+
           // By jurisdiccion
           const jurisdiccion = lic.jurisdiccion || lic.location || 'Sin especificar';
           calculatedStats.byJurisdiccion[jurisdiccion] = (calculatedStats.byJurisdiccion[jurisdiccion] || 0) + 1;
-          
+
           // Recent (last 7 days)
           if (lic.publication_date) {
             const pubDate = new Date(lic.publication_date);
@@ -66,15 +67,16 @@ const StatsPage = () => {
         // Load saved licitaciones from LocalStorage
         const saved = JSON.parse(localStorage.getItem('savedLicitaciones') || '[]');
         setSavedItems(saved);
-        
+
         if (saved.length > 0) {
           const savedData = licitaciones.filter(lic => saved.includes(lic.id));
           setSavedLicitaciones(savedData);
         }
 
         setLoading(false);
-      } catch (error) {
-        console.error('Error fetching stats:', error);
+      } catch (err) {
+        console.error('Error fetching stats:', err);
+        setError(err.response?.data?.detail || err.message || 'Error al cargar estadísticas');
         setLoading(false);
       }
     };
@@ -98,6 +100,26 @@ const StatsPage = () => {
             <div className="absolute inset-0 rounded-full border-4 border-transparent border-t-blue-600 animate-spin"></div>
           </div>
           <p className="text-xl font-bold text-gray-600 tracking-wide">Calculando estadísticas...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-100 flex items-center justify-center">
+        <div className="text-center max-w-md mx-auto px-4">
+          <div className="w-20 h-20 mx-auto mb-6 rounded-3xl bg-red-100 flex items-center justify-center">
+            <span className="text-4xl">!</span>
+          </div>
+          <h2 className="text-xl font-black text-gray-900 mb-2">Error al cargar estadísticas</h2>
+          <p className="text-gray-500 mb-6">{error}</p>
+          <button
+            onClick={() => { setError(null); setLoading(true); window.location.reload(); }}
+            className="inline-flex items-center gap-2 px-6 py-3 bg-blue-600 text-white rounded-2xl font-bold hover:bg-blue-700 transition-colors"
+          >
+            Reintentar
+          </button>
         </div>
       </div>
     );

@@ -1,15 +1,19 @@
-import { differenceInDays, format } from 'date-fns';
+import { differenceInCalendarDays, format } from 'date-fns';
 import { es } from 'date-fns/locale';
 import type { Licitacion } from '../types/licitacion';
 
 export const getDaysUntilOpening = (openingDate: string | null | undefined): number | null => {
   if (!openingDate) return null;
-  return differenceInDays(new Date(openingDate), new Date());
+  const opening = new Date(openingDate);
+  if (isNaN(opening.getTime())) return null;
+  return differenceInCalendarDays(opening, new Date());
 };
 
 export const isUrgentLic = (lic: Licitacion): boolean => {
   if (!lic.opening_date) return false;
-  const days = differenceInDays(new Date(lic.opening_date), new Date());
+  const opening = new Date(lic.opening_date);
+  if (isNaN(opening.getTime())) return false;
+  const days = differenceInCalendarDays(opening, new Date());
   return days >= 0 && days <= 7;
 };
 

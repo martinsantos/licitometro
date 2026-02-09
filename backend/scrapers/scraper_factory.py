@@ -11,13 +11,6 @@ from scrapers.comprar_gob_ar import ComprarGobArScraper
 from scrapers.boletin_oficial_mendoza_scraper import BoletinOficialMendozaScraper
 from scrapers.mendoza_compra import MendozaCompraScraper
 
-# Province scrapers
-from .buenos_aires_provincia_scraper import BuenosAiresProvinciaScraper
-from .caba_scraper import CabaScraper
-from .cordoba_provincia_scraper import CordobaProvinciaScraper
-from .santa_fe_provincia_scraper import SantaFeProvinciaScraper
-from .mendoza_provincia_scraper import MendozaProvinciaScraper
-
 # Mendoza-specific scrapers
 from .aysam_scraper import AysamScraper
 from .osep_scraper import OsepScraper
@@ -110,27 +103,7 @@ def create_scraper(config: ScraperConfig) -> Optional[BaseScraper]:
         return MendozaCompraScraper(config)
     
     # === OTRAS PROVINCIAS ===
-    
-    # Buenos Aires
-    if "compras.gba.gob.ar" in config_url_lower or "buenos-aires-provincia" in config_name_lower:
-        return BuenosAiresProvinciaScraper(config)
-    
-    # CABA
-    if "buenosairescompras.gob.ar" in config_url_lower or "caba" in config_name_lower:
-        return CabaScraper(config)
-    
-    # Córdoba
-    if "compras.cba.gov.ar" in config_url_lower or "cordoba-provincia" in config_name_lower:
-        return CordobaProvinciaScraper(config)
-    
-    # Santa Fe
-    if "santafe.gov.ar/portal_compras" in config_url_lower or "santa-fe-provincia" in config_name_lower:
-        return SantaFeProvinciaScraper(config)
-    
-    # Mendoza Provincia (OCDS/API based)
-    if "mendoza-provincia" in config_name_lower:
-        return MendozaProvinciaScraper(config)
-    
+
     # Comprar.gob.ar (nacional)
     if "comprar.gob.ar" in config_url_lower and "comprar" in config_name_lower:
         return ComprarGobArScraper(config)

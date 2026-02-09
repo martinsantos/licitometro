@@ -1,5 +1,7 @@
-import { useReducer, useCallback } from 'react';
+import { useReducer, useCallback, useEffect } from 'react';
 import type { FilterState } from '../types/licitacion';
+
+const STORAGE_KEY = 'licitacionFilters';
 
 const initialFilters: FilterState = {
   busqueda: '',
@@ -15,6 +17,16 @@ const initialFilters: FilterState = {
   fechaHasta: '',
   fechaCampo: 'publication_date',
 };
+
+function loadFiltersFromSession(): FilterState {
+  try {
+    const stored = sessionStorage.getItem(STORAGE_KEY);
+    if (stored) {
+      return { ...initialFilters, ...JSON.parse(stored) };
+    }
+  } catch { /* ignore */ }
+  return initialFilters;
+}
 
 type FilterAction =
   | { type: 'SET_FILTER'; key: keyof FilterState; value: string }
@@ -36,7 +48,12 @@ function filterReducer(state: FilterState, action: FilterAction): FilterState {
 }
 
 export function useLicitacionFilters() {
-  const [filters, dispatch] = useReducer(filterReducer, initialFilters);
+  const [filters, dispatch] = useReducer(filterReducer, undefined, loadFiltersFromSession);
+
+  // Persist to sessionStorage on every change
+  useEffect(() => {
+    sessionStorage.setItem(STORAGE_KEY, JSON.stringify(filters));
+  }, [filters]);
 
   const setFilter = useCallback((key: keyof FilterState, value: string) => {
     dispatch({ type: 'SET_FILTER', key, value });

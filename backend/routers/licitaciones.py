@@ -235,6 +235,35 @@ async def smart_search(
     return {"query": q, "parsed_filters": parsed}
 
 
+@router.get("/favorites")
+async def get_favorites(request: Request):
+    """Get all favorite licitacion IDs"""
+    db = request.app.mongodb
+    cursor = db.favorites.find({}, {"licitacion_id": 1, "_id": 0})
+    docs = await cursor.to_list(length=5000)
+    return [doc["licitacion_id"] for doc in docs]
+
+
+@router.post("/favorites/{licitacion_id}")
+async def add_favorite(licitacion_id: str, request: Request):
+    """Add a licitacion to favorites"""
+    db = request.app.mongodb
+    await db.favorites.update_one(
+        {"licitacion_id": licitacion_id},
+        {"$set": {"licitacion_id": licitacion_id, "created_at": datetime.utcnow()}},
+        upsert=True,
+    )
+    return {"ok": True, "licitacion_id": licitacion_id}
+
+
+@router.delete("/favorites/{licitacion_id}")
+async def remove_favorite(licitacion_id: str, request: Request):
+    """Remove a licitacion from favorites"""
+    db = request.app.mongodb
+    await db.favorites.delete_one({"licitacion_id": licitacion_id})
+    return {"ok": True, "licitacion_id": licitacion_id}
+
+
 @router.get("/stats/daily-counts")
 async def get_daily_counts(
     days: int = Query(14, ge=1, le=30),

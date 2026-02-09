@@ -24,11 +24,15 @@ const ActiveFiltersChips: React.FC<ActiveFiltersChipsProps> = ({
 
   return (
     <div className="flex items-center gap-2 flex-wrap text-xs">
-      {totalItems !== null && (
+      {totalItems !== null && totalItems === 0 && hasActiveFilters ? (
+        <span className="px-2 py-0.5 bg-red-50 text-red-600 rounded font-bold">
+          Sin resultados — pruebe removiendo filtros:
+        </span>
+      ) : totalItems !== null ? (
         <span className="px-2 py-0.5 bg-emerald-50 text-emerald-700 rounded font-bold">
           {totalItems} resultados
         </span>
-      )}
+      ) : null}
       {newItemsCount > 0 && (
         <span className="px-2 py-0.5 bg-green-100 text-green-700 rounded font-bold animate-pulse">
           +{newItemsCount} nuevas
