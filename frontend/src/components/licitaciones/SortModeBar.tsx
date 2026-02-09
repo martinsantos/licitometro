@@ -12,6 +12,7 @@ const SORT_TABS: { value: SortField; label: string }[] = [
   { value: 'publication_date', label: 'Pub' },
   { value: 'opening_date', label: 'Apert' },
   { value: 'fecha_scraping', label: 'Idx' },
+  { value: 'budget', label: '$' },
   { value: 'title', label: 'A-Z' },
 ];
 

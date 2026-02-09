@@ -147,7 +147,7 @@ async def get_licitaciones(
     skip = (page - 1) * size
 
     # For nullable date fields, use aggregation to push nulls to end
-    nullable_sort_fields = ["opening_date", "fecha_scraping"]
+    nullable_sort_fields = ["opening_date", "fecha_scraping", "budget"]
     use_nulls_last = sort_by in nullable_sort_fields
 
     # Get data and count

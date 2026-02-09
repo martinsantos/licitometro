@@ -36,7 +36,7 @@ export interface Paginacion {
   por_pagina: number;
 }
 
-export type SortField = 'publication_date' | 'opening_date' | 'fecha_scraping' | 'title';
+export type SortField = 'publication_date' | 'opening_date' | 'fecha_scraping' | 'title' | 'budget';
 export type SortOrder = 'asc' | 'desc';
 export type ViewMode = 'cards' | 'table' | 'timeline';
 export type SearchMode = 'simple' | 'smart' | 'advanced';

@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import type { FilterState, FilterOptions, ViewMode } from '../../types/licitacion';
 import CriticalRubrosConfig from './CriticalRubrosConfig';
 
@@ -28,8 +28,11 @@ const FilterBar: React.FC<FilterBarProps> = ({
   showRubroConfig, onToggleRubroConfig,
   budgetMin, budgetMax, onBudgetMinChange, onBudgetMaxChange,
 }) => {
+  const [showBudget, setShowBudget] = useState(false);
+  const hasBudgetFilter = !!(budgetMin || budgetMax);
+
   return (
-    <div className="flex flex-wrap items-center gap-1.5">
+    <div className="flex items-center gap-1.5 flex-nowrap">
       <select
         className={`${selectClass} hidden lg:block max-w-[140px]`}
         value={filters.fuenteFiltro}
@@ -115,28 +118,53 @@ const FilterBar: React.FC<FilterBarProps> = ({
         <option value="category">Rubro</option>
       </select>
 
-      {/* Budget range */}
-      <div className="hidden lg:flex items-center gap-1 border-l border-gray-200 pl-1.5 ml-0.5">
-        <span className="text-[10px] font-bold text-gray-400">$</span>
-        <input
-          type="number"
-          placeholder="Min"
-          className="w-20 px-2 py-1.5 bg-gray-50 border border-transparent focus:border-emerald-500 rounded-lg outline-none text-xs text-gray-700 font-bold [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
-          value={budgetMin || ''}
-          onChange={(e) => onBudgetMinChange?.(e.target.value)}
-        />
-        <span className="text-[10px] text-gray-400">-</span>
-        <input
-          type="number"
-          placeholder="Max"
-          className="w-20 px-2 py-1.5 bg-gray-50 border border-transparent focus:border-emerald-500 rounded-lg outline-none text-xs text-gray-700 font-bold [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
-          value={budgetMax || ''}
-          onChange={(e) => onBudgetMaxChange?.(e.target.value)}
-        />
+      {/* Budget filter — compact $ button with dropdown */}
+      <div className="relative hidden lg:block">
+        <button
+          onClick={() => setShowBudget(!showBudget)}
+          className={`px-2 py-1.5 rounded-lg text-xs font-bold transition-all flex-shrink-0 ${
+            hasBudgetFilter
+              ? 'bg-green-100 text-green-700'
+              : 'bg-gray-50 text-gray-500 hover:text-gray-700'
+          }`}
+          title="Filtrar por presupuesto"
+        >
+          $
+        </button>
+        {showBudget && (
+          <div className="absolute right-0 top-full mt-1 bg-white border border-gray-200 rounded-xl shadow-lg p-3 z-30 w-56">
+            <div className="text-[10px] font-bold text-gray-400 uppercase mb-2">Presupuesto</div>
+            <div className="space-y-2">
+              <input
+                type="number"
+                placeholder="Monto mínimo"
+                className="w-full px-3 py-2 bg-gray-50 border border-gray-200 focus:border-emerald-500 rounded-lg outline-none text-xs text-gray-700 font-bold [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                value={budgetMin || ''}
+                onChange={(e) => onBudgetMinChange?.(e.target.value)}
+                autoFocus
+              />
+              <input
+                type="number"
+                placeholder="Monto máximo"
+                className="w-full px-3 py-2 bg-gray-50 border border-gray-200 focus:border-emerald-500 rounded-lg outline-none text-xs text-gray-700 font-bold [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                value={budgetMax || ''}
+                onChange={(e) => onBudgetMaxChange?.(e.target.value)}
+              />
+              {hasBudgetFilter && (
+                <button
+                  onClick={() => { onBudgetMinChange?.(''); onBudgetMaxChange?.(''); setShowBudget(false); }}
+                  className="text-[10px] text-red-500 hover:text-red-700 font-bold"
+                >
+                  Limpiar
+                </button>
+              )}
+            </div>
+          </div>
+        )}
       </div>
 
       {/* View toggle */}
-      <div className="flex bg-gray-100 rounded-lg p-0.5">
+      <div className="flex bg-gray-100 rounded-lg p-0.5 flex-shrink-0">
         {(['cards', 'table', 'timeline'] as const).map((mode) => (
           <button
             key={mode}
