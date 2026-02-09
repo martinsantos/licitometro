@@ -14,6 +14,10 @@ interface FilterBarProps {
   onToggleCriticalRubro: (rubro: string) => void;
   showRubroConfig: boolean;
   onToggleRubroConfig: () => void;
+  budgetMin?: string;
+  budgetMax?: string;
+  onBudgetMinChange?: (v: string) => void;
+  onBudgetMaxChange?: (v: string) => void;
 }
 
 const selectClass = "px-2 py-1.5 bg-gray-50 border border-transparent focus:border-emerald-500 rounded-lg outline-none text-gray-700 font-bold cursor-pointer text-xs";
@@ -22,6 +26,7 @@ const FilterBar: React.FC<FilterBarProps> = ({
   filters, onFilterChange, filterOptions, viewMode, onViewModeChange,
   groupBy, onGroupByChange, criticalRubros, onToggleCriticalRubro,
   showRubroConfig, onToggleRubroConfig,
+  budgetMin, budgetMax, onBudgetMinChange, onBudgetMaxChange,
 }) => {
   return (
     <div className="flex flex-wrap items-center gap-1.5">
@@ -109,6 +114,26 @@ const FilterBar: React.FC<FilterBarProps> = ({
         <option value="procedimiento">Procedimiento</option>
         <option value="category">Rubro</option>
       </select>
+
+      {/* Budget range */}
+      <div className="hidden lg:flex items-center gap-1 border-l border-gray-200 pl-1.5 ml-0.5">
+        <span className="text-[10px] font-bold text-gray-400">$</span>
+        <input
+          type="number"
+          placeholder="Min"
+          className="w-20 px-2 py-1.5 bg-gray-50 border border-transparent focus:border-emerald-500 rounded-lg outline-none text-xs text-gray-700 font-bold [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+          value={budgetMin || ''}
+          onChange={(e) => onBudgetMinChange?.(e.target.value)}
+        />
+        <span className="text-[10px] text-gray-400">-</span>
+        <input
+          type="number"
+          placeholder="Max"
+          className="w-20 px-2 py-1.5 bg-gray-50 border border-transparent focus:border-emerald-500 rounded-lg outline-none text-xs text-gray-700 font-bold [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+          value={budgetMax || ''}
+          onChange={(e) => onBudgetMaxChange?.(e.target.value)}
+        />
+      </div>
 
       {/* View toggle */}
       <div className="flex bg-gray-100 rounded-lg p-0.5">

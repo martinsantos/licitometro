@@ -262,6 +262,10 @@ const LicitacionesList = ({ apiUrl }: LicitacionesListProps) => {
               onToggleCriticalRubro={prefs.toggleCriticalRubro}
               showRubroConfig={prefs.showRubroConfig}
               onToggleRubroConfig={() => prefs.setShowRubroConfig(!prefs.showRubroConfig)}
+              budgetMin={filters.budgetMin}
+              budgetMax={filters.budgetMax}
+              onBudgetMinChange={(v) => setFilter('budgetMin', v)}
+              onBudgetMaxChange={(v) => setFilter('budgetMax', v)}
             />
           </div>
 
