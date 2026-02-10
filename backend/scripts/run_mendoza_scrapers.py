@@ -62,13 +62,14 @@ def _boletin_config() -> ScraperConfig:
 # ── Serialization ───────────────────────────────────────────────────────────
 
 def _licitacion_to_dict(lic) -> dict:
-    """Convert a LicitacionCreate to a JSON-serializable dict."""
+    """Convert a LicitacionCreate to a BSON-compatible dict.
+    Preserves datetime as native objects (Motor handles them natively).
+    Only converts HttpUrl fields to str for BSON compatibility.
+    """
     d = lic.model_dump() if hasattr(lic, "model_dump") else lic.dict()
-    for key, val in d.items():
-        if isinstance(val, datetime):
-            d[key] = val.isoformat()
-        elif hasattr(val, "__str__") and key in ("source_url",):
-            d[key] = str(val) if val else None
+    for url_field in ("source_url", "canonical_url"):
+        if d.get(url_field) is not None:
+            d[url_field] = str(d[url_field])
     return d
 
 
@@ -94,8 +95,8 @@ async def _save_to_mongodb(licitaciones: list[dict]):
             if existing:
                 skipped += 1
                 continue
-            lic["created_at"] = datetime.utcnow().isoformat()
-            lic["updated_at"] = datetime.utcnow().isoformat()
+            lic["created_at"] = datetime.utcnow()
+            lic["updated_at"] = datetime.utcnow()
             await collection.insert_one(lic)
             inserted += 1
 

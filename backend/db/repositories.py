@@ -37,6 +37,10 @@ class LicitacionRepository:
     async def create(self, licitacion: LicitacionCreate) -> Licitacion:
         """Create a new licitacion with auto-classification"""
         licitacion_dict = licitacion.model_dump()
+        # Convert HttpUrl to str for BSON compatibility
+        for url_field in ("source_url", "canonical_url"):
+            if licitacion_dict.get(url_field) is not None:
+                licitacion_dict[url_field] = str(licitacion_dict[url_field])
         licitacion_dict["_id"] = uuid4()
         licitacion_dict["created_at"] = datetime.utcnow()
         licitacion_dict["updated_at"] = datetime.utcnow()

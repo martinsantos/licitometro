@@ -330,8 +330,12 @@ class SchedulerService:
                                 item.title, item.organization, item.publication_date
                             )
 
-                        # mode='json' converts HttpUrl and other types to JSON-serializable strings
-                        item_data = item.model_dump(mode='json')
+                        # Use default mode to preserve datetime as native objects for MongoDB
+                        item_data = item.model_dump()
+                        # Convert HttpUrl to str for BSON compatibility
+                        for url_field in ("source_url", "canonical_url"):
+                            if item_data.get(url_field) is not None:
+                                item_data[url_field] = str(item_data[url_field])
                         item_data["updated_at"] = datetime.utcnow()
 
                         if existing:
