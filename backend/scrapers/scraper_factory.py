@@ -106,22 +106,23 @@ def create_scraper(config: ScraperConfig) -> Optional[BaseScraper]:
     # EMESA (Empresa Mendocina de Energía) - /concursos page works without Selenium
     # Falls through to GenericHtmlScraper via selectors config
 
-    # Generic mendoza.gov.ar (fallback)
-    if "mendoza.gov.ar" in config_url_lower:
-        return MendozaCompraScraper(config)
-    
-    # === OTRAS PROVINCIAS ===
-
-    # Comprar.gob.ar (nacional)
-    if "comprar.gob.ar" in config_url_lower and "comprar" in config_name_lower:
-        return ComprarGobArScraper(config)
-    
-    # Generic HTML scraper (fallback for any site with scraper_type=generic_html or selectors configured)
+    # Generic HTML scraper - MUST be before mendoza.gov.ar fallback so configs
+    # with explicit scraper_type=generic_html are routed correctly (e.g. IPV at ipvmendoza.gov.ar)
     if config.selectors and (config.selectors.get("scraper_type") == "generic_html" or
                              config.selectors.get("link_selector") or
                              config.selectors.get("list_item_selector")):
         logger.info(f"Using GenericHtmlScraper for {config.name}")
         return GenericHtmlScraper(config)
+
+    # Generic mendoza.gov.ar (fallback)
+    if "mendoza.gov.ar" in config_url_lower:
+        return MendozaCompraScraper(config)
+
+    # === OTRAS PROVINCIAS ===
+
+    # Comprar.gob.ar (nacional)
+    if "comprar.gob.ar" in config_url_lower and "comprar" in config_name_lower:
+        return ComprarGobArScraper(config)
 
     # No matching scraper found
     logger.warning(f"No specific scraper found for URL {config.url} or name {config.name}")
