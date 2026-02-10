@@ -134,8 +134,11 @@ class GodoyCruzScraper(BaseScraper):
                 pub_date = parse_date_guess(row[COL_PUB_DATE]) if row[COL_PUB_DATE] else None
                 opening_date = parse_date_guess(row[COL_OPENING]) if row[COL_OPENING] else None
 
-                # Parse budget
-                budget = self._parse_budget(row[COL_BUDGET])
+                # Parse budget — Godoy Cruz publishes COSTO DEL PLIEGO, not presupuesto.
+                # Pliego cost = 0.1% (1/1000) of presupuesto oficial in Godoy Cruz.
+                # See: pliego_to_budget_ratio pattern in docs.
+                costo_pliego = self._parse_budget(row[COL_BUDGET])
+                budget = round(costo_pliego * 1000, 2) if costo_pliego else None
 
                 # Parse number and expediente
                 lic_number = self._parse_number(row[COL_NUMBER])
@@ -178,6 +181,9 @@ class GodoyCruzScraper(BaseScraper):
                     metadata={
                         "godoy_cruz_id": internal_id,
                         "godoy_cruz_year": row[COL_YEAR] if len(row) > COL_YEAR else None,
+                        "costo_pliego": costo_pliego,
+                        "budget_source": "estimated_from_pliego",
+                        "pliego_to_budget_ratio": 1000,
                     },
                 )
                 licitaciones.append(lic)
