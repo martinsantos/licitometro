@@ -1,5 +1,5 @@
 import { useState, useCallback, useRef, useEffect } from 'react';
-import type { Licitacion, SortField, SortOrder, ViewMode, SearchMode } from '../types/licitacion';
+import type { Licitacion, SortField, SortOrder, ViewMode } from '../types/licitacion';
 import { useLocalStorageSet } from './useLocalStorage';
 
 function loadSessionPref<T>(key: string, fallback: T): T {
@@ -13,8 +13,6 @@ export function useLicitacionPreferences() {
   const [sortBy, setSortBy] = useState<SortField>(() => loadSessionPref('pref_sortBy', 'publication_date'));
   const [sortOrder, setSortOrder] = useState<SortOrder>(() => loadSessionPref('pref_sortOrder', 'desc'));
   const [viewMode, setViewMode] = useState<ViewMode>(() => loadSessionPref('pref_viewMode', 'cards'));
-  const [searchMode, setSearchMode] = useState<SearchMode>('simple');
-  const [advancedOpen, setAdvancedOpen] = useState(false);
   const [groupBy, setGroupBy] = useState<string>(() => loadSessionPref('pref_groupBy', 'none'));
   const [shareModalOpen, setShareModalOpen] = useState<string | null>(null);
   const [showRubroConfig, setShowRubroConfig] = useState(false);
@@ -116,8 +114,6 @@ export function useLicitacionPreferences() {
   return {
     sortBy, sortOrder, handleSortChange, toggleSortOrder,
     viewMode, setViewMode,
-    searchMode, setSearchMode,
-    advancedOpen, setAdvancedOpen,
     groupBy, setGroupBy,
     favorites, toggleFavorite,
     criticalRubros, toggleCriticalRubro,

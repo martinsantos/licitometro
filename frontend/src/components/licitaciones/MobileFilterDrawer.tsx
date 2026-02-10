@@ -82,6 +82,17 @@ const MobileFilterDrawer: React.FC<MobileFilterDrawerProps> = ({
             </div>
 
             <div>
+              <label className={labelClass}>Organizacion</label>
+              <input
+                type="text"
+                placeholder="Buscar organizacion..."
+                className={selectClass}
+                value={filters.organizacionFiltro}
+                onChange={(e) => onFilterChange('organizacionFiltro', e.target.value)}
+              />
+            </div>
+
+            <div>
               <label className={labelClass}>Workflow</label>
               <select className={selectClass} value={filters.workflowFiltro} onChange={(e) => onFilterChange('workflowFiltro', e.target.value)}>
                 <option value="">Todos</option>

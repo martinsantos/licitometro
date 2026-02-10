@@ -1,3 +1,4 @@
+import React from 'react';
 import { differenceInCalendarDays, format } from 'date-fns';
 import { es } from 'date-fns/locale';
 import type { Licitacion } from '../types/licitacion';
@@ -67,4 +68,19 @@ export const shareViaWhatsApp = (lic: Licitacion) => {
 export const copyLink = (id: string) => {
   navigator.clipboard.writeText(getShareUrl(id));
   alert('Link copiado al portapapeles');
+};
+
+export const highlightMatches = (text: string, query: string): React.ReactNode => {
+  if (!query?.trim() || !text) return text;
+  const tokens = query.trim().split(/\s+/).filter(t => t.length >= 2).map(t => t.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'));
+  if (tokens.length === 0) return text;
+  const regex = new RegExp(`(${tokens.join('|')})`, 'gi');
+  const parts = text.split(regex);
+  return React.createElement(React.Fragment, null,
+    ...parts.map((part, i) =>
+      regex.test(part)
+        ? React.createElement('mark', { key: i, className: 'bg-yellow-100 text-yellow-900 rounded px-0.5' }, part)
+        : part
+    )
+  );
 };

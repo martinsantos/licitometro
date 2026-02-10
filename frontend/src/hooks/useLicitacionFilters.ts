@@ -11,6 +11,7 @@ const initialFilters: FilterState = {
   workflowFiltro: '',
   jurisdiccionFiltro: '',
   tipoProcedimientoFiltro: '',
+  organizacionFiltro: '',
   budgetMin: '',
   budgetMax: '',
   fechaDesde: '',
@@ -70,14 +71,16 @@ export function useLicitacionFilters() {
   const hasActiveFilters = !!(
     filters.busqueda || filters.fuenteFiltro || filters.statusFiltro ||
     filters.categoryFiltro || filters.workflowFiltro || filters.jurisdiccionFiltro ||
-    filters.tipoProcedimientoFiltro || filters.budgetMin || filters.budgetMax ||
+    filters.tipoProcedimientoFiltro || filters.organizacionFiltro ||
+    filters.budgetMin || filters.budgetMax ||
     filters.fechaDesde || filters.fechaHasta
   );
 
   const activeFilterCount = [
     filters.busqueda, filters.fuenteFiltro, filters.statusFiltro,
     filters.categoryFiltro, filters.workflowFiltro, filters.jurisdiccionFiltro,
-    filters.tipoProcedimientoFiltro, filters.budgetMin, filters.budgetMax,
+    filters.tipoProcedimientoFiltro, filters.organizacionFiltro,
+    filters.budgetMin, filters.budgetMax,
     filters.fechaDesde, filters.fechaHasta,
   ].filter(Boolean).length;
 

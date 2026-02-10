@@ -39,8 +39,6 @@ export interface Paginacion {
 export type SortField = 'publication_date' | 'opening_date' | 'fecha_scraping' | 'title' | 'budget';
 export type SortOrder = 'asc' | 'desc';
 export type ViewMode = 'cards' | 'table' | 'timeline';
-export type SearchMode = 'simple' | 'smart' | 'advanced';
-
 export interface FilterState {
   busqueda: string;
   fuenteFiltro: string;
@@ -49,6 +47,7 @@ export interface FilterState {
   workflowFiltro: string;
   jurisdiccionFiltro: string;
   tipoProcedimientoFiltro: string;
+  organizacionFiltro: string;
   budgetMin: string;
   budgetMax: string;
   fechaDesde: string;
@@ -56,8 +55,24 @@ export interface FilterState {
   fechaCampo: string;
 }
 
+export interface AutoFilter {
+  key: string;
+  label: string;
+}
+
 export interface FilterOptions {
   fuenteOptions: string[];
   statusOptions: string[];
   categoryOptions: { id: string; nombre: string }[];
+}
+
+export interface FilterPreset {
+  _id?: string;
+  name: string;
+  filters: Partial<FilterState>;
+  sort_by?: string;
+  sort_order?: string;
+  is_default?: boolean;
+  is_builtin?: boolean;
+  created_at?: string;
 }

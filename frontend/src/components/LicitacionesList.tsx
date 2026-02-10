@@ -7,10 +7,10 @@ import { useLicitacionData } from '../hooks/useLicitacionData';
 import { useLicitacionPreferences } from '../hooks/useLicitacionPreferences';
 import { useFilterOptions } from '../hooks/useFilterOptions';
 import { isUrgentLic, isCriticalRubro as isCriticalRubroUtil } from '../utils/formatting';
+import { useFacetedFilters } from '../hooks/useFacetedFilters';
 
 import DailyDigestStrip from './DailyDigestStrip';
 import NovedadesStrip from './NovedadesStrip';
-import AdvancedSearchPanel from './AdvancedSearchPanel';
 import DateRangeFilter from './DateRangeFilter';
 import TimelineView from './TimelineView';
 
@@ -23,6 +23,7 @@ import LicitacionTable from './licitaciones/LicitacionTable';
 import Pagination from './licitaciones/Pagination';
 import ListSkeleton from './licitaciones/ListSkeleton';
 import MobileFilterDrawer from './licitaciones/MobileFilterDrawer';
+import PresetSelector from './licitaciones/PresetSelector';
 
 interface LicitacionesListProps {
   apiUrl: string;
@@ -47,9 +48,11 @@ const LicitacionesList = ({ apiUrl }: LicitacionesListProps) => {
     busqueda: debouncedBusqueda,
   }), [filters, debouncedBusqueda]);
 
+  const facets = useFacetedFilters(apiUrl, debouncedFilters);
+
   const pageSize = 25;
 
-  const { licitaciones, paginacion, isInitialLoading, isFetching, error } = useLicitacionData({
+  const { licitaciones, paginacion, isInitialLoading, isFetching, error, autoFilters } = useLicitacionData({
     apiUrl,
     filters: debouncedFilters,
     sortBy: prefs.sortBy,
@@ -137,26 +140,6 @@ const LicitacionesList = ({ apiUrl }: LicitacionesListProps) => {
     setFilter(key, value);
   }, [setFilter]);
 
-  const handleSmartSearch = useCallback(async (input: string) => {
-    try {
-      const res = await fetch(`${apiUrl}/api/licitaciones/search/smart?q=${encodeURIComponent(input)}`);
-      if (res.ok) {
-        const data = await res.json();
-        const f = data.parsed_filters || {};
-        const payload: Partial<FilterState> = {};
-        if (f.text) payload.busqueda = f.text;
-        if (f.jurisdiccion) payload.jurisdiccionFiltro = f.jurisdiccion;
-        if (f.fecha_desde) payload.fechaDesde = f.fecha_desde;
-        if (f.fecha_hasta) payload.fechaHasta = f.fecha_hasta;
-        if (f.budget_min) payload.budgetMin = String(f.budget_min);
-        if (f.budget_max) payload.budgetMax = String(f.budget_max);
-        setMany(payload);
-      }
-    } catch (err) {
-      console.error('Smart search error:', err);
-    }
-  }, [apiUrl, setMany]);
-
   const handleDaySelect = useCallback((dateStr: string | null) => {
     if (dateStr) {
       setMany({ fechaDesde: dateStr, fechaHasta: dateStr });
@@ -172,6 +155,44 @@ const LicitacionesList = ({ apiUrl }: LicitacionesListProps) => {
   const handleSortChange = useCallback((newSort: typeof prefs.sortBy) => {
     prefs.handleSortChange(newSort);
   }, [prefs.handleSortChange]);
+
+  // Preset loading
+  const handleLoadPreset = useCallback((presetFilters: Partial<FilterState>, sortBy?: string, sortOrder?: string) => {
+    clearAll();
+    setTimeout(() => {
+      if (Object.keys(presetFilters).length > 0) setMany(presetFilters);
+      if (sortBy) prefs.handleSortChange(sortBy as any);
+      if (sortOrder === 'asc' && prefs.sortOrder !== 'asc') prefs.toggleSortOrder();
+      if (sortOrder === 'desc' && prefs.sortOrder !== 'desc') prefs.toggleSortOrder();
+    }, 0);
+  }, [clearAll, setMany, prefs]);
+
+  // Zero-results diagnostic
+  const [debugData, setDebugData] = useState<Record<string, number> | null>(null);
+  useEffect(() => {
+    if (paginacion && paginacion.total_items === 0 && activeFilterCount >= 2) {
+      const params = new URLSearchParams();
+      if (debouncedFilters.busqueda) params.append('q', debouncedFilters.busqueda);
+      if (debouncedFilters.fuenteFiltro) params.append('fuente', debouncedFilters.fuenteFiltro);
+      if (debouncedFilters.statusFiltro) params.append('status', debouncedFilters.statusFiltro);
+      if (debouncedFilters.categoryFiltro) params.append('category', debouncedFilters.categoryFiltro);
+      if (debouncedFilters.workflowFiltro) params.append('workflow_state', debouncedFilters.workflowFiltro);
+      if (debouncedFilters.jurisdiccionFiltro) params.append('jurisdiccion', debouncedFilters.jurisdiccionFiltro);
+      if (debouncedFilters.tipoProcedimientoFiltro) params.append('tipo_procedimiento', debouncedFilters.tipoProcedimientoFiltro);
+      if (debouncedFilters.organizacionFiltro) params.append('organization', debouncedFilters.organizacionFiltro);
+      if (debouncedFilters.budgetMin) params.append('budget_min', debouncedFilters.budgetMin);
+      if (debouncedFilters.budgetMax) params.append('budget_max', debouncedFilters.budgetMax);
+      if (debouncedFilters.fechaDesde) params.append('fecha_desde', debouncedFilters.fechaDesde);
+      if (debouncedFilters.fechaHasta) params.append('fecha_hasta', debouncedFilters.fechaHasta);
+      if (debouncedFilters.fechaCampo) params.append('fecha_campo', debouncedFilters.fechaCampo);
+      fetch(`${apiUrl}/api/licitaciones/debug-filters?${params}`)
+        .then(r => r.ok ? r.json() : null)
+        .then(data => { if (data) setDebugData(data.without_each); })
+        .catch(() => {});
+    } else {
+      setDebugData(null);
+    }
+  }, [paginacion, activeFilterCount, debouncedFilters, apiUrl]);
 
   // Initial loading state
   if (isInitialLoading) {
@@ -213,14 +234,22 @@ const LicitacionesList = ({ apiUrl }: LicitacionesListProps) => {
       <div className="sticky top-0 z-20 bg-gray-50/95 backdrop-blur-sm space-y-1.5 pb-2 -mx-1 px-1">
         {/* Row 1: Search + Sort + Filters + View — all in one line */}
         <div className="flex items-center gap-2">
+          {/* Presets */}
+          <PresetSelector
+            apiUrl={apiUrl}
+            onLoadPreset={handleLoadPreset}
+            currentFilters={filters}
+            currentSortBy={prefs.sortBy}
+            currentSortOrder={prefs.sortOrder}
+            criticalRubros={prefs.criticalRubros}
+          />
+
           {/* Search input */}
           <SearchBar
-            searchMode={prefs.searchMode}
-            onSearchModeChange={prefs.setSearchMode}
             busqueda={filters.busqueda}
             onBusquedaChange={(v) => setFilter('busqueda', v)}
-            onSmartSearch={handleSmartSearch}
-            onAdvancedOpen={() => prefs.setAdvancedOpen(true)}
+            autoFilters={autoFilters}
+            totalItems={paginacion?.total_items ?? null}
           />
 
           {/* Sort pills */}
@@ -266,6 +295,7 @@ const LicitacionesList = ({ apiUrl }: LicitacionesListProps) => {
               budgetMax={filters.budgetMax}
               onBudgetMinChange={(v) => setFilter('budgetMin', v)}
               onBudgetMaxChange={(v) => setFilter('budgetMax', v)}
+              facets={facets}
             />
           </div>
 
@@ -309,44 +339,6 @@ const LicitacionesList = ({ apiUrl }: LicitacionesListProps) => {
           />
         </div>
 
-        {/* Advanced Search Panel - animated container */}
-        <div
-          className="transition-all duration-300 overflow-hidden"
-          style={{
-            maxHeight: prefs.searchMode === 'advanced' && prefs.advancedOpen ? '600px' : '0px',
-            opacity: prefs.searchMode === 'advanced' && prefs.advancedOpen ? 1 : 0,
-          }}
-        >
-          <div className="bg-white rounded-lg border border-gray-100 p-3">
-            <AdvancedSearchPanel
-              apiUrl={apiUrl}
-              busqueda={filters.busqueda}
-              fuenteFiltro={filters.fuenteFiltro}
-              statusFiltro={filters.statusFiltro}
-              categoryFiltro={filters.categoryFiltro}
-              workflowFiltro={filters.workflowFiltro}
-              jurisdiccionFiltro={filters.jurisdiccionFiltro}
-              tipoProcedimientoFiltro={filters.tipoProcedimientoFiltro}
-              budgetMin={filters.budgetMin}
-              budgetMax={filters.budgetMax}
-              onBusquedaChange={(v) => setFilter('busqueda', v)}
-              onFuenteChange={(v) => setFilter('fuenteFiltro', v)}
-              onStatusChange={(v) => setFilter('statusFiltro', v)}
-              onCategoryChange={(v) => setFilter('categoryFiltro', v)}
-              onWorkflowChange={(v) => setFilter('workflowFiltro', v)}
-              onJurisdiccionChange={(v) => setFilter('jurisdiccionFiltro', v)}
-              onTipoProcedimientoChange={(v) => setFilter('tipoProcedimientoFiltro', v)}
-              onBudgetMinChange={(v) => setFilter('budgetMin', v)}
-              onBudgetMaxChange={(v) => setFilter('budgetMax', v)}
-              onClearAll={clearAll}
-              fuenteOptions={filterOptions.fuenteOptions}
-              statusOptions={filterOptions.statusOptions}
-              categoryOptions={filterOptions.categoryOptions}
-              criticalRubros={prefs.criticalRubros}
-            />
-          </div>
-        </div>
-
         {/* Active filters & result count — compact inline */}
         <ActiveFiltersChips
           filters={filters}
@@ -355,6 +347,7 @@ const LicitacionesList = ({ apiUrl }: LicitacionesListProps) => {
           totalItems={paginacion?.total_items ?? null}
           newItemsCount={newItemsCount}
           hasActiveFilters={hasActiveFilters}
+          debugData={debugData}
         />
       </div>
 
@@ -404,6 +397,7 @@ const LicitacionesList = ({ apiUrl }: LicitacionesListProps) => {
                       isUrgent={isUrgentLic(lic)}
                       onToggleFavorite={prefs.toggleFavorite}
                       onRowClick={handleRowClick}
+                      searchQuery={filters.busqueda}
                     />
                   ))}
                 </React.Fragment>
@@ -425,6 +419,7 @@ const LicitacionesList = ({ apiUrl }: LicitacionesListProps) => {
             onToggleFavorite={prefs.toggleFavorite}
             onRowClick={handleRowClick}
             isNewItem={prefs.isNewItem}
+            searchQuery={filters.busqueda}
           />
         )}
 

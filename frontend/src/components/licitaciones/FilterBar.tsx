@@ -1,5 +1,6 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import type { FilterState, FilterOptions, ViewMode } from '../../types/licitacion';
+import type { FacetData, FacetValue } from '../../hooks/useFacetedFilters';
 import CriticalRubrosConfig from './CriticalRubrosConfig';
 
 interface FilterBarProps {
@@ -18,20 +19,103 @@ interface FilterBarProps {
   budgetMax?: string;
   onBudgetMinChange?: (v: string) => void;
   onBudgetMaxChange?: (v: string) => void;
+  facets?: FacetData;
 }
 
 const selectBase = "px-2 py-1.5 bg-gray-50 border rounded-lg outline-none text-gray-700 font-bold cursor-pointer text-xs";
 const selectClass = `${selectBase} border-transparent focus:border-emerald-500`;
 const selectActive = `${selectBase} border-emerald-500 bg-emerald-50 text-emerald-700`;
 
+// Organization combobox sub-component
+const OrgCombobox: React.FC<{
+  value: string;
+  onChange: (v: string) => void;
+  options: string[];
+}> = ({ value, onChange, options }) => {
+  const [open, setOpen] = useState(false);
+  const [localVal, setLocalVal] = useState(value);
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => { setLocalVal(value); }, [value]);
+
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, []);
+
+  const filtered = localVal
+    ? options.filter(o => o.toLowerCase().includes(localVal.toLowerCase()))
+    : options;
+
+  return (
+    <div className="relative hidden lg:block" ref={ref}>
+      <input
+        type="text"
+        placeholder="Org..."
+        className={`${value ? selectActive : selectClass} w-[100px]`}
+        value={localVal}
+        onChange={(e) => { setLocalVal(e.target.value); setOpen(true); }}
+        onFocus={() => setOpen(true)}
+      />
+      {value && (
+        <button
+          className="absolute right-1 top-1/2 -translate-y-1/2 text-gray-400 hover:text-red-500 text-[10px]"
+          onClick={() => { setLocalVal(''); onChange(''); }}
+        >
+          &times;
+        </button>
+      )}
+      {open && filtered.length > 0 && (
+        <div className="absolute top-full left-0 mt-1 bg-white border border-gray-200 rounded-lg shadow-lg z-30 max-h-48 overflow-y-auto w-56 py-1">
+          {filtered.slice(0, 20).map(opt => (
+            <button
+              key={opt}
+              className="w-full px-3 py-1.5 text-left text-xs text-gray-700 hover:bg-emerald-50 hover:text-emerald-700 truncate"
+              onClick={() => { onChange(opt); setLocalVal(opt); setOpen(false); }}
+            >
+              {opt}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+};
+
 const FilterBar: React.FC<FilterBarProps> = ({
   filters, onFilterChange, filterOptions, viewMode, onViewModeChange,
   groupBy, onGroupByChange, criticalRubros, onToggleCriticalRubro,
   showRubroConfig, onToggleRubroConfig,
-  budgetMin, budgetMax, onBudgetMinChange, onBudgetMaxChange,
+  budgetMin, budgetMax, onBudgetMinChange, onBudgetMaxChange, facets,
 }) => {
   const [showBudget, setShowBudget] = useState(false);
+  const [orgOptions, setOrgOptions] = useState<string[]>([]);
   const hasBudgetFilter = !!(budgetMin || budgetMax);
+
+  // Load org options once
+  useEffect(() => {
+    const backendUrl = (window as any).__BACKEND_URL || process.env.REACT_APP_BACKEND_URL || '';
+    fetch(`${backendUrl}/api/licitaciones/distinct/organization`)
+      .then(r => r.ok ? r.json() : [])
+      .then(data => setOrgOptions(data.filter((v: string) => v && v.trim())))
+      .catch(() => {});
+  }, []);
+
+  const handleOrgChange = useCallback((v: string) => {
+    onFilterChange('organizacionFiltro', v);
+  }, [onFilterChange]);
+
+  // Facet count lookup helper
+  const fc = useCallback((field: keyof FacetData, value: string): string => {
+    if (!facets) return '';
+    const list = facets[field];
+    if (!list || list.length === 0) return '';
+    const item = list.find((f: FacetValue) => f.value === value);
+    return item ? ` (${item.count})` : ' (0)';
+  }, [facets]);
 
   return (
     <div className="flex items-center gap-1.5 flex-nowrap">
@@ -42,7 +126,7 @@ const FilterBar: React.FC<FilterBarProps> = ({
       >
         <option value="">Fuente</option>
         {filterOptions.fuenteOptions.map((f) => (
-          <option key={f} value={f}>{f}</option>
+          <option key={f} value={f}>{f}{fc('fuente', f)}</option>
         ))}
       </select>
 
@@ -53,9 +137,16 @@ const FilterBar: React.FC<FilterBarProps> = ({
       >
         <option value="">Estado</option>
         {filterOptions.statusOptions.map((s) => (
-          <option key={s} value={s}>{s === 'active' ? 'Abierta' : s === 'closed' ? 'Cerrada' : s}</option>
+          <option key={s} value={s}>{s === 'active' ? 'Abierta' : s === 'closed' ? 'Cerrada' : s}{fc('status', s)}</option>
         ))}
       </select>
+
+      {/* Organization combobox */}
+      <OrgCombobox
+        value={filters.organizacionFiltro}
+        onChange={handleOrgChange}
+        options={orgOptions}
+      />
 
       <div className="relative hidden lg:block">
         <div className="flex items-center gap-0.5">
@@ -67,7 +158,7 @@ const FilterBar: React.FC<FilterBarProps> = ({
             <option value="">Rubro</option>
             {filterOptions.categoryOptions.map((cat) => (
               <option key={cat.id} value={cat.nombre} title={cat.nombre}>
-                {cat.nombre.length > 20 ? cat.nombre.substring(0, 20) + '...' : cat.nombre}
+                {cat.nombre.length > 20 ? cat.nombre.substring(0, 20) + '...' : cat.nombre}{fc('category', cat.nombre)}
               </option>
             ))}
           </select>
@@ -99,11 +190,11 @@ const FilterBar: React.FC<FilterBarProps> = ({
         onChange={(e) => onFilterChange('workflowFiltro', e.target.value)}
       >
         <option value="">Workflow</option>
-        <option value="descubierta">Descubierta</option>
-        <option value="evaluando">Evaluando</option>
-        <option value="preparando">Preparando</option>
-        <option value="presentada">Presentada</option>
-        <option value="descartada">Descartada</option>
+        <option value="descubierta">Descubierta{fc('workflow_state', 'descubierta')}</option>
+        <option value="evaluando">Evaluando{fc('workflow_state', 'evaluando')}</option>
+        <option value="preparando">Preparando{fc('workflow_state', 'preparando')}</option>
+        <option value="presentada">Presentada{fc('workflow_state', 'presentada')}</option>
+        <option value="descartada">Descartada{fc('workflow_state', 'descartada')}</option>
       </select>
 
       <select

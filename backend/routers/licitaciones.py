@@ -7,6 +7,7 @@ from datetime import date, datetime
 import logging
 import re
 import sys
+from bson import ObjectId
 from pathlib import Path
 
 # Add parent directory to path so we can import modules
@@ -65,28 +66,82 @@ async def get_licitaciones(
     repo: LicitacionRepository = Depends(get_licitacion_repository)
 ):
     """Get all licitaciones with pagination, filtering and sorting.
-    When q is provided, uses hybrid search (text index + regex fallback)."""
+    When q is provided, runs smart parsing first then hybrid search."""
 
-    # If there's a search query, use hybrid search with filters
+    auto_filters = {}
+
+    # If there's a search query, run smart parsing then hybrid search
     if q:
+        from services.smart_search_parser import parse_smart_query
+        parsed = parse_smart_query(q)
+        auto_filters = parsed.get("auto_filters", {})
+
+        # Apply parsed structured filters as defaults (explicit params override)
+        if not status and parsed.get("status"):
+            status = parsed["status"]
+        if not organization and parsed.get("organization"):
+            organization = parsed["organization"]
+        if not category and parsed.get("category"):
+            category = parsed["category"]
+        if not fuente and parsed.get("fuente"):
+            # Fuente from smart parser is a partial name; use regex match
+            fuente = parsed["fuente"]
+        if not jurisdiccion and parsed.get("jurisdiccion"):
+            jurisdiccion = parsed["jurisdiccion"]
+        if not budget_min and parsed.get("budget_min"):
+            budget_min = parsed["budget_min"]
+        if not budget_max and parsed.get("budget_max"):
+            budget_max = parsed["budget_max"]
+        if not fecha_desde and parsed.get("fecha_desde"):
+            fecha_desde = date.fromisoformat(parsed["fecha_desde"])
+        if not fecha_hasta and parsed.get("fecha_hasta"):
+            fecha_hasta = date.fromisoformat(parsed["fecha_hasta"])
+
+        # Use remaining text as actual search query
+        search_text = parsed.get("text", "")
+
         skip = (page - 1) * size
         order_val = 1 if sort_order == "asc" else -1
 
         # Build additional filters
         extra_filters = {}
         if status: extra_filters["status"] = status
-        if organization: extra_filters["organization"] = organization
+        if organization: extra_filters["organization"] = {"$regex": re.escape(organization), "$options": "i"}
         if category: extra_filters["category"] = category
-        if fuente: extra_filters["fuente"] = fuente
+        if fuente: extra_filters["fuente"] = {"$regex": re.escape(fuente), "$options": "i"}
         if workflow_state: extra_filters["workflow_state"] = workflow_state
         if jurisdiccion: extra_filters["jurisdiccion"] = jurisdiccion
         if tipo_procedimiento: extra_filters["tipo_procedimiento"] = tipo_procedimiento
 
-        items = await repo.search(q, skip=skip, limit=size,
-                                   sort_by=sort_by, sort_order=order_val,
-                                   extra_filters=extra_filters)
-        total_items = await repo.search_count(q, extra_filters=extra_filters)
-        return {
+        # Budget range
+        if budget_min is not None or budget_max is not None:
+            budget_filter = {}
+            if budget_min is not None: budget_filter["$gte"] = budget_min
+            if budget_max is not None: budget_filter["$lte"] = budget_max
+            extra_filters["budget"] = budget_filter
+
+        # Date range
+        if fecha_desde or fecha_hasta:
+            date_filter = {}
+            if fecha_desde: date_filter["$gte"] = datetime.combine(fecha_desde, datetime.min.time())
+            if fecha_hasta: date_filter["$lte"] = datetime.combine(fecha_hasta, datetime.max.time())
+            if date_filter:
+                field = fecha_campo if fecha_campo in ["publication_date", "opening_date", "created_at", "fecha_scraping"] else "publication_date"
+                extra_filters[field] = date_filter
+
+        if search_text:
+            items = await repo.search(search_text, skip=skip, limit=size,
+                                       sort_by=sort_by, sort_order=order_val,
+                                       extra_filters=extra_filters)
+            total_items = await repo.search_count(search_text, extra_filters=extra_filters)
+        else:
+            # Smart query consumed all text into filters — no text search needed
+            items = await repo.get_all(skip=skip, limit=size, filters=extra_filters,
+                                        sort_by=sort_by, sort_order=order_val,
+                                        nulls_last=sort_by in ["opening_date", "fecha_scraping", "budget"])
+            total_items = await repo.count(filters=extra_filters)
+
+        response = {
             "items": items,
             "paginacion": {
                 "pagina": page,
@@ -95,6 +150,9 @@ async def get_licitaciones(
                 "total_paginas": (total_items + size - 1) // size
             }
         }
+        if auto_filters:
+            response["auto_filters"] = auto_filters
+        return response
 
     # Build filter query
     filters = {}
@@ -233,6 +291,203 @@ async def smart_search(
     from services.smart_search_parser import parse_smart_query
     parsed = parse_smart_query(q)
     return {"query": q, "parsed_filters": parsed}
+
+
+@router.get("/facets")
+async def get_facets(
+    q: Optional[str] = Query(None),
+    status: Optional[str] = None,
+    organization: Optional[str] = None,
+    category: Optional[str] = None,
+    fuente: Optional[str] = None,
+    workflow_state: Optional[str] = None,
+    jurisdiccion: Optional[str] = None,
+    tipo_procedimiento: Optional[str] = None,
+    budget_min: Optional[float] = None,
+    budget_max: Optional[float] = None,
+    fecha_desde: Optional[date] = None,
+    fecha_hasta: Optional[date] = None,
+    fecha_campo: str = Query("publication_date"),
+    request: Request = None,
+):
+    """Return value counts for each filterable field, applying cross-filters.
+    Each facet applies ALL filters except its own field."""
+    db = request.app.mongodb
+    collection = db.licitaciones
+
+    # Build base match from all explicit filters
+    base_match: Dict[str, Any] = {}
+    if status: base_match["status"] = status
+    if organization: base_match["organization"] = {"$regex": re.escape(organization), "$options": "i"}
+    if category: base_match["category"] = category
+    if fuente: base_match["fuente"] = fuente
+    if workflow_state: base_match["workflow_state"] = workflow_state
+    if jurisdiccion: base_match["jurisdiccion"] = jurisdiccion
+    if tipo_procedimiento: base_match["tipo_procedimiento"] = tipo_procedimiento
+    if budget_min is not None or budget_max is not None:
+        bf = {}
+        if budget_min is not None: bf["$gte"] = budget_min
+        if budget_max is not None: bf["$lte"] = budget_max
+        base_match["budget"] = bf
+
+    allowed_date_fields = ["publication_date", "opening_date", "created_at", "fecha_scraping"]
+    fc = fecha_campo if fecha_campo in allowed_date_fields else "publication_date"
+    if fecha_desde or fecha_hasta:
+        df = {}
+        if fecha_desde: df["$gte"] = datetime.combine(fecha_desde, datetime.min.time())
+        if fecha_hasta: df["$lte"] = datetime.combine(fecha_hasta, datetime.max.time())
+        if df: base_match[fc] = df
+
+    # Text search adds $text match
+    if q:
+        base_match["$text"] = {"$search": q}
+
+    # Facet fields to compute
+    facet_fields = {
+        "fuente": "fuente",
+        "status": "status",
+        "category": "category",
+        "workflow_state": "workflow_state",
+        "jurisdiccion": "jurisdiccion",
+        "tipo_procedimiento": "tipo_procedimiento",
+        "organization": "organization",
+    }
+
+    result = {}
+    for facet_name, field in facet_fields.items():
+        # Build match excluding this field's own filter
+        cross_match = {k: v for k, v in base_match.items() if k != field}
+        pipeline = [
+            {"$match": cross_match} if cross_match else {"$match": {}},
+            {"$group": {"_id": f"${field}", "count": {"$sum": 1}}},
+            {"$match": {"_id": {"$ne": None}}},
+            {"$sort": {"count": -1}},
+            {"$limit": 50},
+        ]
+        try:
+            docs = await collection.aggregate(pipeline).to_list(length=50)
+            result[facet_name] = [{"value": d["_id"], "count": d["count"]} for d in docs]
+        except Exception:
+            result[facet_name] = []
+
+    return result
+
+
+@router.get("/debug-filters")
+async def debug_filters(
+    q: Optional[str] = Query(None),
+    status: Optional[str] = None,
+    organization: Optional[str] = None,
+    category: Optional[str] = None,
+    fuente: Optional[str] = None,
+    workflow_state: Optional[str] = None,
+    jurisdiccion: Optional[str] = None,
+    tipo_procedimiento: Optional[str] = None,
+    budget_min: Optional[float] = None,
+    budget_max: Optional[float] = None,
+    fecha_desde: Optional[date] = None,
+    fecha_hasta: Optional[date] = None,
+    fecha_campo: str = Query("publication_date"),
+    request: Request = None,
+):
+    """Debug zero-results: show how many results appear when removing each filter."""
+    db = request.app.mongodb
+    collection = db.licitaciones
+
+    # Build all active filters as a dict of {filter_key: match_condition}
+    active_filters: Dict[str, Dict] = {}
+    if q: active_filters["q"] = {"$text": {"$search": q}}
+    if status: active_filters["status"] = {"status": status}
+    if organization: active_filters["organization"] = {"organization": {"$regex": re.escape(organization), "$options": "i"}}
+    if category: active_filters["category"] = {"category": category}
+    if fuente: active_filters["fuente"] = {"fuente": fuente}
+    if workflow_state: active_filters["workflow_state"] = {"workflow_state": workflow_state}
+    if jurisdiccion: active_filters["jurisdiccion"] = {"jurisdiccion": jurisdiccion}
+    if tipo_procedimiento: active_filters["tipo_procedimiento"] = {"tipo_procedimiento": tipo_procedimiento}
+    if budget_min is not None or budget_max is not None:
+        bf = {}
+        if budget_min is not None: bf["$gte"] = budget_min
+        if budget_max is not None: bf["$lte"] = budget_max
+        active_filters["budget"] = {"budget": bf}
+
+    allowed_date_fields = ["publication_date", "opening_date", "created_at", "fecha_scraping"]
+    fc = fecha_campo if fecha_campo in allowed_date_fields else "publication_date"
+    if fecha_desde or fecha_hasta:
+        df = {}
+        if fecha_desde: df["$gte"] = datetime.combine(fecha_desde, datetime.min.time())
+        if fecha_hasta: df["$lte"] = datetime.combine(fecha_hasta, datetime.max.time())
+        if df: active_filters["fecha"] = {fc: df}
+
+    if len(active_filters) < 2:
+        return {"total_with_all": 0, "without_each": {}}
+
+    # Total with all filters
+    all_match = {}
+    for cond in active_filters.values():
+        all_match.update(cond)
+    total_all = await collection.count_documents(all_match)
+
+    # Count removing each filter
+    without_each = {}
+    for remove_key in active_filters:
+        partial_match = {}
+        for k, cond in active_filters.items():
+            if k != remove_key:
+                partial_match.update(cond)
+        if partial_match:
+            without_each[remove_key] = await collection.count_documents(partial_match)
+        else:
+            without_each[remove_key] = await collection.count_documents({})
+
+    return {"total_with_all": total_all, "without_each": without_each}
+
+
+@router.get("/presets")
+async def list_presets(request: Request):
+    """List all saved filter presets."""
+    db = request.app.mongodb
+    cursor = db.filter_presets.find().sort("created_at", -1)
+    docs = await cursor.to_list(length=20)
+    presets = []
+    for doc in docs:
+        doc["_id"] = str(doc["_id"])
+        presets.append(doc)
+    return presets
+
+
+@router.post("/presets")
+async def create_preset(body: Dict[str, Any] = Body(...), request: Request = None):
+    """Create a saved filter preset. Max 10."""
+    db = request.app.mongodb
+    count = await db.filter_presets.count_documents({})
+    if count >= 10:
+        raise HTTPException(status_code=400, detail="Maximo 10 presets permitidos")
+
+    doc = {
+        "name": body.get("name", "Sin nombre"),
+        "filters": body.get("filters", {}),
+        "sort_by": body.get("sort_by", "publication_date"),
+        "sort_order": body.get("sort_order", "desc"),
+        "is_default": body.get("is_default", False),
+        "created_at": datetime.utcnow(),
+    }
+    result = await db.filter_presets.insert_one(doc)
+    doc["_id"] = str(result.inserted_id)
+    return doc
+
+
+@router.delete("/presets/{preset_id}")
+async def delete_preset(preset_id: str, request: Request = None):
+    """Delete a saved filter preset."""
+    db = request.app.mongodb
+    try:
+        oid = ObjectId(preset_id)
+    except Exception:
+        raise HTTPException(status_code=400, detail="ID invalido")
+    result = await db.filter_presets.delete_one({"_id": oid})
+    if result.deleted_count == 0:
+        raise HTTPException(status_code=404, detail="Preset no encontrado")
+    return {"ok": True}
 
 
 @router.get("/favorites")

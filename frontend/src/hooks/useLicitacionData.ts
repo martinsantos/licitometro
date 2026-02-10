@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
-import type { Licitacion, Paginacion, FilterState, SortField, SortOrder } from '../types/licitacion';
+import type { Licitacion, Paginacion, FilterState, SortField, SortOrder, AutoFilter } from '../types/licitacion';
 
 interface UseLicitacionDataArgs {
   apiUrl: string;
@@ -16,6 +16,7 @@ interface UseLicitacionDataResult {
   isInitialLoading: boolean;
   isFetching: boolean;
   error: string | null;
+  autoFilters: AutoFilter[];
 }
 
 export function useLicitacionData({
@@ -25,6 +26,7 @@ export function useLicitacionData({
   const [paginacion, setPaginacion] = useState<Paginacion | null>(null);
   const [isFetching, setIsFetching] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [autoFilters, setAutoFilters] = useState<AutoFilter[]>([]);
   const hasFetchedOnce = useRef(false);
   const abortRef = useRef<AbortController | null>(null);
 
@@ -54,6 +56,7 @@ export function useLicitacionData({
       if (filters.workflowFiltro) params.append('workflow_state', filters.workflowFiltro);
       if (filters.jurisdiccionFiltro) params.append('jurisdiccion', filters.jurisdiccionFiltro);
       if (filters.tipoProcedimientoFiltro) params.append('tipo_procedimiento', filters.tipoProcedimientoFiltro);
+      if (filters.organizacionFiltro) params.append('organization', filters.organizacionFiltro);
       if (filters.budgetMin) params.append('budget_min', filters.budgetMin);
       if (filters.budgetMax) params.append('budget_max', filters.budgetMax);
       if (filters.fechaDesde) params.append('fecha_desde', filters.fechaDesde);
@@ -69,6 +72,17 @@ export function useLicitacionData({
       setLicitaciones(data.items || []);
       setPaginacion(data.paginacion);
       hasFetchedOnce.current = true;
+
+      // Parse auto_filters from smart search
+      if (data.auto_filters && typeof data.auto_filters === 'object') {
+        const af: AutoFilter[] = Object.entries(data.auto_filters).map(([key, label]) => ({
+          key,
+          label: String(label),
+        }));
+        setAutoFilters(af);
+      } else {
+        setAutoFilters([]);
+      }
     } catch (err) {
       if (err instanceof DOMException && err.name === 'AbortError') return;
       setError(err instanceof Error ? err.message : 'Error desconocido');
@@ -88,5 +102,5 @@ export function useLicitacionData({
 
   const isInitialLoading = !hasFetchedOnce.current && isFetching;
 
-  return { licitaciones, paginacion, isInitialLoading, isFetching, error };
+  return { licitaciones, paginacion, isInitialLoading, isFetching, error, autoFilters };
 }

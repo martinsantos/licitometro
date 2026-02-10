@@ -2,7 +2,7 @@ import React, { useCallback } from 'react';
 import { format, formatDistanceToNow } from 'date-fns';
 import { es } from 'date-fns/locale';
 import type { Licitacion } from '../../types/licitacion';
-import { getDaysUntilOpening, getUrgencyColor, shareViaWhatsApp } from '../../utils/formatting';
+import { getDaysUntilOpening, getUrgencyColor, shareViaWhatsApp, highlightMatches } from '../../utils/formatting';
 
 interface LicitacionTableProps {
   licitaciones: Licitacion[];
@@ -10,10 +10,11 @@ interface LicitacionTableProps {
   onToggleFavorite: (id: string, e: React.MouseEvent) => void;
   onRowClick: (id: string) => void;
   isNewItem: (lic: Licitacion) => boolean;
+  searchQuery?: string;
 }
 
 const LicitacionTable: React.FC<LicitacionTableProps> = ({
-  licitaciones, favorites, onToggleFavorite, onRowClick, isNewItem,
+  licitaciones, favorites, onToggleFavorite, onRowClick, isNewItem, searchQuery,
 }) => {
   const handleWhatsApp = useCallback((lic: Licitacion, e: React.MouseEvent) => {
     e.stopPropagation();
@@ -56,12 +57,12 @@ const LicitacionTable: React.FC<LicitacionTableProps> = ({
                       {isNewItem(lic) && (
                         <span className="px-1.5 py-0.5 bg-green-100 text-green-700 rounded text-[9px] font-black uppercase flex-shrink-0">NUEVO</span>
                       )}
-                      <p className="text-sm font-bold text-gray-900 line-clamp-1">{lic.title}</p>
+                      <p className="text-sm font-bold text-gray-900 line-clamp-1">{searchQuery ? highlightMatches(lic.title, searchQuery) : lic.title}</p>
                     </div>
-                    <p className="text-xs text-gray-500 line-clamp-1">{lic.description}</p>
+                    <p className="text-xs text-gray-500 line-clamp-1">{searchQuery && lic.description ? highlightMatches(lic.description, searchQuery) : lic.description}</p>
                   </td>
                   <td className="px-4 py-4">
-                    <p className="text-sm text-gray-700 line-clamp-1">{lic.organization}</p>
+                    <p className="text-sm text-gray-700 line-clamp-1">{searchQuery ? highlightMatches(lic.organization, searchQuery) : lic.organization}</p>
                   </td>
                   <td className="px-4 py-4 whitespace-nowrap">
                     <div className="text-sm font-medium text-gray-600">

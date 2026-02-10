@@ -3,7 +3,7 @@ import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
 import WorkflowBadge from '../WorkflowBadge';
 import type { Licitacion, SortField } from '../../types/licitacion';
-import { getDaysUntilOpening, getUrgencyColor, formatFechaScraping, shareViaEmail, shareViaWhatsApp, copyLink } from '../../utils/formatting';
+import { getDaysUntilOpening, getUrgencyColor, formatFechaScraping, shareViaEmail, shareViaWhatsApp, copyLink, highlightMatches } from '../../utils/formatting';
 
 interface LicitacionCardProps {
   lic: Licitacion;
@@ -14,10 +14,11 @@ interface LicitacionCardProps {
   isUrgent: boolean;
   onToggleFavorite: (id: string, e: React.MouseEvent) => void;
   onRowClick: (id: string) => void;
+  searchQuery?: string;
 }
 
 const LicitacionCard: React.FC<LicitacionCardProps> = ({
-  lic, sortBy, isFavorite, isNew, isCritical, isUrgent, onToggleFavorite, onRowClick,
+  lic, sortBy, isFavorite, isNew, isCritical, isUrgent, onToggleFavorite, onRowClick, searchQuery,
 }) => {
   const daysUntil = getDaysUntilOpening(lic.opening_date);
   const urgencyClass = getUrgencyColor(daysUntil);
@@ -154,7 +155,7 @@ const LicitacionCard: React.FC<LicitacionCardProps> = ({
                 {lic.jurisdiccion && (
                   <p className="text-sm text-gray-600">Gobierno de la Provincia de {lic.jurisdiccion}</p>
                 )}
-                <p className="text-sm font-semibold text-gray-700">{lic.organization}</p>
+                <p className="text-sm font-semibold text-gray-700">{searchQuery ? highlightMatches(lic.organization, searchQuery) : lic.organization}</p>
                 {lic.metadata?.comprar_unidad_ejecutora && (
                   <p className="text-xs text-gray-500">{lic.metadata.comprar_unidad_ejecutora}</p>
                 )}
@@ -168,7 +169,7 @@ const LicitacionCard: React.FC<LicitacionCardProps> = ({
               )}
 
               <p className="text-base text-gray-800 font-medium leading-relaxed line-clamp-2">
-                {lic.description || lic.title}
+                {searchQuery ? highlightMatches(lic.description || lic.title, searchQuery) : (lic.description || lic.title)}
               </p>
             </div>
 
