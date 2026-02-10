@@ -2,6 +2,7 @@ import { useReducer, useCallback, useEffect } from 'react';
 import type { FilterState } from '../types/licitacion';
 
 const STORAGE_KEY = 'licitacionFilters';
+const FILTERS_VERSION = 2; // Bump this to clear stuck filters on deploy
 
 const initialFilters: FilterState = {
   busqueda: '',
@@ -21,6 +22,14 @@ const initialFilters: FilterState = {
 
 function loadFiltersFromSession(): FilterState {
   try {
+    const versionKey = STORAGE_KEY + '_v';
+    const storedVersion = sessionStorage.getItem(versionKey);
+    if (storedVersion !== String(FILTERS_VERSION)) {
+      // Version mismatch: clear stuck filters from previous code
+      sessionStorage.removeItem(STORAGE_KEY);
+      sessionStorage.setItem(versionKey, String(FILTERS_VERSION));
+      return initialFilters;
+    }
     const stored = sessionStorage.getItem(STORAGE_KEY);
     if (stored) {
       return { ...initialFilters, ...JSON.parse(stored) };
