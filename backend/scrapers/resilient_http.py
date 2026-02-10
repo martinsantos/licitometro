@@ -102,9 +102,11 @@ class ResilientHttpClient:
     async def _ensure_session(self):
         if self._session is None or self._session.closed:
             timeout = aiohttp.ClientTimeout(total=60, connect=15, sock_read=30)
+            connector = aiohttp.TCPConnector(ssl=False)
             self._session = aiohttp.ClientSession(
                 cookies=self.extra_cookies,
                 timeout=timeout,
+                connector=connector,
             )
 
     async def fetch(self, url: str, method: str = "GET", **kwargs) -> Optional[str]:
