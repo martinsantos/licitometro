@@ -28,14 +28,14 @@ const NovedadesStrip: React.FC<NovedadesStripProps> = ({ apiUrl, onSourceClick }
     const fetchActivity = async () => {
       setLoading(true);
       try {
-        const res = await fetch(`${apiUrl}/api/licitaciones/stats/recent-activity?hours=${hours}`);
+        const res = await fetch(`${apiUrl}/api/licitaciones/stats/recent-activity?hours=${hours}`, { credentials: 'include' });
         if (res.ok) {
           const data = await res.json();
           setActivity(data);
           // Start collapsed — user can expand on click
         }
-      } catch (err) {
-        console.error('Error fetching recent activity:', err);
+      } catch {
+        // Recent activity fetch failure is non-critical
       } finally {
         setLoading(false);
       }

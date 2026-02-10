@@ -17,13 +17,13 @@ const DailyDigestStrip = ({ apiUrl, onDaySelect, selectedDate, fechaCampo }: Dai
   useEffect(() => {
     const fetchCounts = async () => {
       try {
-        const res = await fetch(`${apiUrl}/api/licitaciones/stats/daily-counts?days=14&fecha_campo=${fechaCampo}`);
+        const res = await fetch(`${apiUrl}/api/licitaciones/stats/daily-counts?days=14&fecha_campo=${fechaCampo}`, { credentials: 'include' });
         if (res.ok) {
           const data = await res.json();
           setCounts(data.counts || {});
         }
-      } catch (err) {
-        console.error('Error fetching daily counts:', err);
+      } catch {
+        // Daily counts fetch failure is non-critical
       } finally {
         setLoading(false);
       }

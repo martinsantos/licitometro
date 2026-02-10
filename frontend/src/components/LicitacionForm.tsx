@@ -54,10 +54,20 @@ const LicitacionForm = ({ apiUrl, onSuccess }: LicitacionFormProps) => {
       // Crear la licitación
       const licitacionResponse = await fetch(`${apiUrl}/api/licitaciones/`, {
         method: 'POST',
+        credentials: 'include',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify(formData),
+        body: JSON.stringify({
+          title: formData.titulo,
+          description: formData.descripcion,
+          organization: formData.organismo,
+          publication_date: formData.fecha_publicacion,
+          opening_date: formData.fecha_cierre || null,
+          budget: formData.presupuesto ? parseFloat(formData.presupuesto) : null,
+          status: formData.estado === 'activa' ? 'active' : formData.estado,
+          source_url: formData.url_fuente || null,
+        }),
       });
       
       if (!licitacionResponse.ok) {
@@ -76,11 +86,12 @@ const LicitacionForm = ({ apiUrl, onSuccess }: LicitacionFormProps) => {
           
           const docResponse = await fetch(`${apiUrl}/api/licitaciones/${licitacionData.id}/documentos`, {
             method: 'POST',
+            credentials: 'include',
             body: formDataDoc,
           });
           
           if (!docResponse.ok) {
-            console.error('Error al subir documento:', doc.nombre);
+            setError(`Error al subir documento: ${doc.nombre}`);
           }
         }
       }
@@ -108,15 +119,7 @@ const LicitacionForm = ({ apiUrl, onSuccess }: LicitacionFormProps) => {
       }, 3000);
       
     } catch (err: any) {
-      console.error('Error en el formulario:', err);
-      setError(err.message);
-      
-      // Para demostración, simular éxito
-      setSuccess(true);
-      setTimeout(() => {
-        setSuccess(false);
-      }, 3000);
-      
+      setError(err.message || 'Error al enviar el formulario');
     } finally {
       setLoading(false);
     }

@@ -12,9 +12,9 @@ export function useFilterOptions(apiUrl: string): FilterOptions & { loading: boo
     const loadFilterOptions = async () => {
       try {
         const [fuenteRes, statusRes, rubrosRes] = await Promise.all([
-          fetch(`${apiUrl}/api/licitaciones/distinct/fuente`),
-          fetch(`${apiUrl}/api/licitaciones/distinct/status`),
-          fetch(`${apiUrl}/api/licitaciones/rubros/list`),
+          fetch(`${apiUrl}/api/licitaciones/distinct/fuente`, { credentials: 'include' }),
+          fetch(`${apiUrl}/api/licitaciones/distinct/status`, { credentials: 'include' }),
+          fetch(`${apiUrl}/api/licitaciones/rubros/list`, { credentials: 'include' }),
         ]);
         if (cancelled) return;
         if (fuenteRes.ok) {
@@ -29,8 +29,8 @@ export function useFilterOptions(apiUrl: string): FilterOptions & { loading: boo
           const rubrosData = await rubrosRes.json();
           setCategoryOptions(rubrosData.rubros || []);
         }
-      } catch (err) {
-        console.error('Error loading filter options:', err);
+      } catch {
+        // Filter options load failure is non-critical
       } finally {
         if (!cancelled) setLoading(false);
       }

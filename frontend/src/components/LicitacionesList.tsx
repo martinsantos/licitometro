@@ -160,33 +160,6 @@ const LicitacionesList = ({ apiUrl }: LicitacionesListProps) => {
     }, 0);
   }, [clearAll, setMany, prefs]);
 
-  // Zero-results diagnostic
-  const [debugData, setDebugData] = useState<Record<string, number> | null>(null);
-  useEffect(() => {
-    if (paginacion && paginacion.total_items === 0 && activeFilterCount >= 2) {
-      const params = new URLSearchParams();
-      if (debouncedFilters.busqueda) params.append('q', debouncedFilters.busqueda);
-      if (debouncedFilters.fuenteFiltro) params.append('fuente', debouncedFilters.fuenteFiltro);
-      if (debouncedFilters.statusFiltro) params.append('status', debouncedFilters.statusFiltro);
-      if (debouncedFilters.categoryFiltro) params.append('category', debouncedFilters.categoryFiltro);
-      if (debouncedFilters.workflowFiltro) params.append('workflow_state', debouncedFilters.workflowFiltro);
-      if (debouncedFilters.jurisdiccionFiltro) params.append('jurisdiccion', debouncedFilters.jurisdiccionFiltro);
-      if (debouncedFilters.tipoProcedimientoFiltro) params.append('tipo_procedimiento', debouncedFilters.tipoProcedimientoFiltro);
-      if (debouncedFilters.organizacionFiltro) params.append('organization', debouncedFilters.organizacionFiltro);
-      if (debouncedFilters.budgetMin) params.append('budget_min', debouncedFilters.budgetMin);
-      if (debouncedFilters.budgetMax) params.append('budget_max', debouncedFilters.budgetMax);
-      if (debouncedFilters.fechaDesde) params.append('fecha_desde', debouncedFilters.fechaDesde);
-      if (debouncedFilters.fechaHasta) params.append('fecha_hasta', debouncedFilters.fechaHasta);
-      if (debouncedFilters.fechaCampo) params.append('fecha_campo', debouncedFilters.fechaCampo);
-      fetch(`${apiUrl}/api/licitaciones/debug-filters?${params}`)
-        .then(r => r.ok ? r.json() : null)
-        .then(data => { if (data) setDebugData(data.without_each); })
-        .catch(() => {});
-    } else {
-      setDebugData(null);
-    }
-  }, [paginacion, activeFilterCount, debouncedFilters, apiUrl]);
-
   // Initial loading state
   if (isInitialLoading) {
     return (
@@ -303,7 +276,6 @@ const LicitacionesList = ({ apiUrl }: LicitacionesListProps) => {
               totalItems={paginacion?.total_items ?? null}
               newItemsCount={newItemsCount}
               hasActiveFilters={hasActiveFilters}
-              debugData={debugData}
             />
           </div>
 

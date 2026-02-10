@@ -99,6 +99,17 @@ async def startup_db_client():
     app.mongodb = database
     logger.info(f"Connected to MongoDB at {MONGO_URL}, database: {DB_NAME}")
 
+    # Ensure indexes are created
+    try:
+        from db.repositories import LicitacionRepository, ScraperConfigRepository
+        lic_repo = LicitacionRepository(database)
+        scraper_repo = ScraperConfigRepository(database)
+        await lic_repo.ensure_indexes()
+        await scraper_repo.ensure_indexes()
+        logger.info("MongoDB indexes ensured")
+    except Exception as e:
+        logger.error(f"Failed to create indexes: {e}")
+
     # Initialize and start scheduler automatically
     try:
         from services.scheduler_service import get_scheduler_service

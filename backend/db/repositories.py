@@ -18,21 +18,22 @@ class LicitacionRepository:
     def __init__(self, db):
         self.db = db
         self.collection = db["licitaciones"]
-        
-        # Ensure indexes for better performance
-        self.collection.create_index([("title", pymongo.TEXT), ("description", pymongo.TEXT)])
-        self.collection.create_index("organization")
-        self.collection.create_index("publication_date")
-        self.collection.create_index("status")
-        self.collection.create_index("location")
-        self.collection.create_index("category")
-        self.collection.create_index("fuente")
-        self.collection.create_index("workflow_state")
-        self.collection.create_index("enrichment_level")
-        self.collection.create_index([("publication_date", pymongo.DESCENDING), ("opening_date", pymongo.DESCENDING)])
-        self.collection.create_index([("workflow_state", 1), ("opening_date", 1)])
-        self.collection.create_index("created_at")
-        self.collection.create_index("fecha_scraping")
+
+    async def ensure_indexes(self):
+        """Create indexes — must be awaited from startup."""
+        await self.collection.create_index([("title", pymongo.TEXT), ("description", pymongo.TEXT)])
+        await self.collection.create_index("organization")
+        await self.collection.create_index("publication_date")
+        await self.collection.create_index("status")
+        await self.collection.create_index("location")
+        await self.collection.create_index("category")
+        await self.collection.create_index("fuente")
+        await self.collection.create_index("workflow_state")
+        await self.collection.create_index("enrichment_level")
+        await self.collection.create_index([("publication_date", pymongo.DESCENDING), ("opening_date", pymongo.DESCENDING)])
+        await self.collection.create_index([("workflow_state", 1), ("opening_date", 1)])
+        await self.collection.create_index("created_at")
+        await self.collection.create_index("fecha_scraping")
     
     async def create(self, licitacion: LicitacionCreate) -> Licitacion:
         """Create a new licitacion with auto-classification"""
@@ -272,11 +273,12 @@ class ScraperConfigRepository:
     def __init__(self, db):
         self.db = db
         self.collection = db["scraper_configs"]
-        
-        # Ensure indexes for better performance
-        self.collection.create_index("name", unique=True)
-        self.collection.create_index("url")
-        self.collection.create_index("active")
+
+    async def ensure_indexes(self):
+        """Create indexes — must be awaited from startup."""
+        await self.collection.create_index("name", unique=True)
+        await self.collection.create_index("url")
+        await self.collection.create_index("active")
     
     async def create(self, config: ScraperConfigCreate) -> ScraperConfig:
         """Create a new scraper configuration"""

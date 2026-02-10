@@ -63,6 +63,11 @@ def licitacion_entity(licitacion) -> dict:
         "requisitos_participacion": licitacion.get("requisitos_participacion", []),
         "actos_administrativos": licitacion.get("actos_administrativos", []),
         "circulares": licitacion.get("circulares", []),
+        # ID and coverage fields
+        "id_licitacion": licitacion.get("id_licitacion"),
+        "municipios_cubiertos": licitacion.get("municipios_cubiertos"),
+        "provincia": licitacion.get("provincia"),
+        "cobertura": licitacion.get("cobertura"),
         # Basic fields
         "expedient_number": licitacion.get("expedient_number"),
         "licitacion_number": licitacion.get("licitacion_number"),

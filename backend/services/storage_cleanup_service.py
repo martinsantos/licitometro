@@ -24,7 +24,7 @@ RUN_HISTORY_KEEP = int(os.environ.get("RUN_HISTORY_KEEP", "10"))
 CACHE_TTL_HOURS = int(os.environ.get("CACHE_TTL_HOURS", "168"))  # 7 days
 LOG_RETENTION_DAYS = int(os.environ.get("LOG_RETENTION_DAYS", "7"))
 
-STORAGE_DIR = Path(__file__).parent.parent / "storage"
+STORAGE_DIR = Path(os.environ.get("STORAGE_BASE", str(Path(__file__).parent.parent / "storage")))
 
 
 class StorageCleanupService:

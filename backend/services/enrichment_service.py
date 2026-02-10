@@ -17,7 +17,8 @@ from motor.motor_asyncio import AsyncIOMotorDatabase
 
 logger = logging.getLogger("enrichment_service")
 
-DOCUMENTS_DIR = Path(__file__).parent.parent / "storage" / "documents"
+STORAGE_BASE = Path(os.environ.get("STORAGE_BASE", str(Path(__file__).parent.parent / "storage")))
+DOCUMENTS_DIR = STORAGE_BASE / "documents"
 
 
 class EnrichmentService:

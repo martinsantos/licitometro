@@ -9,27 +9,23 @@ const LicitacionDetalle = ({ apiUrl, licitacionId }: { apiUrl: string, licitacio
     const fetchLicitacion = async () => {
       try {
         setLoading(true);
-        const response = await fetch(`${apiUrl}/api/licitaciones/${licitacionId}`);
-        
+        setError(null);
+        const response = await fetch(`${apiUrl}/api/licitaciones/${licitacionId}`, { credentials: 'include' });
+
         if (!response.ok) {
           throw new Error('No se pudo cargar el detalle de la licitación');
         }
-        
+
         const data = await response.json();
         setLicitacion(data);
-        setLoading(false);
       } catch (err: any) {
         setError(err.message || 'Error desconocido');
+      } finally {
         setLoading(false);
       }
     };
 
-    // Simulamos un retraso para mostrar el estado de carga
-    setTimeout(() => {
-      // En un entorno de demostración, usamos datos de ejemplo
-      setLoading(false);
-      setError('No se pudo cargar el detalle de la licitación. Por favor, intente nuevamente más tarde.');
-    }, 1500);
+    fetchLicitacion();
   }, [apiUrl, licitacionId]);
 
   if (loading) {

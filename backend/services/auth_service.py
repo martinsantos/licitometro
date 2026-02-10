@@ -3,6 +3,7 @@ Authentication service - shared password with JWT tokens.
 """
 
 import os
+import uuid
 import logging
 from datetime import datetime, timedelta, timezone
 import bcrypt as _bcrypt
@@ -10,7 +11,11 @@ import jwt
 
 logger = logging.getLogger("auth_service")
 
-JWT_SECRET_KEY = os.environ.get("JWT_SECRET_KEY", "dev-secret-change-in-production")
+JWT_SECRET_KEY = os.environ.get("JWT_SECRET_KEY", "")
+if not JWT_SECRET_KEY:
+    JWT_SECRET_KEY = str(uuid.uuid4())
+    logger.warning("JWT_SECRET_KEY not set - using random key (sessions won't persist across restarts)")
+
 JWT_ALGORITHM = "HS256"
 TOKEN_EXPIRY_HOURS = int(os.environ.get("TOKEN_EXPIRY_HOURS", "24"))
 AUTH_PASSWORD_HASH = os.environ.get("AUTH_PASSWORD_HASH", "")
@@ -19,8 +24,8 @@ AUTH_PASSWORD_HASH = os.environ.get("AUTH_PASSWORD_HASH", "")
 def verify_password(plain_password: str) -> bool:
     """Verify the shared password against the stored bcrypt hash."""
     if not AUTH_PASSWORD_HASH:
-        logger.warning("AUTH_PASSWORD_HASH not set - authentication disabled")
-        return True
+        logger.critical("AUTH_PASSWORD_HASH not set - rejecting all login attempts")
+        return False
     try:
         return _bcrypt.checkpw(
             plain_password.encode("utf-8"),

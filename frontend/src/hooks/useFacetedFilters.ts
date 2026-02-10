@@ -55,7 +55,7 @@ export function useFacetedFilters(apiUrl: string, filters: FilterState): FacetDa
       if (filters.fechaHasta) params.append('fecha_hasta', filters.fechaHasta);
       if (filters.fechaCampo) params.append('fecha_campo', filters.fechaCampo);
 
-      fetch(`${apiUrl}/api/licitaciones/facets?${params}`, { signal: controller.signal })
+      fetch(`${apiUrl}/api/licitaciones/facets?${params}`, { signal: controller.signal, credentials: 'include' })
         .then(r => r.ok ? r.json() : EMPTY_FACETS)
         .then(data => {
           if (!controller.signal.aborted) setFacets(data);

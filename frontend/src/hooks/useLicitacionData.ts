@@ -65,6 +65,7 @@ export function useLicitacionData({
 
       const response = await fetch(`${apiUrl}/api/licitaciones/?${params.toString()}`, {
         signal: controller.signal,
+        credentials: 'include',
       });
 
       if (!response.ok) throw new Error('Error al cargar licitaciones');

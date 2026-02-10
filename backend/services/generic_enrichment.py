@@ -11,6 +11,7 @@ Supports PDF and ZIP binary downloads for sources that link to pliegos
 
 import io
 import logging
+import os
 import re
 import zipfile
 from datetime import datetime
@@ -24,10 +25,10 @@ from utils.dates import parse_date_guess
 
 logger = logging.getLogger("generic_enrichment")
 
-MAX_PDF_BYTES = 25 * 1024 * 1024    # 25 MB
-MAX_ZIP_BYTES = 50 * 1024 * 1024    # 50 MB
-MAX_PDF_PAGES = 200
-MAX_DESCRIPTION_LEN = 10000
+MAX_PDF_BYTES = int(os.environ.get("MAX_PDF_BYTES", 25 * 1024 * 1024))    # 25 MB
+MAX_ZIP_BYTES = int(os.environ.get("MAX_ZIP_BYTES", 50 * 1024 * 1024))    # 50 MB
+MAX_PDF_PAGES = int(os.environ.get("MAX_PDF_PAGES", 200))
+MAX_DESCRIPTION_LEN = int(os.environ.get("MAX_DESCRIPTION_LEN", 10000))
 
 # Common content selectors (tried in order)
 CONTENT_SELECTORS = [

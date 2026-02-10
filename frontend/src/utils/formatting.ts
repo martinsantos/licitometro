@@ -74,11 +74,12 @@ export const highlightMatches = (text: string, query: string): React.ReactNode =
   if (!query?.trim() || !text) return text;
   const tokens = query.trim().split(/\s+/).filter(t => t.length >= 2).map(t => t.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'));
   if (tokens.length === 0) return text;
-  const regex = new RegExp(`(${tokens.join('|')})`, 'gi');
-  const parts = text.split(regex);
+  const splitRegex = new RegExp(`(${tokens.join('|')})`, 'gi');
+  const testRegex = new RegExp(`^(${tokens.join('|')})$`, 'i');
+  const parts = text.split(splitRegex);
   return React.createElement(React.Fragment, null,
     ...parts.map((part, i) =>
-      regex.test(part)
+      testRegex.test(part)
         ? React.createElement('mark', { key: i, className: 'bg-yellow-100 text-yellow-900 rounded px-0.5' }, part)
         : part
     )

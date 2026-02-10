@@ -48,7 +48,7 @@ const PresetSelector: React.FC<PresetSelectorProps> = ({
   // Load presets on open
   useEffect(() => {
     if (!open) return;
-    fetch(`${apiUrl}/api/licitaciones/presets`)
+    fetch(`${apiUrl}/api/licitaciones/presets`, { credentials: 'include' })
       .then(r => r.ok ? r.json() : [])
       .then(data => setPresets(data))
       .catch(() => {});
@@ -72,6 +72,7 @@ const PresetSelector: React.FC<PresetSelectorProps> = ({
     try {
       const res = await fetch(`${apiUrl}/api/licitaciones/presets`, {
         method: 'POST',
+        credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           name: newName.trim(),
@@ -91,7 +92,7 @@ const PresetSelector: React.FC<PresetSelectorProps> = ({
 
   const handleDelete = useCallback(async (id: string) => {
     try {
-      await fetch(`${apiUrl}/api/licitaciones/presets/${id}`, { method: 'DELETE' });
+      await fetch(`${apiUrl}/api/licitaciones/presets/${id}`, { method: 'DELETE', credentials: 'include' });
       setPresets(prev => prev.filter(p => p._id !== id));
     } catch { /* ignore */ }
   }, [apiUrl]);
