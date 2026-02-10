@@ -110,6 +110,8 @@ def parse_date_guess(value: str) -> Optional[datetime]:
         "%d/%m/%y",
         "%d/%m/%y %H:%M",
         "%d-%m-%y",
+        "%m/%d/%Y",
+        "%m/%d/%Y %H:%M",
     ]
     for fmt in formats:
         try:

@@ -120,6 +120,11 @@ services:
 networks:
   internal:
     driver: bridge
+    enable_ipv6: true
+    ipam:
+      config:
+        - subnet: 172.18.0.0/16
+        - subnet: 2a02:4780:6e:9b84:2::/80
 
 volumes:
   mongo_data:

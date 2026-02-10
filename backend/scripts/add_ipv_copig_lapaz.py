@@ -1,11 +1,16 @@
 """
-Add IPV Mendoza, COPIG, and La Paz scraper configs.
+Add IPV Mendoza, COPIG, La Paz, and San Carlos scraper configs.
 
 Sources verified 2026-02-10:
 - IPV Mendoza: WordPress blog, 60 pages, h2.entry-title links to detail pages
 - COPIG: Custom theme, div.item cards with inline links, 13 pages, 20 items/page
+  Detail pages: <h2>Licitaciones</h2> (section header) then <h1>ACTUAL TITLE</h1>
+  title_selector MUST be "h1" only to avoid matching the section header.
 - La Paz: WordPress Vantage theme, article.grid-post with h3 links, 6 pages
-  NOTE: La Paz on 200.58.x.x ISP, blocks datacenter IPs. Config created inactive.
+- San Carlos: WordPress + Elementor, h2.entry-title a links, Elementor headings on detail pages
+  Detail h2s contain Objeto, Expediente, Apertura, Presupuesto structured fields.
+
+All 4 sources reachable via Docker IPv6 (200.58.x.x ISP blocks datacenter IPv4).
 
 Usage: docker exec -w /app -e PYTHONPATH=/app licitometro-backend-1 python3 scripts/add_ipv_copig_lapaz.py
 """
@@ -46,7 +51,7 @@ NEW_SOURCES = [
         "name": "COPIG Mendoza",
         "url": "https://www.copigmza.org.ar/licitaciones/",
         "schedule": "0 11 * * *",
-        "active": False,  # 200.58.x.x ISP blocks datacenter IPv4; curl over IPv6 works but Docker lacks IPv6
+        "active": True,
         "max_items": 50,
         "wait_time": 2,
         "selectors": {
@@ -54,7 +59,8 @@ NEW_SOURCES = [
             # Link mode: each div.item wraps an <article><a> with full URL
             "link_selector": "div.item article a[href]",
             "link_pattern": "copigmza\\.org\\.ar/licitaciones/",
-            "title_selector": "h1, h2, .entry-title, div.data p",
+            # CRITICAL: h1 only! Detail pages have <h2>Licitaciones</h2> section header before <h1>
+            "title_selector": "h1",
             "description_selector": ".entry-content, .content, article",
             "date_selector": "p.date, .date, time",
             "next_page_selector": "a.next.page-numbers",
@@ -67,7 +73,7 @@ NEW_SOURCES = [
         "name": "La Paz",
         "url": "https://lapazmendoza.gob.ar/licitaciones/",
         "schedule": "0 12 * * *",
-        "active": False,  # ISP 200.58.x.x blocks datacenter IPs
+        "active": True,
         "max_items": 30,
         "wait_time": 2,
         "selectors": {
@@ -83,6 +89,27 @@ NEW_SOURCES = [
             "jurisdiccion": "Mendoza",
         },
         "pagination": {"max_pages": 3},
+    },
+    {
+        "name": "San Carlos",
+        "url": "https://sancarlos.gob.ar/licitaciones/",
+        "schedule": "0 12 * * *",
+        "active": True,
+        "max_items": 50,
+        "wait_time": 2,
+        "selectors": {
+            "scraper_type": "generic_html",
+            # WordPress + Elementor: list uses standard WP titles, detail uses Elementor headings
+            "link_selector": "h2.entry-title a[href]",
+            "link_pattern": "sancarlos\\.gob\\.ar/licitaciones/",
+            "title_selector": "h1.elementor-heading-title, h1",
+            "description_selector": ".elementor-widget-container, article",
+            "date_selector": "time, .entry-date, .posted-on",
+            "next_page_selector": ".nav-next a, a.next.page-numbers",
+            "organization": "Municipalidad de San Carlos",
+            "jurisdiccion": "Mendoza",
+        },
+        "pagination": {"max_pages": 10},
     },
 ]
 
