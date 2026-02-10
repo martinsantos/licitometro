@@ -189,17 +189,29 @@ class GenericHtmlScraper(BaseScraper):
             if not title or len(title) < 5:
                 continue
 
+            # Date filtering: skip items before min_date if configured
+            date_sel = self._sel("list_date_selector", "time, .date, .fecha")
+            pub_date = None
+            date_el = item.select_one(date_sel)
+            if date_el:
+                pub_date = parse_date_guess(date_el.get_text(strip=True))
+
+            min_date_str = self._sel("min_date", "")
+            if min_date_str and pub_date:
+                try:
+                    min_dt = datetime.strptime(min_date_str, "%Y-%m-%d")
+                    if pub_date < min_dt:
+                        continue
+                except ValueError:
+                    pass
+
             link_sel = self._sel("list_link_selector", "a[href]")
             link_el = item.select_one(link_sel)
             url = ""
             if link_el and link_el.get("href"):
                 url = urljoin(str(self.config.url), link_el["href"])
 
-            date_sel = self._sel("list_date_selector", "time, .date, .fecha")
-            pub_date = None
-            date_el = item.select_one(date_sel)
-            if date_el:
-                pub_date = parse_date_guess(date_el.get_text(strip=True))
+            # pub_date already extracted above for min_date filtering
 
             # Use description selector if configured, otherwise use title as description
             desc_sel = self._sel("list_description_selector", "")

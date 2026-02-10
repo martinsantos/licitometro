@@ -159,7 +159,7 @@ const MobileFilterDrawer: React.FC<MobileFilterDrawerProps> = ({
           <div className="flex-1 overflow-y-auto p-4 space-y-0">
             {/* Sort */}
             {sortBy && onSortChange && onToggleOrder && (
-              <Section title="Ordenar" defaultOpen={false}>
+              <Section title="Ordenar" defaultOpen={true}>
                 <div className="space-y-1">
                   {SORT_OPTIONS.map((opt) => (
                     <button
