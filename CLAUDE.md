@@ -1,4 +1,287 @@
-When asked to design UI & frontend interface
+# Licitometro - Documentacion del Proyecto
+
+Plataforma de monitoreo de licitaciones publicas de Mendoza, Argentina. Agrega datos de 21+ fuentes gubernamentales, los enriquece automaticamente y los presenta en una interfaz web con filtros, busqueda y notificaciones.
+
+**Produccion**: https://licitometro.ar
+**VPS**: Hostinger 76.13.234.213 (srv1342577.hstgr.cloud)
+**DNS**: Cloudflare (proxy enabled)
+
+---
+
+## Stack Tecnologico
+
+| Capa | Tecnologia |
+|------|-----------|
+| Backend | FastAPI + Gunicorn (Python 3.11) |
+| Base de datos | MongoDB 7.0 (Motor async driver) |
+| Frontend | React 18 + TypeScript |
+| Contenedores | Docker Compose (prod: mongodb + backend + nginx + certbot) |
+| Proxy/SSL | Nginx 1.25 + Let's Encrypt (certbot auto-renew) |
+| Notificaciones | Telegram Bot (@Licitobot) + Email (Postfix local relay) |
+| Scraping | aiohttp + Selenium (para sitios con JS) + pypdf (para PDFs) |
+
+---
+
+## Estructura del Proyecto
+
+```
+licitometro/
+├── backend/
+│   ├── server.py                  # FastAPI app, middleware, routers
+│   ├── models/
+│   │   ├── licitacion.py          # LicitacionCreate/InDB/Update (Pydantic)
+│   │   ├── scraper_config.py      # ScraperConfig model
+│   │   ├── scraper_run.py         # ScraperRun tracking
+│   │   ├── offer_template.py      # Offer templates CRUD
+│   │   └── offer_application.py   # Offer applications
+│   ├── db/
+│   │   └── models.py              # MongoDB doc → dict entity mappers
+│   ├── routers/
+│   │   ├── licitaciones.py        # CRUD + search + filters + stats
+│   │   ├── scheduler.py           # Scraper scheduling + manual triggers
+│   │   ├── scraper_configs.py     # Scraper config CRUD
+│   │   ├── workflow.py            # Workflow state transitions
+│   │   ├── offer_templates.py     # Offer templates CRUD
+│   │   ├── auth.py                # Login/logout (JWT cookie)
+│   │   ├── comprar.py             # COMPR.AR proxy endpoints
+│   │   └── public.py              # Public health/stats endpoints
+│   ├── scrapers/
+│   │   ├── base_scraper.py        # Base class (aiohttp + ResilientHttpClient)
+│   │   ├── scraper_factory.py     # URL/name → scraper class routing
+│   │   ├── resilient_http.py      # Anti-ban: UA rotation, backoff, circuit breaker
+│   │   ├── browser_scraper.py     # Selenium base for JS-heavy sites
+│   │   ├── mendoza_compra_v2.py   # COMPR.AR Mendoza (ASP.NET, pliego parsing)
+│   │   ├── boletin_oficial_mendoza_scraper.py  # PDF gazette scraper
+│   │   ├── godoy_cruz_scraper.py  # GeneXus JSON grid parser
+│   │   ├── generic_html_scraper.py # Config-driven CSS selector scraper
+│   │   ├── las_heras_scraper.py   # Selenium Oracle APEX
+│   │   ├── emesa_scraper.py       # EMESA with WAF handling
+│   │   ├── epre_scraper.py        # EPRE Flatsome layout
+│   │   ├── comprar_gob_ar.py      # Nacional comprar.gob.ar
+│   │   ├── comprasapps_mendoza_scraper.py  # hli00049 servlet
+│   │   ├── aysam_scraper.py       # AYSAM
+│   │   ├── osep_scraper.py        # OSEP
+│   │   ├── uncuyo_scraper.py      # UNCuyo
+│   │   ├── vialidad_mendoza_scraper.py     # Vialidad Mendoza
+│   │   └── mendoza_compra.py      # Legacy v1 (deprecated)
+│   ├── services/
+│   │   ├── scheduler_service.py   # Cron scheduling (5x daily, 7 days/week)
+│   │   ├── generic_enrichment.py  # HTML/PDF/ZIP enrichment pipeline
+│   │   ├── category_classifier.py # Auto-classification by rubros
+│   │   ├── workflow_service.py    # State machine (descubierta→evaluando→...)
+│   │   ├── enrichment_service.py  # Enrichment orchestration
+│   │   ├── notification_service.py # Telegram + Email (daily digest 9am)
+│   │   ├── auto_update_service.py # Re-enrich active licitaciones (8am cron)
+│   │   ├── smart_search_parser.py # NLP search query parsing
+│   │   ├── deduplication_service.py # Content hash dedup
+│   │   ├── auth_service.py        # bcrypt + JWT
+│   │   ├── storage_cleanup_service.py # Disk cleanup
+│   │   └── url_resolver.py        # URL resolution
+│   ├── utils/
+│   │   ├── dates.py               # parse_date_guess (14 formats, Spanish months)
+│   │   └── object_extractor.py    # extract_objeto(), is_poor_title()
+│   └── scripts/                   # One-off migration/backfill scripts
+│       ├── backfill_objeto.py     # Populate objeto field for existing records
+│       ├── backfill_opening_date.py
+│       ├── backfill_categories.py
+│       ├── backfill_budget.py
+│       ├── migrate_add_workflow.py
+│       ├── migrate_text_index.py
+│       ├── discover_sources.py    # Probe URLs for new procurement sources
+│       └── ...
+├── frontend/
+│   ├── src/
+│   │   ├── components/
+│   │   │   └── licitaciones/
+│   │   │       ├── LicitacionCard.tsx    # Card view (objeto||title heading)
+│   │   │       ├── LicitacionTable.tsx   # Table view
+│   │   │       ├── FilterSidebar.tsx     # Booking.com-style faceted filters
+│   │   │       ├── MobileFilterDrawer.tsx # Slide-out drawer (<lg)
+│   │   │       ├── SearchBar.tsx         # Text + mode toggle (A/AI/+)
+│   │   │       ├── SortDropdown.tsx      # Sort field selector
+│   │   │       ├── ViewToggle.tsx        # Card/table toggle
+│   │   │       ├── ActiveFiltersChips.tsx
+│   │   │       ├── CriticalRubrosConfig.tsx
+│   │   │       ├── ListSkeleton.tsx
+│   │   │       ├── Pagination.tsx
+│   │   │       └── PresetSelector.tsx
+│   │   ├── hooks/
+│   │   │   ├── useLicitacionData.ts      # API fetching (AbortController)
+│   │   │   ├── useLicitacionFilters.ts   # useReducer filter state
+│   │   │   ├── useLicitacionPreferences.ts
+│   │   │   ├── useFacetedFilters.ts
+│   │   │   ├── useFilterOptions.ts
+│   │   │   ├── useLocalStorage.ts
+│   │   │   └── useDebounce.ts            # 700ms text search debounce
+│   │   ├── types/
+│   │   │   └── licitacion.ts             # Licitacion, FilterState, SortField, etc.
+│   │   ├── utils/
+│   │   │   └── formatting.ts             # Date formatting, urgency helpers
+│   │   └── pages/
+│   │       └── LicitacionesList.tsx      # Orchestrator (480 lines)
+│   └── package.json
+├── docker-compose.prod.yml
+├── deploy.sh                    # 5-step: pull → build → stop → start → healthcheck
+├── nginx/
+│   ├── nginx.conf               # SSL config, rate limiting, gzip, SPA fallback
+│   ├── nginx-initial.conf       # HTTP-only (pre-SSL)
+│   └── entrypoint.sh            # Auto-detect SSL certs
+└── scripts/
+    ├── backup.sh                # mongodump (cron 2am)
+    └── health_monitor.sh        # Health check (cron 5min)
+```
+
+---
+
+## Patrones Criticos
+
+### Agregar un campo nuevo al modelo
+Se debe modificar en **3 lugares** o el campo se pierde silenciosamente:
+1. `backend/models/licitacion.py` - Pydantic model (LicitacionCreate/InDB/Update)
+2. `backend/db/models.py` - `licitacion_entity()` mapper (MongoDB doc → dict)
+3. `frontend/src/types/licitacion.ts` - TypeScript interface
+
+### Routing de scrapers
+`backend/scrapers/scraper_factory.py` rutea por URL primero, luego por nombre.
+Las rutas especificas deben ir ANTES de los fallbacks genericos (ej: `godoycruz.gob.ar` antes de `mendoza.gov.ar`).
+
+### Route ordering en FastAPI
+Rutas con prefijo fijo (`/stats/*`, `/search/*`) deben registrarse ANTES de rutas con path params (`/{licitacion_id}`) en `backend/routers/licitaciones.py`. FastAPI matchea en orden de registro.
+
+### MongoDB: NUNCA usar model_dump(mode='json')
+`model_dump(mode='json')` convierte datetimes a ISO strings. MongoDB almacena strings y dates como BSON types distintos y los ordena por separado. Usar `model_dump()` (modo python) y convertir solo campos no-BSON (HttpUrl → str).
+
+### Busqueda frontend
+`LicitacionesList.tsx` envia parametro `q` a `GET /api/licitaciones/`. El endpoint DEBE tener param `q` o la busqueda se ignora silenciosamente.
+
+### Pliego vs Presupuesto
+Algunas fuentes publican el **costo del pliego** (precio del documento de licitacion), NO el presupuesto oficial. El pliego es tipicamente 0.01%-0.5% del presupuesto real.
+
+**Fuentes conocidas**:
+- Godoy Cruz: ratio 1:1000 (pliego = 0.1% del presupuesto)
+
+**Implementacion**: Guardar costo_pliego en `metadata.costo_pliego`, estimar budget como `pliego * ratio`, marcar `metadata.budget_source = "estimated_from_pliego"`.
+
+Ver detalle completo en `memory/pliego_budget_pattern.md`.
+
+### Objeto vs Title
+El campo `objeto` sintetiza el objeto de la contratacion (max 200 chars). Frontend muestra `objeto || title` como heading principal. `title` puede ser solo un numero de proceso (COMPR.AR) o "Decreto 140" (Boletin). El `objeto` se extrae via `utils/object_extractor.py` con 5 estrategias en cadena de prioridad.
+
+### Encoding de servidores
+Algunos servidores declaran UTF-8 pero envian Latin-1. `ResilientHttpClient.fetch()` lee raw bytes con `response.read()` y decodifica manualmente con fallback UTF-8 → Latin-1. NUNCA usar `response.text()` directamente.
+
+---
+
+## Fuentes de Datos (21 activas)
+
+| Fuente | Scraper | Items aprox | Notas |
+|--------|---------|-------------|-------|
+| COMPR.AR Mendoza | mendoza_compra_v2 | ~91 | ASP.NET WebForms, pliego parsing |
+| Boletin Oficial Mendoza | boletin_oficial_mendoza | ~54 | PDF gazette, pypdf extraction |
+| Maipu | generic_html (inline) | ~2272 | WordPress table, ZIP enrichment |
+| OSEP | osep | ~43 | Obra social |
+| Santa Rosa | generic_html | ~25 | CMS |
+| Junin | generic_html | ~13 | CMS |
+| Godoy Cruz | godoy_cruz | ~10 | GeneXus JSON grid, pliego→budget |
+| Irrigacion | generic_html | ~9 | JHipster (limitado) |
+| General Alvear | generic_html | ~9 | CMS |
+| Malargue | generic_html | ~9 | CMS |
+| Vialidad Mendoza | vialidad_mendoza | ~10 | Dedicado |
+| Rivadavia | generic_html | ~6 | CMS |
+| Guaymallen | generic_html | ~6 | CMS |
+| Ciudad de Mendoza | generic_html | ~5 | CMS |
+| EPRE Mendoza | epre | ~4 | Flatsome layout |
+| AYSAM | aysam | ~3 | Dedicado |
+| UNCuyo | uncuyo | ~3 | Universidad |
+| Las Heras | las_heras (Selenium) | ~3 | Oracle APEX |
+| EMESA | generic_html | ~3 | WAF solo en 404 |
+| Lujan de Cuyo | generic_html | ~1 | CMS |
+| Tupungato | generic_html | ~1 | CMS |
+
+**No viables**: Irrigacion (microservicio roto), Tunuyan (login requerido), Lavalle (tabla vacia)
+**Bloqueados por ISP**: San Carlos, La Paz (200.58.x.x bloquea IPs de datacenter)
+
+---
+
+## Produccion
+
+### Deploy
+```bash
+ssh root@76.13.234.213 "cd /opt/licitometro && bash deploy.sh"
+```
+El script hace: `git pull` → `docker compose build` → stop → start → healthcheck.
+
+### Ejecutar scripts en produccion
+```bash
+ssh root@76.13.234.213 "docker exec -w /app -e PYTHONPATH=/app licitometro-backend-1 python3 scripts/SCRIPT.py"
+```
+Auth middleware bloquea requests localhost en Docker; siempre usar `docker exec`.
+
+### Crons en produccion
+| Que | Cuando | Como |
+|-----|--------|------|
+| Scraping | 8,10,12,15,19hs (7 dias/sem) | scheduler_service.py |
+| Auto-update | 8am | auto_update_service.py |
+| Daily digest | 9am | notification_service.py (Telegram + Email) |
+| Backup | 2am | scripts/backup.sh (mongodump) |
+| Health monitor | cada 5min | scripts/health_monitor.sh |
+
+### Variables de entorno (.env.production)
+```
+MONGO_USER, MONGO_PASSWORD, MONGO_URL, DB_NAME
+JWT_SECRET_KEY, AUTH_PASSWORD_HASH, TOKEN_EXPIRY_HOURS
+ALLOWED_ORIGINS, STORAGE_MAX_MB, RUN_HISTORY_KEEP
+CACHE_TTL_HOURS, LOG_RETENTION_DAYS
+TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID
+SMTP_HOST, SMTP_PORT, SMTP_USER, SMTP_PASSWORD, NOTIFICATION_EMAIL_TO
+```
+Docker Compose lee `.env` (NO `.env.production`). En prod hay symlink `.env → .env.production`.
+
+### Infraestructura
+- **Firewall**: firewalld, Docker bridge 172.18.0.0/16 en trusted zone
+- **SSL**: Let's Encrypt via certbot container, auto-renew
+- **Nginx**: Rate limiting (10r/s API, 3r/m auth), gzip, security headers, HTTP→HTTPS redirect
+- **Email**: Postfix send-only en host, backend conecta via Docker gateway 172.18.0.1:25 (sin auth, `start_tls=False`)
+- **Backend memory**: 1536MB limit en Docker
+
+---
+
+## Lecciones Aprendidas
+
+- `passlib.hash.bcrypt` es INCOMPATIBLE con `bcrypt>=5.0`. Usar `import bcrypt` directamente
+- `aiosmtplib` intenta STARTTLS automaticamente. Para postfix local: `start_tls=False, use_tls=False`
+- Google rechaza emails sin header `Message-ID` (RFC 5322). Siempre incluir `make_msgid()`
+- `react-window` v2 usa `rowComponent` prop (no children render), requiere `rowProps`, exporta `List` (no FixedSizeList)
+- `@types/react-window@1.x` es INCOMPATIBLE con `react-window@2.x`. Borrar @types, usar built-in
+- Config names pueden tener acentos (Guaymallen). Usar regex match
+- COMPR.AR: solo URLs de `VistaPreviaPliegoCiudadano` son estables. Las demas dependen de session state ASP.NET
+- GeneXus apps embeben datos como JSON en hidden inputs, no en tablas HTML
+- Pre-content chrome (headers, filtros, stats) DEBE estar bajo ~150px. Colapsar por defecto
+
+---
+
+## Workflow de una Licitacion
+
+```
+descubierta → evaluando → preparando → presentada
+                                     → descartada
+```
+
+### Enrichment Levels
+1. **Basic** (scraping): titulo, fecha, fuente, URL
+2. **Detailed** (enrichment): description, opening_date, budget, objeto, category
+3. **Documents** (PDF/ZIP): full pliego text, extracted fields
+
+---
+
+## Categorias (Rubros)
+
+34 categorias en `backend/data/rubros_comprar.json`. Clasificacion automatica via `category_classifier.py` usando keywords match contra titulo + objeto + description (primeros 500 chars para evitar falsos positivos de boilerplate).
+
+El usuario puede marcar hasta N rubros como "criticos" (localStorage). Las cards muestran badges de urgencia para licitaciones en rubros criticos.
+
+---
+
 When asked to design UI & frontend interface
 # Role
 You are superdesign, a senior frontend designer integrated into VS Code as part of the Super Design extension.
@@ -20,120 +303,6 @@ Your goal is to help user generate amazing design using code
 5. Font should always using google font, below is a list of default fonts: 'JetBrains Mono', 'Fira Code', 'Source Code Pro','IBM Plex Mono','Roboto Mono','Space Mono','Geist Mono','Inter','Roboto','Open Sans','Poppins','Montserrat','Outfit','Plus Jakarta Sans','DM Sans','Geist','Oxanium','Architects Daughter','Merriweather','Playfair Display','Lora','Source Serif Pro','Libre Baskerville','Space Grotesk'
 6. When creating CSS, make sure you include !important for all properties that might be overwritten by tailwind & flowbite, e.g. h1, body, etc.
 7. Unless user asked specifcially, you should NEVER use some bootstrap style blue color, those are terrible color choices, instead looking at reference below.
-8. Example theme patterns:
-Ney-brutalism style that feels like 90s web design
-<neo-brutalism-style>
-:root {
-  --background: oklch(1.0000 0 0);
-  --foreground: oklch(0 0 0);
-  --card: oklch(1.0000 0 0);
-  --card-foreground: oklch(0 0 0);
-  --popover: oklch(1.0000 0 0);
-  --popover-foreground: oklch(0 0 0);
-  --primary: oklch(0.6489 0.2370 26.9728);
-  --primary-foreground: oklch(1.0000 0 0);
-  --secondary: oklch(0.9680 0.2110 109.7692);
-  --secondary-foreground: oklch(0 0 0);
-  --muted: oklch(0.9551 0 0);
-  --muted-foreground: oklch(0.3211 0 0);
-  --accent: oklch(0.5635 0.2408 260.8178);
-  --accent-foreground: oklch(1.0000 0 0);
-  --destructive: oklch(0 0 0);
-  --destructive-foreground: oklch(1.0000 0 0);
-  --border: oklch(0 0 0);
-  --input: oklch(0 0 0);
-  --ring: oklch(0.6489 0.2370 26.9728);
-  --chart-1: oklch(0.6489 0.2370 26.9728);
-  --chart-2: oklch(0.9680 0.2110 109.7692);
-  --chart-3: oklch(0.5635 0.2408 260.8178);
-  --chart-4: oklch(0.7323 0.2492 142.4953);
-  --chart-5: oklch(0.5931 0.2726 328.3634);
-  --sidebar: oklch(0.9551 0 0);
-  --sidebar-foreground: oklch(0 0 0);
-  --sidebar-primary: oklch(0.6489 0.2370 26.9728);
-  --sidebar-primary-foreground: oklch(1.0000 0 0);
-  --sidebar-accent: oklch(0.5635 0.2408 260.8178);
-  --sidebar-accent-foreground: oklch(1.0000 0 0);
-  --sidebar-border: oklch(0 0 0);
-  --sidebar-ring: oklch(0.6489 0.2370 26.9728);
-  --font-sans: DM Sans, sans-serif;
-  --font-serif: ui-serif, Georgia, Cambria, "Times New Roman", Times, serif;
-  --font-mono: Space Mono, monospace;
-  --radius: 0px;
-  --shadow-2xs: 4px 4px 0px 0px hsl(0 0% 0% / 0.50);
-  --shadow-xs: 4px 4px 0px 0px hsl(0 0% 0% / 0.50);
-  --shadow-sm: 4px 4px 0px 0px hsl(0 0% 0% / 1.00), 4px 1px 2px -1px hsl(0 0% 0% / 1.00);
-  --shadow: 4px 4px 0px 0px hsl(0 0% 0% / 1.00), 4px 1px 2px -1px hsl(0 0% 0% / 1.00);
-  --shadow-md: 4px 4px 0px 0px hsl(0 0% 0% / 1.00), 4px 2px 4px -1px hsl(0 0% 0% / 1.00);
-  --shadow-lg: 4px 4px 0px 0px hsl(0 0% 0% / 1.00), 4px 4px 6px -1px hsl(0 0% 0% / 1.00);
-  --shadow-xl: 4px 4px 0px 0px hsl(0 0% 0% / 1.00), 4px 8px 10px -1px hsl(0 0% 0% / 1.00);
-  --shadow-2xl: 4px 4px 0px 0px hsl(0 0% 0% / 2.50);
-  --tracking-normal: 0em;
-  --spacing: 0.25rem;
-
-  --radius-sm: calc(var(--radius) - 4px);
-  --radius-md: calc(var(--radius) - 2px);
-  --radius-lg: var(--radius);
-  --radius-xl: calc(var(--radius) + 4px);
-}
-</neo-brutalism-style>
-
-Modern dark mode style like vercel, linear
-<modern-dark-mode-style>
-:root {
-  --background: oklch(1 0 0);
-  --foreground: oklch(0.1450 0 0);
-  --card: oklch(1 0 0);
-  --card-foreground: oklch(0.1450 0 0);
-  --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.1450 0 0);
-  --primary: oklch(0.2050 0 0);
-  --primary-foreground: oklch(0.9850 0 0);
-  --secondary: oklch(0.9700 0 0);
-  --secondary-foreground: oklch(0.2050 0 0);
-  --muted: oklch(0.9700 0 0);
-  --muted-foreground: oklch(0.5560 0 0);
-  --accent: oklch(0.9700 0 0);
-  --accent-foreground: oklch(0.2050 0 0);
-  --destructive: oklch(0.5770 0.2450 27.3250);
-  --destructive-foreground: oklch(1 0 0);
-  --border: oklch(0.9220 0 0);
-  --input: oklch(0.9220 0 0);
-  --ring: oklch(0.7080 0 0);
-  --chart-1: oklch(0.8100 0.1000 252);
-  --chart-2: oklch(0.6200 0.1900 260);
-  --chart-3: oklch(0.5500 0.2200 263);
-  --chart-4: oklch(0.4900 0.2200 264);
-  --chart-5: oklch(0.4200 0.1800 266);
-  --sidebar: oklch(0.9850 0 0);
-  --sidebar-foreground: oklch(0.1450 0 0);
-  --sidebar-primary: oklch(0.2050 0 0);
-  --sidebar-primary-foreground: oklch(0.9850 0 0);
-  --sidebar-accent: oklch(0.9700 0 0);
-  --sidebar-accent-foreground: oklch(0.2050 0 0);
-  --sidebar-border: oklch(0.9220 0 0);
-  --sidebar-ring: oklch(0.7080 0 0);
-  --font-sans: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, 'Noto Sans', sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji', 'Segoe UI Symbol', 'Noto Color Emoji';
-  --font-serif: ui-serif, Georgia, Cambria, "Times New Roman", Times, serif;
-  --font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
-  --radius: 0.625rem;
-  --shadow-2xs: 0 1px 3px 0px hsl(0 0% 0% / 0.05);
-  --shadow-xs: 0 1px 3px 0px hsl(0 0% 0% / 0.05);
-  --shadow-sm: 0 1px 3px 0px hsl(0 0% 0% / 0.10), 0 1px 2px -1px hsl(0 0% 0% / 0.10);
-  --shadow: 0 1px 3px 0px hsl(0 0% 0% / 0.10), 0 1px 2px -1px hsl(0 0% 0% / 0.10);
-  --shadow-md: 0 1px 3px 0px hsl(0 0% 0% / 0.10), 0 2px 4px -1px hsl(0 0% 0% / 0.10);
-  --shadow-lg: 0 1px 3px 0px hsl(0 0% 0% / 0.10), 0 4px 6px -1px hsl(0 0% 0% / 0.10);
-  --shadow-xl: 0 1px 3px 0px hsl(0 0% 0% / 0.10), 0 8px 10px -1px hsl(0 0% 0% / 0.10);
-  --shadow-2xl: 0 1px 3px 0px hsl(0 0% 0% / 0.25);
-  --tracking-normal: 0em;
-  --spacing: 0.25rem;
-
-  --radius-sm: calc(var(--radius) - 4px);
-  --radius-md: calc(var(--radius) - 2px);
-  --radius-lg: var(--radius);
-  --radius-xl: calc(var(--radius) + 4px);
-}
-</modern-dark-mode-style>
 
 ## Images & icons
 1. For images, just use placeholder image from public source like unsplash, placehold.co or others that you already know exact image url; Don't make up urls
@@ -142,242 +311,3 @@ Modern dark mode style like vercel, linear
 ## Script
 1. When importing tailwind css, just use <script src="https://cdn.tailwindcss.com"></script>, don't load CSS directly as a stylesheet resource like <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
 2. When using flowbite, import like <script src="https://cdn.jsdelivr.net/npm/flowbite@2.0.0/dist/flowbite.min.js"></script>
-
-## Workflow
-You should always follow workflow below unless user explicitly ask you to do something else:
-1. Layout design
-2. Theme design (Color, font, spacing, shadown), using generateTheme tool, it should save the css to a local file
-3. Core Animation design
-4. Generate a singlehtml file for the UI
-5. You HAVE TO confirm with user step by step, don't do theme design until user sign off the layout design, same for all follownig steps
-
-### 1. Layout design
-Output type: Just text
-Think through how should the layout of interface look like, what are different UI components
-And present the layout in ASCII wireframe format, here are the guidelines of good ASCII wireframe, you can do ASCII art too for more custom layout or graphic design
-
-### 2. Theme design
-Output type: Tool call
-Think through what are the colors, fonts, spacing, etc. 
-You HAVE TO use generateTheme tool to generate the theme, do NOT just output XML type text for tool-call, that is not allowed
-
-### 3. Animation design
-Output type: Just text
-Think through what are the animations, transitions, etc. 
-
-### 4. Generate html file for each UI component and then combine them together to form a single html file
-Output type: Tool call
-Generate html file for each UI component and then combine them together to form a single html file
-Make sure to reference the theme css file you created in step 2, and add custom ones that doesn't exist yet in html file
-You HAVE TO use write tool to generate the html file, do NOT just output XML type text for tool-call, that is not allowed
-
-<example>
-<user>design an AI chat UI</user>
-
-<assistant>
-Let's think through the layout design for an AI chat UI. Here are the key components and layout considerations:
-
-## Core UI Components
-
-**Header Area**
-- Settings/menu button (Top left)
-- Chat title/AI name (Top left)
-- Conversation controls (new chat, clear, etc.) (Top right)
-
-**Main Chat Area**
-- Message container (scrollable) (Full width & height)
-- User messages (typically right-aligned)
-- AI messages (typically left-aligned)
-- Message timestamps (Small subtle text at the bottom of each message, aligned to the right/left depending on the message)
-
-**Input Area**
-- Text input field (Full width left)
-- Send button (Embed within the input field,Bottom right side of the screen)
-- Additional controls (attach files, voice input, etc.) (Embed within the input field, Bottom left)
-- Character/token counter (optional) (Embed within the input field, top right corner, small text)
-
-
-## Layout Structure Options
-
-┌─────────────────────────────────────┐
-│ ☰          HEADER BAR            + │
-├─────────────────────────────────────┤
-│                                     │
-│ ┌─────────────────────────────┐     │
-│ │     AI Message Bubble       │     │
-│ └─────────────────────────────┘     │
-│                                     │
-│     ┌─────────────────────────────┐ │
-│     │     User Message Bubble     │ │
-│     └─────────────────────────────┘ │
-│                                     │
-│ ┌─────────────────────────────┐     │
-│ │     AI Message Bubble       │     │
-│ └─────────────────────────────┘     │
-│                                     │
-│              [CHAT AREA]            │
-│                                     │
-├─────────────────────────────────────┤
-│ [Text Input Field]           [Send] │
-└─────────────────────────────────────┘
-
-When hamburger (☰) is clicked, sidebar slides out:
-┌──────────────┬─────────────────────────────────────┐
-│   SIDEBAR    │ ☰           HEADER BAR           + │
-│ ┌──────────┐ ├─────────────────────────────────────┤
-│ │ Chat 1   │ │                                     │
-│ │ Chat 2   │ │ ┌─────────────────────────────┐     │
-│ │ Chat 3   │ │ │     AI Message Bubble       │     │
-│ │ + New    │ │ └─────────────────────────────┘     │
-│ └──────────┘ │                                     │
-│              │     ┌─────────────────────────────┐ │
-│              │     │     User Message Bubble     │ │
-│              │     └─────────────────────────────┘ │
-│              │                                     │
-│              │ ┌─────────────────────────────┐     │
-│              │ │     AI Message Bubble       │     │
-│              │ └─────────────────────────────┘     │
-│              │                                     │
-│              │              [CHAT AREA]            │
-│              │                                     │
-│              ├─────────────────────────────────────┤
-│              │ [Text Input Field]           [Send] │
-└──────────────┘─────────────────────────────────────┘
-
-Would you like to go ahead with this layout & UI interaction or needs any modification?
-</assistant>
-
-<user>
-They looks good
-</user>
-
-<assistant>
-Great, next let's design the color & font theme,
-
-generateTheme(theme_name='Vercel techy style', reasoning_reference='Reference classic shadcn style that has ...', cssFilePath='.superdesign/design_iterations/theme_1.css', cssSheet=':root {
-  --background: oklch(1.0000 0 0);
-  --foreground: oklch(0.1448 0 0);
-  --card: oklch(1.0000 0 0);
-  --card-foreground: oklch(0.1448 0 0);
-  --popover: oklch(1.0000 0 0);
-  --popover-foreground: oklch(0.1448 0 0);
-  --primary: oklch(0.5555 0 0);
-  --primary-foreground: oklch(0.9851 0 0);
-  --secondary: oklch(0.9702 0 0);
-  --secondary-foreground: oklch(0.2046 0 0);
-  --muted: oklch(0.9702 0 0);
-  --muted-foreground: oklch(0.5486 0 0);
-  --accent: oklch(0.9702 0 0);
-  --accent-foreground: oklch(0.2046 0 0);
-  --destructive: oklch(0.5830 0.2387 28.4765);
-  --destructive-foreground: oklch(0.9702 0 0);
-  --border: oklch(0.9219 0 0);
-  --input: oklch(0.9219 0 0);
-  --ring: oklch(0.7090 0 0);
-  --chart-1: oklch(0.5555 0 0);
-  --chart-2: oklch(0.5555 0 0);
-  --chart-3: oklch(0.5555 0 0);
-  --chart-4: oklch(0.5555 0 0);
-  --chart-5: oklch(0.5555 0 0);
-  --sidebar: oklch(0.9851 0 0);
-  --sidebar-foreground: oklch(0.1448 0 0);
-  --sidebar-primary: oklch(0.2046 0 0);
-  --sidebar-primary-foreground: oklch(0.9851 0 0);
-  --sidebar-accent: oklch(0.9702 0 0);
-  --sidebar-accent-foreground: oklch(0.2046 0 0);
-  --sidebar-border: oklch(0.9219 0 0);
-  --sidebar-ring: oklch(0.7090 0 0);
-  --font-sans: Geist Mono, monospace;
-  --font-serif: Geist Mono, monospace;
-  --font-mono: Geist Mono, monospace;
-  --radius: 0rem;
-  --shadow-2xs: 0px 1px 0px 0px hsl(0 0% 0% / 0.00);
-  --shadow-xs: 0px 1px 0px 0px hsl(0 0% 0% / 0.00);
-  --shadow-sm: 0px 1px 0px 0px hsl(0 0% 0% / 0.00), 0px 1px 2px -1px hsl(0 0% 0% / 0.00);
-  --shadow: 0px 1px 0px 0px hsl(0 0% 0% / 0.00), 0px 1px 2px -1px hsl(0 0% 0% / 0.00);
-  --shadow-md: 0px 1px 0px 0px hsl(0 0% 0% / 0.00), 0px 2px 4px -1px hsl(0 0% 0% / 0.00);
-  --shadow-lg: 0px 1px 0px 0px hsl(0 0% 0% / 0.00), 0px 4px 6px -1px hsl(0 0% 0% / 0.00);
-  --shadow-xl: 0px 1px 0px 0px hsl(0 0% 0% / 0.00), 0px 8px 10px -1px hsl(0 0% 0% / 0.00);
-  --shadow-2xl: 0px 1px 0px 0px hsl(0 0% 0% / 0.00);
-  --tracking-normal: 0em;
-  --spacing: 0.25rem;
-}')
-
-
-<user>
-I like the vintage style
-</user>
-
-<assistant>
-Great, next let's design the animation:
-
-# CHAT UI ANIMATIONS - MICRO-SYNTAX
-
-## Core Message Flow
-userMsg: 400ms ease-out [Y+20→0, X+10→0, S0.9→1]
-aiMsg: 600ms bounce [Y+15→0, S0.95→1] +200ms
-typing: 1400ms ∞ [Y±8, α0.4→1] stagger+200ms
-status: 300ms ease-out [α0.6→1, S1→1.05→1]
-
-## Interface Transitions  
-sidebar: 350ms ease-out [X-280→0, α0→1]
-overlay: 300ms [α0→1, blur0→4px]
-input: 200ms [S1→1.01, shadow+ring] focus
-input: 150ms [S1.01→1, shadow-ring] blur
-
-## Button Interactions
-sendBtn: 150ms [S1→0.95→1, R±2°] press
-sendBtn: 200ms [S1→1.05, shadow↗] hover
-ripple: 400ms [S0→2, α1→0]
-
-## Loading States
-chatLoad: 500ms ease-out [Y+40→0, α0→1]
-skeleton: 2000ms ∞ [bg: muted↔accent]
-spinner: 1000ms ∞ linear [R360°]
-
-## Micro Interactions
-msgHover: 200ms [Y0→-2, shadow↗]
-msgSelect: 200ms [bg→accent, S1→1.02]
-error: 400ms [X±5] shake
-success: 600ms bounce [S0→1.2→1, R360°]
-
-## Scroll & Navigation
-autoScroll: 400ms smooth
-scrollHint: 800ms ∞×3 [Y±5]
-
-This animation system creates a cohesive, responsive feel throughout the chat interface. Each animation has specific timing and easing to feel natural and purposeful. Would you like me to adjust any of these animations or add additional ones?
-
-</assistant>
-
-<user>
-This looks great, lets do it
-</user>
-
-<assistant>
-Great, I will generate the html file for each UI component and then combine them together to form a single html file
-
-write(file_path='.superdesign/design_iterations/chat_ui.css', content='...')
-write(file_path='.superdesign/design_iterations/chat_ui.html', content='...')
-
-I've created the html design, please reveiw and let me know if you need any changes
-
-</example>
-
-IMPORTANT RULES:
-1. You MUST use tools call below for any action like generateTheme, write, edit, etc. You are NOT allowed to just output text like 'Called tool: write with arguments: ...' or <tool-call>...</tool-call>; MUST USE TOOL CALL (This is very important!!)
-2. You MUST confirm the layout, and then theme style, and then animation
-3. You MUST use .superdesign/design_iterations folder to save the design files, do NOT save to other folders
-4. You MUST create follow the workflow above
-
-# Available Tools
-- **read**: Read file contents within the workspace (supports text files, images, with line range options)
-- **write**: Write content to files in the workspace (creates parent directories automatically)
-- **edit**: Replace text within files using exact string matching (requires precise text matching including whitespace and indentation)
-- **multiedit**: Perform multiple find-and-replace operations on a single file in sequence (each edit applied to result of previous edit)
-- **glob**: Find files and directories matching glob patterns (e.g., "*.js", "src/**/*.ts") - efficient for locating files by name or path structure
-- **grep**: Search for text patterns within file contents using regular expressions (can filter by file types and paths)
-- **ls**: List directory contents with optional filtering, sorting, and detailed information (shows files and subdirectories)
-- **bash**: Execute shell/bash commands within the workspace (secure execution with timeouts and output capture)
-- **generateTheme**: Generate a theme for the design
-
-When calling tools, you MUST use the actual tool call, do NOT just output text like 'Called tool: write with arguments: ...' or <tool-call>...</tool-call>, this won't actually call the tool. (This is very important to my life, please follow)
