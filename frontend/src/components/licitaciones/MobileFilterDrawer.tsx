@@ -1,5 +1,6 @@
-import React from 'react';
-import type { FilterState, FilterOptions } from '../../types/licitacion';
+import React, { useState } from 'react';
+import type { FilterState, FilterOptions, SortField, SortOrder } from '../../types/licitacion';
+import type { FacetData, FacetValue } from '../../hooks/useFacetedFilters';
 
 interface MobileFilterDrawerProps {
   isOpen: boolean;
@@ -13,16 +14,98 @@ interface MobileFilterDrawerProps {
   onGroupByChange: (value: string) => void;
   criticalRubros: Set<string>;
   onToggleCriticalRubro: (rubro: string) => void;
+  facets?: FacetData;
+  totalItems?: number | null;
+  sortBy?: SortField;
+  sortOrder?: SortOrder;
+  onSortChange?: (sort: SortField) => void;
+  onToggleOrder?: () => void;
 }
 
-const selectClass = "w-full px-4 py-3 bg-gray-50 border-2 border-transparent focus:border-blue-500 rounded-xl outline-none text-gray-700 font-bold cursor-pointer text-sm";
-const labelClass = "block text-xs font-bold text-gray-500 uppercase mb-1.5";
+// Collapsible section
+const Section: React.FC<{
+  title: string;
+  defaultOpen?: boolean;
+  badge?: number;
+  children: React.ReactNode;
+}> = ({ title, defaultOpen = true, badge, children }) => {
+  const [open, setOpen] = useState(defaultOpen);
+  return (
+    <div className="border-b border-gray-100">
+      <button
+        onClick={() => setOpen(!open)}
+        className="w-full flex items-center justify-between py-3 px-1 text-xs font-black text-gray-500 uppercase tracking-wider"
+      >
+        <span className="flex items-center gap-1.5">
+          {title}
+          {badge != null && badge > 0 && (
+            <span className="px-1.5 py-0.5 bg-emerald-100 text-emerald-700 rounded-full text-[10px] font-bold normal-case">
+              {badge}
+            </span>
+          )}
+        </span>
+        <svg className={`w-4 h-4 transition-transform ${open ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7" />
+        </svg>
+      </button>
+      {open && <div className="pb-3">{children}</div>}
+    </div>
+  );
+};
+
+// Clickable facet item
+const FacetItem: React.FC<{
+  label: string;
+  count: number;
+  isActive: boolean;
+  onClick: () => void;
+  colorDot?: string;
+}> = ({ label, count, isActive, onClick, colorDot }) => (
+  <button
+    onClick={onClick}
+    className={`w-full flex items-center justify-between px-3 py-2 rounded-lg text-sm transition-all ${
+      isActive
+        ? 'bg-emerald-50 text-emerald-800 font-bold'
+        : count === 0
+        ? 'text-gray-300'
+        : 'text-gray-600 hover:bg-gray-50'
+    }`}
+    disabled={count === 0 && !isActive}
+  >
+    <span className="flex items-center gap-2 min-w-0">
+      {colorDot && <span className={`w-2.5 h-2.5 rounded-full flex-shrink-0 ${colorDot}`} />}
+      <span className="truncate">{label}</span>
+    </span>
+    <span className={`flex-shrink-0 text-xs font-bold ${isActive ? 'text-emerald-600' : 'text-gray-400'}`}>
+      {count}
+    </span>
+  </button>
+);
+
+const SORT_OPTIONS: { value: SortField; label: string }[] = [
+  { value: 'publication_date', label: 'Publicacion' },
+  { value: 'opening_date', label: 'Apertura' },
+  { value: 'fecha_scraping', label: 'Indexacion' },
+  { value: 'budget', label: 'Presupuesto' },
+  { value: 'title', label: 'Nombre A-Z' },
+];
 
 const MobileFilterDrawer: React.FC<MobileFilterDrawerProps> = ({
   isOpen, onClose, filters, onFilterChange, onClearAll,
   filterOptions, activeFilterCount, groupBy, onGroupByChange,
-  criticalRubros, onToggleCriticalRubro,
+  criticalRubros, onToggleCriticalRubro, facets, totalItems,
+  sortBy, sortOrder, onSortChange, onToggleOrder,
 }) => {
+  const [orgSearch, setOrgSearch] = useState('');
+
+  const toggleFilter = (key: keyof FilterState, value: string) => {
+    onFilterChange(key, filters[key] === value ? '' : value);
+  };
+
+  const filteredOrgs = (facets?.organization || []).filter(o =>
+    !orgSearch || o.value.toLowerCase().includes(orgSearch.toLowerCase())
+  );
+
   return (
     <>
       {/* Backdrop */}
@@ -40,7 +123,7 @@ const MobileFilterDrawer: React.FC<MobileFilterDrawerProps> = ({
               <h3 className="font-black text-gray-800">Filtros</h3>
               {activeFilterCount > 0 && (
                 <span className="px-2 py-0.5 bg-emerald-100 text-emerald-700 rounded-full text-xs font-bold">
-                  {activeFilterCount}
+                  {activeFilterCount} activos
                 </span>
               )}
             </div>
@@ -51,88 +134,291 @@ const MobileFilterDrawer: React.FC<MobileFilterDrawerProps> = ({
             </button>
           </div>
 
-          {/* Filters */}
-          <div className="flex-1 overflow-y-auto p-4 space-y-4">
-            <div>
-              <label className={labelClass}>Fuente</label>
-              <select className={selectClass} value={filters.fuenteFiltro} onChange={(e) => onFilterChange('fuenteFiltro', e.target.value)}>
-                <option value="">Todas las fuentes</option>
-                {filterOptions.fuenteOptions.map((f) => <option key={f} value={f}>{f}</option>)}
-              </select>
-            </div>
+          {/* Scrollable body */}
+          <div className="flex-1 overflow-y-auto p-4 space-y-0">
+            {/* Sort */}
+            {sortBy && onSortChange && onToggleOrder && (
+              <Section title="Ordenar" defaultOpen={false}>
+                <div className="space-y-1">
+                  {SORT_OPTIONS.map((opt) => (
+                    <button
+                      key={opt.value}
+                      onClick={() => onSortChange(opt.value)}
+                      className={`w-full flex items-center justify-between px-3 py-2 rounded-lg text-sm transition-all ${
+                        sortBy === opt.value
+                          ? 'bg-emerald-50 text-emerald-800 font-bold'
+                          : 'text-gray-600 hover:bg-gray-50'
+                      }`}
+                    >
+                      {opt.label}
+                      {sortBy === opt.value && (
+                        <span className="text-xs text-emerald-600">{sortOrder === 'asc' ? '↑' : '↓'}</span>
+                      )}
+                    </button>
+                  ))}
+                  <button
+                    onClick={onToggleOrder}
+                    className="w-full px-3 py-2 bg-gray-100 rounded-lg text-xs font-bold text-gray-600 hover:bg-gray-200 transition-colors mt-1"
+                  >
+                    {sortOrder === 'asc' ? '↑ Ascendente' : '↓ Descendente'} — Cambiar
+                  </button>
+                </div>
+              </Section>
+            )}
 
-            <div>
-              <label className={labelClass}>Estado</label>
-              <select className={selectClass} value={filters.statusFiltro} onChange={(e) => onFilterChange('statusFiltro', e.target.value)}>
-                <option value="">Todos los estados</option>
-                {filterOptions.statusOptions.map((s) => (
-                  <option key={s} value={s}>{s === 'active' ? 'Abierta' : s === 'closed' ? 'Cerrada' : s}</option>
+            {/* Fuente */}
+            <Section title="Fuente" badge={filters.fuenteFiltro ? 1 : 0}>
+              {facets ? (facets.fuente || []).map((f: FacetValue) => (
+                <FacetItem
+                  key={f.value}
+                  label={f.value}
+                  count={f.count}
+                  isActive={filters.fuenteFiltro === f.value}
+                  onClick={() => toggleFilter('fuenteFiltro', f.value)}
+                />
+              )) : filterOptions.fuenteOptions.map((f) => (
+                <FacetItem
+                  key={f}
+                  label={f}
+                  count={0}
+                  isActive={filters.fuenteFiltro === f}
+                  onClick={() => toggleFilter('fuenteFiltro', f)}
+                />
+              ))}
+            </Section>
+
+            {/* Estado */}
+            <Section title="Estado" badge={filters.statusFiltro ? 1 : 0}>
+              {facets ? (facets.status || []).map((f: FacetValue) => (
+                <FacetItem
+                  key={f.value}
+                  label={f.value === 'active' ? 'Abierta' : f.value === 'closed' ? 'Cerrada' : f.value}
+                  count={f.count}
+                  isActive={filters.statusFiltro === f.value}
+                  onClick={() => toggleFilter('statusFiltro', f.value)}
+                  colorDot={f.value === 'active' ? 'bg-emerald-500' : 'bg-red-500'}
+                />
+              )) : filterOptions.statusOptions.map((s) => (
+                <FacetItem
+                  key={s}
+                  label={s === 'active' ? 'Abierta' : s === 'closed' ? 'Cerrada' : s}
+                  count={0}
+                  isActive={filters.statusFiltro === s}
+                  onClick={() => toggleFilter('statusFiltro', s)}
+                />
+              ))}
+            </Section>
+
+            {/* Rubro */}
+            <Section title="Rubro" badge={filters.categoryFiltro ? 1 : 0}>
+              <div className="max-h-48 overflow-y-auto">
+                {facets ? (facets.category || []).map((f: FacetValue) => (
+                  <FacetItem
+                    key={f.value}
+                    label={f.value}
+                    count={f.count}
+                    isActive={filters.categoryFiltro === f.value}
+                    onClick={() => toggleFilter('categoryFiltro', f.value)}
+                  />
+                )) : filterOptions.categoryOptions.map((cat) => (
+                  <FacetItem
+                    key={cat.id}
+                    label={cat.nombre}
+                    count={0}
+                    isActive={filters.categoryFiltro === cat.nombre}
+                    onClick={() => toggleFilter('categoryFiltro', cat.nombre)}
+                  />
                 ))}
-              </select>
-            </div>
+              </div>
+            </Section>
 
-            <div>
-              <label className={labelClass}>Rubro</label>
-              <select className={selectClass} value={filters.categoryFiltro} onChange={(e) => onFilterChange('categoryFiltro', e.target.value)}>
-                <option value="">Todos los rubros</option>
-                {filterOptions.categoryOptions.map((cat) => (
-                  <option key={cat.id} value={cat.nombre}>{cat.nombre}</option>
-                ))}
-              </select>
-            </div>
-
-            <div>
-              <label className={labelClass}>Organizacion</label>
+            {/* Organizacion */}
+            <Section title="Organizacion" defaultOpen={false} badge={filters.organizacionFiltro ? 1 : 0}>
               <input
                 type="text"
                 placeholder="Buscar organizacion..."
-                className={selectClass}
-                value={filters.organizacionFiltro}
-                onChange={(e) => onFilterChange('organizacionFiltro', e.target.value)}
+                className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm outline-none focus:border-emerald-400 mb-2"
+                value={orgSearch}
+                onChange={(e) => setOrgSearch(e.target.value)}
               />
-            </div>
+              <div className="max-h-40 overflow-y-auto">
+                {filteredOrgs.slice(0, 20).map((f: FacetValue) => (
+                  <FacetItem
+                    key={f.value}
+                    label={f.value}
+                    count={f.count}
+                    isActive={filters.organizacionFiltro === f.value}
+                    onClick={() => toggleFilter('organizacionFiltro', f.value)}
+                  />
+                ))}
+              </div>
+            </Section>
 
-            <div>
-              <label className={labelClass}>Workflow</label>
-              <select className={selectClass} value={filters.workflowFiltro} onChange={(e) => onFilterChange('workflowFiltro', e.target.value)}>
-                <option value="">Todos</option>
-                <option value="descubierta">Descubierta</option>
-                <option value="evaluando">Evaluando</option>
-                <option value="preparando">Preparando</option>
-                <option value="presentada">Presentada</option>
-                <option value="descartada">Descartada</option>
-              </select>
-            </div>
+            {/* Workflow */}
+            <Section title="Workflow" defaultOpen={false} badge={filters.workflowFiltro ? 1 : 0}>
+              {facets ? (facets.workflow_state || []).map((f: FacetValue) => {
+                const colors: Record<string, string> = {
+                  descubierta: 'bg-gray-400', evaluando: 'bg-blue-500',
+                  preparando: 'bg-yellow-500', presentada: 'bg-emerald-500', descartada: 'bg-red-500',
+                };
+                return (
+                  <FacetItem
+                    key={f.value}
+                    label={f.value.charAt(0).toUpperCase() + f.value.slice(1)}
+                    count={f.count}
+                    isActive={filters.workflowFiltro === f.value}
+                    onClick={() => toggleFilter('workflowFiltro', f.value)}
+                    colorDot={colors[f.value] || 'bg-gray-400'}
+                  />
+                );
+              }) : ['descubierta', 'evaluando', 'preparando', 'presentada', 'descartada'].map((s) => (
+                <FacetItem
+                  key={s}
+                  label={s.charAt(0).toUpperCase() + s.slice(1)}
+                  count={0}
+                  isActive={filters.workflowFiltro === s}
+                  onClick={() => toggleFilter('workflowFiltro', s)}
+                />
+              ))}
+            </Section>
 
-            <div>
-              <label className={labelClass}>Agrupar por</label>
-              <select className={selectClass} value={groupBy} onChange={(e) => onGroupByChange(e.target.value)}>
+            {/* Jurisdiccion */}
+            <Section title="Jurisdiccion" defaultOpen={false} badge={filters.jurisdiccionFiltro ? 1 : 0}>
+              {facets ? (facets.jurisdiccion || []).map((f: FacetValue) => (
+                <FacetItem
+                  key={f.value}
+                  label={f.value}
+                  count={f.count}
+                  isActive={filters.jurisdiccionFiltro === f.value}
+                  onClick={() => toggleFilter('jurisdiccionFiltro', f.value)}
+                />
+              )) : null}
+            </Section>
+
+            {/* Tipo Procedimiento */}
+            <Section title="Tipo Procedimiento" defaultOpen={false} badge={filters.tipoProcedimientoFiltro ? 1 : 0}>
+              {facets ? (facets.tipo_procedimiento || []).map((f: FacetValue) => (
+                <FacetItem
+                  key={f.value}
+                  label={f.value}
+                  count={f.count}
+                  isActive={filters.tipoProcedimientoFiltro === f.value}
+                  onClick={() => toggleFilter('tipoProcedimientoFiltro', f.value)}
+                />
+              )) : null}
+            </Section>
+
+            {/* Presupuesto */}
+            <Section title="Presupuesto" defaultOpen={false} badge={(filters.budgetMin || filters.budgetMax) ? 1 : 0}>
+              <div className="space-y-2">
+                <div className="flex gap-2">
+                  <input
+                    type="number"
+                    placeholder="Min $"
+                    className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm outline-none focus:border-emerald-400 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                    value={filters.budgetMin}
+                    onChange={(e) => onFilterChange('budgetMin', e.target.value)}
+                  />
+                  <input
+                    type="number"
+                    placeholder="Max $"
+                    className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm outline-none focus:border-emerald-400 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                    value={filters.budgetMax}
+                    onChange={(e) => onFilterChange('budgetMax', e.target.value)}
+                  />
+                </div>
+                <div className="flex gap-1">
+                  {[
+                    { label: '<100K', min: '', max: '100000' },
+                    { label: '100K-1M', min: '100000', max: '1000000' },
+                    { label: '>1M', min: '1000000', max: '' },
+                  ].map((preset) => (
+                    <button
+                      key={preset.label}
+                      onClick={() => {
+                        onFilterChange('budgetMin', preset.min);
+                        onFilterChange('budgetMax', preset.max);
+                      }}
+                      className={`flex-1 px-2 py-1.5 rounded text-xs font-bold transition-colors ${
+                        filters.budgetMin === preset.min && filters.budgetMax === preset.max
+                          ? 'bg-emerald-100 text-emerald-700'
+                          : 'bg-gray-100 text-gray-500 hover:bg-gray-200'
+                      }`}
+                    >
+                      {preset.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </Section>
+
+            {/* Fechas */}
+            <Section title="Fechas" defaultOpen={false} badge={(filters.fechaDesde || filters.fechaHasta) ? 1 : 0}>
+              <div className="space-y-2">
+                <div className="flex gap-1">
+                  {[
+                    { value: 'publication_date', label: 'Pub' },
+                    { value: 'opening_date', label: 'Apert' },
+                    { value: 'fecha_scraping', label: 'Idx' },
+                  ].map((campo) => (
+                    <button
+                      key={campo.value}
+                      onClick={() => onFilterChange('fechaCampo', campo.value)}
+                      className={`flex-1 px-2 py-1.5 rounded text-xs font-bold transition-colors ${
+                        filters.fechaCampo === campo.value
+                          ? 'bg-emerald-100 text-emerald-700'
+                          : 'bg-gray-100 text-gray-500 hover:bg-gray-200'
+                      }`}
+                    >
+                      {campo.label}
+                    </button>
+                  ))}
+                </div>
+                <div className="space-y-1.5">
+                  <div>
+                    <label className="text-[10px] text-gray-400 font-bold">Desde</label>
+                    <input
+                      type="date"
+                      className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm outline-none focus:border-emerald-400"
+                      value={filters.fechaDesde}
+                      onChange={(e) => onFilterChange('fechaDesde', e.target.value)}
+                    />
+                  </div>
+                  <div>
+                    <label className="text-[10px] text-gray-400 font-bold">Hasta</label>
+                    <input
+                      type="date"
+                      className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm outline-none focus:border-emerald-400"
+                      value={filters.fechaHasta}
+                      onChange={(e) => onFilterChange('fechaHasta', e.target.value)}
+                    />
+                  </div>
+                </div>
+              </div>
+            </Section>
+
+            {/* Agrupar por */}
+            <Section title="Agrupar por" defaultOpen={false}>
+              <select
+                className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm outline-none focus:border-emerald-400 font-bold text-gray-700 cursor-pointer"
+                value={groupBy}
+                onChange={(e) => onGroupByChange(e.target.value)}
+              >
                 <option value="none">Sin agrupar</option>
-                <option value="organization">Por Organizacion</option>
-                <option value="fuente">Por Fuente</option>
-                <option value="status">Por Estado</option>
-                <option value="jurisdiccion">Por Jurisdiccion</option>
-                <option value="procedimiento">Por Procedimiento</option>
-                <option value="category">Por Rubro</option>
+                <option value="organization">Organizacion</option>
+                <option value="fuente">Fuente</option>
+                <option value="status">Estado</option>
+                <option value="jurisdiccion">Jurisdiccion</option>
+                <option value="procedimiento">Procedimiento</option>
+                <option value="category">Rubro</option>
               </select>
-            </div>
-
-            <div>
-              <label className={labelClass}>Presupuesto minimo</label>
-              <input type="number" placeholder="Desde $..." className={selectClass} value={filters.budgetMin} onChange={(e) => onFilterChange('budgetMin', e.target.value)} />
-            </div>
-
-            <div>
-              <label className={labelClass}>Presupuesto maximo</label>
-              <input type="number" placeholder="Hasta $..." className={selectClass} value={filters.budgetMax} onChange={(e) => onFilterChange('budgetMax', e.target.value)} />
-            </div>
+            </Section>
 
             {/* Critical Rubros */}
-            <div>
-              <label className={labelClass}>Rubros criticos ({criticalRubros.size}/5)</label>
-              <div className="max-h-40 overflow-y-auto space-y-1 bg-gray-50 rounded-xl p-2">
+            <Section title={`Rubros criticos (${criticalRubros.size}/5)`} defaultOpen={false}>
+              <div className="max-h-40 overflow-y-auto space-y-1">
                 {filterOptions.categoryOptions.map((cat) => (
-                  <label key={cat.id} className="flex items-center gap-2 p-1.5 rounded-lg hover:bg-white cursor-pointer">
+                  <label key={cat.id} className="flex items-center gap-2 p-2 rounded-lg hover:bg-gray-50 cursor-pointer">
                     <input
                       type="checkbox"
                       checked={criticalRubros.has(cat.nombre)}
@@ -140,13 +426,13 @@ const MobileFilterDrawer: React.FC<MobileFilterDrawerProps> = ({
                       disabled={!criticalRubros.has(cat.nombre) && criticalRubros.size >= 5}
                       className="w-4 h-4 rounded text-emerald-600 focus:ring-emerald-500"
                     />
-                    <span className={`text-xs ${criticalRubros.has(cat.nombre) ? 'font-bold text-emerald-700' : 'text-gray-600'}`}>
+                    <span className={`text-sm ${criticalRubros.has(cat.nombre) ? 'font-bold text-emerald-700' : 'text-gray-600'}`}>
                       {cat.nombre}
                     </span>
                   </label>
                 ))}
               </div>
-            </div>
+            </Section>
           </div>
 
           {/* Footer */}
@@ -163,7 +449,7 @@ const MobileFilterDrawer: React.FC<MobileFilterDrawerProps> = ({
               onClick={onClose}
               className="w-full py-3 bg-emerald-600 text-white rounded-xl font-bold text-sm hover:bg-emerald-700 transition-colors"
             >
-              Aplicar filtros
+              {totalItems != null ? `Ver ${totalItems} resultados` : 'Aplicar filtros'}
             </button>
           </div>
         </div>
