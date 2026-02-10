@@ -1,6 +1,16 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import type { FilterState, FilterOptions, SortField, SortOrder } from '../../types/licitacion';
 import type { FacetData, FacetValue } from '../../hooks/useFacetedFilters';
+
+// Ensure active filter value always appears in facet list (even when 0 results)
+function ensureActiveValue(facetItems: FacetValue[], activeValue: string): FacetValue[] {
+  if (!activeValue) return facetItems;
+  if (facetItems.length === 0) return [{ value: activeValue, count: 0 }];
+  if (!facetItems.find(f => f.value === activeValue)) {
+    return [{ value: activeValue, count: 0 }, ...facetItems];
+  }
+  return facetItems;
+}
 
 interface MobileFilterDrawerProps {
   isOpen: boolean;
@@ -70,7 +80,6 @@ const FacetItem: React.FC<{
         ? 'text-gray-300'
         : 'text-gray-600 hover:bg-gray-50'
     }`}
-    disabled={count === 0 && !isActive}
   >
     <span className="flex items-center gap-2 min-w-0">
       {colorDot && <span className={`w-2.5 h-2.5 rounded-full flex-shrink-0 ${colorDot}`} />}
@@ -102,9 +111,21 @@ const MobileFilterDrawer: React.FC<MobileFilterDrawerProps> = ({
     onFilterChange(key, filters[key] === value ? '' : value);
   };
 
-  const filteredOrgs = (facets?.organization || []).filter(o =>
-    !orgSearch || o.value.toLowerCase().includes(orgSearch.toLowerCase())
-  );
+  // Facet lists with active-value guarantee
+  const fuenteItems = useMemo(() => ensureActiveValue(facets?.fuente || [], filters.fuenteFiltro), [facets?.fuente, filters.fuenteFiltro]);
+  const statusItems = useMemo(() => ensureActiveValue(facets?.status || [], filters.statusFiltro), [facets?.status, filters.statusFiltro]);
+  const categoryItems = useMemo(() => ensureActiveValue(facets?.category || [], filters.categoryFiltro), [facets?.category, filters.categoryFiltro]);
+  const workflowItems = useMemo(() => ensureActiveValue(facets?.workflow_state || [], filters.workflowFiltro), [facets?.workflow_state, filters.workflowFiltro]);
+  const jurisdiccionItems = useMemo(() => ensureActiveValue(facets?.jurisdiccion || [], filters.jurisdiccionFiltro), [facets?.jurisdiccion, filters.jurisdiccionFiltro]);
+  const tipoItems = useMemo(() => ensureActiveValue(facets?.tipo_procedimiento || [], filters.tipoProcedimientoFiltro), [facets?.tipo_procedimiento, filters.tipoProcedimientoFiltro]);
+
+  const filteredOrgs = useMemo(() => {
+    let orgs = ensureActiveValue(facets?.organization || [], filters.organizacionFiltro);
+    if (orgSearch) {
+      orgs = orgs.filter(o => o.value.toLowerCase().includes(orgSearch.toLowerCase()));
+    }
+    return orgs;
+  }, [facets?.organization, orgSearch, filters.organizacionFiltro]);
 
   return (
     <>
@@ -168,7 +189,7 @@ const MobileFilterDrawer: React.FC<MobileFilterDrawerProps> = ({
 
             {/* Fuente */}
             <Section title="Fuente" badge={filters.fuenteFiltro ? 1 : 0}>
-              {facets ? (facets.fuente || []).map((f: FacetValue) => (
+              {fuenteItems.map((f: FacetValue) => (
                 <FacetItem
                   key={f.value}
                   label={f.value}
@@ -176,20 +197,12 @@ const MobileFilterDrawer: React.FC<MobileFilterDrawerProps> = ({
                   isActive={filters.fuenteFiltro === f.value}
                   onClick={() => toggleFilter('fuenteFiltro', f.value)}
                 />
-              )) : filterOptions.fuenteOptions.map((f) => (
-                <FacetItem
-                  key={f}
-                  label={f}
-                  count={0}
-                  isActive={filters.fuenteFiltro === f}
-                  onClick={() => toggleFilter('fuenteFiltro', f)}
-                />
               ))}
             </Section>
 
             {/* Estado */}
             <Section title="Estado" badge={filters.statusFiltro ? 1 : 0}>
-              {facets ? (facets.status || []).map((f: FacetValue) => (
+              {statusItems.map((f: FacetValue) => (
                 <FacetItem
                   key={f.value}
                   label={f.value === 'active' ? 'Abierta' : f.value === 'closed' ? 'Cerrada' : f.value}
@@ -198,35 +211,19 @@ const MobileFilterDrawer: React.FC<MobileFilterDrawerProps> = ({
                   onClick={() => toggleFilter('statusFiltro', f.value)}
                   colorDot={f.value === 'active' ? 'bg-emerald-500' : 'bg-red-500'}
                 />
-              )) : filterOptions.statusOptions.map((s) => (
-                <FacetItem
-                  key={s}
-                  label={s === 'active' ? 'Abierta' : s === 'closed' ? 'Cerrada' : s}
-                  count={0}
-                  isActive={filters.statusFiltro === s}
-                  onClick={() => toggleFilter('statusFiltro', s)}
-                />
               ))}
             </Section>
 
             {/* Rubro */}
             <Section title="Rubro" badge={filters.categoryFiltro ? 1 : 0}>
               <div className="max-h-48 overflow-y-auto">
-                {facets ? (facets.category || []).map((f: FacetValue) => (
+                {categoryItems.map((f: FacetValue) => (
                   <FacetItem
                     key={f.value}
                     label={f.value}
                     count={f.count}
                     isActive={filters.categoryFiltro === f.value}
                     onClick={() => toggleFilter('categoryFiltro', f.value)}
-                  />
-                )) : filterOptions.categoryOptions.map((cat) => (
-                  <FacetItem
-                    key={cat.id}
-                    label={cat.nombre}
-                    count={0}
-                    isActive={filters.categoryFiltro === cat.nombre}
-                    onClick={() => toggleFilter('categoryFiltro', cat.nombre)}
                   />
                 ))}
               </div>
@@ -242,7 +239,7 @@ const MobileFilterDrawer: React.FC<MobileFilterDrawerProps> = ({
                 onChange={(e) => setOrgSearch(e.target.value)}
               />
               <div className="max-h-40 overflow-y-auto">
-                {filteredOrgs.slice(0, 20).map((f: FacetValue) => (
+                {filteredOrgs.map((f: FacetValue) => (
                   <FacetItem
                     key={f.value}
                     label={f.value}
@@ -256,7 +253,7 @@ const MobileFilterDrawer: React.FC<MobileFilterDrawerProps> = ({
 
             {/* Workflow */}
             <Section title="Workflow" defaultOpen={false} badge={filters.workflowFiltro ? 1 : 0}>
-              {facets ? (facets.workflow_state || []).map((f: FacetValue) => {
+              {workflowItems.map((f: FacetValue) => {
                 const colors: Record<string, string> = {
                   descubierta: 'bg-gray-400', evaluando: 'bg-blue-500',
                   preparando: 'bg-yellow-500', presentada: 'bg-emerald-500', descartada: 'bg-red-500',
@@ -271,20 +268,12 @@ const MobileFilterDrawer: React.FC<MobileFilterDrawerProps> = ({
                     colorDot={colors[f.value] || 'bg-gray-400'}
                   />
                 );
-              }) : ['descubierta', 'evaluando', 'preparando', 'presentada', 'descartada'].map((s) => (
-                <FacetItem
-                  key={s}
-                  label={s.charAt(0).toUpperCase() + s.slice(1)}
-                  count={0}
-                  isActive={filters.workflowFiltro === s}
-                  onClick={() => toggleFilter('workflowFiltro', s)}
-                />
-              ))}
+              })}
             </Section>
 
             {/* Jurisdiccion */}
             <Section title="Jurisdiccion" defaultOpen={false} badge={filters.jurisdiccionFiltro ? 1 : 0}>
-              {facets ? (facets.jurisdiccion || []).map((f: FacetValue) => (
+              {jurisdiccionItems.map((f: FacetValue) => (
                 <FacetItem
                   key={f.value}
                   label={f.value}
@@ -292,12 +281,12 @@ const MobileFilterDrawer: React.FC<MobileFilterDrawerProps> = ({
                   isActive={filters.jurisdiccionFiltro === f.value}
                   onClick={() => toggleFilter('jurisdiccionFiltro', f.value)}
                 />
-              )) : null}
+              ))}
             </Section>
 
             {/* Tipo Procedimiento */}
             <Section title="Tipo Procedimiento" defaultOpen={false} badge={filters.tipoProcedimientoFiltro ? 1 : 0}>
-              {facets ? (facets.tipo_procedimiento || []).map((f: FacetValue) => (
+              {tipoItems.map((f: FacetValue) => (
                 <FacetItem
                   key={f.value}
                   label={f.value}
@@ -305,7 +294,7 @@ const MobileFilterDrawer: React.FC<MobileFilterDrawerProps> = ({
                   isActive={filters.tipoProcedimientoFiltro === f.value}
                   onClick={() => toggleFilter('tipoProcedimientoFiltro', f.value)}
                 />
-              )) : null}
+              ))}
             </Section>
 
             {/* Presupuesto */}

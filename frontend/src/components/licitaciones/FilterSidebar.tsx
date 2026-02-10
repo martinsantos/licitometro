@@ -1,8 +1,6 @@
 import React, { useState, useMemo, useCallback } from 'react';
 import type { FilterState, FilterOptions } from '../../types/licitacion';
 import type { FacetData, FacetValue } from '../../hooks/useFacetedFilters';
-import CriticalRubrosConfig from './CriticalRubrosConfig';
-import DateRangeFilter from '../DateRangeFilter';
 
 interface FilterSidebarProps {
   filters: FilterState;
@@ -16,11 +14,19 @@ interface FilterSidebarProps {
   isCollapsed: boolean;
   onToggleCollapse: () => void;
   filterOptions: FilterOptions;
-  // Date range
   onSetMany: (updates: Partial<FilterState>) => void;
-  // Group by
   groupBy: string;
   onGroupByChange: (value: string) => void;
+}
+
+// Ensure active filter value always appears in facet list (even when 0 results)
+function ensureActiveValue(facetItems: FacetValue[], activeValue: string): FacetValue[] {
+  if (!activeValue) return facetItems;
+  if (facetItems.length === 0) return [{ value: activeValue, count: 0 }];
+  if (!facetItems.find(f => f.value === activeValue)) {
+    return [{ value: activeValue, count: 0 }, ...facetItems];
+  }
+  return facetItems;
 }
 
 // --- FilterSection accordion ---
@@ -54,7 +60,7 @@ const FilterSection: React.FC<{
   );
 };
 
-// --- Clickable facet item ---
+// --- Clickable facet item (never disabled — always clickable) ---
 const FacetItem: React.FC<{
   label: string;
   count: number;
@@ -69,10 +75,9 @@ const FacetItem: React.FC<{
       isActive
         ? 'bg-emerald-50 text-emerald-800 font-bold'
         : count === 0
-        ? 'text-gray-300 cursor-default'
+        ? 'text-gray-400 hover:bg-gray-50'
         : 'text-gray-600 hover:bg-gray-50'
     }`}
-    disabled={count === 0 && !isActive}
   >
     <span className="flex items-center gap-1.5 min-w-0">
       {colorDot && <span className={`w-2 h-2 rounded-full flex-shrink-0 ${colorDot}`} />}
@@ -99,14 +104,22 @@ const FilterSidebar: React.FC<FilterSidebarProps> = ({
     onFilterChange(key, filters[key] === value ? '' : value);
   }, [filters, onFilterChange]);
 
-  // Filtered org list
+  // Facet lists with active-value guarantee
+  const fuenteItems = useMemo(() => ensureActiveValue(facets.fuente || [], filters.fuenteFiltro), [facets.fuente, filters.fuenteFiltro]);
+  const statusItems = useMemo(() => ensureActiveValue(facets.status || [], filters.statusFiltro), [facets.status, filters.statusFiltro]);
+  const categoryItems = useMemo(() => ensureActiveValue(facets.category || [], filters.categoryFiltro), [facets.category, filters.categoryFiltro]);
+  const workflowItems = useMemo(() => ensureActiveValue(facets.workflow_state || [], filters.workflowFiltro), [facets.workflow_state, filters.workflowFiltro]);
+  const jurisdiccionItems = useMemo(() => ensureActiveValue(facets.jurisdiccion || [], filters.jurisdiccionFiltro), [facets.jurisdiccion, filters.jurisdiccionFiltro]);
+  const tipoItems = useMemo(() => ensureActiveValue(facets.tipo_procedimiento || [], filters.tipoProcedimientoFiltro), [facets.tipo_procedimiento, filters.tipoProcedimientoFiltro]);
+
+  // Filtered org list with active-value guarantee
   const filteredOrgs = useMemo(() => {
-    let orgs = facets.organization || [];
+    let orgs = ensureActiveValue(facets.organization || [], filters.organizacionFiltro);
     if (orgSearch) {
       orgs = orgs.filter(o => o.value.toLowerCase().includes(orgSearch.toLowerCase()));
     }
     return orgs;
-  }, [facets.organization, orgSearch]);
+  }, [facets.organization, orgSearch, filters.organizacionFiltro]);
 
   const visibleOrgs = showAllOrgs ? filteredOrgs : filteredOrgs.slice(0, 10);
 
@@ -174,7 +187,7 @@ const FilterSidebar: React.FC<FilterSidebarProps> = ({
         <div className="p-3 space-y-0">
           {/* 1. Fuente */}
           <FilterSection title="Fuente" badge={filters.fuenteFiltro ? 1 : 0}>
-            {(facets.fuente || []).map((f: FacetValue) => (
+            {fuenteItems.map((f: FacetValue) => (
               <FacetItem
                 key={f.value}
                 label={f.value}
@@ -187,7 +200,7 @@ const FilterSidebar: React.FC<FilterSidebarProps> = ({
 
           {/* 2. Estado */}
           <FilterSection title="Estado" badge={filters.statusFiltro ? 1 : 0}>
-            {(facets.status || []).map((f: FacetValue) => (
+            {statusItems.map((f: FacetValue) => (
               <FacetItem
                 key={f.value}
                 label={f.value === 'active' ? 'Abierta' : f.value === 'closed' ? 'Cerrada' : f.value}
@@ -202,7 +215,7 @@ const FilterSidebar: React.FC<FilterSidebarProps> = ({
           {/* 3. Rubro */}
           <FilterSection title="Rubro" badge={filters.categoryFiltro ? 1 : 0}>
             <div className="max-h-48 overflow-y-auto">
-              {(facets.category || []).map((f: FacetValue) => (
+              {categoryItems.map((f: FacetValue) => (
                 <FacetItem
                   key={f.value}
                   label={f.value}
@@ -218,19 +231,34 @@ const FilterSidebar: React.FC<FilterSidebarProps> = ({
               className="mt-1.5 text-[10px] text-emerald-600 hover:text-emerald-800 font-bold flex items-center gap-1"
             >
               <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.066 2.573c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.573 1.066c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.066-2.573c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.066 2.573c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.573 1.066c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.066-2.573c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.11 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
               </svg>
               Configurar rubros criticos ({criticalRubros.size}/5)
             </button>
+            {/* Inline rubros criticos config (no popup, avoids overflow clip) */}
             {showRubroConfig && (
-              <div className="relative mt-2">
-                <CriticalRubrosConfig
-                  categoryOptions={filterOptions.categoryOptions}
-                  criticalRubros={criticalRubros}
-                  onToggle={onToggleCriticalRubro}
-                  onClose={() => setShowRubroConfig(false)}
-                />
+              <div className="mt-2 bg-gray-50 rounded-lg p-2.5 border border-gray-200">
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-[10px] font-bold text-gray-500">{criticalRubros.size}/5 seleccionados</span>
+                  <button onClick={() => setShowRubroConfig(false)} className="text-[10px] text-gray-400 hover:text-gray-600">&times; Cerrar</button>
+                </div>
+                <div className="max-h-40 overflow-y-auto space-y-0.5">
+                  {filterOptions.categoryOptions.map((cat) => (
+                    <label key={cat.id} className="flex items-center gap-2 p-1.5 rounded-lg hover:bg-white cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={criticalRubros.has(cat.nombre)}
+                        onChange={() => onToggleCriticalRubro(cat.nombre)}
+                        disabled={!criticalRubros.has(cat.nombre) && criticalRubros.size >= 5}
+                        className="w-3.5 h-3.5 rounded text-emerald-600 focus:ring-emerald-500"
+                      />
+                      <span className={`text-[11px] ${criticalRubros.has(cat.nombre) ? 'font-bold text-emerald-700' : 'text-gray-600'}`}>
+                        {cat.nombre}
+                      </span>
+                    </label>
+                  ))}
+                </div>
               </div>
             )}
           </FilterSection>
@@ -275,7 +303,7 @@ const FilterSidebar: React.FC<FilterSidebarProps> = ({
 
           {/* 5. Workflow */}
           <FilterSection title="Workflow" defaultOpen={false} badge={filters.workflowFiltro ? 1 : 0}>
-            {(facets.workflow_state || []).map((f: FacetValue) => {
+            {workflowItems.map((f: FacetValue) => {
               const colors: Record<string, string> = {
                 descubierta: 'bg-gray-400',
                 evaluando: 'bg-blue-500',
@@ -298,7 +326,7 @@ const FilterSidebar: React.FC<FilterSidebarProps> = ({
 
           {/* 6. Jurisdiccion */}
           <FilterSection title="Jurisdiccion" defaultOpen={false} badge={filters.jurisdiccionFiltro ? 1 : 0}>
-            {(facets.jurisdiccion || []).map((f: FacetValue) => (
+            {jurisdiccionItems.map((f: FacetValue) => (
               <FacetItem
                 key={f.value}
                 label={f.value}
@@ -311,7 +339,7 @@ const FilterSidebar: React.FC<FilterSidebarProps> = ({
 
           {/* 7. Tipo Procedimiento */}
           <FilterSection title="Tipo Procedimiento" defaultOpen={false} badge={filters.tipoProcedimientoFiltro ? 1 : 0}>
-            {(facets.tipo_procedimiento || []).map((f: FacetValue) => (
+            {tipoItems.map((f: FacetValue) => (
               <FacetItem
                 key={f.value}
                 label={f.value}
@@ -363,6 +391,14 @@ const FilterSidebar: React.FC<FilterSidebarProps> = ({
                   </button>
                 ))}
               </div>
+              {(filters.budgetMin || filters.budgetMax) && (
+                <button
+                  onClick={() => { onFilterChange('budgetMin', ''); onFilterChange('budgetMax', ''); }}
+                  className="text-[10px] text-red-500 hover:text-red-700 font-bold"
+                >
+                  Limpiar presupuesto
+                </button>
+              )}
             </div>
           </FilterSection>
 
