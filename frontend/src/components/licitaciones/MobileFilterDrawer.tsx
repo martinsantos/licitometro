@@ -404,7 +404,7 @@ const MobileFilterDrawer: React.FC<MobileFilterDrawerProps> = ({
             </Section>
 
             {/* Critical Rubros */}
-            <Section title={`Rubros criticos (${criticalRubros.size}/5)`} defaultOpen={false}>
+            <Section title={`Rubros criticos (${criticalRubros.size})`} defaultOpen={false}>
               <div className="max-h-40 overflow-y-auto space-y-1">
                 {filterOptions.categoryOptions.map((cat) => (
                   <label key={cat.id} className="flex items-center gap-2 p-2 rounded-lg hover:bg-gray-50 cursor-pointer">
@@ -412,7 +412,7 @@ const MobileFilterDrawer: React.FC<MobileFilterDrawerProps> = ({
                       type="checkbox"
                       checked={criticalRubros.has(cat.nombre)}
                       onChange={() => onToggleCriticalRubro(cat.nombre)}
-                      disabled={!criticalRubros.has(cat.nombre) && criticalRubros.size >= 5}
+
                       className="w-4 h-4 rounded text-emerald-600 focus:ring-emerald-500"
                     />
                     <span className={`text-sm ${criticalRubros.has(cat.nombre) ? 'font-bold text-emerald-700' : 'text-gray-600'}`}>

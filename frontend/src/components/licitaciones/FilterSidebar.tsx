@@ -234,13 +234,13 @@ const FilterSidebar: React.FC<FilterSidebarProps> = ({
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.066 2.573c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.573 1.066c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.066-2.573c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.11 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
               </svg>
-              Configurar rubros criticos ({criticalRubros.size}/5)
+              Configurar rubros criticos ({criticalRubros.size})
             </button>
             {/* Inline rubros criticos config (no popup, avoids overflow clip) */}
             {showRubroConfig && (
               <div className="mt-2 bg-gray-50 rounded-lg p-2.5 border border-gray-200">
                 <div className="flex items-center justify-between mb-2">
-                  <span className="text-[10px] font-bold text-gray-500">{criticalRubros.size}/5 seleccionados</span>
+                  <span className="text-[10px] font-bold text-gray-500">{criticalRubros.size} seleccionados</span>
                   <button onClick={() => setShowRubroConfig(false)} className="text-[10px] text-gray-400 hover:text-gray-600">&times; Cerrar</button>
                 </div>
                 <div className="max-h-40 overflow-y-auto space-y-0.5">
@@ -250,7 +250,7 @@ const FilterSidebar: React.FC<FilterSidebarProps> = ({
                         type="checkbox"
                         checked={criticalRubros.has(cat.nombre)}
                         onChange={() => onToggleCriticalRubro(cat.nombre)}
-                        disabled={!criticalRubros.has(cat.nombre) && criticalRubros.size >= 5}
+
                         className="w-3.5 h-3.5 rounded text-emerald-600 focus:ring-emerald-500"
                       />
                       <span className={`text-[11px] ${criticalRubros.has(cat.nombre) ? 'font-bold text-emerald-700' : 'text-gray-600'}`}>

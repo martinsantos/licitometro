@@ -79,7 +79,7 @@ export function useLicitacionPreferences() {
       const next = new Set(prev);
       if (next.has(rubro)) {
         next.delete(rubro);
-      } else if (next.size < 5) {
+      } else {
         next.add(rubro);
       }
       return next;
