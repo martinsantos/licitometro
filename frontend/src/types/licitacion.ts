@@ -7,6 +7,7 @@ export interface Licitacion {
   expedient_number?: string;
   licitacion_number?: string;
   description?: string;
+  objeto?: string;
   budget?: number;
   currency?: string;
   fuente?: string;

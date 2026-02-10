@@ -72,6 +72,7 @@ def licitacion_entity(licitacion) -> dict:
         "expedient_number": licitacion.get("expedient_number"),
         "licitacion_number": licitacion.get("licitacion_number"),
         "description": licitacion.get("description"),
+        "objeto": licitacion.get("objeto"),
         "contact": licitacion.get("contact"),
         "source_url": licitacion.get("source_url"),
         "canonical_url": licitacion.get("canonical_url"),

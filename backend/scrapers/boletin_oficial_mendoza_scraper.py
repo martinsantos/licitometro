@@ -200,6 +200,42 @@ class BoletinOficialMendozaScraper(BaseScraper):
             pass
         return ""
 
+    @staticmethod
+    def _extract_objeto_from_text(text: str) -> Optional[str]:
+        """Extract the procurement object from PDF/HTML section text."""
+        if not text:
+            return None
+        # Pattern 1: Explicit "Objeto:" label
+        m = re.search(r"objeto\s*(?:de\s+la\s+contrataci[oó]n)?\s*:\s*(.+?)(?:\.\s|$)", text, re.IGNORECASE | re.MULTILINE)
+        if m and len(m.group(1).strip()) > 10:
+            return m.group(1).strip()[:200]
+        # Pattern 2: "para la/el ..." phrase
+        m = re.search(r"para\s+(?:la|el|los|las)\s+(.+?)(?:\.|,\s*(?:por|en|con|seg[uú]n)|$)", text, re.IGNORECASE)
+        if m and len(m.group(1).strip()) > 10:
+            return m.group(1).strip()[:200]
+        # Pattern 3: UPPERCASE procurement keywords
+        m = re.search(
+            r"((?:AMPLIACION|CONSTRUCCION|PROVISION|ADQUISICION|REPARACION|"
+            r"MANTENIMIENTO|INSTALACION|CONTRATACION DE|EJECUCION DE|OBRA|"
+            r"SERVICIO DE|SUMINISTRO DE)[^.]{5,100})",
+            text,
+        )
+        if m:
+            return m.group(1).strip()[:200]
+        # Pattern 4: Verb-phrase intro
+        m = re.search(
+            r"(?:adquisici[oó]n\s+de|provisi[oó]n\s+de|construcci[oó]n\s+de|"
+            r"ampliaci[oó]n\s+de|mantenimiento\s+de|prestaci[oó]n\s+de|"
+            r"ejecuci[oó]n\s+de|reparaci[oó]n\s+de|instalaci[oó]n\s+de|"
+            r"contrataci[oó]n\s+de|servicio\s+de|suministro\s+de)"
+            r"(.{5,150}?)(?:\.|,|$)",
+            text, re.IGNORECASE,
+        )
+        if m:
+            full = m.group(0).strip()[:200]
+            return full
+        return None
+
     def _segment_processes(self, text: str, source_url: str, pub_date: datetime) -> List[Dict[str, Any]]:
         """
         Segment PDF text into individual procurement processes.
@@ -261,10 +297,16 @@ class BoletinOficialMendozaScraper(BaseScraper):
             if process_number:
                 title = f"{process_type} N° {process_number}"
 
+            # Extract objeto and enrich title
+            objeto = self._extract_objeto_from_text(section_text)
+            if objeto:
+                title = f"{title} - {objeto[:100]}"
+
             processes.append({
                 "process_type": process_type,
                 "process_number": process_number,
                 "title": title,
+                "objeto": objeto,
                 "content": section_text,
                 "organization": organization,
                 "keywords_found": keywords_found,
@@ -501,6 +543,7 @@ class BoletinOficialMendozaScraper(BaseScraper):
             licitacion = LicitacionCreate(
                 id_licitacion=id_licitacion,
                 title=proc["title"],
+                objeto=proc.get("objeto"),
                 organization=proc["organization"],
                 jurisdiccion="Mendoza",
                 publication_date=pub_date,
@@ -644,6 +687,13 @@ class BoletinOficialMendozaScraper(BaseScraper):
                 )
 
             title = f"{tipo} {norma}".strip()
+            # Extract objeto and enrich title
+            objeto = None
+            if description:
+                objeto = self._extract_objeto_from_text(description)
+                if objeto:
+                    title = f"{title} - {objeto[:100]}"
+
             # Stable ID: use norma number (unique per boletin)
             id_licitacion = f"boletin-mza:norma:{norma}" if norma else f"boletin-mza:norma:{boletin_num}:{hashlib.md5(title.encode()).hexdigest()[:8]}"
 
@@ -658,6 +708,7 @@ class BoletinOficialMendozaScraper(BaseScraper):
             licitacion = LicitacionCreate(
                 id_licitacion=id_licitacion,
                 title=title or "Boletin Oficial Mendoza",
+                objeto=objeto,
                 organization=organization,
                 jurisdiccion="Mendoza",
                 publication_date=pub_dt or datetime.utcnow(),

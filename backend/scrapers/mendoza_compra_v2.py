@@ -713,11 +713,17 @@ class MendozaCompraScraperV2(BaseScraper):
                 currency = None
                 budget = None
                 
+                objeto = None
                 if pliego_fields:
                     expedient_number = pliego_fields.get("Número de expediente") or pliego_fields.get("Número de Expediente")
                     description = pliego_fields.get("Objeto de la contratación") or pliego_fields.get("Objeto") or description
+                    objeto = pliego_fields.get("Objeto de la contratación") or pliego_fields.get("Objeto")
                     currency = pliego_fields.get("Moneda")
                     contact = pliego_fields.get("Lugar de recepción de documentación física")
+                    # Promote descriptive name to title (instead of process number)
+                    nombre_desc = pliego_fields.get("Nombre descriptivo del proceso") or pliego_fields.get("Nombre descriptivo de proceso")
+                    if nombre_desc and len(nombre_desc.strip()) > 10:
+                        title = nombre_desc.strip()
                 
                 # Compute content hash
                 content_hash = hashlib.md5(
@@ -732,6 +738,7 @@ class MendozaCompraScraperV2(BaseScraper):
                     "expedient_number": expedient_number,
                     "licitacion_number": numero,
                     "description": description,
+                    "objeto": objeto,
                     "contact": contact,
                     "source_url": pliego_url or proxy_open_url or list_url,
                     "canonical_url": canonical_url,

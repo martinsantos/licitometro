@@ -51,6 +51,7 @@ class CategoryClassifier:
         title: Optional[str] = None,
         description: Optional[str] = None,
         keywords: Optional[List[str]] = None,
+        objeto: Optional[str] = None,
     ) -> Optional[str]:
         """
         Classify a licitación into a rubro based on its content.
@@ -61,6 +62,8 @@ class CategoryClassifier:
         text_parts = []
         if title:
             text_parts.append(title)
+        if objeto:
+            text_parts.append(objeto)
         if description:
             text_parts.append(description)
         if keywords:
@@ -132,4 +135,5 @@ def classify_licitacion(licitacion_data: Dict[str, Any]) -> Optional[str]:
         title=licitacion_data.get("title"),
         description=licitacion_data.get("description"),
         keywords=licitacion_data.get("keywords"),
+        objeto=licitacion_data.get("objeto"),
     )

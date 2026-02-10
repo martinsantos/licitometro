@@ -144,21 +144,41 @@ const LicitacionCard: React.FC<LicitacionCardProps> = ({
                 </div>
               )}
 
-              <h3 className="text-lg font-black text-blue-700 group-hover:text-blue-800 leading-tight mb-2 line-clamp-2">
-                {lic.tipo_procedimiento && <span className="text-slate-600">{lic.tipo_procedimiento} </span>}
-                {lic.licitacion_number && <span className="text-blue-600">{lic.licitacion_number}</span>}
+              {/* Badge: tipo + numero (secondary line) */}
+              {(lic.tipo_procedimiento || lic.licitacion_number) && (
+                <div className="flex items-center gap-1.5 mb-1 flex-wrap">
+                  {lic.tipo_procedimiento && (
+                    <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wide">
+                      {lic.tipo_procedimiento}
+                    </span>
+                  )}
+                  {lic.licitacion_number && (
+                    <span className="text-[10px] font-mono text-blue-500">
+                      {lic.licitacion_number}
+                    </span>
+                  )}
+                </div>
+              )}
+
+              {/* Descriptive title = main heading */}
+              <h3 className="text-base font-black text-gray-900 group-hover:text-blue-700 leading-tight mb-1.5 line-clamp-2">
+                {searchQuery ? highlightMatches(lic.objeto || lic.title, searchQuery) : (lic.objeto || lic.title)}
               </h3>
 
-              <div className="space-y-0.5 mb-3">
+              {/* Organization + meta */}
+              <div className="space-y-0.5 mb-2">
                 {lic.jurisdiccion && (
-                  <p className="text-sm text-gray-600">Gobierno de la Provincia de {lic.jurisdiccion}</p>
+                  <p className="text-xs text-gray-500">Gobierno de la Provincia de {lic.jurisdiccion}</p>
                 )}
-                <p className="text-sm font-semibold text-gray-700">{searchQuery ? highlightMatches(lic.organization, searchQuery) : lic.organization}</p>
+                <p className="text-sm font-semibold text-gray-700">
+                  {searchQuery ? highlightMatches(lic.organization, searchQuery) : lic.organization}
+                </p>
                 {lic.metadata?.comprar_unidad_ejecutora && (
                   <p className="text-xs text-gray-500">{lic.metadata.comprar_unidad_ejecutora}</p>
                 )}
               </div>
 
+              {/* Budget */}
               {lic.budget != null && lic.budget > 0 && (
                 <p className="text-sm font-semibold text-green-700 mb-1">
                   {lic.currency === 'USD' ? 'US$ ' : '$ '}
@@ -166,9 +186,12 @@ const LicitacionCard: React.FC<LicitacionCardProps> = ({
                 </p>
               )}
 
-              <p className="text-base text-gray-800 font-medium leading-relaxed line-clamp-2">
-                {searchQuery ? highlightMatches(lic.description || lic.title, searchQuery) : (lic.description || lic.title)}
-              </p>
+              {/* Description (only if it adds info beyond the heading) */}
+              {lic.description && lic.description !== (lic.objeto || lic.title) && (
+                <p className="text-sm text-gray-600 leading-relaxed line-clamp-2">
+                  {searchQuery ? highlightMatches(lic.description, searchQuery) : lic.description}
+                </p>
+              )}
             </div>
 
             {/* Right column - hidden on mobile, shown inline on desktop */}

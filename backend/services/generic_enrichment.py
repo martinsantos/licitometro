@@ -208,15 +208,38 @@ class GenericEnrichmentService:
             meta["expediente"] = exp_match.group(1).strip()
             updates["metadata"] = meta
 
+        # Synthesize objeto if missing
+        if not lic_doc.get("objeto"):
+            from utils.object_extractor import extract_objeto
+            obj = extract_objeto(
+                title=lic_doc.get("title", ""),
+                description=updates.get("description", lic_doc.get("description", "")),
+                metadata=updates.get("metadata", lic_doc.get("metadata", {})),
+            )
+            if obj:
+                updates["objeto"] = obj
+
+        # Improve title if it's just a number/code
+        from utils.object_extractor import is_poor_title
+        current_title = lic_doc.get("title", "")
+        if is_poor_title(current_title):
+            meta = updates.get("metadata", lic_doc.get("metadata", {})) or {}
+            pliego = meta.get("comprar_pliego_fields", {})
+            if isinstance(pliego, dict):
+                better = pliego.get("Nombre descriptivo del proceso") or pliego.get("Nombre descriptivo de proceso")
+                if better and len(better.strip()) > 10:
+                    updates["title"] = better.strip()
+
         # Auto-classify category if missing (title-first to avoid pliego boilerplate noise)
         if not lic_doc.get("category"):
             from services.category_classifier import get_category_classifier
             classifier = get_category_classifier()
-            title = lic_doc.get("title", "")
-            cat = classifier.classify(title=title)
+            title = updates.get("title", lic_doc.get("title", ""))
+            objeto = updates.get("objeto", lic_doc.get("objeto", ""))
+            cat = classifier.classify(title=title, objeto=objeto)
             if not cat:
                 desc_for_classify = (updates.get("description", lic_doc.get("description", "")) or "")[:500]
-                cat = classifier.classify(title=title, description=desc_for_classify)
+                cat = classifier.classify(title=title, objeto=objeto, description=desc_for_classify)
             if cat:
                 updates["category"] = cat
 
@@ -302,15 +325,38 @@ class GenericEnrichmentService:
             if not lic_doc.get("currency"):
                 updates["currency"] = "ARS"
 
-        # 6. Auto-classify category if missing (title-first to avoid pliego boilerplate noise)
+        # 6. Synthesize objeto if missing
+        if not lic_doc.get("objeto"):
+            from utils.object_extractor import extract_objeto
+            obj = extract_objeto(
+                title=lic_doc.get("title", ""),
+                description=updates.get("description", lic_doc.get("description", "")),
+                metadata=updates.get("metadata", lic_doc.get("metadata", {})),
+            )
+            if obj:
+                updates["objeto"] = obj
+
+        # 7. Improve title if it's just a number/code
+        from utils.object_extractor import is_poor_title
+        current_title = lic_doc.get("title", "")
+        if is_poor_title(current_title):
+            meta = updates.get("metadata", lic_doc.get("metadata", {})) or {}
+            pliego = meta.get("comprar_pliego_fields", {})
+            if isinstance(pliego, dict):
+                better = pliego.get("Nombre descriptivo del proceso") or pliego.get("Nombre descriptivo de proceso")
+                if better and len(better.strip()) > 10:
+                    updates["title"] = better.strip()
+
+        # 8. Auto-classify category if missing (title-first to avoid pliego boilerplate noise)
         if not lic_doc.get("category"):
             from services.category_classifier import get_category_classifier
             classifier = get_category_classifier()
-            title = lic_doc.get("title", "")
-            cat = classifier.classify(title=title)
+            title = updates.get("title", lic_doc.get("title", ""))
+            objeto = updates.get("objeto", lic_doc.get("objeto", ""))
+            cat = classifier.classify(title=title, objeto=objeto)
             if not cat:
                 desc_for_classify = (updates.get("description", lic_doc.get("description", "")) or "")[:500]
-                cat = classifier.classify(title=title, description=desc_for_classify)
+                cat = classifier.classify(title=title, objeto=objeto, description=desc_for_classify)
             if cat:
                 updates["category"] = cat
 

@@ -57,7 +57,7 @@ const LicitacionTable: React.FC<LicitacionTableProps> = ({
                       {isNewItem(lic) && (
                         <span className="px-1.5 py-0.5 bg-green-100 text-green-700 rounded text-[9px] font-black uppercase flex-shrink-0">NUEVO</span>
                       )}
-                      <p className="text-sm font-bold text-gray-900 line-clamp-1">{searchQuery ? highlightMatches(lic.title, searchQuery) : lic.title}</p>
+                      <p className="text-sm font-bold text-gray-900 line-clamp-1">{searchQuery ? highlightMatches(lic.objeto || lic.title, searchQuery) : (lic.objeto || lic.title)}</p>
                     </div>
                     <p className="text-xs text-gray-500 line-clamp-1">{searchQuery && lic.description ? highlightMatches(lic.description, searchQuery) : lic.description}</p>
                   </td>

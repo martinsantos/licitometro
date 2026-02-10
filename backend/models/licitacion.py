@@ -66,6 +66,7 @@ class LicitacionBase(BaseModel):
     expedient_number: Optional[str] = Field(None, description="File or expedient number")
     licitacion_number: Optional[str] = Field(None, description="Licitación number")
     description: Optional[str] = Field(None, description="Description of the licitación")
+    objeto: Optional[str] = Field(None, description="Short synthesis of the procurement object (max 200 chars)")
     contact: Optional[str] = Field(None, description="Contact information")
     source_url: Optional[HttpUrl] = Field(None, description="URL where the licitación was found")
     
@@ -134,6 +135,7 @@ class LicitacionUpdate(BaseModel):
     expedient_number: Optional[str] = None
     licitacion_number: Optional[str] = None
     description: Optional[str] = None
+    objeto: Optional[str] = None
     contact: Optional[str] = None
     source_url: Optional[HttpUrl] = None
     fecha_scraping: Optional[datetime] = None

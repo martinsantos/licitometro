@@ -134,7 +134,14 @@ class ResilientHttpClient:
                 ) as response:
                     if response.status == 200:
                         domain_state.record_success()
-                        return await response.text()
+                        # Always read raw bytes first, then decode manually.
+                        # response.text() is unreliable when servers lie about charset.
+                        raw = await response.read()
+                        encoding = response.charset or "utf-8"
+                        try:
+                            return raw.decode(encoding)
+                        except (UnicodeDecodeError, LookupError):
+                            return raw.decode("latin-1", errors="replace")
 
                     if response.status in (429, 503):
                         retry_after = response.headers.get("Retry-After")
