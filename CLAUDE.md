@@ -1,6 +1,6 @@
 # Licitometro - Documentacion del Proyecto
 
-Plataforma de monitoreo de licitaciones publicas de Mendoza, Argentina. Agrega datos de 21+ fuentes gubernamentales, los enriquece automaticamente y los presenta en una interfaz web con filtros, busqueda y notificaciones.
+Plataforma de monitoreo de licitaciones publicas de Mendoza, Argentina. Agrega datos de 24+ fuentes gubernamentales, los enriquece automaticamente y los presenta en una interfaz web con filtros, busqueda y notificaciones.
 
 **Produccion**: https://licitometro.ar
 **VPS**: Hostinger 76.13.234.213 (srv1342577.hstgr.cloud)
@@ -78,7 +78,7 @@ licitometro/
 │   │   ├── storage_cleanup_service.py # Disk cleanup
 │   │   └── url_resolver.py        # URL resolution
 │   ├── utils/
-│   │   ├── dates.py               # parse_date_guess (14 formats, Spanish months)
+│   │   ├── dates.py               # parse_date_guess (16 formats, Spanish months, US dates)
 │   │   └── object_extractor.py    # extract_objeto(), is_poor_title()
 │   └── scripts/                   # One-off migration/backfill scripts
 │       ├── backfill_objeto.py     # Populate objeto field for existing records
@@ -88,6 +88,7 @@ licitometro/
 │       ├── migrate_add_workflow.py
 │       ├── migrate_text_index.py
 │       ├── discover_sources.py    # Probe URLs for new procurement sources
+│       ├── add_ipv_copig_lapaz.py # Add IPV/COPIG/La Paz/San Carlos configs
 │       └── ...
 ├── frontend/
 │   ├── src/
@@ -144,6 +145,7 @@ Se debe modificar en **3 lugares** o el campo se pierde silenciosamente:
 ### Routing de scrapers
 `backend/scrapers/scraper_factory.py` rutea por URL primero, luego por nombre.
 Las rutas especificas deben ir ANTES de los fallbacks genericos (ej: `godoycruz.gob.ar` antes de `mendoza.gov.ar`).
+**CRITICO**: El check de GenericHtmlScraper (por `scraper_type=generic_html` en selectors) DEBE ir ANTES del fallback `mendoza.gov.ar`, o URLs como `ipvmendoza.gov.ar` son capturadas por el substring match.
 
 ### Route ordering en FastAPI
 Rutas con prefijo fijo (`/stats/*`, `/search/*`) deben registrarse ANTES de rutas con path params (`/{licitacion_id}`) en `backend/routers/licitaciones.py`. FastAPI matchea en orden de registro.
@@ -170,23 +172,40 @@ El campo `objeto` sintetiza el objeto de la contratacion (max 200 chars). Fronte
 ### Encoding de servidores
 Algunos servidores declaran UTF-8 pero envian Latin-1. `ResilientHttpClient.fetch()` lee raw bytes con `response.read()` y decodifica manualmente con fallback UTF-8 → Latin-1. NUNCA usar `response.text()` directamente.
 
+### SSL en sitios gov.ar
+Muchos sitios gov.ar tienen cadenas de certificados SSL rotas. `ResilientHttpClient` usa `TCPConnector(ssl=False)` globalmente para evitar fallos de verificacion.
+
+### title_selector en GenericHtmlScraper
+El primer match del CSS selector gana. Si una pagina tiene `<h2>Licitaciones</h2>` (header de seccion) antes del `<h1>Titulo Real</h1>`, usar `title_selector: "h1"` en vez de `"h1, h2"`. Ejemplo: COPIG Mendoza.
+
+### Docker IPv6 para ISPs que bloquean datacenter
+Algunos ISPs argentinos (200.58.x.x) bloquean IPs de datacenter via IPv4 pero permiten IPv6. Docker puede usar IPv6 con:
+1. `/etc/docker/daemon.json`: `{"ipv6": true, "fixed-cidr-v6": "...", "ip6tables": true}`
+2. `sysctl net.ipv6.conf.all.forwarding=1` (persistir en `/etc/sysctl.conf`)
+3. `docker-compose.prod.yml`: `enable_ipv6: true` + subnet IPv6 en la red
+Los 3 pasos son necesarios. Fuentes afectadas: COPIG, La Paz, San Carlos.
+
 ---
 
-## Fuentes de Datos (21 activas)
+## Fuentes de Datos (24 activas, 568 licitaciones)
 
 | Fuente | Scraper | Items aprox | Notas |
 |--------|---------|-------------|-------|
 | COMPR.AR Mendoza | mendoza_compra_v2 | ~91 | ASP.NET WebForms, pliego parsing |
 | Boletin Oficial Mendoza | boletin_oficial_mendoza | ~54 | PDF gazette, pypdf extraction |
-| Maipu | generic_html (inline) | ~2272 | WordPress table, ZIP enrichment |
-| OSEP | osep | ~43 | Obra social |
+| COPIG Mendoza | generic_html | ~50 | Custom WP, div.item cards, title_selector=h1 only, IPv6 |
+| San Carlos | generic_html | ~50 | WordPress+Elementor, h2 structured fields, IPv6 |
+| OSEP | osep | ~45 | Obra social |
+| Maipu | generic_html (inline) | ~41 | WordPress table, ZIP enrichment |
+| La Paz | generic_html | ~30 | WordPress Vantage, IPv6 required |
+| IPV Mendoza | generic_html | ~28 | WordPress blog, h2.entry-title links |
 | Santa Rosa | generic_html | ~25 | CMS |
 | Junin | generic_html | ~13 | CMS |
+| Vialidad Mendoza | vialidad_mendoza | ~10 | Dedicado |
 | Godoy Cruz | godoy_cruz | ~10 | GeneXus JSON grid, pliego→budget |
-| Irrigacion | generic_html | ~9 | JHipster (limitado) |
 | General Alvear | generic_html | ~9 | CMS |
 | Malargue | generic_html | ~9 | CMS |
-| Vialidad Mendoza | vialidad_mendoza | ~10 | Dedicado |
+| Irrigacion | generic_html | ~9 | JHipster (limitado) |
 | Rivadavia | generic_html | ~6 | CMS |
 | Guaymallen | generic_html | ~6 | CMS |
 | Ciudad de Mendoza | generic_html | ~5 | CMS |
@@ -198,8 +217,8 @@ Algunos servidores declaran UTF-8 pero envian Latin-1. `ResilientHttpClient.fetc
 | Lujan de Cuyo | generic_html | ~1 | CMS |
 | Tupungato | generic_html | ~1 | CMS |
 
-**No viables**: Irrigacion (microservicio roto), Tunuyan (login requerido), Lavalle (tabla vacia)
-**Bloqueados por ISP**: San Carlos, La Paz (200.58.x.x bloquea IPs de datacenter)
+**No viables**: ISCAMEN (JS-only DOM), Tunuyan (login requerido), Lavalle (tabla vacia), Senado Mendoza (paginas vacias)
+**Resueltos con IPv6**: San Carlos, La Paz, COPIG (200.58.x.x ISP bloquea IPv4 datacenter, IPv6 funciona)
 
 ---
 
@@ -207,9 +226,15 @@ Algunos servidores declaran UTF-8 pero envian Latin-1. `ResilientHttpClient.fetc
 
 ### Deploy
 ```bash
+# Opcion 1: deploy.sh (requiere git credentials en VPS - actualmente NO configurado)
 ssh root@76.13.234.213 "cd /opt/licitometro && bash deploy.sh"
+
+# Opcion 2: SCP + rebuild manual (metodo actual, VPS sin git credentials)
+scp <archivos_modificados> root@76.13.234.213:/opt/licitometro/<ruta>/
+ssh root@76.13.234.213 "cd /opt/licitometro && docker compose -f docker-compose.prod.yml build && docker compose -f docker-compose.prod.yml down && docker compose -f docker-compose.prod.yml up -d"
 ```
-El script hace: `git pull` → `docker compose build` → stop → start → healthcheck.
+El script deploy.sh hace: `git pull` → `docker compose build` → stop → start → healthcheck.
+**NOTA**: El VPS no tiene credenciales HTTPS de git. Usar SCP para sincronizar archivos y luego rebuild.
 
 ### Ejecutar scripts en produccion
 ```bash
@@ -243,6 +268,8 @@ Docker Compose lee `.env` (NO `.env.production`). En prod hay symlink `.env → 
 - **Nginx**: Rate limiting (10r/s API, 3r/m auth), gzip, security headers, HTTP→HTTPS redirect
 - **Email**: Postfix send-only en host, backend conecta via Docker gateway 172.18.0.1:25 (sin auth, `start_tls=False`)
 - **Backend memory**: 1536MB limit en Docker
+- **IPv6**: Docker con IPv6 habilitado (daemon.json + sysctl + compose network). Subnet: `2a02:4780:6e:9b84:2::/80`
+- **Timezone**: America/Argentina/Mendoza (-03), NTP sincronizado
 
 ---
 
@@ -257,6 +284,11 @@ Docker Compose lee `.env` (NO `.env.production`). En prod hay symlink `.env → 
 - COMPR.AR: solo URLs de `VistaPreviaPliegoCiudadano` son estables. Las demas dependen de session state ASP.NET
 - GeneXus apps embeben datos como JSON en hidden inputs, no en tablas HTML
 - Pre-content chrome (headers, filtros, stats) DEBE estar bajo ~150px. Colapsar por defecto
+- BeautifulSoup `select_one` NO soporta `:contains()` (es jQuery only). Usar selectores estructurales como `li.next a`
+- `title_selector: "h1, h2"` matchea el primer elemento en el DOM, no el primero en la lista CSS. Si hay `<h2>` antes de `<h1>`, h2 gana
+- Docker IPv6 requiere 3 configs simultaneas: daemon.json + sysctl forwarding + compose network. Si falta una, no funciona
+- VPS Hostinger no tiene git credentials HTTPS. Usar `scp` para deploy y `docker compose build` para rebuild
+- SSL verificacion deshabilitada globalmente en ResilientHttpClient (`ssl=False`) por certs rotos en sitios gov.ar
 
 ---
 
