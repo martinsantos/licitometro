@@ -46,7 +46,7 @@ NEW_SOURCES = [
         "name": "COPIG Mendoza",
         "url": "https://www.copigmza.org.ar/licitaciones/",
         "schedule": "0 11 * * *",
-        "active": True,
+        "active": False,  # 200.58.x.x ISP blocks datacenter IPv4; curl over IPv6 works but Docker lacks IPv6
         "max_items": 50,
         "wait_time": 2,
         "selectors": {
