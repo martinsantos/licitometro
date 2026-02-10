@@ -89,6 +89,9 @@ def parse_date_guess(value: str) -> Optional[datetime]:
             value = _re.sub(month_name, month_num, value, flags=_re.IGNORECASE)
             break
 
+    # Remove stray commas (e.g., "22 12, 2025" -> "22 12 2025")
+    value = value.replace(',', ' ')
+
     # Collapse multiple spaces
     value = _re.sub(r'\s+', ' ', value).strip()
 
