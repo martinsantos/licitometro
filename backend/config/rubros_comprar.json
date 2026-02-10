@@ -1,152 +1,177 @@
 {
   "description": "Catálogo de Rubros COMPR.AR Mendoza basado en UNSPSC (United Nations Standard Products and Services Code)",
   "source": "https://comprar.mendoza.gov.ar/RIUPP/FormularioInscripcionProveedor.aspx",
-  "last_updated": "2026-02-07",
+  "last_updated": "2026-02-09",
   "rubros": [
     {
       "id": "10",
       "nombre": "AGRICULTURA, GANADERIA, CAZA Y SILVICULTURA",
-      "keywords": ["agricultura", "ganadería", "ganado", "caza", "silvicultura", "forestal", "semillas", "fertilizantes", "agropecuario"]
+      "keywords": ["agricultura", "ganadería", "ganado", "caza", "silvicultura", "forestal", "semillas", "fertilizantes", "agropecuario", "fumigación", "riego agrícola", "cosecha", "siembra"]
     },
     {
       "id": "50",
       "nombre": "ALIMENTOS Y BEBIDAS",
-      "keywords": ["alimentos", "bebidas", "comestibles", "catering", "refrigerios", "comida", "lácteos", "carnes", "frutas", "verduras"]
+      "keywords": ["alimentos", "bebidas", "comestibles", "catering", "refrigerios", "comida", "lácteos", "carnes", "frutas", "verduras", "harina", "aceite comestible", "agua envasada", "raciones", "provisión de alimentos", "comedor", "almuerzo", "viandas", "proteína hidrolizada", "soja"]
     },
     {
-      "id": "80",
+      "id": "80A",
       "nombre": "ALQUILERES",
-      "keywords": ["alquiler", "arrendamiento", "locación", "inmueble", "maquinaria", "vehículos", "equipos"]
+      "keywords": ["alquiler", "arrendamiento", "locación", "alquiler de inmueble", "alquiler de maquinaria", "alquiler de vehículos", "alquiler de equipos"]
     },
     {
       "id": "52",
       "nombre": "ARTICULOS DEL HOGAR Y ELECTRODOMESTICOS",
-      "keywords": ["electrodomésticos", "hogar", "heladera", "cocina", "lavarropas", "aire acondicionado", "calefacción"]
+      "keywords": ["electrodomésticos", "hogar", "heladera", "cocina", "lavarropas", "aire acondicionado", "calefacción", "ventilador", "microondas", "estufa", "termotanque"]
     },
     {
       "id": "84",
       "nombre": "BANCOS Y SEGUROS",
-      "keywords": ["banco", "seguro", "financiero", "crédito", "póliza", "aseguradora"]
+      "keywords": ["banco", "seguro", "financiero", "crédito", "póliza", "aseguradora", "cobertura", "reaseguro"]
     },
     {
-      "id": "53",
+      "id": "53A",
       "nombre": "BAZAR Y MENAJE",
-      "keywords": ["bazar", "menaje", "vajilla", "cristalería", "cubiertos", "utensilios"]
+      "keywords": ["bazar", "menaje", "vajilla", "cristalería", "cubiertos", "utensilios de cocina"]
     },
     {
       "id": "15",
       "nombre": "COMBUSTIBLES Y LUBRICANTES",
-      "keywords": ["combustible", "lubricante", "nafta", "gasoil", "aceite", "petróleo", "gas", "GNC"]
+      "keywords": ["combustible", "lubricante", "nafta", "gasoil", "aceite lubricante", "petróleo", "gas", "GNC", "provisión de combustible", "expendio de combustible"]
     },
     {
       "id": "43",
       "nombre": "COMPUTACION E INFORMATICA",
-      "keywords": ["computación", "informática", "software", "hardware", "computadora", "servidor", "red", "sistema", "tecnología", "IT", "TIC", "licencia", "desarrollo", "programación"]
+      "keywords": ["computación", "informática", "software", "hardware", "computadora", "servidor", "red", "sistema informático", "tecnología", "TIC", "licencia de software", "desarrollo de software", "programación", "tóner", "cartuchos de tinta", "impresora", "monitor", "notebook", "UPS", "baterías para UPS", "datacenter", "Oracle", "servidores", "soporte técnico Oracle"]
     },
     {
       "id": "30",
       "nombre": "CONSTRUCCION",
-      "keywords": ["construcción", "obra", "edificación", "civil", "arquitectura", "ingeniería", "refacción", "remodelación", "pavimentación", "asfalto", "repavimentación", "puente", "cordón cuneta", "veredas", "desagüe", "cloacas", "acueducto", "riego", "modernización", "viviendas", "ampliación", "demolición", "calle", "ruta", "camino", "autopista", "bacheo", "alcantarillado", "red vial", "infraestructura", "pluvial"]
+      "keywords": ["construcción", "obra", "edificación", "civil", "arquitectura", "ingeniería", "refacción", "remodelación", "pavimentación", "asfalto", "repavimentación", "puente", "cordón cuneta", "veredas", "desagüe", "cloacas", "acueducto", "modernización", "viviendas", "ampliación", "demolición", "calle", "ruta", "camino", "autopista", "bacheo", "alcantarillado", "red vial", "infraestructura", "pluvial", "puesta en valor", "conexión ruta", "urbanización", "mejoras en edificios", "drenajes urbanos", "cubierta de techo", "polideportivo", "acequias", "jerarquización de arterias"]
     },
     {
       "id": "60",
       "nombre": "CULTURA, DEPORTE Y ESPARCIMIENTO",
-      "keywords": ["cultura", "deporte", "esparcimiento", "recreación", "evento", "espectáculo", "artístico"]
+      "keywords": ["cultura", "deporte", "esparcimiento", "recreación", "evento", "espectáculo", "artístico", "vendimia", "fiesta nacional", "backline", "acreditaciones", "campo de juego", "deportivo", "músicos", "escenario", "sonido", "iluminación evento", "food trucks", "festival", "peñas", "sunset", "rock", "feria de emprendedores", "vendimias distritales", "escuelas de verano", "efectos especiales", "fuegos artificiales", "multimedia", "uplink", "señal única", "sendas culturales", "baile"]
     },
     {
       "id": "26",
       "nombre": "ELECTRICIDAD Y TELEFONIA",
-      "keywords": ["electricidad", "telefonía", "eléctrico", "cable", "instalación", "telecomunicaciones", "fibra óptica", "alumbrado", "luminaria", "tendido eléctrico", "transformador", "cableado", "antena"]
+      "keywords": ["electricidad", "telefonía", "eléctrico", "cable eléctrico", "instalación eléctrica", "telecomunicaciones", "fibra óptica", "alumbrado", "luminaria", "tendido eléctrico", "transformador", "cableado", "antena", "tablero eléctrico", "grupo electrógeno", "semáforos", "cuerpos semafóricos"]
     },
     {
       "id": "47",
       "nombre": "ELEMENTOS DE LIMPIEZA",
-      "keywords": ["limpieza", "higiene", "desinfectante", "detergente", "lavandina", "sanitización", "hipoclorito", "cloro", "residuos", "jabón", "recolección", "barrido", "higiene urbana", "contenedores", "residuos sólidos"]
+      "keywords": ["limpieza", "higiene", "desinfectante", "detergente", "lavandina", "sanitización", "hipoclorito", "cloro", "jabón", "insumos para limpieza", "lavado de manos"]
     },
     {
       "id": "56",
       "nombre": "EQUIPAMIENTO DE OFICINA Y MUEBLES",
-      "keywords": ["oficina", "mueble", "escritorio", "silla", "estantería", "archivo", "mobiliario", "armario", "mesa", "biblioteca"]
+      "keywords": ["oficina", "mueble", "escritorio", "silla", "estantería", "archivo", "mobiliario", "armario", "mesa", "biblioteca", "mobiliario escolar"]
     },
     {
       "id": "42",
       "nombre": "EQUIPAMIENTO MEDICO, FARMACEUTICO Y DE LABORATORIO",
-      "keywords": ["médico", "farmacéutico", "laboratorio", "salud", "hospital", "medicamento", "insumo médico", "quirúrgico", "diagnóstico", "sanitario", "ambulancia", "prótesis", "vacuna", "descartable"]
+      "keywords": ["médico", "farmacéutico", "laboratorio", "salud", "hospital", "medicamento", "insumo médico", "quirúrgico", "diagnóstico", "sanitario", "prótesis", "vacuna", "descartable", "hemodinamia", "oftalmología", "monodrogas", "farmacia", "sutura", "endomecánica", "productos médicos", "insumos de monitoreo", "crioanalgesia", "cardiovascular", "neonatología", "hemoterapia", "perfusión enteral", "perfusión parenteral", "audífono", "lentes de contacto", "silicón", "ortopedia", "anatomía patológica", "procesador de tejido", "jeringa", "aguja", "sonda", "férula", "apósito", "lanceta", "catéter", "centro de mezclas", "alta complejidad", "muestras biológicas", "oxígeno medicinal", "oxitocina", "medicamentos varios", "infusor", "insulina", "gastrostomía", "placas radiográficas", "videogastroscopio", "fórmulas magistrales", "vendas", "corset", "neurocirugía", "endovascular", "stent", "odontología", "material biológico", "oftalmológico", "servicio oftalmológico"]
     },
     {
       "id": "46",
       "nombre": "EQUIPO MILITAR Y DE SEGURIDAD",
-      "keywords": ["militar", "seguridad", "defensa", "armamento", "protección", "vigilancia"]
+      "keywords": ["militar", "defensa", "armamento", "protección personal", "equipo contra incendios", "mangas contra incendios", "lanzas contra incendios", "extintor"]
     },
     {
       "id": "27",
       "nombre": "FERRETERIA Y HERRAMIENTAS",
-      "keywords": ["ferretería", "herramienta", "tornillo", "clavo", "bulón", "soldadura", "máquina herramienta"]
+      "keywords": ["ferretería", "herramienta", "tornillo", "clavo", "bulón", "soldadura", "máquina herramienta", "pintura", "aislante", "membrana"]
+    },
+    {
+      "id": "14",
+      "nombre": "GASES MEDICINALES E INDUSTRIALES",
+      "keywords": ["oxígeno", "gases medicinales", "gases industriales", "nitrógeno", "argón", "acetileno", "dióxido de carbono", "provisión de oxígeno"]
     },
     {
       "id": "82",
       "nombre": "IMPRENTA, PUBLICACIONES Y ARTES GRAFICAS",
-      "keywords": ["imprenta", "publicación", "gráfica", "impresión", "editorial", "folleto", "cartelería"]
+      "keywords": ["imprenta", "publicación", "gráfica", "impresión", "editorial", "folleto", "cartelería", "señalética", "carteles metálicos", "regalos institucionales"]
     },
     {
       "id": "53",
       "nombre": "INDUMENTARIA, CONFECCION Y TEXTILES",
-      "keywords": ["indumentaria", "confección", "textil", "ropa", "uniforme", "calzado", "tela"]
+      "keywords": ["indumentaria", "confección", "textil", "ropa", "uniforme", "calzado", "tela", "vestimenta", "guardapolvo"]
     },
     {
       "id": "44",
       "nombre": "LIBRERIA Y PAPELERIA",
-      "keywords": ["librería", "papelería", "resma", "útiles", "insumos de oficina", "cuaderno", "artículos de librería", "útiles escolares", "papel bond", "tóner", "cartuchos de tinta"]
+      "keywords": ["librería", "papelería", "resma", "útiles", "insumos de oficina", "cuaderno", "artículos de librería", "útiles escolares", "papel bond", "pilas"]
     },
     {
       "id": "72",
       "nombre": "MANTENIMIENTO Y REPARACION",
-      "keywords": ["mantenimiento", "reparación", "servicio técnico", "conservación", "preventivo", "correctivo", "poda", "arbolado", "espacios verdes", "forestación"]
+      "keywords": ["mantenimiento", "reparación", "servicio técnico", "conservación", "preventivo", "correctivo", "poda", "arbolado", "espacios verdes", "forestación", "reparación de ascensor", "mantenimiento de compresores", "circuito cerrado de televisión", "CCTV", "césped", "juegos infantiles", "equipamiento urbano"]
     },
     {
       "id": "31",
       "nombre": "MATERIALES DE CONSTRUCCION",
-      "keywords": ["material de construcción", "cemento", "ladrillo", "arena", "hierro", "hormigón", "pintura", "caño", "tubo", "membrana", "aislante", "cerámica", "porcelanato"]
+      "keywords": ["material de construcción", "cemento", "ladrillo", "arena", "hierro", "hormigón", "caño", "tubo", "cerámica", "porcelanato", "vidrios", "provisión y colocación de vidrios", "dispositivos de aislación sísmica"]
     },
     {
       "id": "11",
-      "nombre": "MINERIA Y PETROLEO",
-      "keywords": ["minería", "petróleo", "extracción", "mineral", "hidrocarburos", "perforación"]
+      "nombre": "MINERIA, PETROLEO E HIDROCARBUROS",
+      "keywords": ["minería", "petróleo", "extracción", "mineral", "hidrocarburos", "perforación", "exploración de áreas hidrocarburíferas", "explotación de áreas hidrocarburíferas", "concesión minera"]
     },
     {
       "id": "12",
       "nombre": "PRODUCTOS QUIMICOS",
-      "keywords": ["químico", "producto químico", "reactivo", "solvente", "ácido", "compuesto", "sodio", "potasio", "alcohol", "laboratorio"]
+      "keywords": ["químico", "producto químico", "reactivo", "solvente", "ácido", "compuesto", "sodio", "potasio", "alcohol", "hipoclorito de sodio"]
     },
     {
       "id": "83",
       "nombre": "PUBLICIDAD Y PROPAGANDA",
-      "keywords": ["publicidad", "propaganda", "marketing", "difusión", "comunicación", "prensa", "medios"]
+      "keywords": ["publicidad", "propaganda", "marketing", "difusión", "comunicación", "prensa", "medios", "pauta publicitaria"]
+    },
+    {
+      "id": "76",
+      "nombre": "RESIDUOS Y MEDIO AMBIENTE",
+      "keywords": ["residuos", "recolección de residuos", "residuos sólidos", "contenedores", "barrido", "higiene urbana", "medio ambiente", "gestión ambiental", "reciclaje", "tratamiento de residuos"]
     },
     {
       "id": "92",
       "nombre": "SEGURIDAD Y VIGILANCIA",
-      "keywords": ["seguridad", "vigilancia", "custodia", "guardia", "monitoreo", "CCTV", "alarma"]
+      "keywords": ["seguridad", "vigilancia", "custodia", "guardia", "monitoreo", "alarma", "control de acceso", "alcoholímetros", "gestión administrativa"]
     },
     {
       "id": "80",
-      "nombre": "SERVICIOS PROFESIONALES",
-      "keywords": ["consultoría", "profesional", "asesoramiento", "legal", "contable", "auditoría", "estudio"]
+      "nombre": "SERVICIOS PROFESIONALES Y CONSULTORIA",
+      "keywords": ["consultoría", "profesional", "asesoramiento", "legal", "contable", "auditoría", "estudio", "servicio profesional", "servicio de movilidad", "traslado", "monitoreo de temperatura"]
     },
     {
       "id": "90",
       "nombre": "SERVICIOS DE ALOJAMIENTO Y HOTELERIA",
-      "keywords": ["alojamiento", "hotelería", "hospedaje", "hotel", "catering", "evento"]
+      "keywords": ["alojamiento", "hotelería", "hospedaje", "hotel", "servicio de alojamiento"]
     },
     {
       "id": "78",
       "nombre": "SERVICIOS DE TRANSPORTE Y LOGISTICA",
-      "keywords": ["transporte", "logística", "flete", "carga", "distribución", "envío", "mudanza"]
+      "keywords": ["transporte", "logística", "flete", "carga", "distribución", "envío", "mudanza", "traslado de muestras", "camión para distribución"]
+    },
+    {
+      "id": "81",
+      "nombre": "SERVICIOS DE AGUA Y SANEAMIENTO",
+      "keywords": ["agua potable", "saneamiento", "acueducto", "cloaca", "provisión de agua", "red de agua", "bioplanta", "planta potabilizadora", "planta depuradora"]
     },
     {
       "id": "25",
       "nombre": "VEHICULOS, AUTOMOTORES Y REPUESTOS",
-      "keywords": ["vehículo", "automotor", "repuesto", "automóvil", "camión", "moto", "autopartes", "neumático", "ambulancia", "camioneta", "colectivo", "utilitario"]
+      "keywords": ["vehículo", "automotor", "repuesto", "automóvil", "camión", "moto", "autopartes", "neumático", "camioneta", "colectivo", "utilitario", "ambulancia", "retroexcavadora", "máquina vial", "pala mecánica"]
+    },
+    {
+      "id": "93",
+      "nombre": "SERVICIOS EDUCATIVOS Y CAPACITACION",
+      "keywords": ["educación", "capacitación", "formación", "curso", "taller", "escuela", "docente", "beca", "universitario"]
+    },
+    {
+      "id": "77",
+      "nombre": "PINTURA VIAL Y SEÑALIZACION",
+      "keywords": ["pintura vial", "pintura acrílica de uso vial", "señalización vial", "demarcación vial", "señalética vial"]
     }
   ]
 }
