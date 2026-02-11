@@ -99,7 +99,14 @@ class NodoDigestService:
                             logger.info(f"Telegram digest sent for '{nodo_name}' to chat {chat_id}")
 
                 elif action_type == "email":
-                    recipients = config.get("to", [])
+                    # Normalize recipients: split any semicolon-joined addresses
+                    raw_to = config.get("to", [])
+                    recipients = []
+                    for addr in raw_to:
+                        for part in addr.split(";"):
+                            part = part.strip()
+                            if part:
+                                recipients.append(part)
                     if recipients:
                         subject_prefix = config.get("subject_prefix", "")
                         subject = f"{subject_prefix} {total_new} nuevas licitaciones - {nodo_name}".strip()
