@@ -153,9 +153,69 @@ async def delete_nodo(nodo_id: str, request: Request):
     return {"ok": True, "id": nodo_id}
 
 
+@router.post("/rematch-all")
+async def rematch_all_nodos(request: Request):
+    """Full recompute: re-match ALL licitaciones against ALL active nodos.
+
+    Uses $set to replace the nodos array entirely, cleaning up old false positives.
+    """
+    db = request.app.mongodb
+
+    from services.nodo_matcher import get_nodo_matcher
+
+    matcher = get_nodo_matcher(db)
+    await matcher.reload_nodos()
+
+    if not matcher._cache:
+        return {"matched": 0, "message": "No active nodos"}
+
+    from collections import defaultdict
+    nodo_counts = defaultdict(int)
+    total = 0
+    matched_total = 0
+
+    cursor = db.licitaciones.find(
+        {},
+        {"_id": 1, "title": 1, "objeto": 1, "description": 1, "organization": 1}
+    )
+    async for lic in cursor:
+        total += 1
+        matched_ids = matcher.match_licitacion(
+            title=lic.get("title", "") or "",
+            objeto=lic.get("objeto", "") or "",
+            description=lic.get("description", "") or "",
+            organization=lic.get("organization", "") or "",
+        )
+        if matched_ids:
+            matched_total += 1
+            for nid in matched_ids:
+                nodo_counts[nid] += 1
+
+        await db.licitaciones.update_one(
+            {"_id": lic["_id"]},
+            {"$set": {"nodos": matched_ids}}
+        )
+
+    # Update matched_count on each nodo
+    results = []
+    for nodo_doc, _ in matcher._cache:
+        nid = str(nodo_doc["_id"])
+        count = nodo_counts.get(nid, 0)
+        await db.nodos.update_one(
+            {"_id": nodo_doc["_id"]},
+            {"$set": {"matched_count": count}}
+        )
+        results.append({"name": nodo_doc.get("name"), "matched": count})
+
+    return {"total": total, "matched": matched_total, "nodos": results}
+
+
 @router.post("/{nodo_id}/rematch")
 async def rematch_nodo(nodo_id: str, request: Request):
-    """Re-match ALL licitaciones against this nodo. Returns count of new matches."""
+    """Re-match ALL licitaciones against this nodo (full recompute).
+
+    Adds the nodo where keywords match, removes it where they don't.
+    """
     db = request.app.mongodb
     try:
         oid = ObjectId(nodo_id)
@@ -166,7 +226,12 @@ async def rematch_nodo(nodo_id: str, request: Request):
     if not nodo_doc:
         raise HTTPException(status_code=404, detail="Nodo no encontrado")
 
-    from services.nodo_matcher import get_nodo_matcher, _build_flexible_pattern
+    from services.nodo_matcher import _build_flexible_pattern, _normalize_text
+
+    # Reload matcher cache (keywords may have changed)
+    from services.nodo_matcher import get_nodo_matcher
+    matcher = get_nodo_matcher(db)
+    await matcher.reload_nodos()
 
     # Build patterns for this nodo only
     patterns = []
@@ -179,14 +244,18 @@ async def rematch_nodo(nodo_id: str, request: Request):
                     pass
 
     if not patterns:
-        return {"matched": 0, "message": "No keywords configured"}
-
-    from services.nodo_matcher import _normalize_text
+        # No keywords — remove this nodo from all licitaciones
+        await db.licitaciones.update_many(
+            {"nodos": nodo_id},
+            {"$pull": {"nodos": nodo_id}}
+        )
+        await db.nodos.update_one({"_id": oid}, {"$set": {"matched_count": 0}})
+        return {"matched": 0, "message": "No keywords configured, cleared all assignments"}
 
     matched = 0
     cursor = db.licitaciones.find(
         {},
-        {"_id": 1, "title": 1, "objeto": 1, "description": 1, "organization": 1, "nodos": 1}
+        {"_id": 1, "title": 1, "objeto": 1, "description": 1, "organization": 1}
     )
     async for lic in cursor:
         parts = [
@@ -199,13 +268,17 @@ async def rematch_nodo(nodo_id: str, request: Request):
 
         hit = any(p.search(combined) for p in patterns)
         if hit:
-            existing_nodos = lic.get("nodos", []) or []
-            if nodo_id not in existing_nodos:
-                await db.licitaciones.update_one(
-                    {"_id": lic["_id"]},
-                    {"$addToSet": {"nodos": nodo_id}}
-                )
+            await db.licitaciones.update_one(
+                {"_id": lic["_id"]},
+                {"$addToSet": {"nodos": nodo_id}}
+            )
             matched += 1
+        else:
+            # Remove this nodo if it was previously assigned (keyword removed)
+            await db.licitaciones.update_one(
+                {"_id": lic["_id"]},
+                {"$pull": {"nodos": nodo_id}}
+            )
 
     # Update matched_count
     await db.nodos.update_one({"_id": oid}, {"$set": {"matched_count": matched}})
