@@ -43,18 +43,32 @@ def _spanish_stem(word: str) -> str:
 
 
 def _build_flexible_pattern(keyword: str) -> re.Pattern:
-    """Build a regex pattern that matches a keyword with accent, spacing, and plural tolerance."""
+    """Build a regex pattern that matches a keyword with accent, spacing, and plural tolerance.
+
+    Short keywords (<=3 chars, single word, all uppercase like "PC", "ERP", "API")
+    get word boundaries to prevent matching substrings of unrelated words.
+    E.g. "PC" should NOT match "Pcos" (Públicos) or "Publica".
+    """
     clean = _PUNCT_RE.sub("", keyword)           # 1. strip punct
     words = strip_accents(clean).split()          # 2. split + strip accents
     if not words:
         return re.compile(re.escape(keyword), re.IGNORECASE)
+
+    # Detect short acronym-style keywords that need word boundaries
+    is_short = len(words) == 1 and len(clean) <= 4 and clean == clean.upper()
+
     patterns = []
     for w in words:
         stem = _spanish_stem(w.lower())           # 3. stem
         rx = build_accent_regex(stem)             # 4. accent regex
-        rx += '(?:es|s)?'                         # 5. plural suffix
+        if not is_short:
+            rx += '(?:es|s)?'                     # 5. plural suffix (skip for acronyms)
         patterns.append(rx)
     joined = r'\s*'.join(patterns)                # 6. flexible spacing
+
+    if is_short:
+        joined = r'\b' + joined + r'\b'           # 6b. word boundaries for short keywords
+
     return re.compile(joined, re.IGNORECASE)      # 7. compile
 
 

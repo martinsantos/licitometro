@@ -60,17 +60,14 @@ async def main():
 
         if matched_ids:
             matched_total += 1
-            existing_nodos = set(lic.get("nodos", []) or [])
-            new_ids = [nid for nid in matched_ids if nid not in existing_nodos]
-
-            if new_ids:
-                await db.licitaciones.update_one(
-                    {"_id": lic["_id"]},
-                    {"$addToSet": {"nodos": {"$each": new_ids}}}
-                )
-
             for nid in matched_ids:
                 nodo_counts[nid] += 1
+
+        # Always set the full computed nodos list (replaces previous assignments)
+        await db.licitaciones.update_one(
+            {"_id": lic["_id"]},
+            {"$set": {"nodos": matched_ids}}
+        )
 
         if total % 500 == 0:
             print(f"  Processed {total} licitaciones, {matched_total} matched so far...")
