@@ -45,28 +45,31 @@ def _spanish_stem(word: str) -> str:
 def _build_flexible_pattern(keyword: str) -> re.Pattern:
     """Build a regex pattern that matches a keyword with accent, spacing, and plural tolerance.
 
-    Short keywords (<=3 chars, single word, all uppercase like "PC", "ERP", "API")
-    get word boundaries to prevent matching substrings of unrelated words.
-    E.g. "PC" should NOT match "Pcos" (Públicos) or "Publica".
+    Short keywords get word boundaries to prevent matching substrings of unrelated words:
+    - Any single word <=3 chars (e.g. "Vid" should NOT match "serVIDor")
+    - Uppercase acronyms <=4 chars (e.g. "PC" should NOT match "Pcos")
+    Acronyms also skip the plural suffix (PC, ERP don't pluralize).
     """
     clean = _PUNCT_RE.sub("", keyword)           # 1. strip punct
     words = strip_accents(clean).split()          # 2. split + strip accents
     if not words:
         return re.compile(re.escape(keyword), re.IGNORECASE)
 
-    # Detect short acronym-style keywords that need word boundaries
-    is_short = len(words) == 1 and len(clean) <= 4 and clean == clean.upper()
+    # Short keywords need word boundaries to avoid substring matches
+    needs_boundary = len(words) == 1 and (len(clean) <= 3 or (len(clean) <= 4 and clean == clean.upper()))
+    # Acronyms (all uppercase) also skip plural suffix — "PC" doesn't become "PCs"
+    is_acronym = needs_boundary and clean == clean.upper()
 
     patterns = []
     for w in words:
         stem = _spanish_stem(w.lower())           # 3. stem
         rx = build_accent_regex(stem)             # 4. accent regex
-        if not is_short:
+        if not is_acronym:
             rx += '(?:es|s)?'                     # 5. plural suffix (skip for acronyms)
         patterns.append(rx)
     joined = r'\s*'.join(patterns)                # 6. flexible spacing
 
-    if is_short:
+    if needs_boundary:
         joined = r'\b' + joined + r'\b'           # 6b. word boundaries for short keywords
 
     return re.compile(joined, re.IGNORECASE)      # 7. compile
