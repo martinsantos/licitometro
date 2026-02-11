@@ -25,6 +25,11 @@ import ListSkeleton from './licitaciones/ListSkeleton';
 import MobileFilterDrawer from './licitaciones/MobileFilterDrawer';
 import PresetSelector from './licitaciones/PresetSelector';
 
+// Derive the date field for filtering from the current sort field
+const DATE_SORT_FIELDS = ['publication_date', 'opening_date', 'fecha_scraping'];
+const deriveFechaCampo = (sortBy: string): string =>
+  DATE_SORT_FIELDS.includes(sortBy) ? sortBy : 'publication_date';
+
 interface LicitacionesListProps {
   apiUrl: string;
 }
@@ -41,6 +46,9 @@ const LicitacionesList = ({ apiUrl }: LicitacionesListProps) => {
   const prefs = useLicitacionPreferences();
   const filterOptions = useFilterOptions(apiUrl);
 
+  // Derive fechaCampo from current sort field
+  const fechaCampo = useMemo(() => deriveFechaCampo(prefs.sortBy), [prefs.sortBy]);
+
   // Debounce the text search (700ms), other filters are immediate
   const debouncedBusqueda = useDebounce(filters.busqueda, 700);
   const debouncedFilters = useMemo<FilterState>(() => ({
@@ -48,7 +56,7 @@ const LicitacionesList = ({ apiUrl }: LicitacionesListProps) => {
     busqueda: debouncedBusqueda,
   }), [filters, debouncedBusqueda]);
 
-  const facets = useFacetedFilters(apiUrl, debouncedFilters);
+  const facets = useFacetedFilters(apiUrl, debouncedFilters, fechaCampo);
 
   const pageSize = 25;
 
@@ -59,6 +67,7 @@ const LicitacionesList = ({ apiUrl }: LicitacionesListProps) => {
     sortOrder: prefs.sortOrder,
     pagina,
     pageSize,
+    fechaCampo,
   });
 
   // Reset page on filter/sort change
@@ -191,7 +200,7 @@ const LicitacionesList = ({ apiUrl }: LicitacionesListProps) => {
           apiUrl={apiUrl}
           onDaySelect={handleDaySelect}
           selectedDate={filters.fechaDesde && filters.fechaDesde === filters.fechaHasta ? filters.fechaDesde : null}
-          fechaCampo={filters.fechaCampo}
+          fechaCampo={fechaCampo}
         />
         <NovedadesStrip apiUrl={apiUrl} onSourceClick={handleSourceClick} />
       </div>
@@ -199,7 +208,7 @@ const LicitacionesList = ({ apiUrl }: LicitacionesListProps) => {
       {/* Layout principal: sidebar + contenido */}
       <div className="flex gap-4">
         {/* Sidebar — solo desktop */}
-        <div className="hidden lg:block flex-shrink-0">
+        <div className="hidden lg:block flex-shrink-0 lg:sticky lg:top-14 self-start">
           <FilterSidebar
             filters={filters}
             onFilterChange={handleFilterChange}
@@ -215,13 +224,14 @@ const LicitacionesList = ({ apiUrl }: LicitacionesListProps) => {
             onSetMany={setMany}
             groupBy={prefs.groupBy}
             onGroupByChange={prefs.setGroupBy}
+            fechaCampo={fechaCampo}
           />
         </div>
 
         {/* Contenido principal */}
         <div className="flex-1 min-w-0">
           {/* Toolbar simplificado */}
-          <div className="sticky top-0 z-20 bg-gray-50/95 backdrop-blur-sm pb-2 space-y-1.5">
+          <div className="lg:sticky lg:top-14 z-20 bg-gray-50 pb-2 space-y-1.5">
             <div className="flex items-center gap-2 flex-wrap">
               <PresetSelector
                 apiUrl={apiUrl}
@@ -377,6 +387,7 @@ const LicitacionesList = ({ apiUrl }: LicitacionesListProps) => {
         sortOrder={prefs.sortOrder}
         onSortChange={handleSortChange}
         onToggleOrder={prefs.toggleSortOrder}
+        fechaCampo={fechaCampo}
       />
     </div>
   );

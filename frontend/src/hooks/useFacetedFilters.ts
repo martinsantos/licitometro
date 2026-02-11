@@ -26,7 +26,7 @@ const EMPTY_FACETS: FacetData = {
   organization: [],
 };
 
-export function useFacetedFilters(apiUrl: string, filters: FilterState): FacetData {
+export function useFacetedFilters(apiUrl: string, filters: FilterState, fechaCampo: string): FacetData {
   const [facets, setFacets] = useState<FacetData>(EMPTY_FACETS);
   const abortRef = useRef<AbortController | null>(null);
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -53,7 +53,7 @@ export function useFacetedFilters(apiUrl: string, filters: FilterState): FacetDa
       if (filters.budgetMax) params.append('budget_max', filters.budgetMax);
       if (filters.fechaDesde) params.append('fecha_desde', filters.fechaDesde);
       if (filters.fechaHasta) params.append('fecha_hasta', filters.fechaHasta);
-      if (filters.fechaCampo) params.append('fecha_campo', filters.fechaCampo);
+      if (fechaCampo) params.append('fecha_campo', fechaCampo);
 
       fetch(`${apiUrl}/api/licitaciones/facets?${params}`, { signal: controller.signal, credentials: 'include' })
         .then(r => r.ok ? r.json() : EMPTY_FACETS)
@@ -66,7 +66,7 @@ export function useFacetedFilters(apiUrl: string, filters: FilterState): FacetDa
     return () => {
       if (timerRef.current) clearTimeout(timerRef.current);
     };
-  }, [apiUrl, filters]);
+  }, [apiUrl, filters, fechaCampo]);
 
   return facets;
 }

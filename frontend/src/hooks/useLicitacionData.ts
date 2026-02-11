@@ -8,6 +8,7 @@ interface UseLicitacionDataArgs {
   sortOrder: SortOrder;
   pagina: number;
   pageSize?: number;
+  fechaCampo: string;
 }
 
 interface UseLicitacionDataResult {
@@ -20,7 +21,7 @@ interface UseLicitacionDataResult {
 }
 
 export function useLicitacionData({
-  apiUrl, filters, sortBy, sortOrder, pagina, pageSize = 15,
+  apiUrl, filters, sortBy, sortOrder, pagina, pageSize = 15, fechaCampo,
 }: UseLicitacionDataArgs): UseLicitacionDataResult {
   const [licitaciones, setLicitaciones] = useState<Licitacion[]>([]);
   const [paginacion, setPaginacion] = useState<Paginacion | null>(null);
@@ -61,7 +62,7 @@ export function useLicitacionData({
       if (filters.budgetMax) params.append('budget_max', filters.budgetMax);
       if (filters.fechaDesde) params.append('fecha_desde', filters.fechaDesde);
       if (filters.fechaHasta) params.append('fecha_hasta', filters.fechaHasta);
-      if (filters.fechaCampo) params.append('fecha_campo', filters.fechaCampo);
+      if (fechaCampo) params.append('fecha_campo', fechaCampo);
 
       const response = await fetch(`${apiUrl}/api/licitaciones/?${params.toString()}`, {
         signal: controller.signal,
@@ -92,7 +93,7 @@ export function useLicitacionData({
         setIsFetching(false);
       }
     }
-  }, [apiUrl, pagina, pageSize, sortBy, sortOrder, filters]);
+  }, [apiUrl, pagina, pageSize, sortBy, sortOrder, filters, fechaCampo]);
 
   useEffect(() => {
     fetchData();

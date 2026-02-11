@@ -2,7 +2,7 @@ import { useReducer, useCallback, useEffect } from 'react';
 import type { FilterState } from '../types/licitacion';
 
 const STORAGE_KEY = 'licitacionFilters';
-const FILTERS_VERSION = 2; // Bump this to clear stuck filters on deploy
+const FILTERS_VERSION = 3; // Bump this to clear stuck filters on deploy
 
 const initialFilters: FilterState = {
   busqueda: '',
@@ -17,7 +17,6 @@ const initialFilters: FilterState = {
   budgetMax: '',
   fechaDesde: '',
   fechaHasta: '',
-  fechaCampo: 'publication_date',
 };
 
 function loadFiltersFromSession(): FilterState {
@@ -51,7 +50,7 @@ function filterReducer(state: FilterState, action: FilterAction): FilterState {
     case 'SET_MANY':
       return { ...state, ...action.payload };
     case 'CLEAR_ALL':
-      return { ...initialFilters, fechaCampo: state.fechaCampo };
+      return initialFilters;
     default:
       return state;
   }

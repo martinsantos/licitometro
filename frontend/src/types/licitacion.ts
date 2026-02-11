@@ -27,6 +27,9 @@ export interface Licitacion {
     comprar_unidad_ejecutora?: string;
     comprar_open_url?: string;
     comprar_pliego_url?: string;
+    budget_source?: string;
+    costo_pliego?: number;
+    pliego_to_budget_ratio?: number;
   };
 }
 
@@ -53,7 +56,6 @@ export interface FilterState {
   budgetMax: string;
   fechaDesde: string;
   fechaHasta: string;
-  fechaCampo: string;
 }
 
 export interface AutoFilter {

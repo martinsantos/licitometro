@@ -12,6 +12,12 @@ function ensureActiveValue(facetItems: FacetValue[], activeValue: string): Facet
   return facetItems;
 }
 
+const FECHA_CAMPO_LABELS: Record<string, string> = {
+  publication_date: 'Publicacion',
+  opening_date: 'Apertura',
+  fecha_scraping: 'Indexacion',
+};
+
 interface MobileFilterDrawerProps {
   isOpen: boolean;
   onClose: () => void;
@@ -30,6 +36,7 @@ interface MobileFilterDrawerProps {
   sortOrder?: SortOrder;
   onSortChange?: (sort: SortField) => void;
   onToggleOrder?: () => void;
+  fechaCampo: string;
 }
 
 // Collapsible section
@@ -103,7 +110,7 @@ const MobileFilterDrawer: React.FC<MobileFilterDrawerProps> = ({
   isOpen, onClose, filters, onFilterChange, onClearAll,
   filterOptions, activeFilterCount, groupBy, onGroupByChange,
   criticalRubros, onToggleCriticalRubro, facets, totalItems,
-  sortBy, sortOrder, onSortChange, onToggleOrder,
+  sortBy, sortOrder, onSortChange, onToggleOrder, fechaCampo,
 }) => {
   const [orgSearch, setOrgSearch] = useState('');
 
@@ -344,24 +351,9 @@ const MobileFilterDrawer: React.FC<MobileFilterDrawerProps> = ({
             {/* Fechas */}
             <Section title="Fechas" defaultOpen={false} badge={(filters.fechaDesde || filters.fechaHasta) ? 1 : 0}>
               <div className="space-y-2">
-                <div className="flex gap-1">
-                  {[
-                    { value: 'publication_date', label: 'Pub' },
-                    { value: 'opening_date', label: 'Apert' },
-                    { value: 'fecha_scraping', label: 'Idx' },
-                  ].map((campo) => (
-                    <button
-                      key={campo.value}
-                      onClick={() => onFilterChange('fechaCampo', campo.value)}
-                      className={`flex-1 px-2 py-1.5 rounded text-xs font-bold transition-colors ${
-                        filters.fechaCampo === campo.value
-                          ? 'bg-emerald-100 text-emerald-700'
-                          : 'bg-gray-100 text-gray-500 hover:bg-gray-200'
-                      }`}
-                    >
-                      {campo.label}
-                    </button>
-                  ))}
+                <div className="text-xs text-gray-400 font-bold mb-1">
+                  Filtrando por: <span className="text-emerald-600">{FECHA_CAMPO_LABELS[fechaCampo] || fechaCampo}</span>
+                  <span className="text-gray-300 ml-1">(segun orden)</span>
                 </div>
                 <div className="space-y-1.5">
                   <div>

@@ -2,6 +2,12 @@ import React, { useState, useMemo, useCallback } from 'react';
 import type { FilterState, FilterOptions } from '../../types/licitacion';
 import type { FacetData, FacetValue } from '../../hooks/useFacetedFilters';
 
+const FECHA_CAMPO_LABELS: Record<string, string> = {
+  publication_date: 'Publicacion',
+  opening_date: 'Apertura',
+  fecha_scraping: 'Indexacion',
+};
+
 interface FilterSidebarProps {
   filters: FilterState;
   onFilterChange: (key: keyof FilterState, value: string) => void;
@@ -17,6 +23,7 @@ interface FilterSidebarProps {
   onSetMany: (updates: Partial<FilterState>) => void;
   groupBy: string;
   onGroupByChange: (value: string) => void;
+  fechaCampo: string;
 }
 
 // Ensure active filter value always appears in facet list (even when 0 results)
@@ -94,7 +101,7 @@ const FacetItem: React.FC<{
 const FilterSidebar: React.FC<FilterSidebarProps> = ({
   filters, onFilterChange, onClearAll, facets, hasActiveFilters, activeFilterCount,
   criticalRubros, onToggleCriticalRubro, isCollapsed, onToggleCollapse,
-  filterOptions, onSetMany, groupBy, onGroupByChange,
+  filterOptions, onSetMany, groupBy, onGroupByChange, fechaCampo,
 }) => {
   const [orgSearch, setOrgSearch] = useState('');
   const [showAllOrgs, setShowAllOrgs] = useState(false);
@@ -127,7 +134,7 @@ const FilterSidebar: React.FC<FilterSidebarProps> = ({
   if (isCollapsed) {
     return (
       <div className="w-12 flex-shrink-0">
-        <div className="sticky top-0 h-[calc(100vh-80px)] bg-white border border-gray-100 rounded-xl flex flex-col items-center py-3 gap-2">
+        <div className="h-[calc(100vh-3.5rem)] bg-white border border-gray-100 rounded-xl flex flex-col items-center py-3 gap-2">
           <button
             onClick={onToggleCollapse}
             className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
@@ -149,7 +156,7 @@ const FilterSidebar: React.FC<FilterSidebarProps> = ({
 
   return (
     <div className="w-[280px] flex-shrink-0">
-      <div className="sticky top-0 h-[calc(100vh-80px)] overflow-y-auto bg-white border border-gray-100 rounded-xl">
+      <div className="h-[calc(100vh-3.5rem)] overflow-y-auto bg-white border border-gray-100 rounded-xl">
         {/* Header */}
         <div className="flex items-center justify-between p-3 border-b border-gray-100">
           <div className="flex items-center gap-2">
@@ -405,24 +412,9 @@ const FilterSidebar: React.FC<FilterSidebarProps> = ({
           {/* 9. Fechas */}
           <FilterSection title="Fechas" defaultOpen={false} badge={(filters.fechaDesde || filters.fechaHasta) ? 1 : 0}>
             <div className="space-y-2">
-              <div className="flex gap-1">
-                {[
-                  { value: 'publication_date', label: 'Pub' },
-                  { value: 'opening_date', label: 'Apert' },
-                  { value: 'fecha_scraping', label: 'Idx' },
-                ].map((campo) => (
-                  <button
-                    key={campo.value}
-                    onClick={() => onFilterChange('fechaCampo', campo.value)}
-                    className={`flex-1 px-2 py-1 rounded text-[10px] font-bold transition-colors ${
-                      filters.fechaCampo === campo.value
-                        ? 'bg-emerald-100 text-emerald-700'
-                        : 'bg-gray-100 text-gray-500 hover:bg-gray-200'
-                    }`}
-                  >
-                    {campo.label}
-                  </button>
-                ))}
+              <div className="text-[10px] text-gray-400 font-bold mb-1">
+                Filtrando por: <span className="text-emerald-600">{FECHA_CAMPO_LABELS[fechaCampo] || fechaCampo}</span>
+                <span className="text-gray-300 ml-1">(segun orden)</span>
               </div>
               <div className="space-y-1.5">
                 <div>

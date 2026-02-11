@@ -13,8 +13,8 @@ interface PresetSelectorProps {
 const BUILTIN_PRESETS: FilterPreset[] = [
   {
     name: 'Nuevas de hoy',
-    filters: { fechaCampo: 'created_at', fechaDesde: new Date().toISOString().slice(0, 10), fechaHasta: new Date().toISOString().slice(0, 10) },
-    sort_by: 'created_at',
+    filters: { fechaDesde: new Date().toISOString().slice(0, 10), fechaHasta: new Date().toISOString().slice(0, 10) },
+    sort_by: 'fecha_scraping',
     sort_order: 'desc',
     is_builtin: true,
   },
