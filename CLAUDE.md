@@ -1,6 +1,6 @@
 # Licitometro - Documentacion del Proyecto
 
-Plataforma de monitoreo de licitaciones publicas de Mendoza, Argentina. Agrega datos de 24+ fuentes gubernamentales, los enriquece automaticamente y los presenta en una interfaz web con filtros, busqueda y notificaciones.
+Plataforma de monitoreo de licitaciones publicas de Mendoza, Argentina. Agrega datos de 24+ fuentes gubernamentales, los enriquece automaticamente y los presenta en una interfaz web con filtros, busqueda, nodos semanticos y notificaciones.
 
 **Produccion**: https://licitometro.ar
 **VPS**: Hostinger 76.13.234.213 (srv1342577.hstgr.cloud)
@@ -30,6 +30,7 @@ licitometro/
 │   ├── server.py                  # FastAPI app, middleware, routers
 │   ├── models/
 │   │   ├── licitacion.py          # LicitacionCreate/InDB/Update (Pydantic)
+│   │   ├── nodo.py                # Nodo semantic keyword maps (CRUD models)
 │   │   ├── scraper_config.py      # ScraperConfig model
 │   │   ├── scraper_run.py         # ScraperRun tracking
 │   │   ├── offer_template.py      # Offer templates CRUD
@@ -38,6 +39,7 @@ licitometro/
 │   │   └── models.py              # MongoDB doc → dict entity mappers
 │   ├── routers/
 │   │   ├── licitaciones.py        # CRUD + search + filters + stats
+│   │   ├── nodos.py               # Nodos CRUD + rematch + per-nodo licitaciones
 │   │   ├── scheduler.py           # Scraper scheduling + manual triggers
 │   │   ├── scraper_configs.py     # Scraper config CRUD
 │   │   ├── workflow.py            # Workflow state transitions
@@ -68,9 +70,10 @@ licitometro/
 │   │   ├── scheduler_service.py   # Cron scheduling (5x daily, 7 days/week)
 │   │   ├── generic_enrichment.py  # HTML/PDF/ZIP enrichment pipeline
 │   │   ├── category_classifier.py # Auto-classification by rubros
+│   │   ├── nodo_matcher.py        # Fuzzy keyword matching for nodos (Spanish stemming, accent-tolerant)
 │   │   ├── workflow_service.py    # State machine (descubierta→evaluando→...)
 │   │   ├── enrichment_service.py  # Enrichment orchestration
-│   │   ├── notification_service.py # Telegram + Email (daily digest 9am)
+│   │   ├── notification_service.py # Telegram + Email (daily digest 9am) + per-nodo alerts
 │   │   ├── auto_update_service.py # Re-enrich active licitaciones (8am cron)
 │   │   ├── smart_search_parser.py # NLP search query parsing
 │   │   ├── deduplication_service.py # Content hash dedup
@@ -79,7 +82,8 @@ licitometro/
 │   │   └── url_resolver.py        # URL resolution
 │   ├── utils/
 │   │   ├── dates.py               # parse_date_guess (16 formats, Spanish months, US dates)
-│   │   └── object_extractor.py    # extract_objeto(), is_poor_title()
+│   │   ├── object_extractor.py    # extract_objeto(), is_poor_title()
+│   │   └── text_search.py         # strip_accents(), build_accent_regex() for fuzzy matching
 │   └── scripts/                   # One-off migration/backfill scripts
 │       ├── backfill_objeto.py     # Populate objeto field for existing records
 │       ├── backfill_opening_date.py
@@ -89,29 +93,36 @@ licitometro/
 │       ├── migrate_text_index.py
 │       ├── discover_sources.py    # Probe URLs for new procurement sources
 │       ├── add_ipv_copig_lapaz.py # Add IPV/COPIG/La Paz/San Carlos configs
+│       ├── seed_nodos.py          # Create initial nodos (IT + Vivero)
+│       ├── backfill_nodos.py      # Match existing licitaciones against nodos
 │       └── ...
 ├── frontend/
 │   ├── src/
 │   │   ├── components/
-│   │   │   └── licitaciones/
-│   │   │       ├── LicitacionCard.tsx    # Card view (objeto||title heading)
-│   │   │       ├── LicitacionTable.tsx   # Table view
-│   │   │       ├── FilterSidebar.tsx     # Booking.com-style faceted filters
-│   │   │       ├── MobileFilterDrawer.tsx # Slide-out drawer (<lg)
-│   │   │       ├── SearchBar.tsx         # Text + mode toggle (A/AI/+)
-│   │   │       ├── SortDropdown.tsx      # Sort field selector
-│   │   │       ├── ViewToggle.tsx        # Card/table toggle
-│   │   │       ├── ActiveFiltersChips.tsx
-│   │   │       ├── CriticalRubrosConfig.tsx
-│   │   │       ├── ListSkeleton.tsx
-│   │   │       ├── Pagination.tsx
-│   │   │       └── PresetSelector.tsx
+│   │   │   ├── licitaciones/
+│   │   │   │   ├── LicitacionCard.tsx    # Card view (objeto||title heading, nodo badges)
+│   │   │   │   ├── LicitacionTable.tsx   # Table view
+│   │   │   │   ├── FilterSidebar.tsx     # Booking.com-style faceted filters (incl. nodos)
+│   │   │   │   ├── MobileFilterDrawer.tsx # Slide-out drawer (<lg, incl. nodos)
+│   │   │   │   ├── SearchBar.tsx         # Text + mode toggle (A/AI/+)
+│   │   │   │   ├── SortDropdown.tsx      # Sort field selector
+│   │   │   │   ├── ViewToggle.tsx        # Card/table toggle
+│   │   │   │   ├── ActiveFiltersChips.tsx # Filter chips (nodo name via nodoMap)
+│   │   │   │   ├── CriticalRubrosConfig.tsx
+│   │   │   │   ├── ListSkeleton.tsx
+│   │   │   │   ├── Pagination.tsx
+│   │   │   │   └── PresetSelector.tsx
+│   │   │   └── nodos/
+│   │   │       ├── NodoBadge.tsx          # Colored dot + name badge
+│   │   │       ├── NodoCard.tsx           # Card with groups, actions, matched_count
+│   │   │       └── NodoForm.tsx           # CRUD form (keywords, actions, color)
 │   │   ├── hooks/
 │   │   │   ├── useLicitacionData.ts      # API fetching (AbortController)
 │   │   │   ├── useLicitacionFilters.ts   # useReducer filter state
 │   │   │   ├── useLicitacionPreferences.ts
-│   │   │   ├── useFacetedFilters.ts
+│   │   │   ├── useFacetedFilters.ts      # Faceted filter counts (incl. nodos)
 │   │   │   ├── useFilterOptions.ts
+│   │   │   ├── useNodos.ts               # Fetch active nodos, nodoMap lookup
 │   │   │   ├── useLocalStorage.ts
 │   │   │   └── useDebounce.ts            # 700ms text search debounce
 │   │   ├── types/
@@ -119,7 +130,8 @@ licitometro/
 │   │   ├── utils/
 │   │   │   └── formatting.ts             # Date formatting, urgency helpers
 │   │   └── pages/
-│   │       └── LicitacionesList.tsx      # Orchestrator (480 lines)
+│   │       ├── LicitacionesList.tsx      # Orchestrator (480 lines)
+│   │       └── NodosPage.tsx             # Nodos CRUD management page
 │   └── package.json
 ├── docker-compose.prod.yml
 ├── deploy.sh                    # 5-step: pull → build → stop → start → healthcheck
@@ -187,10 +199,11 @@ Los 3 pasos son necesarios. Fuentes afectadas: COPIG, La Paz, San Carlos.
 
 ---
 
-## Fuentes de Datos (24 activas, 568 licitaciones)
+## Fuentes de Datos (24 activas, 3231 licitaciones)
 
 | Fuente | Scraper | Items aprox | Notas |
 |--------|---------|-------------|-------|
+| ComprasApps Mendoza | comprasapps_mendoza | ~2601 | GeneXus servlet, multi-year, estado V+P, 37 CUCs |
 | COMPR.AR Mendoza | mendoza_compra_v2 | ~91 | ASP.NET WebForms, pliego parsing |
 | Boletin Oficial Mendoza | boletin_oficial_mendoza | ~54 | PDF gazette, pypdf extraction |
 | COPIG Mendoza | generic_html | ~50 | Custom WP, div.item cards, title_selector=h1 only, IPv6 |
@@ -311,6 +324,70 @@ descubierta → evaluando → preparando → presentada
 34 categorias en `backend/data/rubros_comprar.json`. Clasificacion automatica via `category_classifier.py` usando keywords match contra titulo + objeto + description (primeros 500 chars para evitar falsos positivos de boilerplate).
 
 El usuario puede marcar hasta N rubros como "criticos" (localStorage). Las cards muestran badges de urgencia para licitaciones en rubros criticos.
+
+---
+
+## Nodos (Mapas Semanticos de Busqueda)
+
+Nodos son zonas de interes definidas por nubes de keywords. Cada nodo agrupa licitaciones automaticamente via fuzzy matching. Una licitacion puede pertenecer a N nodos Y mantener su rubro/categoria (no exclusivo). Los nodos solo AGREGAN asignaciones (`$addToSet`), nunca remueven.
+
+### Modelo (coleccion `nodos`)
+- `name`, `slug` (unique), `description`, `color` (hex)
+- `keyword_groups[]`: nombre + keywords[] (subcategorias semanticas)
+- `actions[]`: tipo (email|telegram|tag) + enabled + config
+  - email: `config.to` (lista), `config.subject_prefix`
+  - telegram: `config.chat_id`
+  - tag: `config.keyword` (auto-agrega al campo keywords de la licitacion)
+- `active`, `matched_count`, timestamps
+
+### Campo en licitaciones
+- `nodos: List[str]` — IDs de nodos matcheados. Se agrega en 3 lugares:
+  1. `models/licitacion.py` (LicitacionBase + LicitacionUpdate)
+  2. `db/models.py` (licitacion_entity)
+  3. `types/licitacion.ts` (Licitacion interface)
+
+### Matching fuzzy (nodo_matcher.py)
+Pipeline de normalizacion por keyword:
+1. Strip puntuacion (apostrofes, guiones, puntos)
+2. Split en palabras + `strip_accents()`
+3. Spanish stemming: `_spanish_stem()` (iones→ion, ces→z, es→stem, s→stem)
+4. `build_accent_regex()` por palabra (de `utils/text_search.py`)
+5. Sufijo plural `(?:es|s)?`
+6. Join con `\s*` (flexible spacing)
+7. Compile `re.IGNORECASE`
+
+Matchea contra: title, objeto, description (2000 chars), organization.
+Patron singleton `get_nodo_matcher(db)` con cache de regex compilados. Se recompila al CRUD del nodo.
+
+### Hooks de auto-matching
+- **scheduler_service.py**: `assign_nodos_to_item_data()` ANTES del insert (modifica dict in-place)
+- **generic_enrichment.py**: `assign_nodos_to_licitacion()` DESPUES de enriquecer (description/objeto pueden cambiar)
+- **routers/nodos.py POST /{id}/rematch**: Re-matchea TODAS las licitaciones contra un nodo
+
+### API
+- `POST/GET /api/nodos/` — CRUD
+- `PUT/DELETE /api/nodos/{id}` — Update/delete (delete hace `$pull` de todas las licitaciones)
+- `POST /api/nodos/{id}/rematch` — Re-match completo
+- `GET /api/nodos/{id}/licitaciones` — Licitaciones paginadas del nodo
+- `GET /api/licitaciones/?nodo=ID` — Filtro por nodo
+- `GET /api/licitaciones/facets` — Incluye faceta nodos (`$unwind` antes de `$group`)
+
+### Frontend
+- `/nodos` — Pagina de gestion (NodosPage.tsx)
+- NodoForm: keyword groups + acciones + color picker
+- NodoBadge: Badge con color dot en cards y detail page
+- FilterSidebar/MobileFilterDrawer: Seccion "Nodos" con faceted counts
+- ActiveFiltersChips: Muestra nombre del nodo (via nodoMap)
+- useNodos hook: Fetch + nodoMap (Record<id, Nodo>)
+- LicitacionesList.tsx pasa nodoMap a FilterSidebar, MobileFilterDrawer, LicitacionCard, ActiveFiltersChips
+
+### Nodos iniciales (seed_nodos.py)
+- **Servicios IT Ultima Milla** (azul, 4 grupos, 93 keywords): Modernizacion, Software, Infraestructura IT, Telecomunicaciones
+- **Vivero** (verde, 5 grupos, 88 keywords): Plantas, Insumos, Infraestructura, Servicios, Equipamiento
+
+### Datos actuales
+- 1,495/3,231 licitaciones matcheadas (46%)
+- IT: 1,296 matches | Vivero: 259 matches
 
 ---
 
