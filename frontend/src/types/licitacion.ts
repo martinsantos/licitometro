@@ -54,6 +54,8 @@ export interface Nodo {
   keyword_groups: KeywordGroup[];
   actions: NodoAction[];
   active: boolean;
+  digest_frequency: 'none' | 'daily' | 'twice_daily';
+  last_digest_sent?: string;
   matched_count: number;
   created_at: string;
   updated_at: string;

@@ -18,6 +18,7 @@ const NodoForm: React.FC<NodoFormProps> = ({ nodo, onSave, onCancel }) => {
     { name: '', keywords: '' },
   ]);
   const [actions, setActions] = useState<NodoAction[]>([]);
+  const [digestFrequency, setDigestFrequency] = useState<'none' | 'daily' | 'twice_daily'>('daily');
 
   useEffect(() => {
     if (nodo) {
@@ -25,6 +26,7 @@ const NodoForm: React.FC<NodoFormProps> = ({ nodo, onSave, onCancel }) => {
       setDescription(nodo.description);
       setColor(nodo.color);
       setActive(nodo.active);
+      setDigestFrequency(nodo.digest_frequency || 'daily');
       setKeywordGroups(
         nodo.keyword_groups.map(g => ({
           name: g.name,
@@ -42,6 +44,7 @@ const NodoForm: React.FC<NodoFormProps> = ({ nodo, onSave, onCancel }) => {
       description,
       color,
       active,
+      digest_frequency: digestFrequency,
       keyword_groups: keywordGroups
         .filter(g => g.name.trim() || g.keywords.trim())
         .map(g => ({
@@ -190,7 +193,7 @@ const NodoForm: React.FC<NodoFormProps> = ({ nodo, onSave, onCancel }) => {
                       type="text"
                       placeholder="Destinatarios (separados por coma)"
                       value={(action.config.to || []).join(', ')}
-                      onChange={e => updateActionConfig(i, 'to', e.target.value.split(',').map(s => s.trim()).filter(Boolean))}
+                      onChange={e => updateActionConfig(i, 'to', e.target.value.split(/[,;]/).map(s => s.trim()).filter(Boolean))}
                       className="w-full px-2 py-1 border border-gray-200 rounded text-xs focus:border-emerald-400 outline-none"
                     />
                     <input
@@ -214,6 +217,31 @@ const NodoForm: React.FC<NodoFormProps> = ({ nodo, onSave, onCancel }) => {
               </div>
               <button type="button" onClick={() => removeAction(i)} className="text-red-400 hover:text-red-600 text-xs font-bold flex-shrink-0">&times;</button>
             </div>
+          ))}
+        </div>
+      </div>
+
+      {/* Digest frequency */}
+      <div>
+        <label className="text-xs font-black text-gray-500 uppercase block mb-2">Frecuencia de Notificaciones</label>
+        <div className="flex gap-2">
+          {([
+            { value: 'none', label: 'Sin notificaciones' },
+            { value: 'daily', label: '1x al dia (9am)' },
+            { value: 'twice_daily', label: '2x al dia (9am + 6pm)' },
+          ] as const).map(opt => (
+            <button
+              key={opt.value}
+              type="button"
+              onClick={() => setDigestFrequency(opt.value)}
+              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-colors ${
+                digestFrequency === opt.value
+                  ? 'bg-violet-600 text-white'
+                  : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+              }`}
+            >
+              {opt.label}
+            </button>
           ))}
         </div>
       </div>

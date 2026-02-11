@@ -84,8 +84,28 @@ function App() {
   const [authenticated, setAuthenticated] = useState(null); // null = loading
 
   useEffect(() => {
-    checkAuth();
+    handleStartup();
   }, []);
+
+  const handleStartup = async () => {
+    // Check for ?token=xxx in URL (public access link from notifications)
+    const params = new URLSearchParams(window.location.search);
+    const token = params.get("token");
+    if (token) {
+      try {
+        await axios.post("/api/auth/token-login", { token });
+        // Clean token from URL without reloading
+        params.delete("token");
+        const cleanUrl = params.toString()
+          ? `${window.location.pathname}?${params.toString()}`
+          : window.location.pathname;
+        window.history.replaceState({}, "", cleanUrl);
+      } catch {
+        // Token invalid/expired, continue to normal auth check
+      }
+    }
+    await checkAuth();
+  };
 
   const checkAuth = async () => {
     try {

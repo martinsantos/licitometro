@@ -47,11 +47,22 @@ def create_access_token() -> str:
     return jwt.encode(payload, JWT_SECRET_KEY, algorithm=JWT_ALGORITHM)
 
 
+def create_public_access_token(ttl_days: int = 30) -> str:
+    """Create a JWT token for public read-only access (used in notification links)."""
+    expire = datetime.now(timezone.utc) + timedelta(days=ttl_days)
+    payload = {
+        "sub": "reader",
+        "exp": expire,
+        "iat": datetime.now(timezone.utc),
+    }
+    return jwt.encode(payload, JWT_SECRET_KEY, algorithm=JWT_ALGORITHM)
+
+
 def verify_token(token: str) -> bool:
-    """Verify a JWT token is valid and not expired."""
+    """Verify a JWT token is valid and not expired. Accepts both 'user' and 'reader' subjects."""
     try:
-        jwt.decode(token, JWT_SECRET_KEY, algorithms=[JWT_ALGORITHM])
-        return True
+        payload = jwt.decode(token, JWT_SECRET_KEY, algorithms=[JWT_ALGORITHM])
+        return payload.get("sub") in ("user", "reader")
     except jwt.ExpiredSignatureError:
         return False
     except jwt.InvalidTokenError:

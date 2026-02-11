@@ -8,9 +8,15 @@ interface NodoCardProps {
   onRematch: (id: string) => void;
 }
 
+const FREQ_LABELS: Record<string, string> = {
+  daily: '1x/dia',
+  twice_daily: '2x/dia',
+};
+
 const NodoCard: React.FC<NodoCardProps> = ({ nodo, onEdit, onDelete, onRematch }) => {
   const totalKeywords = nodo.keyword_groups.reduce((sum, g) => sum + g.keywords.length, 0);
   const enabledActions = nodo.actions.filter(a => a.enabled);
+  const freqLabel = FREQ_LABELS[nodo.digest_frequency];
 
   return (
     <div className="bg-white rounded-2xl shadow-md border border-gray-100 p-5 hover:shadow-lg transition-shadow">
@@ -47,18 +53,26 @@ const NodoCard: React.FC<NodoCardProps> = ({ nodo, onEdit, onDelete, onRematch }
         ))}
       </div>
 
-      {enabledActions.length > 0 && (
-        <div className="flex items-center gap-1.5 mb-3">
-          {enabledActions.map((a, i) => (
-            <span key={i} className="px-2 py-0.5 bg-blue-50 text-blue-600 rounded text-[10px] font-bold capitalize">
-              {a.type}
-            </span>
-          ))}
-        </div>
-      )}
+      <div className="flex items-center gap-1.5 mb-3 flex-wrap">
+        {enabledActions.map((a, i) => (
+          <span key={i} className="px-2 py-0.5 bg-blue-50 text-blue-600 rounded text-[10px] font-bold capitalize">
+            {a.type}
+          </span>
+        ))}
+        {freqLabel && (
+          <span className="px-2 py-0.5 bg-violet-50 text-violet-600 rounded text-[10px] font-bold">
+            {freqLabel}
+          </span>
+        )}
+      </div>
 
       <div className="text-[10px] text-gray-400 mb-3">
         {nodo.keyword_groups.length} grupos, {totalKeywords} keywords
+        {nodo.last_digest_sent && (
+          <span className="ml-2">
+            | Ultimo digest: {new Date(nodo.last_digest_sent + (nodo.last_digest_sent.endsWith('Z') ? '' : 'Z')).toLocaleDateString('es-AR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}
+          </span>
+        )}
       </div>
 
       <div className="flex items-center gap-2 pt-3 border-t border-gray-100">

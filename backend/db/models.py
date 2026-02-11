@@ -190,6 +190,8 @@ def nodo_entity(nodo) -> dict:
         "keyword_groups": nodo.get("keyword_groups", []),
         "actions": nodo.get("actions", []),
         "active": nodo.get("active", True),
+        "digest_frequency": nodo.get("digest_frequency", "daily"),
+        "last_digest_sent": nodo.get("last_digest_sent"),
         "matched_count": nodo.get("matched_count", 0),
         "created_at": nodo.get("created_at", datetime.utcnow()),
         "updated_at": nodo.get("updated_at", datetime.utcnow()),

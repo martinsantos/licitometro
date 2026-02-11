@@ -45,6 +45,7 @@ async def create_nodo(nodo: NodoCreate, request: Request):
     doc = nodo.model_dump()
     doc["slug"] = slug
     doc["matched_count"] = 0
+    doc["last_digest_sent"] = datetime.utcnow()  # Avoid digesting historical items on new nodo
     doc["created_at"] = datetime.utcnow()
     doc["updated_at"] = datetime.utcnow()
 

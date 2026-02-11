@@ -32,6 +32,7 @@ class NodoBase(BaseModel):
     keyword_groups: List[KeywordGroup] = Field(default=[], description="Keyword groups")
     actions: List[NodoAction] = Field(default=[], description="Actions on match")
     active: bool = Field(True)
+    digest_frequency: str = Field("daily", description="Digest frequency: none, daily, twice_daily")
 
 
 class NodoCreate(NodoBase):
@@ -48,6 +49,7 @@ class NodoUpdate(BaseModel):
     keyword_groups: Optional[List[KeywordGroup]] = None
     actions: Optional[List[NodoAction]] = None
     active: Optional[bool] = None
+    digest_frequency: Optional[str] = None
 
 
 class Nodo(NodoBase):

@@ -37,6 +37,7 @@ AUTH_EXEMPT_PATHS = {
     "/api/auth/login",
     "/api/auth/check",
     "/api/auth/logout",
+    "/api/auth/token-login",
     "/api/",
 }
 
@@ -160,6 +161,35 @@ async def startup_db_client():
             logger.info("Daily notification digest scheduled at 9:00 AM")
         except Exception as e:
             logger.warning(f"Notification service not configured: {e}")
+
+        # Schedule nodo digests
+        try:
+            from services.nodo_digest_service import get_nodo_digest_service
+            nodo_digest = get_nodo_digest_service(database)
+
+            # Morning digest (9:15am) - daily + twice_daily
+            scheduler_service.scheduler.add_job(
+                func=nodo_digest.run_digest,
+                args=[["daily", "twice_daily"]],
+                trigger=CronTrigger(hour=9, minute=15),
+                id="nodo_digest_morning",
+                name="Nodo digest morning (daily + twice_daily)",
+                replace_existing=True,
+                max_instances=1,
+            )
+            # Evening digest (6pm) - twice_daily only
+            scheduler_service.scheduler.add_job(
+                func=nodo_digest.run_digest,
+                args=[["twice_daily"]],
+                trigger=CronTrigger(hour=18, minute=0),
+                id="nodo_digest_evening",
+                name="Nodo digest evening (twice_daily)",
+                replace_existing=True,
+                max_instances=1,
+            )
+            logger.info("Nodo digests scheduled at 9:15 AM and 6:00 PM")
+        except Exception as e:
+            logger.warning(f"Nodo digest service not configured: {e}")
 
     except Exception as e:
         logger.error(f"Failed to auto-start scheduler: {e}")
