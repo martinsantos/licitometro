@@ -54,11 +54,12 @@ async def migrate():
     else:
         print("\nNo existing text index found.")
 
-    # Create expanded text index
-    print("\nCreating expanded text index...")
+    # Create expanded text index v3 (adds objeto + fuente)
+    print("\nCreating text index v3...")
     await collection.create_index(
         [
             ("title", "text"),
+            ("objeto", "text"),
             ("description", "text"),
             ("organization", "text"),
             ("category", "text"),
@@ -66,9 +67,11 @@ async def migrate():
             ("expedient_number", "text"),
             ("licitacion_number", "text"),
             ("jurisdiccion", "text"),
+            ("fuente", "text"),
         ],
         weights={
             "title": 10,
+            "objeto": 10,
             "licitacion_number": 8,
             "expedient_number": 8,
             "description": 5,
@@ -76,11 +79,12 @@ async def migrate():
             "category": 3,
             "keywords": 2,
             "jurisdiccion": 1,
+            "fuente": 2,
         },
         default_language="spanish",
-        name="text_search_expanded",
+        name="text_search_v3",
     )
-    print("Expanded text index created successfully!")
+    print("Text index v3 created successfully!")
 
     # Create budget index for range queries
     print("\nCreating budget index...")

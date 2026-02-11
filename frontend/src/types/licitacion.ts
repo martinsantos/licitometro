@@ -21,6 +21,7 @@ export interface Licitacion {
   enrichment_level?: number;
   fecha_scraping?: string;
   created_at?: string;
+  nodos?: string[];
   metadata?: {
     comprar_estado?: string;
     comprar_directa_tipo?: string;
@@ -31,6 +32,31 @@ export interface Licitacion {
     costo_pliego?: number;
     pliego_to_budget_ratio?: number;
   };
+}
+
+export interface KeywordGroup {
+  name: string;
+  keywords: string[];
+}
+
+export interface NodoAction {
+  type: 'email' | 'telegram' | 'tag';
+  enabled: boolean;
+  config: Record<string, any>;
+}
+
+export interface Nodo {
+  id: string;
+  name: string;
+  slug: string;
+  description: string;
+  color: string;
+  keyword_groups: KeywordGroup[];
+  actions: NodoAction[];
+  active: boolean;
+  matched_count: number;
+  created_at: string;
+  updated_at: string;
 }
 
 export interface Paginacion {
@@ -52,10 +78,12 @@ export interface FilterState {
   jurisdiccionFiltro: string;
   tipoProcedimientoFiltro: string;
   organizacionFiltro: string;
+  nodoFiltro: string;
   budgetMin: string;
   budgetMax: string;
   fechaDesde: string;
   fechaHasta: string;
+  yearWorkspace: string;
 }
 
 export interface AutoFilter {

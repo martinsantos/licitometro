@@ -1,5 +1,5 @@
 import React from 'react';
-import type { FilterState } from '../../types/licitacion';
+import type { FilterState, Nodo } from '../../types/licitacion';
 
 interface ActiveFiltersChipsProps {
   filters: FilterState;
@@ -8,6 +8,7 @@ interface ActiveFiltersChipsProps {
   totalItems: number | null;
   newItemsCount: number;
   hasActiveFilters: boolean;
+  nodoMap?: Record<string, Nodo>;
 }
 
 const Chip: React.FC<{ label: string; color: string; onRemove: () => void }> = ({ label, color, onRemove }) => (
@@ -18,7 +19,7 @@ const Chip: React.FC<{ label: string; color: string; onRemove: () => void }> = (
 );
 
 const ActiveFiltersChips: React.FC<ActiveFiltersChipsProps> = ({
-  filters, onFilterChange, onClearAll, totalItems, newItemsCount, hasActiveFilters,
+  filters, onFilterChange, onClearAll, totalItems, newItemsCount, hasActiveFilters, nodoMap,
 }) => {
   if (totalItems === null && !hasActiveFilters) return null;
 
@@ -36,6 +37,11 @@ const ActiveFiltersChips: React.FC<ActiveFiltersChipsProps> = ({
       {newItemsCount > 0 && (
         <span className="px-2 py-0.5 bg-green-100 text-green-700 rounded font-bold animate-pulse">
           +{newItemsCount} nuevas
+        </span>
+      )}
+      {filters.yearWorkspace && filters.yearWorkspace !== 'all' && (
+        <span className="inline-flex items-center px-2 py-0.5 bg-gray-200 text-gray-600 rounded text-[11px] font-bold">
+          {filters.yearWorkspace}
         </span>
       )}
       {filters.fuenteFiltro && (
@@ -58,6 +64,9 @@ const ActiveFiltersChips: React.FC<ActiveFiltersChipsProps> = ({
       )}
       {filters.categoryFiltro && (
         <Chip label={filters.categoryFiltro} color="bg-pink-100 text-pink-700" onRemove={() => onFilterChange('categoryFiltro', '')} />
+      )}
+      {filters.nodoFiltro && (
+        <Chip label={`Nodo: ${nodoMap?.[filters.nodoFiltro]?.name || filters.nodoFiltro.slice(0, 12) + '...'}`} color="bg-sky-100 text-sky-700" onRemove={() => onFilterChange('nodoFiltro', '')} />
       )}
       {(filters.budgetMin || filters.budgetMax) && (
         <Chip label={`$${filters.budgetMin || '0'} - $${filters.budgetMax || '...'}`} color="bg-orange-100 text-orange-700" onRemove={() => { onFilterChange('budgetMin', ''); onFilterChange('budgetMax', ''); }} />

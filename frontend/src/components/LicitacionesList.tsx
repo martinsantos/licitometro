@@ -8,6 +8,7 @@ import { useLicitacionPreferences } from '../hooks/useLicitacionPreferences';
 import { useFilterOptions } from '../hooks/useFilterOptions';
 import { isUrgentLic, isCriticalRubro as isCriticalRubroUtil } from '../utils/formatting';
 import { useFacetedFilters } from '../hooks/useFacetedFilters';
+import { useNodos } from '../hooks/useNodos';
 
 import DailyDigestStrip from './DailyDigestStrip';
 import NovedadesStrip from './NovedadesStrip';
@@ -24,6 +25,7 @@ import Pagination from './licitaciones/Pagination';
 import ListSkeleton from './licitaciones/ListSkeleton';
 import MobileFilterDrawer from './licitaciones/MobileFilterDrawer';
 import PresetSelector from './licitaciones/PresetSelector';
+import YearSelector from './licitaciones/YearSelector';
 
 // Derive the date field for filtering from the current sort field
 const DATE_SORT_FIELDS = ['publication_date', 'opening_date', 'fecha_scraping'];
@@ -37,7 +39,14 @@ interface LicitacionesListProps {
 const LicitacionesList = ({ apiUrl }: LicitacionesListProps) => {
   const navigate = useNavigate();
   const listTopRef = useRef<HTMLDivElement>(null);
-  const [pagina, setPagina] = useState(1);
+  const hasRestoredScroll = useRef(false);
+  const [pagina, setPagina] = useState<number>(() => {
+    try {
+      const stored = sessionStorage.getItem('licitacion_pagina');
+      const parsed = stored ? parseInt(stored, 10) : 1;
+      return parsed > 0 ? parsed : 1;
+    } catch { return 1; }
+  });
   const [mobileFiltersOpen, setMobileFiltersOpen] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
 
@@ -57,6 +66,7 @@ const LicitacionesList = ({ apiUrl }: LicitacionesListProps) => {
   }), [filters, debouncedBusqueda]);
 
   const facets = useFacetedFilters(apiUrl, debouncedFilters, fechaCampo);
+  const { nodoMap } = useNodos();
 
   const pageSize = 25;
 
@@ -83,12 +93,40 @@ const LicitacionesList = ({ apiUrl }: LicitacionesListProps) => {
     }
   }, [debouncedFilters, prefs.sortBy, prefs.sortOrder]);
 
-  // Scroll to top on page change
+  // Persist pagina to sessionStorage
   useEffect(() => {
-    if (pagina > 1) {
-      listTopRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    sessionStorage.setItem('licitacion_pagina', String(pagina));
+  }, [pagina]);
+
+  // Safeguard: reset if pagina exceeds total
+  useEffect(() => {
+    if (paginacion && pagina > paginacion.total_paginas && paginacion.total_paginas > 0) {
+      setPagina(1);
+    }
+  }, [paginacion, pagina]);
+
+  // Scroll to top on page change (offset for sticky header h-14 = 56px)
+  useEffect(() => {
+    if (pagina > 1 && listTopRef.current) {
+      const headerOffset = 60;
+      const top = listTopRef.current.getBoundingClientRect().top + window.pageYOffset - headerOffset;
+      window.scrollTo({ top, behavior: 'smooth' });
     }
   }, [pagina]);
+
+  // Restore scroll position after data loads (returning from detail page)
+  useEffect(() => {
+    if (!isInitialLoading && !hasRestoredScroll.current) {
+      const savedScroll = sessionStorage.getItem('licitacion_scrollY');
+      if (savedScroll) {
+        requestAnimationFrame(() => {
+          window.scrollTo(0, parseInt(savedScroll, 10));
+        });
+        sessionStorage.removeItem('licitacion_scrollY');
+      }
+      hasRestoredScroll.current = true;
+    }
+  }, [isInitialLoading]);
 
   // New items count
   const newItemsCount = useMemo(() => licitaciones.filter(prefs.isNewItem).length, [licitaciones, prefs.isNewItem]);
@@ -136,7 +174,10 @@ const LicitacionesList = ({ apiUrl }: LicitacionesListProps) => {
   }, [licitaciones, prefs.groupBy, prefs.criticalRubros]);
 
   // Handlers
-  const handleRowClick = useCallback((id: string) => navigate(`/licitacion/${id}`), [navigate]);
+  const handleRowClick = useCallback((id: string) => {
+    sessionStorage.setItem('licitacion_scrollY', String(window.scrollY));
+    navigate(`/licitacion/${id}`);
+  }, [navigate]);
 
   const handleFilterChange = useCallback((key: keyof FilterState, value: string) => {
     setFilter(key, value);
@@ -225,6 +266,7 @@ const LicitacionesList = ({ apiUrl }: LicitacionesListProps) => {
             groupBy={prefs.groupBy}
             onGroupByChange={prefs.setGroupBy}
             fechaCampo={fechaCampo}
+            nodoMap={nodoMap}
           />
         </div>
 
@@ -233,6 +275,11 @@ const LicitacionesList = ({ apiUrl }: LicitacionesListProps) => {
           {/* Toolbar simplificado */}
           <div className="lg:sticky lg:top-14 z-20 bg-gray-50 pb-2 space-y-1.5">
             <div className="flex items-center gap-2 flex-wrap">
+              <YearSelector
+                value={filters.yearWorkspace}
+                onChange={(y) => setFilter('yearWorkspace', y)}
+              />
+
               <PresetSelector
                 apiUrl={apiUrl}
                 onLoadPreset={handleLoadPreset}
@@ -286,6 +333,7 @@ const LicitacionesList = ({ apiUrl }: LicitacionesListProps) => {
               totalItems={paginacion?.total_items ?? null}
               newItemsCount={newItemsCount}
               hasActiveFilters={hasActiveFilters}
+              nodoMap={nodoMap}
             />
           </div>
 
@@ -336,6 +384,7 @@ const LicitacionesList = ({ apiUrl }: LicitacionesListProps) => {
                           onToggleFavorite={prefs.toggleFavorite}
                           onRowClick={handleRowClick}
                           searchQuery={filters.busqueda}
+                          nodoMap={nodoMap}
                         />
                       ))}
                     </React.Fragment>
@@ -388,6 +437,7 @@ const LicitacionesList = ({ apiUrl }: LicitacionesListProps) => {
         onSortChange={handleSortChange}
         onToggleOrder={prefs.toggleSortOrder}
         fechaCampo={fechaCampo}
+        nodoMap={nodoMap}
       />
     </div>
   );

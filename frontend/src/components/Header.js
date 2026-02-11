@@ -15,13 +15,14 @@ const Header = () => {
         <path d="M5 5a2 2 0 012-2h10a2 2 0 012 2v16l-7-3.5L5 21V5z" />
       </svg>
     )},
+    { path: '/nodos', label: 'Nodos' },
     { path: '/templates', label: 'Plantillas' },
     { path: '/stats', label: 'Estadísticas' },
     { path: '/admin', label: 'Admin' },
   ];
 
   return (
-    <header className="bg-slate-900 text-white sticky top-0 z-50">
+    <header className="bg-slate-900 text-white sticky top-0 z-50 will-change-transform">
       <div className="container mx-auto px-4">
         <div className="flex items-center justify-between h-14">
           {/* Logo */}

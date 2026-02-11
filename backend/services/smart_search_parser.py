@@ -13,6 +13,7 @@ import re
 from datetime import datetime, date
 from typing import Dict, Any, Optional
 import calendar
+from utils.text_search import strip_accents
 
 
 # Known jurisdictions
@@ -221,41 +222,50 @@ def parse_smart_query(query: str) -> Dict[str, Any]:
             remaining = re.sub(pattern, '', remaining, count=1)
             break
 
-    # Extract known organization shortnames
+    # Extract known organization shortnames (accent-agnostic)
+    remaining_norm = strip_accents(remaining)
     for org_key, org_val in KNOWN_ORGS.items():
-        pattern = rf'\b{re.escape(org_key)}\b'
-        if re.search(pattern, remaining):
+        pattern = rf'\b{re.escape(strip_accents(org_key))}\b'
+        if re.search(pattern, remaining_norm):
             result["organization"] = org_val
             auto_filters["organization"] = org_val
-            remaining = re.sub(pattern, '', remaining, count=1)
+            remaining = re.sub(pattern, '', remaining_norm, count=1)
+            remaining_norm = strip_accents(remaining)
             break
 
-    # Extract rubro shortcuts
+    # Extract rubro shortcuts (accent-agnostic)
+    remaining_norm = strip_accents(remaining)
     for rubro_key, rubro_val in RUBRO_SHORTCUTS.items():
-        pattern = rf'\b{re.escape(rubro_key)}\b'
-        if re.search(pattern, remaining):
+        pattern = rf'\b{re.escape(strip_accents(rubro_key))}\b'
+        if re.search(pattern, remaining_norm):
             result["category"] = rubro_val
             auto_filters["category"] = rubro_val
-            remaining = re.sub(pattern, '', remaining, count=1)
+            remaining = re.sub(pattern, '', remaining_norm, count=1)
+            remaining_norm = strip_accents(remaining)
             break
 
-    # Extract municipality names → fuente filter (try longer names first)
+    # Extract municipality names → fuente filter (accent-agnostic, try longer names first)
+    remaining_norm = strip_accents(remaining)
     sorted_munis = sorted(MUNICIPIOS.keys(), key=len, reverse=True)
     for muni_key in sorted_munis:
-        if muni_key in remaining:
+        norm_key = strip_accents(muni_key)
+        if norm_key in remaining_norm:
             result["fuente"] = MUNICIPIOS[muni_key]
             auto_filters["fuente"] = MUNICIPIOS[muni_key]
-            remaining = remaining.replace(muni_key, '', 1)
+            remaining = remaining_norm.replace(norm_key, '', 1)
+            remaining_norm = strip_accents(remaining)
             break
 
-    # Extract jurisdictions (try longer names first) — only if no municipality matched
+    # Extract jurisdictions (accent-agnostic, try longer names first) — only if no municipality matched
     if "fuente" not in result:
+        remaining_norm = strip_accents(remaining)
         sorted_juris = sorted(JURISDICCIONES.keys(), key=len, reverse=True)
         for juri_key in sorted_juris:
-            if juri_key in remaining:
+            norm_key = strip_accents(juri_key)
+            if norm_key in remaining_norm:
                 result["jurisdiccion"] = JURISDICCIONES[juri_key]
                 auto_filters["jurisdiccion"] = JURISDICCIONES[juri_key]
-                remaining = remaining.replace(juri_key, '', 1)
+                remaining = remaining_norm.replace(norm_key, '', 1)
                 break
 
     # Clean up remaining text

@@ -14,7 +14,7 @@ import uvicorn
 sys.path.insert(0, str(Path(__file__).parent))
 
 # Import routers directly (not as relative imports)
-from routers import licitaciones, scraper_configs, comprar, scheduler, workflow, offer_templates, auth, public
+from routers import licitaciones, scraper_configs, comprar, scheduler, workflow, offer_templates, auth, public, nodos
 from services.auth_service import verify_token
 
 # Load environment variables
@@ -89,6 +89,7 @@ app.include_router(comprar.router)
 app.include_router(scheduler.router)
 app.include_router(workflow.router)
 app.include_router(offer_templates.router)
+app.include_router(nodos.router)
 app.include_router(public.router)
 
 @app.on_event("startup")

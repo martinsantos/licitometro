@@ -56,6 +56,7 @@ async def get_licitaciones(
     workflow_state: Optional[str] = None,
     jurisdiccion: Optional[str] = None,
     tipo_procedimiento: Optional[str] = None,
+    nodo: Optional[str] = Query(None, description="Filter by nodo ID"),
     budget_min: Optional[float] = Query(None, description="Minimum budget"),
     budget_max: Optional[float] = Query(None, description="Maximum budget"),
     fecha_desde: Optional[date] = Query(None, description="Filter from date (inclusive)"),
@@ -112,6 +113,7 @@ async def get_licitaciones(
         if workflow_state: extra_filters["workflow_state"] = workflow_state
         if jurisdiccion: extra_filters["jurisdiccion"] = jurisdiccion
         if tipo_procedimiento: extra_filters["tipo_procedimiento"] = tipo_procedimiento
+        if nodo: extra_filters["nodos"] = nodo
 
         # Budget range
         if budget_min is not None or budget_max is not None:
@@ -159,19 +161,21 @@ async def get_licitaciones(
     if status:
         filters["status"] = status
     if organization:
-        filters["organization"] = organization
+        filters["organization"] = {"$regex": re.escape(organization), "$options": "i"}
     if location:
         filters["location"] = location
     if category:
         filters["category"] = category
     if fuente:
-        filters["fuente"] = fuente
+        filters["fuente"] = {"$regex": re.escape(fuente), "$options": "i"}
     if workflow_state:
         filters["workflow_state"] = workflow_state
     if jurisdiccion:
         filters["jurisdiccion"] = jurisdiccion
     if tipo_procedimiento:
         filters["tipo_procedimiento"] = tipo_procedimiento
+    if nodo:
+        filters["nodos"] = nodo
 
     # Budget range filter
     if budget_min is not None or budget_max is not None:
@@ -303,6 +307,7 @@ async def get_facets(
     workflow_state: Optional[str] = None,
     jurisdiccion: Optional[str] = None,
     tipo_procedimiento: Optional[str] = None,
+    nodo: Optional[str] = None,
     budget_min: Optional[float] = None,
     budget_max: Optional[float] = None,
     fecha_desde: Optional[date] = None,
@@ -320,10 +325,11 @@ async def get_facets(
     if status: base_match["status"] = status
     if organization: base_match["organization"] = {"$regex": re.escape(organization), "$options": "i"}
     if category: base_match["category"] = category
-    if fuente: base_match["fuente"] = fuente
+    if fuente: base_match["fuente"] = {"$regex": re.escape(fuente), "$options": "i"}
     if workflow_state: base_match["workflow_state"] = workflow_state
     if jurisdiccion: base_match["jurisdiccion"] = jurisdiccion
     if tipo_procedimiento: base_match["tipo_procedimiento"] = tipo_procedimiento
+    if nodo: base_match["nodos"] = nodo
     if budget_min is not None or budget_max is not None:
         bf = {}
         if budget_min is not None: bf["$gte"] = budget_min
@@ -369,6 +375,22 @@ async def get_facets(
             result[facet_name] = [{"value": d["_id"], "count": d["count"]} for d in docs]
         except Exception:
             result[facet_name] = []
+
+    # Nodos facet: needs $unwind since nodos is an array field
+    try:
+        nodos_cross = {k: v for k, v in base_match.items() if k != "nodos"}
+        nodos_pipeline = [
+            {"$match": nodos_cross} if nodos_cross else {"$match": {}},
+            {"$unwind": "$nodos"},
+            {"$group": {"_id": "$nodos", "count": {"$sum": 1}}},
+            {"$match": {"_id": {"$ne": None}}},
+            {"$sort": {"count": -1}},
+            {"$limit": 50},
+        ]
+        nodos_docs = await collection.aggregate(nodos_pipeline).to_list(length=50)
+        result["nodos"] = [{"value": d["_id"], "count": d["count"]} for d in nodos_docs]
+    except Exception:
+        result["nodos"] = []
 
     return result
 
@@ -964,6 +986,22 @@ async def enrich_licitacion_universal(
 
         field_names = list(updates.keys())
         logger.info(f"Enriched {licitacion_id} ({fuente}): {field_names}")
+
+        # Re-match nodos after enrichment (description/objeto may have changed)
+        try:
+            from services.nodo_matcher import get_nodo_matcher
+            from dependencies import database as nodo_db
+            if nodo_db is not None:
+                matcher = get_nodo_matcher(nodo_db)
+                title_val = updates.get("title", lic_dict.get("title", ""))
+                objeto_val = updates.get("objeto", lic_dict.get("objeto", ""))
+                desc_val = updates.get("description", lic_dict.get("description", ""))
+                org_val = lic_dict.get("organization", "")
+                await matcher.assign_nodos_to_licitacion(
+                    licitacion_id, title_val, objeto_val, desc_val, org_val
+                )
+        except Exception as nodo_err:
+            logger.warning(f"Nodo re-matching after enrichment failed: {nodo_err}")
 
         return JSONResponse(content={
             "success": True,

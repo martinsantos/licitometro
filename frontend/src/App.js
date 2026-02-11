@@ -6,6 +6,7 @@ import axios from "axios";
 // Components
 import Header from "./components/Header";
 import Footer from "./components/Footer";
+import ScrollToTop from "./components/ScrollToTop";
 
 // Pages
 import HomePage from "./pages/HomePage";
@@ -16,6 +17,7 @@ import StatsPage from "./pages/StatsPage";
 import AdminPage from "./pages/AdminPage";
 import ScraperFormPage from "./pages/ScraperFormPage";
 import OfferTemplatesPage from "./pages/OfferTemplatesPage";
+import NodosPage from "./pages/NodosPage";
 import LoginPage from "./pages/LoginPage";
 import PublicLicitacionPage from "./pages/PublicLicitacionPage";
 import PublicListPage from "./pages/PublicListPage";
@@ -41,6 +43,7 @@ const AuthenticatedApp = () => (
         <Route path="/admin/licitacion/:id" element={<LicitacionDetailPage />} />
         <Route path="/admin/scraper/:id" element={<ScraperFormPage />} />
         <Route path="/templates" element={<OfferTemplatesPage />} />
+        <Route path="/nodos" element={<NodosPage />} />
       </Routes>
     </main>
     <Footer />
@@ -95,6 +98,7 @@ function App() {
 
   return (
     <BrowserRouter>
+      <ScrollToTop />
       <AppRouter authenticated={authenticated} setAuthenticated={setAuthenticated} />
     </BrowserRouter>
   );

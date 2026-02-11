@@ -1,699 +1,554 @@
 """
-ComprasApps Mendoza Scraper - Buscador de Licitaciones hli00049
+ComprasApps Mendoza Scraper - GeneXus Servlet hli00049
 
-Este scraper está diseñado para capturar licitaciones desde el sistema
-ComprasApps de Mendoza (GeneXus servlet hli00049).
+Scrapes ALL licitaciones from comprasapps.mendoza.gov.ar covering every CUC
+(provincial + 17 municipalities). This is the most complete source of
+Mendoza procurement data.
 
-URL: https://comprasapps.mendoza.gov.ar/Compras/servlet/hli00049
+Protocol:
+1. GET initial page → extract session cookies + GXState JSON
+2. POST with _EventName='EENTER.' + correct vXXX fields → search results
+3. Parse grid data from LicitacionesContainerDataV hidden input (JSON array)
+4. Paginate by updating LICITACIONES_nFirstRecordOnPage in GXState
 
-NOTA: Este sitio tiene restricciones de red y solo es accesible desde
-IPs autorizadas (red provincial o VPN configurada). El scraper funcionará
-cuando se ejecute desde una red con acceso permitido.
-
-Características:
-- Búsqueda por: año fiscal, número licitación, CUC, fechas de apertura
-- Filtros por: estado (vigentes, en trámite, adjudicadas), tipo contratación
-- Soporte para navegación paginada
-- Extracción de detalles completos de cada licitación
+Correct field names (discovered via live protocol analysis):
+- vEJER: Fiscal year (= filter, must search each year separately)
+- vLICNRO: Process number (0=all)
+- vLICUCFIL: CUC filter (0=all)
+- vFCHDESDE / vFCHHASTA: Opening date range (dd/mm/yy or "  /  /  ")
+- vESTFILTRO: Estado (V=Vigente, P=En proceso, A=Adjudicada, T=Todas)
+- vLICABCONTIPOSEL: Tipo (""=Todas, P=Publica, V=Privada, D=Directa)
+- vRUBRO: Category (000000=all)
+- vLICUC: CUC/Reparticion (0=all)
+- vFINANSEL: Funding (""=Todas)
+- GXState: JSON session state (required)
+- _EventName: 'EENTER.' for search, '' for pagination
 """
 
 from typing import List, Dict, Any, Optional
 import asyncio
 import logging
 from bs4 import BeautifulSoup
-from urllib.parse import urljoin, parse_qs, urlparse
-from datetime import datetime, timedelta
+from datetime import datetime
 import re
 import uuid
 import sys
 import hashlib
+import json
 from pathlib import Path
-import os
 
-# Add parent directory to path so we can import modules
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from models.scraper_config import ScraperConfig
 from models.licitacion import LicitacionCreate
 from scrapers.base_scraper import BaseScraper
-from utils.dates import parse_date_guess, last_business_days_set
+from utils.dates import parse_date_guess
 
 logger = logging.getLogger("scraper.comprasapps_mendoza")
+
+# CUC code → Organization name mapping
+CUC_NAMES = {
+    # Provincial government
+    "1": "Cámara de Senadores",
+    "20": "Dir. Gral. de Crédito al Sector Público",
+    "40": "M.I.P.I.P.",
+    "42": "Ministerio de Salud y Deportes",
+    "47": "Subsecretaría de Deportes",
+    "100": "Hospital Dr. Ramón Carrillo",
+    "101": "Gobierno de Mendoza",
+    "116": "Ministerio de Seguridad",
+    "120": "Dirección de Atención Adultos Mayores",
+    "127": "Servicio Penitenciario",
+    "132": "Ecoparque Mendoza",
+    "156": "Subsecretaría de Transporte",
+    "159": "Fondo de Inversión y Desarrollo Social",
+    "214": "Vialidad Provincial",
+    "275": "Hospital Malargüe",
+    "276": "Hospital Saporiti",
+    # Entes autárquicos (500s)
+    "501": "DGE - Dirección General de Escuelas",
+    "502": "EPAS",
+    "503": "EPRE",
+    "504": "IPV Mendoza",
+    "505": "Irrigación",
+    "506": "ISCAMEN",
+    "507": "Tribunal de Cuentas",
+    "508": "OSEP",
+    "509": "Vialidad Mendoza",
+    "510": "Poder Judicial",
+    "511": "Legislatura",
+    "512": "AYSAM",
+    "519": "Instituto Provincial de la Vivienda",
+    # Municipios (600s)
+    "601": "Municipalidad de Capital",
+    "602": "Municipalidad de General Alvear",
+    "603": "Municipalidad de Godoy Cruz",
+    "604": "Municipalidad de Guaymallén",
+    "605": "Municipalidad de Junín",
+    "606": "Municipalidad de La Paz",
+    "607": "Municipalidad de Las Heras",
+    "608": "Municipalidad de Lavalle",
+    "609": "Municipalidad de Luján de Cuyo",
+    "610": "Municipalidad de Maipú",
+    "611": "Municipalidad de Malargüe",
+    "612": "Municipalidad de Rivadavia",
+    "613": "Municipalidad de San Carlos",
+    "614": "Municipalidad de San Martín",
+    "615": "Municipalidad de San Rafael",
+    "616": "Municipalidad de Santa Rosa",
+    "617": "Municipalidad de Tunuyán",
+    "618": "Municipalidad de Tupungato",
+    "620": "COINES (Consorcio Intermunicipal RSU)",
+    "621": "COINCE",
+    # Otros
+    "961": "Fondo para la Transformación y Crecimiento",
+}
+
+# Grid column indices in LicitacionesContainerDataV JSON array
+COL_NUMERO = 0        # e.g. "3/2026-616"
+COL_TIPO = 1          # e.g. "Compra Directa", "Licitacion Publica"
+COL_ORG_NAME = 2      # Organization name
+COL_ORG_NAME2 = 3     # Organization name variant
+COL_APERTURA_DATE = 6  # dd/mm/yy
+COL_APERTURA_TIME = 7  # HH:mm
+COL_ESTADO = 9         # Vigente, En Proceso, Adjudicada, Sin Efecto
+COL_TITULO_FULL = 10   # Full title/description
+COL_TITULO_SHORT = 11  # Truncated title
+COL_ANIO = 14          # Fiscal year
+COL_SEQ = 15           # Sequential number
+COL_TIPO_CODE = 17     # Type code (1=Directa, 4=Publica)
+COL_CUC = 18           # CUC code
+COL_TIPO_LETTER = 20   # D/P/V
+
+ROWS_PER_PAGE = 10
 
 
 class ComprasAppsMendozaScraper(BaseScraper):
     """
-    Scraper for ComprasApps Mendoza bidding search system.
-
-    This scraper handles the GeneXus-based servlet at hli00049 which provides
-    a public search interface for procurement processes without login.
-
-    Search Parameters (GeneXus form fields):
-    - WAnioFiscal: Fiscal year (e.g., 2026)
-    - WNroLicitacion: Bidding number
-    - WCUC: Unique code
-    - WFecAperDesde: Opening date from
-    - WFecAperHasta: Opening date to
-    - WEstado: Status (1=Vigentes, 2=En Trámite, 3=Adjudicadas)
-    - WTipoContratacion: Contract type
-    - WObjetoContratacion: Contract object/category
+    Scraper for ComprasApps Mendoza (GeneXus servlet hli00049).
+    Fetches ALL licitaciones across all CUCs.
     """
 
     BASE_URL = "https://comprasapps.mendoza.gov.ar/Compras/servlet/hli00049"
 
-    # Estado mappings
-    ESTADOS = {
-        "vigentes": "1",
-        "en_tramite": "2",
-        "adjudicadas": "3",
-        "todas": ""
-    }
-
-    # Tipo contratación mappings (common GeneXus values)
-    TIPOS_CONTRATACION = {
-        "licitacion_publica": "1",
-        "licitacion_privada": "2",
-        "contratacion_directa": "3",
-        "concurso": "4",
-        "todas": ""
-    }
-
     def __init__(self, config: ScraperConfig):
         super().__init__(config)
-        self.session_initialized = False
-        self.gx_state = {}  # GeneXus state variables
+        self._gxstate_raw = ""  # Raw GXState JSON string from page
+        self._gxstate = {}      # Parsed GXState dict
+        self._cookies = {}
 
-    async def _init_session(self) -> Optional[str]:
-        """Initialize session and get initial page with GeneXus state."""
+    async def _init_session(self) -> bool:
+        """GET initial page to establish session and extract GXState."""
         try:
-            html = await self.fetch_page(self.BASE_URL)
-            if html:
-                self._parse_gx_state(html)
-                self.session_initialized = True
-                logger.info("Session initialized successfully")
-            return html
+            async with self.session.get(self.BASE_URL, ssl=False) as resp:
+                if resp.status != 200:
+                    logger.error(f"Init failed: HTTP {resp.status}")
+                    return False
+                raw = await resp.read()
+                html = raw.decode("utf-8", errors="replace")
+
+            soup = BeautifulSoup(html, "html.parser")
+            gxstate_input = soup.find("input", {"name": "GXState"})
+            if not gxstate_input or not gxstate_input.get("value"):
+                logger.error("No GXState found in initial page")
+                return False
+
+            self._gxstate_raw = gxstate_input["value"]
+            try:
+                self._gxstate = json.loads(self._gxstate_raw)
+            except json.JSONDecodeError as e:
+                logger.error(f"Failed to parse GXState JSON: {e}")
+                return False
+
+            logger.info("Session initialized, GXState extracted "
+                       f"({len(self._gxstate_raw)} chars)")
+            return True
+
         except Exception as e:
-            logger.error(f"Failed to initialize session: {e}")
-            return None
+            logger.error(f"Session init failed: {e}")
+            return False
 
-    def _parse_gx_state(self, html: str):
-        """Parse GeneXus state variables from HTML."""
-        soup = BeautifulSoup(html, 'html.parser')
+    def _build_search_form(self, anio: int = 2026, estado: str = "T",
+                           cuc: str = "0") -> Dict[str, str]:
+        """Build POST form data for search."""
+        return {
+            "vEJER": str(anio),
+            "vLICNRO": "0",
+            "vLICUCFIL": "0",
+            "vFCHDESDE": "  /  /  ",
+            "vFCHHASTA": "  /  /  ",
+            "vESTFILTRO": estado,
+            "vLICABCONTIPOSEL": "",
+            "vRUBRO": "000000",
+            "vLICUC": cuc,
+            "vFINANSEL": "",
+            "_EventName": "EENTER.",
+            "GXState": self._gxstate_raw,
+        }
 
-        # Find all hidden inputs that are part of GeneXus state
-        for inp in soup.find_all('input', {'type': 'hidden'}):
-            name = inp.get('name', '')
-            value = inp.get('value', '')
-            if name:
-                self.gx_state[name] = value
+    def _build_page_form(self, page_offset: int) -> Dict[str, str]:
+        """Build POST form data for pagination."""
+        # Update the GXState with new page offset
+        gxstate = dict(self._gxstate)
+        gxstate["LICITACIONES_nFirstRecordOnPage"] = page_offset
+        gxstate_raw = json.dumps(gxstate, separators=(",", ":"))
 
-        # Also look for GeneXus-specific state in meta tags or scripts
-        for script in soup.find_all('script'):
-            text = script.string or ''
-            # Look for gx.evt.setGridId or similar patterns
-            gx_matches = re.findall(r"gx\.(?:O|evt)\.(set\w+|ajax)\(['\"]([^'\"]+)['\"]", text)
-            for match in gx_matches:
-                if len(match) >= 2:
-                    self.gx_state[f'_gx_{match[0]}'] = match[1]
+        return {
+            "vEJER": str(self._search_anio),
+            "vLICNRO": "0",
+            "vLICUCFIL": "0",
+            "vFCHDESDE": "  /  /  ",
+            "vFCHHASTA": "  /  /  ",
+            "vESTFILTRO": self._search_estado,
+            "vLICABCONTIPOSEL": "",
+            "vRUBRO": "000000",
+            "vLICUC": self._search_cuc,
+            "vFINANSEL": "",
+            "_EventName": "",
+            "GXState": gxstate_raw,
+        }
 
-    def _build_search_params(self,
-                              anio_fiscal: Optional[int] = None,
-                              nro_licitacion: Optional[str] = None,
-                              cuc: Optional[str] = None,
-                              fecha_desde: Optional[datetime] = None,
-                              fecha_hasta: Optional[datetime] = None,
-                              estado: str = "vigentes",
-                              tipo_contratacion: str = "todas") -> Dict[str, str]:
-        """Build search parameters for the GeneXus form."""
-        params = dict(self.gx_state)  # Start with GeneXus state
-
-        # Current year if not specified
-        if anio_fiscal is None:
-            anio_fiscal = datetime.now().year
-
-        params['WAnioFiscal'] = str(anio_fiscal)
-
-        if nro_licitacion:
-            params['WNroLicitacion'] = nro_licitacion
-
-        if cuc:
-            params['WCUC'] = cuc
-
-        if fecha_desde:
-            params['WFecAperDesde'] = fecha_desde.strftime('%d/%m/%Y')
-
-        if fecha_hasta:
-            params['WFecAperHasta'] = fecha_hasta.strftime('%d/%m/%Y')
-
-        params['WEstado'] = self.ESTADOS.get(estado, "")
-        params['WTipoContratacion'] = self.TIPOS_CONTRATACION.get(tipo_contratacion, "")
-
-        # GeneXus event for search
-        params['BUTTON1'] = 'Buscar'
-
-        return params
-
-    async def _do_search(self, params: Dict[str, str]) -> Optional[str]:
-        """Execute search with given parameters."""
+    async def _post_search(self, form_data: Dict[str, str]) -> Optional[str]:
+        """Execute a POST search and return HTML."""
         try:
             async with self.session.post(
                 self.BASE_URL,
-                data=params,
+                data=form_data,
                 headers={
-                    'Content-Type': 'application/x-www-form-urlencoded',
-                    'Referer': self.BASE_URL
-                }
-            ) as response:
-                if response.status == 200:
-                    html = await response.text()
-                    self._parse_gx_state(html)  # Update state
-                    return html
-                else:
-                    logger.error(f"Search failed with status {response.status}")
+                    "Content-Type": "application/x-www-form-urlencoded",
+                    "Referer": self.BASE_URL,
+                },
+                ssl=False,
+            ) as resp:
+                if resp.status != 200:
+                    logger.error(f"POST failed: HTTP {resp.status}")
                     return None
+                raw = await resp.read()
+                html = raw.decode("utf-8", errors="replace")
+
+                # Update GXState from response for pagination
+                soup = BeautifulSoup(html, "html.parser")
+                gxstate_input = soup.find("input", {"name": "GXState"})
+                if gxstate_input and gxstate_input.get("value"):
+                    self._gxstate_raw = gxstate_input["value"]
+                    try:
+                        self._gxstate = json.loads(self._gxstate_raw)
+                    except json.JSONDecodeError:
+                        pass
+
+                return html
         except Exception as e:
-            logger.error(f"Search request failed: {e}")
+            logger.error(f"POST search failed: {e}")
             return None
 
-    def _extract_results_from_table(self, html: str) -> List[Dict[str, Any]]:
-        """Extract bidding results from the HTML table."""
-        soup = BeautifulSoup(html, 'html.parser')
-        results = []
+    def _extract_grid_data(self, html: str) -> List[List[Any]]:
+        """Extract grid rows from LicitacionesContainerDataV hidden input."""
+        soup = BeautifulSoup(html, "html.parser")
 
-        # GeneXus typically uses specific table IDs or classes
-        # Common patterns: GridContainer, gxGridMain, or by name pattern
-        table = None
+        # Primary: look for LicitacionesContainerDataV hidden input
+        container = soup.find("input", {"name": "LicitacionesContainerDataV"})
+        if container and container.get("value"):
+            try:
+                data = json.loads(container["value"])
+                if isinstance(data, list):
+                    logger.info(f"Extracted {len(data)} rows from LicitacionesContainerDataV")
+                    return data
+            except json.JSONDecodeError as e:
+                logger.warning(f"Failed to parse grid JSON: {e}")
 
-        # Try various table identifiers
-        table_patterns = [
-            {'class_': re.compile(r'Grid|gx-grid', re.I)},
-            {'id': re.compile(r'Grid|Table', re.I)},
-            {'class_': 'WorkWith'},
-        ]
-
-        for pattern in table_patterns:
-            table = soup.find('table', pattern)
-            if table:
-                break
-
-        if not table:
-            # Fallback: find any table with data rows
-            tables = soup.find_all('table')
-            for t in tables:
-                rows = t.find_all('tr')
-                if len(rows) > 2:  # Header + at least one data row
-                    table = t
-                    break
-
-        if not table:
-            logger.warning("No results table found in HTML")
-            return results
-
-        rows = table.find_all('tr')
-
-        # Determine header row
-        headers = []
-        header_row = rows[0] if rows else None
-        if header_row:
-            header_cells = header_row.find_all(['th', 'td'])
-            headers = [cell.get_text(' ', strip=True).lower() for cell in header_cells]
-
-        # Map common header names to our fields
-        header_map = {}
-        header_patterns = {
-            'numero': ['nro', 'número', 'numero', 'n°', '#'],
-            'titulo': ['objeto', 'descripción', 'descripcion', 'titulo', 'título'],
-            'tipo': ['tipo', 'procedimiento'],
-            'fecha_apertura': ['apertura', 'fecha apertura', 'fec. apert'],
-            'estado': ['estado', 'situación', 'situacion'],
-            'organismo': ['organismo', 'entidad', 'repartición', 'reparticion'],
-            'monto': ['monto', 'presupuesto', 'importe'],
-            'cuc': ['cuc', 'código único', 'codigo unico'],
-        }
-
-        for idx, header in enumerate(headers):
-            header_lower = header.lower()
-            for field, patterns in header_patterns.items():
-                if any(p in header_lower for p in patterns):
-                    header_map[field] = idx
-                    break
-
-        # Parse data rows
-        for row in rows[1:]:  # Skip header
-            cells = row.find_all('td')
-            if len(cells) < 3:  # Need at least 3 columns
-                continue
-
-            result = {}
-
-            # Extract by mapped headers
-            for field, idx in header_map.items():
-                if idx < len(cells):
-                    result[field] = cells[idx].get_text(' ', strip=True)
-
-            # If no mapping, try positional extraction
-            if not result.get('numero'):
-                result['numero'] = cells[0].get_text(' ', strip=True) if len(cells) > 0 else ''
-            if not result.get('titulo'):
-                # Title is usually the longest text cell
-                texts = [(i, len(c.get_text(' ', strip=True))) for i, c in enumerate(cells)]
-                texts.sort(key=lambda x: x[1], reverse=True)
-                if texts:
-                    result['titulo'] = cells[texts[0][0]].get_text(' ', strip=True)
-
-            # Extract link to detail page
-            detail_link = None
-            for cell in cells:
-                link = cell.find('a', href=True)
-                if link:
-                    href = link.get('href', '')
-                    if href and not href.startswith('javascript:'):
-                        detail_link = urljoin(self.BASE_URL, href)
-                        break
-                    # Check for JavaScript click handler
-                    onclick = link.get('onclick', '')
-                    if onclick:
-                        result['_onclick'] = onclick
-
-            if detail_link:
-                result['detail_url'] = detail_link
-
-            # Extract any postback targets
-            for cell in cells:
-                link = cell.find('a', href=True)
-                if link:
-                    href = link.get('href', '')
-                    # GeneXus postback pattern
-                    m = re.search(r"javascript:gx\.evt\.click\('([^']+)'", href)
-                    if m:
-                        result['_gx_target'] = m.group(1)
-                        break
-
-            if result.get('numero') or result.get('titulo'):
-                results.append(result)
-
-        logger.info(f"Extracted {len(results)} results from table")
-        return results
-
-    def _extract_pagination_info(self, html: str) -> Dict[str, Any]:
-        """Extract pagination information from HTML."""
-        soup = BeautifulSoup(html, 'html.parser')
-
-        pagination = {
-            'current_page': 1,
-            'total_pages': 1,
-            'has_next': False,
-            'has_prev': False,
-            'page_links': []
-        }
-
-        # Look for pagination elements
-        # GeneXus patterns: gx-grid-paging, Pager, pagination
-        pager = soup.find(['div', 'span', 'td'], class_=re.compile(r'pag|Pager', re.I))
-        if not pager:
-            pager = soup.find(['div', 'span', 'td'], id=re.compile(r'pag|Pager', re.I))
-
-        if pager:
-            # Find page links
-            links = pager.find_all('a', href=True)
-            for link in links:
-                text = link.get_text(' ', strip=True)
-                href = link.get('href', '')
-
-                if text.isdigit():
-                    pagination['page_links'].append({
-                        'page': int(text),
-                        'href': href
-                    })
-                elif '>' in text or 'siguiente' in text.lower():
-                    pagination['has_next'] = True
-                elif '<' in text or 'anterior' in text.lower():
-                    pagination['has_prev'] = True
-
-            # Find current page (usually highlighted differently)
-            current = pager.find(['span', 'b', 'strong'], string=re.compile(r'^\d+$'))
-            if current:
+        # Fallback: try to find grid data in any hidden input with JSON array
+        for inp in soup.find_all("input", {"type": "hidden"}):
+            val = inp.get("value", "")
+            if val.startswith("[[") and len(val) > 50:
                 try:
-                    pagination['current_page'] = int(current.get_text(strip=True))
-                except ValueError:
-                    pass
-
-            if pagination['page_links']:
-                pagination['total_pages'] = max(p['page'] for p in pagination['page_links'])
-
-        return pagination
-
-    async def _fetch_detail(self, result: Dict[str, Any]) -> Dict[str, Any]:
-        """Fetch and parse detail page for a result."""
-        detail = {}
-
-        # Try direct URL first
-        if result.get('detail_url'):
-            html = await self.fetch_page(result['detail_url'])
-            if html:
-                detail = self._parse_detail_page(html)
-                detail['_source_url'] = result['detail_url']
-
-        # If no URL, try GeneXus postback
-        elif result.get('_gx_target'):
-            params = dict(self.gx_state)
-            params['gxEvent'] = result['_gx_target']
-            html = await self._do_search(params)
-            if html:
-                detail = self._parse_detail_page(html)
-
-        return detail
-
-    def _parse_detail_page(self, html: str) -> Dict[str, Any]:
-        """Parse detail information from a licitacion detail page."""
-        soup = BeautifulSoup(html, 'html.parser')
-        detail = {}
-
-        # GeneXus pages often use label/value pairs in forms or divs
-
-        # Pattern 1: Label-Value in form groups
-        for label in soup.find_all(['label', 'span', 'td'], class_=re.compile(r'label|caption', re.I)):
-            key = label.get_text(' ', strip=True).rstrip(':')
-            if not key or len(key) < 2:
-                continue
-
-            # Find adjacent value element
-            value_elem = label.find_next_sibling()
-            if value_elem:
-                value = value_elem.get_text(' ', strip=True)
-                if value:
-                    detail[key] = value
-
-        # Pattern 2: Definition lists
-        for dt in soup.find_all('dt'):
-            key = dt.get_text(' ', strip=True).rstrip(':')
-            dd = dt.find_next_sibling('dd')
-            if dd and key:
-                value = dd.get_text(' ', strip=True)
-                if value:
-                    detail[key] = value
-
-        # Pattern 3: Table rows with label in first cell
-        for row in soup.find_all('tr'):
-            cells = row.find_all('td')
-            if len(cells) >= 2:
-                key = cells[0].get_text(' ', strip=True).rstrip(':')
-                value = cells[1].get_text(' ', strip=True)
-                if key and value and len(key) < 50:
-                    detail[key] = value
-
-        # Extract attached files
-        attached_files = []
-        for a in soup.find_all('a', href=True):
-            href = a.get('href', '')
-            if any(ext in href.lower() for ext in ['.pdf', '.doc', '.docx', '.xls', '.xlsx', '.zip']):
-                attached_files.append({
-                    'name': a.get_text(' ', strip=True) or href.split('/')[-1],
-                    'url': urljoin(self.BASE_URL, href),
-                    'type': href.split('.')[-1].lower() if '.' in href else 'unknown'
-                })
-
-        if attached_files:
-            detail['_attached_files'] = attached_files
-
-        return detail
-
-    def _create_licitacion(self, result: Dict[str, Any], detail: Dict[str, Any]) -> LicitacionCreate:
-        """Create a LicitacionCreate object from extracted data."""
-
-        # Map fields with fallbacks
-        title = (
-            detail.get('Objeto de la contratación') or
-            detail.get('Objeto') or
-            result.get('titulo') or
-            result.get('numero', 'Proceso de compra')
-        )
-
-        organization = (
-            detail.get('Organismo') or
-            detail.get('Repartición') or
-            detail.get('Entidad') or
-            result.get('organismo') or
-            'Gobierno de Mendoza'
-        )
-
-        numero = result.get('numero') or detail.get('Número') or detail.get('Nro. Licitación')
-
-        description = (
-            detail.get('Descripción') or
-            detail.get('Objeto de la contratación') or
-            title
-        )
-
-        # Parse dates
-        fecha_apertura_raw = result.get('fecha_apertura') or detail.get('Fecha de Apertura')
-        opening_date = parse_date_guess(fecha_apertura_raw) if fecha_apertura_raw else None
-
-        fecha_pub_raw = detail.get('Fecha de Publicación') or detail.get('Fecha Publicación')
-        publication_date = parse_date_guess(fecha_pub_raw) if fecha_pub_raw else opening_date or datetime.utcnow()
-
-        # Type and status
-        tipo = result.get('tipo') or detail.get('Tipo de Contratación') or 'Proceso de compra'
-        estado = result.get('estado') or detail.get('Estado') or 'active'
-
-        # Status mapping
-        status = 'active'
-        if estado:
-            estado_lower = estado.lower()
-            if 'adjudicad' in estado_lower:
-                status = 'awarded'
-            elif 'cerrad' in estado_lower or 'finaliz' in estado_lower:
-                status = 'closed'
-            elif 'cancelad' in estado_lower or 'desierto' in estado_lower:
-                status = 'cancelled'
-
-        # Source URL - prefer detail URL if available
-        source_url = (
-            detail.get('_source_url') or
-            result.get('detail_url') or
-            self.BASE_URL
-        )
-
-        # Content hash for deduplication
-        content_hash = hashlib.md5(
-            f"{title.lower().strip()}|{organization}|{publication_date.strftime('%Y%m%d')}".encode()
-        ).hexdigest()
-
-        # ID
-        id_licitacion = numero or result.get('cuc') or str(uuid.uuid4())
-
-        # Budget/Amount
-        monto_raw = result.get('monto') or detail.get('Monto') or detail.get('Presupuesto Oficial')
-        budget = None
-        currency = 'ARS'
-        if monto_raw:
-            # Try to extract numeric value
-            m = re.search(r'[\d.,]+', monto_raw.replace('.', '').replace(',', '.'))
-            if m:
-                try:
-                    budget = float(m.group())
-                except ValueError:
-                    pass
-            if 'USD' in monto_raw.upper() or 'U\$S' in monto_raw.upper():
-                currency = 'USD'
-
-        # Build metadata
-        metadata = {
-            'comprasapps_raw': result,
-            'comprasapps_detail': detail,
-            'comprasapps_cuc': result.get('cuc'),
-        }
-
-        # Attached files
-        attached_files = detail.get('_attached_files', [])
-
-        return LicitacionCreate(
-            title=title,
-            organization=organization,
-            publication_date=publication_date,
-            opening_date=opening_date,
-            expedient_number=detail.get('Expediente') or detail.get('Número Expediente'),
-            licitacion_number=numero,
-            description=description,
-            contact=detail.get('Contacto') or detail.get('Consultas'),
-            source_url=source_url,
-            canonical_url=source_url,
-            source_urls={'comprasapps': source_url},
-            url_quality='direct' if result.get('detail_url') else 'partial',
-            content_hash=content_hash,
-            status=status,
-            location='Mendoza',
-            attached_files=attached_files,
-            id_licitacion=id_licitacion,
-            jurisdiccion='Mendoza',
-            tipo_procedimiento=tipo,
-            tipo_acceso='ComprasApps',
-            fecha_scraping=datetime.utcnow(),
-            fuente='ComprasApps Mendoza',
-            currency=currency,
-            budget=budget,
-            metadata=metadata,
-        )
-
-    async def run(self) -> List[LicitacionCreate]:
-        """Execute the scraper and return list of licitaciones."""
-        await self.setup()
-        try:
-            licitaciones: List[LicitacionCreate] = []
-
-            logger.info("Starting ComprasApps Mendoza scraper")
-
-            # Initialize session
-            init_html = await self._init_session()
-            if not init_html:
-                logger.error("Failed to initialize session - site may be inaccessible from this network")
-                return []
-
-            # Get search parameters from config
-            selectors = self.config.selectors or {}
-            anio_fiscal = selectors.get('anio_fiscal')
-            estado = selectors.get('estado', 'vigentes')
-            tipo_contratacion = selectors.get('tipo_contratacion', 'todas')
-            max_pages = int(selectors.get('max_pages', 10))
-            fetch_details = selectors.get('fetch_details', True)
-
-            # Date window from config
-            window_days = int(selectors.get('business_days_window', 30))
-            fecha_desde = datetime.now() - timedelta(days=window_days)
-            fecha_hasta = datetime.now()
-
-            # Build search parameters
-            params = self._build_search_params(
-                anio_fiscal=anio_fiscal,
-                fecha_desde=fecha_desde,
-                fecha_hasta=fecha_hasta,
-                estado=estado,
-                tipo_contratacion=tipo_contratacion
-            )
-
-            logger.info(f"Searching with params: anio={anio_fiscal}, estado={estado}, tipo={tipo_contratacion}")
-
-            # Execute search
-            search_html = await self._do_search(params)
-            if not search_html:
-                logger.error("Search request failed")
-                return []
-
-            # Extract results
-            all_results = []
-            current_page = 1
-
-            results = self._extract_results_from_table(search_html)
-            all_results.extend(results)
-            logger.info(f"Page {current_page}: found {len(results)} results")
-
-            # Handle pagination
-            pagination = self._extract_pagination_info(search_html)
-
-            while pagination['has_next'] and current_page < max_pages:
-                current_page += 1
-
-                # Find next page link
-                next_page = None
-                for pl in pagination['page_links']:
-                    if pl['page'] == current_page:
-                        next_page = pl
-                        break
-
-                if not next_page:
-                    break
-
-                # Navigate to next page
-                await asyncio.sleep(self.config.wait_time)
-
-                # Try to navigate via the page link
-                # GeneXus typically uses JavaScript events
-                if 'gx.evt' in next_page.get('href', ''):
-                    m = re.search(r"gx\.evt\.click\('([^']+)'", next_page['href'])
-                    if m:
-                        nav_params = dict(self.gx_state)
-                        nav_params['gxEvent'] = m.group(1)
-                        page_html = await self._do_search(nav_params)
-                        if page_html:
-                            results = self._extract_results_from_table(page_html)
-                            all_results.extend(results)
-                            logger.info(f"Page {current_page}: found {len(results)} results")
-                            pagination = self._extract_pagination_info(page_html)
-                        else:
-                            break
-                else:
-                    break
-
-            logger.info(f"Total results found: {len(all_results)}")
-
-            # Fetch details and create licitaciones
-            seen_ids = set()
-
-            for idx, result in enumerate(all_results):
-                try:
-                    # Fetch detail if configured
-                    detail = {}
-                    if fetch_details and (result.get('detail_url') or result.get('_gx_target')):
-                        await asyncio.sleep(self.config.wait_time)
-                        detail = await self._fetch_detail(result)
-                        if idx < 3:
-                            logger.info(f"Fetched detail for {result.get('numero', 'unknown')}")
-
-                    # Create licitacion
-                    lic = self._create_licitacion(result, detail)
-
-                    if lic.id_licitacion not in seen_ids:
-                        licitaciones.append(lic)
-                        seen_ids.add(lic.id_licitacion)
-
-                    if self.config.max_items and len(licitaciones) >= self.config.max_items:
-                        break
-
-                except Exception as e:
-                    logger.error(f"Error processing result {idx}: {e}")
+                    data = json.loads(val)
+                    if isinstance(data, list) and len(data) > 0:
+                        logger.info(f"Extracted {len(data)} rows from {inp.get('name', 'unknown')}")
+                        return data
+                except json.JSONDecodeError:
                     continue
 
-            # Sort by publication date
+        # Last fallback: parse HTML table
+        return self._extract_from_html_table(soup)
+
+    def _extract_from_html_table(self, soup: BeautifulSoup) -> List[List[Any]]:
+        """Fallback: extract data from HTML table rows."""
+        rows = []
+        # Look for table with licitacion data
+        for table in soup.find_all("table"):
+            trs = table.find_all("tr")
+            if len(trs) < 2:
+                continue
+            for tr in trs[1:]:  # skip header
+                cells = tr.find_all("td")
+                if len(cells) >= 6:
+                    row_data = [c.get_text(" ", strip=True) for c in cells]
+                    # Pad to expected length
+                    while len(row_data) < 21:
+                        row_data.append("")
+                    rows.append(row_data)
+        if rows:
+            logger.info(f"Extracted {len(rows)} rows from HTML table fallback")
+        return rows
+
+    def _row_to_licitacion(self, row: List[Any]) -> Optional[LicitacionCreate]:
+        """Convert a grid row to a LicitacionCreate object."""
+        try:
+            # Safe accessor
+            def col(idx, default=""):
+                return str(row[idx]).strip() if idx < len(row) and row[idx] else default
+
+            numero = col(COL_NUMERO)
+            if not numero or numero == "0":
+                return None
+
+            tipo = col(COL_TIPO, "Proceso de compra")
+            org_name = col(COL_ORG_NAME) or col(COL_ORG_NAME2)
+            apertura_date = col(COL_APERTURA_DATE)
+            apertura_time = col(COL_APERTURA_TIME)
+            estado = col(COL_ESTADO, "Vigente")
+            titulo = col(COL_TITULO_FULL) or col(COL_TITULO_SHORT) or numero
+            cuc_code = col(COL_CUC)
+
+            # Resolve organization name from CUC mapping
+            if not org_name and cuc_code:
+                org_name = CUC_NAMES.get(cuc_code, f"CUC {cuc_code}")
+            organization = org_name or "Gobierno de Mendoza"
+
+            # Parse opening date
+            opening_date = None
+            if apertura_date and apertura_date.strip() not in ("", "/  /"):
+                date_str = apertura_date
+                if apertura_time and apertura_time.strip():
+                    # Normalize time variants from ComprasApps:
+                    # "08;00"→"08:00", "09.00"→"09:00", "10"→"10:00",
+                    # "09:"→"09:00", "9HS"→"09:00"
+                    t = apertura_time.strip()
+                    t = re.sub(r"[hHsS]+$", "", t).strip()  # strip HS suffix
+                    t = t.replace(";", ":").replace(".", ":")
+                    t = t.rstrip(":")  # trailing colon
+                    if re.match(r"^\d{1,2}$", t):
+                        t = f"{t}:00"
+                    elif re.match(r"^\d{3,4}$", t):
+                        # "1000" → "10:00", "900" → "9:00"
+                        t = f"{t[:-2]}:{t[-2:]}"
+                    date_str = f"{apertura_date} {t}"
+                opening_date = parse_date_guess(date_str)
+
+            # Publication date defaults to opening date or now
+            publication_date = opening_date or datetime.utcnow()
+
+            # Status mapping
+            status = "active"
+            if estado:
+                e_lower = estado.lower()
+                if "adjudic" in e_lower:
+                    status = "awarded"
+                elif "sin efecto" in e_lower or "desiert" in e_lower:
+                    status = "cancelled"
+                elif "proceso" in e_lower or "tramit" in e_lower:
+                    status = "active"
+
+            # Content hash for deduplication
+            content_hash = hashlib.md5(
+                f"{titulo.lower().strip()}|{organization}|{numero}".encode()
+            ).hexdigest()
+
+            # Extract CUC from process number if not in column
+            # Format: "3/2026-616" → CUC 616
+            if not cuc_code:
+                m = re.search(r"-(\d{3})$", numero)
+                if m:
+                    cuc_code = m.group(1)
+
+            # Build metadata
+            metadata = {
+                "comprasapps_numero": numero,
+                "comprasapps_tipo": tipo,
+                "comprasapps_estado": estado,
+                "comprasapps_cuc": cuc_code,
+                "comprasapps_org": org_name,
+                "comprasapps_apertura_raw": f"{apertura_date} {apertura_time}".strip(),
+            }
+
+            # Determine jurisdiccion from CUC
+            jurisdiccion = "Mendoza"
+            if cuc_code and cuc_code in CUC_NAMES:
+                name = CUC_NAMES[cuc_code]
+                if "Municipalidad de" in name:
+                    jurisdiccion = name.replace("Municipalidad de ", "")
+
+            return LicitacionCreate(
+                title=titulo,
+                organization=organization,
+                publication_date=publication_date,
+                opening_date=opening_date,
+                licitacion_number=numero,
+                description=titulo,
+                source_url=self.BASE_URL,
+                canonical_url=self.BASE_URL,
+                source_urls={"comprasapps": self.BASE_URL},
+                url_quality="partial",
+                content_hash=content_hash,
+                status=status,
+                location="Mendoza",
+                attached_files=[],
+                id_licitacion=numero,
+                jurisdiccion=jurisdiccion,
+                tipo_procedimiento=tipo,
+                tipo_acceso="ComprasApps",
+                fecha_scraping=datetime.utcnow(),
+                fuente="ComprasApps Mendoza",
+                metadata=metadata,
+            )
+        except Exception as e:
+            logger.error(f"Error converting row to licitacion: {e}")
+            return None
+
+    async def run(self) -> List[LicitacionCreate]:
+        """Execute the scraper: fetch all licitaciones from all CUCs."""
+        await self.setup()
+        try:
+            # Initialize session
+            if not await self._init_session():
+                logger.error("Failed to initialize session - "
+                           "site may be inaccessible from this network")
+                return []
+
+            selectors = self.config.selectors or {}
+            current_year = datetime.now().year
+            years_to_search = selectors.get("years", [current_year, current_year - 1])
+            # GeneXus estado filters:
+            #   "V" = Vigente only, "P" = En Proceso only, "A" = Adjudicada only
+            #   "" (empty) returns Vigente on page 1 but BREAKS pagination (always returns page 1)
+            #   "T" only returns En Proceso (NOT "Todas" despite the name)
+            # MUST use explicit filters ["V", "P"] for working pagination.
+            estado_filters = selectors.get("estado_filters", ["V", "P"])
+            cuc = str(selectors.get("cuc_filter", "0"))   # 0=all CUCs
+            max_pages = int(selectors.get("max_pages", 200))
+
+            # Store for pagination
+            self._search_cuc = cuc
+
+            all_rows: List[List[Any]] = []
+            seen_numeros = set()  # Dedup across searches
+
+            for anio in years_to_search:
+                anio = int(anio)
+                for estado in estado_filters:
+                    self._search_anio = anio
+                    self._search_estado = estado
+                    estado_label = estado or "(Vigente/empty)"
+                    logger.info(f"Searching year {anio}, estado={estado_label}, cuc={cuc}")
+
+                    # Re-initialize session for each search to get fresh GXState
+                    if not await self._init_session():
+                        logger.warning(f"Session init failed for {anio}/{estado_label}")
+                        continue
+
+                    form_data = self._build_search_form(
+                        anio=anio, estado=estado, cuc=cuc)
+                    search_html = await self._post_search(form_data)
+                    if not search_html:
+                        logger.warning(f"Search failed for {anio}/{estado_label}")
+                        continue
+
+                    page = 1
+                    search_rows = 0
+                    consecutive_stale = 0  # Pages with 0 new rows
+                    MAX_STALE_PAGES = 3    # Stop after N consecutive stale pages
+
+                    while True:
+                        rows = self._extract_grid_data(search_html)
+                        if not rows:
+                            break
+
+                        # Dedup: skip rows we've already seen
+                        new_rows = []
+                        for row in rows:
+                            num = str(row[0]).strip() if len(row) > 0 else ""
+                            if num and num not in seen_numeros:
+                                seen_numeros.add(num)
+                                new_rows.append(row)
+
+                        all_rows.extend(new_rows)
+                        search_rows += len(new_rows)
+                        logger.info(f"  {anio}/{estado_label} p{page}: "
+                                   f"{len(rows)} rows ({len(new_rows)} new, "
+                                   f"total: {len(all_rows)})")
+
+                        # Early stop: if pagination loops (returns same rows)
+                        if len(new_rows) == 0:
+                            consecutive_stale += 1
+                            if consecutive_stale >= MAX_STALE_PAGES:
+                                logger.warning(f"  Stopping: {MAX_STALE_PAGES} "
+                                             f"consecutive pages with 0 new rows")
+                                break
+                        else:
+                            consecutive_stale = 0
+
+                        if len(rows) < ROWS_PER_PAGE or page >= max_pages:
+                            break
+
+                        page += 1
+                        page_offset = (page - 1) * ROWS_PER_PAGE
+                        await asyncio.sleep(self.config.wait_time)
+
+                        page_form = self._build_page_form(page_offset)
+                        search_html = await self._post_search(page_form)
+                        if not search_html:
+                            break
+
+                    logger.info(f"  {anio}/{estado_label}: {search_rows} unique rows")
+
+            logger.info(f"Total rows extracted: {len(all_rows)}")
+
+            # Convert rows to licitaciones
+            licitaciones: List[LicitacionCreate] = []
+            seen_ids = set()
+
+            for row in all_rows:
+                lic = self._row_to_licitacion(row)
+                if not lic:
+                    continue
+
+                if lic.id_licitacion in seen_ids:
+                    continue
+                seen_ids.add(lic.id_licitacion)
+
+                licitaciones.append(lic)
+
+                if self.config.max_items and len(licitaciones) >= self.config.max_items:
+                    break
+
+            # Sort by publication date (newest first)
             licitaciones.sort(key=lambda l: l.publication_date, reverse=True)
 
-            logger.info(f"Scraper complete. Total licitaciones: {len(licitaciones)}")
+            # Log CUC distribution
+            cuc_counts: Dict[str, int] = {}
+            for lic in licitaciones:
+                cuc_key = lic.metadata.get("comprasapps_cuc", "unknown") if lic.metadata else "unknown"
+                cuc_counts[cuc_key] = cuc_counts.get(cuc_key, 0) + 1
+
+            logger.info(f"Scraper complete. Total: {len(licitaciones)}, "
+                       f"CUC distribution: {dict(sorted(cuc_counts.items(), key=lambda x: -x[1]))}")
+
             return licitaciones
 
         except Exception as e:
-            logger.error(f"Scraper failed: {e}")
+            logger.error(f"Scraper failed: {e}", exc_info=True)
             return []
         finally:
             await self.cleanup()
 
     async def extract_licitacion_data(self, html: str, url: str) -> Optional[LicitacionCreate]:
-        """Extract licitacion data from HTML - used for single page extraction."""
-        detail = self._parse_detail_page(html)
-        if detail:
-            result = {'detail_url': url}
-            return self._create_licitacion(result, detail)
+        """Not used - this scraper overrides run() directly."""
         return None
 
     async def extract_links(self, html: str) -> List[str]:
-        """Extract links to licitacion pages."""
-        soup = BeautifulSoup(html, 'html.parser')
-        links = []
-
-        for a in soup.find_all('a', href=True):
-            href = a.get('href', '')
-            if href and not href.startswith('javascript:') and 'hli' in href:
-                links.append(urljoin(self.BASE_URL, href))
-
-        return list(dict.fromkeys(links))
+        """Not used - this scraper overrides run() directly."""
+        return []
 
     async def get_next_page_url(self, html: str, current_url: str) -> Optional[str]:
-        """Get the URL of the next page for pagination."""
-        pagination = self._extract_pagination_info(html)
-
-        if pagination['has_next']:
-            for pl in pagination['page_links']:
-                if pl['page'] == pagination['current_page'] + 1:
-                    href = pl.get('href', '')
-                    if href and not href.startswith('javascript:'):
-                        return urljoin(current_url, href)
-
+        """Not used - pagination handled in run()."""
         return None

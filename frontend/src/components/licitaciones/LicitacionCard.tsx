@@ -2,8 +2,9 @@ import React, { useCallback } from 'react';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
 import WorkflowBadge from '../WorkflowBadge';
-import type { Licitacion, SortField } from '../../types/licitacion';
-import { getDaysUntilOpening, getUrgencyColor, formatFechaScraping, shareViaEmail, shareViaWhatsApp, copyLink, highlightMatches } from '../../utils/formatting';
+import type { Licitacion, SortField, Nodo } from '../../types/licitacion';
+import NodoBadge from '../nodos/NodoBadge';
+import { getDaysUntilOpening, getUrgencyColor, formatFechaScraping, parseUTCDate, shareViaEmail, shareViaWhatsApp, copyLink, highlightMatches } from '../../utils/formatting';
 
 interface LicitacionCardProps {
   lic: Licitacion;
@@ -15,10 +16,11 @@ interface LicitacionCardProps {
   onToggleFavorite: (id: string, e: React.MouseEvent) => void;
   onRowClick: (id: string) => void;
   searchQuery?: string;
+  nodoMap?: Record<string, Nodo>;
 }
 
 const LicitacionCard: React.FC<LicitacionCardProps> = ({
-  lic, sortBy, isFavorite, isNew, isCritical, isUrgent, onToggleFavorite, onRowClick, searchQuery,
+  lic, sortBy, isFavorite, isNew, isCritical, isUrgent, onToggleFavorite, onRowClick, searchQuery, nodoMap,
 }) => {
   const daysUntil = getDaysUntilOpening(lic.opening_date);
   const urgencyClass = getUrgencyColor(daysUntil);
@@ -38,7 +40,9 @@ const LicitacionCard: React.FC<LicitacionCardProps> = ({
         {/* Adaptive Date Column */}
         <div className={`hidden lg:flex lg:w-28 flex-shrink-0 p-4 flex-col items-center justify-center lg:border-r border-gray-100 ${
           sortBy === 'budget'
-            ? lic.budget != null && lic.budget > 0 ? 'bg-green-50' : 'bg-gray-50'
+            ? lic.budget != null && lic.budget > 0
+              ? lic.metadata?.budget_source === 'estimated_from_pliego' ? 'bg-amber-50' : 'bg-green-50'
+              : 'bg-gray-50'
             : sortBy === 'opening_date' && daysUntil !== null
             ? urgencyClass
             : sortBy === 'opening_date' && daysUntil === null
@@ -50,10 +54,10 @@ const LicitacionCard: React.FC<LicitacionCardProps> = ({
           {sortBy === 'budget' ? (
             lic.budget != null && lic.budget > 0 ? (
               <>
-                <span className="text-[10px] font-bold text-green-600 uppercase">
-                  {lic.currency === 'USD' ? 'US$' : 'ARS'}
+                <span className={`text-[10px] font-bold uppercase ${lic.metadata?.budget_source === 'estimated_from_pliego' ? 'text-amber-600' : 'text-green-600'}`}>
+                  {lic.metadata?.budget_source === 'estimated_from_pliego' ? '~' : ''}{lic.currency === 'USD' ? 'US$' : 'ARS'}
                 </span>
-                <span className="text-lg font-black text-green-800 leading-tight">
+                <span className={`text-lg font-black leading-tight ${lic.metadata?.budget_source === 'estimated_from_pliego' ? 'text-amber-800' : 'text-green-800'}`}>
                   {lic.budget >= 1_000_000
                     ? `${(lic.budget / 1_000_000).toFixed(1)}M`
                     : lic.budget >= 1_000
@@ -88,13 +92,13 @@ const LicitacionCard: React.FC<LicitacionCardProps> = ({
               <>
                 <span className="text-[10px] font-bold text-violet-600 uppercase">Indexado</span>
                 <span className="text-lg font-black text-violet-800">
-                  {format(new Date(lic.fecha_scraping), 'd', { locale: es })}
+                  {format(parseUTCDate(lic.fecha_scraping), 'd', { locale: es })}
                 </span>
                 <span className="text-xs font-bold text-violet-600 uppercase">
-                  {format(new Date(lic.fecha_scraping), 'MMM', { locale: es })}
+                  {format(parseUTCDate(lic.fecha_scraping), 'MMM', { locale: es })}
                 </span>
                 <span className="text-[10px] text-violet-500">
-                  {format(new Date(lic.fecha_scraping), 'HH:mm', { locale: es })}
+                  {format(parseUTCDate(lic.fecha_scraping), 'HH:mm', { locale: es })}
                 </span>
               </>
             ) : (
@@ -144,6 +148,19 @@ const LicitacionCard: React.FC<LicitacionCardProps> = ({
                 </div>
               )}
 
+              {/* Nodo badges */}
+              {nodoMap && lic.nodos && lic.nodos.length > 0 && (
+                <div className="flex items-center gap-1 mb-1 flex-wrap">
+                  {lic.nodos.slice(0, 2).map(nid => {
+                    const nodo = nodoMap[nid];
+                    return nodo ? <NodoBadge key={nid} name={nodo.name} color={nodo.color} small /> : null;
+                  })}
+                  {lic.nodos.length > 2 && (
+                    <span className="text-[9px] text-gray-400 font-bold">+{lic.nodos.length - 2}</span>
+                  )}
+                </div>
+              )}
+
               {/* Badge: tipo + numero (secondary line) */}
               {(lic.tipo_procedimiento || lic.licitacion_number) && (
                 <div className="flex items-center gap-1.5 mb-1 flex-wrap">
@@ -180,10 +197,18 @@ const LicitacionCard: React.FC<LicitacionCardProps> = ({
 
               {/* Budget */}
               {lic.budget != null && lic.budget > 0 && (
-                <p className="text-sm font-semibold text-green-700 mb-1">
-                  {lic.currency === 'USD' ? 'US$ ' : '$ '}
-                  {lic.budget.toLocaleString('es-AR', { minimumFractionDigits: 0, maximumFractionDigits: 2 })}
-                </p>
+                <div className="flex items-center gap-1.5 mb-1">
+                  <p className={`text-sm font-semibold ${lic.metadata?.budget_source === 'estimated_from_pliego' ? 'text-amber-700' : 'text-green-700'}`}>
+                    {lic.metadata?.budget_source === 'estimated_from_pliego' ? '~' : ''}
+                    {lic.currency === 'USD' ? 'US$ ' : '$ '}
+                    {lic.budget.toLocaleString('es-AR', { minimumFractionDigits: 0, maximumFractionDigits: 2 })}
+                  </p>
+                  {lic.metadata?.budget_source === 'estimated_from_pliego' && (
+                    <span className="text-[9px] font-bold px-1.5 py-0.5 bg-amber-100 text-amber-700 rounded uppercase">
+                      Proyectado
+                    </span>
+                  )}
+                </div>
               )}
 
               {/* Description (only if it adds info beyond the heading) */}

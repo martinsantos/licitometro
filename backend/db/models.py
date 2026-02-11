@@ -108,6 +108,8 @@ def licitacion_entity(licitacion) -> dict:
         # Public sharing
         "is_public": licitacion.get("is_public", False),
         "public_slug": licitacion.get("public_slug"),
+        # Nodos
+        "nodos": licitacion.get("nodos", []),
         # Timestamps
         "created_at": licitacion.get("created_at", datetime.utcnow()),
         "updated_at": licitacion.get("updated_at", datetime.utcnow())
@@ -175,3 +177,25 @@ def offer_application_entity(app) -> dict:
         "created_at": app.get("created_at", datetime.utcnow()),
         "updated_at": app.get("updated_at", datetime.utcnow()),
     }
+
+
+def nodo_entity(nodo) -> dict:
+    """Convert MongoDB nodo document to dict"""
+    return {
+        "id": str(nodo["_id"]),
+        "name": nodo["name"],
+        "slug": nodo.get("slug", ""),
+        "description": nodo.get("description", ""),
+        "color": nodo.get("color", "#3B82F6"),
+        "keyword_groups": nodo.get("keyword_groups", []),
+        "actions": nodo.get("actions", []),
+        "active": nodo.get("active", True),
+        "matched_count": nodo.get("matched_count", 0),
+        "created_at": nodo.get("created_at", datetime.utcnow()),
+        "updated_at": nodo.get("updated_at", datetime.utcnow()),
+    }
+
+
+def nodos_entity(nodos) -> list:
+    """Convert a list of MongoDB nodo documents to a list of dicts"""
+    return [nodo_entity(nodo) for nodo in nodos]

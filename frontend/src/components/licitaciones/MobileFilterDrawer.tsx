@@ -1,6 +1,7 @@
 import React, { useState, useMemo } from 'react';
-import type { FilterState, FilterOptions, SortField, SortOrder } from '../../types/licitacion';
+import type { FilterState, FilterOptions, SortField, SortOrder, Nodo } from '../../types/licitacion';
 import type { FacetData, FacetValue } from '../../hooks/useFacetedFilters';
+import YearSelector from './YearSelector';
 
 // Ensure active filter value always appears in facet list (even when 0 results)
 function ensureActiveValue(facetItems: FacetValue[], activeValue: string): FacetValue[] {
@@ -37,6 +38,7 @@ interface MobileFilterDrawerProps {
   onSortChange?: (sort: SortField) => void;
   onToggleOrder?: () => void;
   fechaCampo: string;
+  nodoMap?: Record<string, Nodo>;
 }
 
 // Collapsible section
@@ -110,7 +112,7 @@ const MobileFilterDrawer: React.FC<MobileFilterDrawerProps> = ({
   isOpen, onClose, filters, onFilterChange, onClearAll,
   filterOptions, activeFilterCount, groupBy, onGroupByChange,
   criticalRubros, onToggleCriticalRubro, facets, totalItems,
-  sortBy, sortOrder, onSortChange, onToggleOrder, fechaCampo,
+  sortBy, sortOrder, onSortChange, onToggleOrder, fechaCampo, nodoMap,
 }) => {
   const [orgSearch, setOrgSearch] = useState('');
 
@@ -125,6 +127,7 @@ const MobileFilterDrawer: React.FC<MobileFilterDrawerProps> = ({
   const workflowItems = useMemo(() => ensureActiveValue(facets?.workflow_state || [], filters.workflowFiltro), [facets?.workflow_state, filters.workflowFiltro]);
   const jurisdiccionItems = useMemo(() => ensureActiveValue(facets?.jurisdiccion || [], filters.jurisdiccionFiltro), [facets?.jurisdiccion, filters.jurisdiccionFiltro]);
   const tipoItems = useMemo(() => ensureActiveValue(facets?.tipo_procedimiento || [], filters.tipoProcedimientoFiltro), [facets?.tipo_procedimiento, filters.tipoProcedimientoFiltro]);
+  const nodoItems = useMemo(() => ensureActiveValue(facets?.nodos || [], filters.nodoFiltro), [facets?.nodos, filters.nodoFiltro]);
 
   const filteredOrgs = useMemo(() => {
     let orgs = ensureActiveValue(facets?.organization || [], filters.organizacionFiltro);
@@ -164,6 +167,15 @@ const MobileFilterDrawer: React.FC<MobileFilterDrawerProps> = ({
 
           {/* Scrollable body */}
           <div className="flex-1 overflow-y-auto p-4 space-y-0">
+            {/* Year workspace */}
+            <div className="pb-3 border-b border-gray-100">
+              <div className="text-xs font-black text-gray-500 uppercase tracking-wider mb-2">Periodo</div>
+              <YearSelector
+                value={filters.yearWorkspace}
+                onChange={(y) => onFilterChange('yearWorkspace', y)}
+              />
+            </div>
+
             {/* Sort */}
             {sortBy && onSortChange && onToggleOrder && (
               <Section title="Ordenar" defaultOpen={true}>
@@ -277,6 +289,24 @@ const MobileFilterDrawer: React.FC<MobileFilterDrawerProps> = ({
                 );
               })}
             </Section>
+
+            {/* Nodos */}
+            {nodoItems.length > 0 && (
+              <Section title="Nodos" defaultOpen={false} badge={filters.nodoFiltro ? 1 : 0}>
+                {nodoItems.map((f: FacetValue) => {
+                  const nodo = nodoMap?.[f.value];
+                  return (
+                    <FacetItem
+                      key={f.value}
+                      label={nodo?.name || f.value.slice(0, 12) + '...'}
+                      count={f.count}
+                      isActive={filters.nodoFiltro === f.value}
+                      onClick={() => toggleFilter('nodoFiltro', f.value)}
+                    />
+                  );
+                })}
+              </Section>
+            )}
 
             {/* Jurisdiccion */}
             <Section title="Jurisdiccion" defaultOpen={false} badge={filters.jurisdiccionFiltro ? 1 : 0}>

@@ -20,8 +20,9 @@ class LicitacionRepository:
         self.collection = db["licitaciones"]
 
     async def ensure_indexes(self):
-        """Create indexes — must be awaited from startup."""
-        await self.collection.create_index([("title", pymongo.TEXT), ("description", pymongo.TEXT)])
+        """Create indexes — must be awaited from startup.
+        NOTE: The text index is managed by scripts/migrate_text_index.py (v3).
+        Do NOT create a text index here — it would overwrite the expanded one."""
         await self.collection.create_index("organization")
         await self.collection.create_index("publication_date")
         await self.collection.create_index("status")
@@ -34,6 +35,7 @@ class LicitacionRepository:
         await self.collection.create_index([("workflow_state", 1), ("opening_date", 1)])
         await self.collection.create_index("created_at")
         await self.collection.create_index("fecha_scraping")
+        await self.collection.create_index("nodos")
     
     async def create(self, licitacion: LicitacionCreate) -> Licitacion:
         """Create a new licitacion with auto-classification"""
@@ -150,16 +152,21 @@ class LicitacionRepository:
         return result.deleted_count > 0
     
     def _build_regex_query(self, query: str, extra_filters: Dict = None) -> Dict:
-        """Build a regex-based search query from text tokens."""
-        import re as _re
+        """Build an accent-agnostic regex search query across all relevant fields."""
+        from utils.text_search import build_accent_regex
+
         tokens = query.strip().split()
-        regex_fields = ["title", "description", "organization", "expedient_number", "licitacion_number"]
+        regex_fields = [
+            "title", "objeto", "description", "organization",
+            "expedient_number", "licitacion_number",
+            "category", "keywords", "jurisdiccion", "fuente",
+        ]
 
         token_conditions = []
         for token in tokens:
-            escaped = _re.escape(token)
+            accent_pattern = build_accent_regex(token)
             field_or = [
-                {field: {"$regex": escaped, "$options": "i"}}
+                {field: {"$regex": accent_pattern, "$options": "i"}}
                 for field in regex_fields
             ]
             token_conditions.append({"$or": field_or})
@@ -175,66 +182,60 @@ class LicitacionRepository:
     async def search(self, query: str, skip: int = 0, limit: int = 100,
                      sort_by: str = "publication_date", sort_order: int = pymongo.DESCENDING,
                      extra_filters: Dict = None) -> List[Licitacion]:
-        """Hybrid search: $text first, then regex fallback for partial matches."""
+        """Hybrid search: $text + accent-agnostic regex, merged and deduped."""
 
         if sort_by not in Licitacion.model_fields and sort_by != "_id":
             sort_by = "publication_date"
 
-        # --- Phase 1: MongoDB $text search (fast, uses index) ---
+        seen_ids = set()
+        combined = []
+        fetch_limit = limit + skip
+
+        # --- Phase 1: MongoDB $text search (fast, indexed, Spanish stemming) ---
         text_query = {"$text": {"$search": query}}
         if extra_filters:
             text_query.update(extra_filters)
-
-        text_results = []
         try:
-            cursor = self.collection.find(text_query).sort(sort_by, sort_order).skip(skip).limit(limit)
-            text_results = await cursor.to_list(length=limit)
+            cursor = self.collection.find(text_query).sort(sort_by, sort_order).limit(fetch_limit)
+            for doc in await cursor.to_list(length=fetch_limit):
+                if doc["_id"] not in seen_ids:
+                    combined.append(doc)
+                    seen_ids.add(doc["_id"])
         except Exception:
             pass
 
-        if len(text_results) >= 3:
-            return licitaciones_entity(text_results)
-
-        # --- Phase 2: Regex fallback for partial/fuzzy matching ---
-        seen_ids = {doc["_id"] for doc in text_results}
+        # --- Phase 2: Regex (accent-agnostic, searches objeto + 9 more fields) ---
         regex_query = self._build_regex_query(query, extra_filters)
-
-        if regex_query:
-            remaining = limit - len(text_results) + skip
-            regex_cursor = self.collection.find(regex_query).sort(sort_by, sort_order).limit(remaining + skip)
-            regex_results = await regex_cursor.to_list(length=remaining + skip)
-
-            for doc in regex_results:
+        if regex_query and len(combined) < fetch_limit:
+            remaining = fetch_limit - len(combined)
+            regex_cursor = self.collection.find(regex_query).sort(sort_by, sort_order).limit(fetch_limit)
+            for doc in await regex_cursor.to_list(length=fetch_limit):
                 if doc["_id"] not in seen_ids:
-                    text_results.append(doc)
+                    combined.append(doc)
                     seen_ids.add(doc["_id"])
+                    if len(combined) >= fetch_limit:
+                        break
 
-        final = text_results[skip:skip + limit] if skip > 0 else text_results[:limit]
-        return licitaciones_entity(final)
+        return licitaciones_entity(combined[skip:skip + limit])
 
     async def search_count(self, query: str, extra_filters: Dict = None) -> int:
-        """Count results for hybrid search."""
-
-        # $text count
-        text_query = {"$text": {"$search": query}}
-        if extra_filters:
-            text_query.update(extra_filters)
+        """Count results for hybrid search (max of $text and regex counts)."""
 
         text_count = 0
         try:
+            text_query = {"$text": {"$search": query}}
+            if extra_filters:
+                text_query.update(extra_filters)
             text_count = await self.collection.count_documents(text_query)
         except Exception:
             pass
 
-        if text_count >= 3:
-            return text_count
-
-        # Regex count
         regex_query = self._build_regex_query(query, extra_filters)
+        regex_count = 0
         if regex_query:
-            return await self.collection.count_documents(regex_query)
+            regex_count = await self.collection.count_documents(regex_query)
 
-        return text_count
+        return max(text_count, regex_count)
     
     async def count(self, filters: Dict = None) -> int:
         """Count licitaciones with optional filtering"""

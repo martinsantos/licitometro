@@ -3,6 +3,20 @@ import { differenceInCalendarDays, format } from 'date-fns';
 import { es } from 'date-fns/locale';
 import type { Licitacion } from '../types/licitacion';
 
+/**
+ * Parse a backend UTC timestamp (fecha_scraping, created_at, updated_at) into a
+ * proper Date object. Backend uses datetime.utcnow() which produces naive ISO
+ * strings like "2026-02-11T10:00:00" without a Z suffix. JS Date() interprets
+ * those as local time, causing a +3h error in Argentina (UTC-3).
+ * Appending 'Z' forces correct UTC interpretation.
+ */
+export const parseUTCDate = (dateStr: string): Date => {
+  if (dateStr && !dateStr.endsWith('Z') && !/[+-]\d{2}:\d{2}$/.test(dateStr)) {
+    return new Date(dateStr + 'Z');
+  }
+  return new Date(dateStr);
+};
+
 export const getDaysUntilOpening = (openingDate: string | null | undefined): number | null => {
   if (!openingDate) return null;
   const opening = new Date(openingDate);
@@ -25,7 +39,7 @@ export const isCriticalRubro = (lic: Licitacion, criticalRubros: Set<string>): b
 export const formatFechaScraping = (dateStr?: string): string | null => {
   if (!dateStr) return null;
   try {
-    return format(new Date(dateStr), 'dd/MM HH:mm', { locale: es });
+    return format(parseUTCDate(dateStr), 'dd/MM HH:mm', { locale: es });
   } catch {
     return null;
   }

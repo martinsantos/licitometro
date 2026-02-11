@@ -14,6 +14,7 @@ export interface FacetData {
   jurisdiccion: FacetValue[];
   tipo_procedimiento: FacetValue[];
   organization: FacetValue[];
+  nodos: FacetValue[];
 }
 
 const EMPTY_FACETS: FacetData = {
@@ -24,6 +25,7 @@ const EMPTY_FACETS: FacetData = {
   jurisdiccion: [],
   tipo_procedimiento: [],
   organization: [],
+  nodos: [],
 };
 
 export function useFacetedFilters(apiUrl: string, filters: FilterState, fechaCampo: string): FacetData {
@@ -49,10 +51,20 @@ export function useFacetedFilters(apiUrl: string, filters: FilterState, fechaCam
       if (filters.jurisdiccionFiltro) params.append('jurisdiccion', filters.jurisdiccionFiltro);
       if (filters.tipoProcedimientoFiltro) params.append('tipo_procedimiento', filters.tipoProcedimientoFiltro);
       if (filters.organizacionFiltro) params.append('organization', filters.organizacionFiltro);
+      if (filters.nodoFiltro) params.append('nodo', filters.nodoFiltro);
       if (filters.budgetMin) params.append('budget_min', filters.budgetMin);
       if (filters.budgetMax) params.append('budget_max', filters.budgetMax);
-      if (filters.fechaDesde) params.append('fecha_desde', filters.fechaDesde);
-      if (filters.fechaHasta) params.append('fecha_hasta', filters.fechaHasta);
+      // Year workspace → fecha_desde/fecha_hasta (only if no explicit date filter)
+      if (filters.fechaDesde) {
+        params.append('fecha_desde', filters.fechaDesde);
+      } else if (filters.yearWorkspace && filters.yearWorkspace !== 'all') {
+        params.append('fecha_desde', `${filters.yearWorkspace}-01-01`);
+      }
+      if (filters.fechaHasta) {
+        params.append('fecha_hasta', filters.fechaHasta);
+      } else if (filters.yearWorkspace && filters.yearWorkspace !== 'all') {
+        params.append('fecha_hasta', `${filters.yearWorkspace}-12-31`);
+      }
       if (fechaCampo) params.append('fecha_campo', fechaCampo);
 
       fetch(`${apiUrl}/api/licitaciones/facets?${params}`, { signal: controller.signal, credentials: 'include' })

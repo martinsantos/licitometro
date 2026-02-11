@@ -338,6 +338,14 @@ class SchedulerService:
                                 item_data[url_field] = str(item_data[url_field])
                         item_data["updated_at"] = datetime.utcnow()
 
+                        # Match nodos before insert/update
+                        try:
+                            from services.nodo_matcher import get_nodo_matcher
+                            nodo_matcher = get_nodo_matcher(self.db)
+                            await nodo_matcher.assign_nodos_to_item_data(item_data)
+                        except Exception as nodo_err:
+                            log(f"Nodo matching failed for {item.id_licitacion}: {nodo_err}", "warning")
+
                         if existing:
                             # Update
                             await licitaciones_collection.update_one(

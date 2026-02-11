@@ -197,6 +197,7 @@ class GenericEnrichmentService:
                 updates["budget"] = budget_val
                 if not lic_doc.get("currency"):
                     updates["currency"] = budget_currency
+                meta["budget_source"] = "extracted_from_text"
 
         # Expediente
         exp_match = re.search(
@@ -324,6 +325,8 @@ class GenericEnrichmentService:
             updates["budget"] = merged_meta["budget_extracted"]
             if not lic_doc.get("currency"):
                 updates["currency"] = "ARS"
+            merged_meta["budget_source"] = "extracted_from_text"
+            updates["metadata"] = merged_meta
 
         # 6. Synthesize objeto if missing
         if not lic_doc.get("objeto"):

@@ -2,7 +2,7 @@ import React, { useCallback } from 'react';
 import { format, formatDistanceToNow } from 'date-fns';
 import { es } from 'date-fns/locale';
 import type { Licitacion } from '../../types/licitacion';
-import { getDaysUntilOpening, getUrgencyColor, shareViaWhatsApp, highlightMatches } from '../../utils/formatting';
+import { getDaysUntilOpening, getUrgencyColor, parseUTCDate, shareViaWhatsApp, highlightMatches } from '../../utils/formatting';
 
 interface LicitacionTableProps {
   licitaciones: Licitacion[];
@@ -86,7 +86,7 @@ const LicitacionTable: React.FC<LicitacionTableProps> = ({
                   <td className="px-3 py-4 whitespace-nowrap">
                     {lic.fecha_scraping ? (
                       <span className="text-xs text-gray-500" title={lic.fecha_scraping}>
-                        {(() => { try { return formatDistanceToNow(new Date(lic.fecha_scraping), { addSuffix: true, locale: es }); } catch { return '-'; } })()}
+                        {(() => { try { return formatDistanceToNow(parseUTCDate(lic.fecha_scraping), { addSuffix: true, locale: es }); } catch { return '-'; } })()}
                       </span>
                     ) : (
                       <span className="text-xs text-gray-300">-</span>

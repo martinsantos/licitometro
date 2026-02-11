@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useCallback } from 'react';
-import type { FilterState, FilterOptions } from '../../types/licitacion';
+import type { FilterState, FilterOptions, Nodo } from '../../types/licitacion';
 import type { FacetData, FacetValue } from '../../hooks/useFacetedFilters';
 
 const FECHA_CAMPO_LABELS: Record<string, string> = {
@@ -24,6 +24,7 @@ interface FilterSidebarProps {
   groupBy: string;
   onGroupByChange: (value: string) => void;
   fechaCampo: string;
+  nodoMap?: Record<string, Nodo>;
 }
 
 // Ensure active filter value always appears in facet list (even when 0 results)
@@ -101,7 +102,7 @@ const FacetItem: React.FC<{
 const FilterSidebar: React.FC<FilterSidebarProps> = ({
   filters, onFilterChange, onClearAll, facets, hasActiveFilters, activeFilterCount,
   criticalRubros, onToggleCriticalRubro, isCollapsed, onToggleCollapse,
-  filterOptions, onSetMany, groupBy, onGroupByChange, fechaCampo,
+  filterOptions, onSetMany, groupBy, onGroupByChange, fechaCampo, nodoMap,
 }) => {
   const [orgSearch, setOrgSearch] = useState('');
   const [showAllOrgs, setShowAllOrgs] = useState(false);
@@ -118,6 +119,7 @@ const FilterSidebar: React.FC<FilterSidebarProps> = ({
   const workflowItems = useMemo(() => ensureActiveValue(facets.workflow_state || [], filters.workflowFiltro), [facets.workflow_state, filters.workflowFiltro]);
   const jurisdiccionItems = useMemo(() => ensureActiveValue(facets.jurisdiccion || [], filters.jurisdiccionFiltro), [facets.jurisdiccion, filters.jurisdiccionFiltro]);
   const tipoItems = useMemo(() => ensureActiveValue(facets.tipo_procedimiento || [], filters.tipoProcedimientoFiltro), [facets.tipo_procedimiento, filters.tipoProcedimientoFiltro]);
+  const nodoItems = useMemo(() => ensureActiveValue(facets.nodos || [], filters.nodoFiltro), [facets.nodos, filters.nodoFiltro]);
 
   // Filtered org list with active-value guarantee
   const filteredOrgs = useMemo(() => {
@@ -330,6 +332,25 @@ const FilterSidebar: React.FC<FilterSidebarProps> = ({
               );
             })}
           </FilterSection>
+
+          {/* 5b. Nodos */}
+          {nodoItems.length > 0 && (
+            <FilterSection title="Nodos" defaultOpen={false} badge={filters.nodoFiltro ? 1 : 0}>
+              {nodoItems.map((f: FacetValue) => {
+                const nodo = nodoMap?.[f.value];
+                return (
+                  <FacetItem
+                    key={f.value}
+                    label={nodo?.name || f.value.slice(0, 12) + '...'}
+                    count={f.count}
+                    isActive={filters.nodoFiltro === f.value}
+                    onClick={() => toggleFilter('nodoFiltro', f.value)}
+                    colorDot={undefined}
+                  />
+                );
+              })}
+            </FilterSection>
+          )}
 
           {/* 6. Jurisdiccion */}
           <FilterSection title="Jurisdiccion" defaultOpen={false} badge={filters.jurisdiccionFiltro ? 1 : 0}>

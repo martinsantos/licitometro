@@ -112,6 +112,9 @@ class LicitacionBase(BaseModel):
     is_public: bool = Field(False, description="Whether this licitacion is publicly accessible without auth")
     public_slug: Optional[str] = Field(None, description="URL-safe slug for public access")
 
+    # Nodos (semantic search maps)
+    nodos: Optional[List[str]] = Field(default=[], description="IDs of matched nodos")
+
 
 class LicitacionCreate(LicitacionBase):
     """Model for creating a new licitación"""
@@ -186,6 +189,8 @@ class LicitacionUpdate(BaseModel):
     # Public sharing
     is_public: Optional[bool] = None
     public_slug: Optional[str] = None
+    # Nodos
+    nodos: Optional[List[str]] = None
 
 
 class Licitacion(LicitacionBase):

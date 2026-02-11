@@ -107,6 +107,68 @@ class NotificationService:
             logger.error(f"Email send failed: {e}")
             return False
 
+    async def send_telegram_to_chat(self, message: str, chat_id: str) -> bool:
+        """Send a message to a specific Telegram chat (not the default one)."""
+        if not TELEGRAM_BOT_TOKEN:
+            logger.debug("Telegram bot token not configured, skipping")
+            return False
+
+        url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage"
+        payload = {
+            "chat_id": chat_id,
+            "text": message,
+            "parse_mode": "HTML",
+            "disable_web_page_preview": True,
+        }
+
+        try:
+            async with aiohttp.ClientSession() as session:
+                async with session.post(url, json=payload) as resp:
+                    if resp.status == 200:
+                        return True
+                    body = await resp.text()
+                    logger.error(f"Telegram API error {resp.status} (chat {chat_id}): {body}")
+                    return False
+        except Exception as e:
+            logger.error(f"Telegram send to chat {chat_id} failed: {e}")
+            return False
+
+    async def send_email_to(self, recipients: List[str], subject: str, html_body: str) -> bool:
+        """Send an email to specific recipients (not the default one)."""
+        if not SMTP_HOST:
+            logger.debug("SMTP not configured, skipping")
+            return False
+
+        sender = SMTP_FROM or SMTP_USER
+        if not sender:
+            return False
+
+        msg = MIMEMultipart("alternative")
+        msg["Subject"] = subject
+        msg["From"] = sender
+        msg["To"] = ", ".join(recipients)
+        msg["Message-ID"] = make_msgid(domain="licitometro.ar")
+        msg["Date"] = formatdate(localtime=True)
+        msg.attach(MIMEText(html_body, "html"))
+
+        try:
+            kwargs = {
+                "hostname": SMTP_HOST,
+                "port": SMTP_PORT,
+            }
+            if SMTP_USER and SMTP_PASSWORD:
+                kwargs["username"] = SMTP_USER
+                kwargs["password"] = SMTP_PASSWORD
+                kwargs["start_tls"] = True
+            else:
+                kwargs["start_tls"] = False
+                kwargs["use_tls"] = False
+            await aiosmtplib.send(msg, recipients=recipients, **kwargs)
+            return True
+        except Exception as e:
+            logger.error(f"Email send to {recipients} failed: {e}")
+            return False
+
     async def notify_new_licitaciones(self, items: List[Dict[str, Any]], scraper_name: str):
         """Notify about newly scraped licitaciones (Telegram only, immediate)."""
         if not items:

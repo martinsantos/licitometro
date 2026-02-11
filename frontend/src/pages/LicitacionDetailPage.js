@@ -1,9 +1,10 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import axios from 'axios';
 import WorkflowStepper from '../components/WorkflowStepper';
 import WorkflowBadge from '../components/WorkflowBadge';
 import OfferChecklist from '../components/OfferChecklist';
+import { useNodos } from '../hooks/useNodos';
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
 const API = `${BACKEND_URL}/api`;
@@ -23,9 +24,11 @@ const LicitacionDetailPage = () => {
   const [enriching, setEnriching] = useState(false);
   const [enrichMessage, setEnrichMessage] = useState(null);
   const [activeTab, setActiveTab] = useState('general');
+  const tabNavRef = useRef(null);
   const [isPublic, setIsPublic] = useState(false);
   const [publicSlug, setPublicSlug] = useState(null);
   const [togglingPublic, setTogglingPublic] = useState(false);
+  const { nodoMap } = useNodos();
 
   useEffect(() => {
     const fetchLicitacion = async () => {
@@ -102,6 +105,16 @@ const LicitacionDetailPage = () => {
     } catch (err) {
       console.error('Error reloading after workflow change:', err);
     }
+  };
+
+  // Parse backend UTC timestamps (fecha_scraping, created_at) correctly.
+  // Backend uses datetime.utcnow() producing "2026-02-11T10:00:00" without Z.
+  // Without Z, JS Date() treats it as local time (+3h error in Argentina).
+  const parseUTC = (dateString) => {
+    if (dateString && !dateString.endsWith('Z') && !/[+-]\d{2}:\d{2}$/.test(dateString)) {
+      return new Date(dateString + 'Z');
+    }
+    return new Date(dateString);
   };
 
   const formatDate = (dateString) => {
@@ -464,7 +477,7 @@ const LicitacionDetailPage = () => {
           </div>
 
           {/* Tabs Navigation */}
-          <div className="px-8 sm:px-10 border-b border-gray-200 bg-white">
+          <div className="px-8 sm:px-10 border-b border-gray-200 bg-white" ref={tabNavRef}>
             <nav className="flex gap-1 overflow-x-auto -mb-px">
               {[
                 { id: 'general', label: 'Info General' },
@@ -476,7 +489,12 @@ const LicitacionDetailPage = () => {
               ].filter(t => t.show !== false).map(tab => (
                 <button
                   key={tab.id}
-                  onClick={() => setActiveTab(tab.id)}
+                  onClick={() => {
+                    setActiveTab(tab.id);
+                    setTimeout(() => {
+                      tabNavRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+                    }, 0);
+                  }}
                   className={`px-4 py-3 text-sm font-bold whitespace-nowrap border-b-2 transition-all ${
                     activeTab === tab.id
                       ? 'border-blue-600 text-blue-600'
@@ -587,6 +605,30 @@ const LicitacionDetailPage = () => {
                     )}
                   </div>
                 </section>
+
+                {/* Nodos */}
+                {licitacion.nodos && licitacion.nodos.length > 0 && (
+                  <section className={activeTab !== 'general' ? 'hidden' : ''}>
+                    <h2 className="text-sm font-black text-gray-500 uppercase tracking-wider mb-2">Nodos</h2>
+                    <div className="flex flex-wrap gap-2">
+                      {licitacion.nodos.map((nodoId) => {
+                        const nodo = nodoMap[nodoId];
+                        return (
+                          <Link
+                            key={nodoId}
+                            to={`/licitaciones`}
+                            onClick={() => sessionStorage.setItem('licitacionFilters', JSON.stringify({ nodoFiltro: nodoId }))}
+                            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold hover:opacity-80 transition-colors"
+                            style={nodo ? { backgroundColor: nodo.color + '15', color: nodo.color } : { backgroundColor: '#EFF6FF', color: '#1D4ED8' }}
+                          >
+                            <span className="w-2 h-2 rounded-full" style={{ backgroundColor: nodo?.color || '#3B82F6' }} />
+                            {nodo?.name || nodoId.slice(0, 8) + '...'}
+                          </Link>
+                        );
+                      })}
+                    </div>
+                  </section>
+                )}
 
                 {/* CRONOGRAMA - Fechas Críticas */}
                 {hasCronograma && (
@@ -914,23 +956,40 @@ const LicitacionDetailPage = () => {
                 )}
 
                 {/* Presupuesto */}
-                {licitacion.budget && (
-                  <section className="bg-gradient-to-r from-emerald-50 to-teal-50 rounded-2xl p-6 border border-emerald-100">
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <p className="text-sm font-bold text-emerald-600 uppercase tracking-wider mb-1">Presupuesto Estimado</p>
-                        <p className="text-3xl font-black text-emerald-700">
-                          {formatCurrency(licitacion.budget, licitacion.currency)}
-                        </p>
+                {licitacion.budget && (() => {
+                  const isEstimated = licitacion.metadata?.budget_source === 'estimated_from_pliego';
+                  return (
+                    <section className={`rounded-2xl p-6 border ${isEstimated ? 'bg-gradient-to-r from-amber-50 to-yellow-50 border-amber-200' : 'bg-gradient-to-r from-emerald-50 to-teal-50 border-emerald-100'}`}>
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <div className="flex items-center gap-2 mb-1">
+                            <p className={`text-sm font-bold uppercase tracking-wider ${isEstimated ? 'text-amber-600' : 'text-emerald-600'}`}>
+                              {isEstimated ? 'Presupuesto Proyectado' : 'Presupuesto Oficial'}
+                            </p>
+                            {isEstimated && (
+                              <span className="text-[10px] font-bold px-2 py-0.5 bg-amber-100 text-amber-700 rounded uppercase">
+                                Proyectado
+                              </span>
+                            )}
+                          </div>
+                          <p className={`text-3xl font-black ${isEstimated ? 'text-amber-700' : 'text-emerald-700'}`}>
+                            {isEstimated ? '~' : ''}{formatCurrency(licitacion.budget, licitacion.currency)}
+                          </p>
+                          {isEstimated && (
+                            <p className="text-xs text-amber-600 mt-2">
+                              Estimado desde costo del pliego (ratio 1:{licitacion.metadata?.pliego_to_budget_ratio || 1000})
+                            </p>
+                          )}
+                        </div>
+                        <div className={`w-14 h-14 rounded-2xl flex items-center justify-center ${isEstimated ? 'bg-amber-100' : 'bg-emerald-100'}`}>
+                          <svg className={`w-7 h-7 ${isEstimated ? 'text-amber-600' : 'text-emerald-600'}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                          </svg>
+                        </div>
                       </div>
-                      <div className="w-14 h-14 rounded-2xl bg-emerald-100 flex items-center justify-center">
-                        <svg className="w-7 h-7 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                        </svg>
-                      </div>
-                    </div>
-                  </section>
-                )}
+                    </section>
+                  );
+                })()}
 
                 {/* Descripción */}
                 {licitacion.description && (
@@ -1105,7 +1164,7 @@ const LicitacionDetailPage = () => {
                     {licitacion.fecha_scraping && (
                       <div className="flex justify-between">
                         <dt className="text-gray-500">Actualizado:</dt>
-                        <dd className="text-gray-700">{formatDate(licitacion.fecha_scraping)}</dd>
+                        <dd className="text-gray-700">{parseUTC(licitacion.fecha_scraping).toLocaleDateString('es-AR', { day: '2-digit', month: '2-digit', year: 'numeric' })}</dd>
                       </div>
                     )}
                     {licitacion.fuente && (

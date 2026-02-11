@@ -2,7 +2,17 @@ import { useReducer, useCallback, useEffect } from 'react';
 import type { FilterState } from '../types/licitacion';
 
 const STORAGE_KEY = 'licitacionFilters';
-const FILTERS_VERSION = 3; // Bump this to clear stuck filters on deploy
+const YEAR_STORAGE_KEY = 'yearWorkspace';
+const FILTERS_VERSION = 5; // Bump this to clear stuck filters on deploy
+
+function getDefaultYear(): string {
+  // Persist across sessions via localStorage
+  try {
+    const stored = localStorage.getItem(YEAR_STORAGE_KEY);
+    if (stored === 'all' || (stored && /^\d{4}$/.test(stored))) return stored;
+  } catch { /* ignore */ }
+  return new Date().getFullYear().toString();
+}
 
 const initialFilters: FilterState = {
   busqueda: '',
@@ -13,10 +23,12 @@ const initialFilters: FilterState = {
   jurisdiccionFiltro: '',
   tipoProcedimientoFiltro: '',
   organizacionFiltro: '',
+  nodoFiltro: '',
   budgetMin: '',
   budgetMax: '',
   fechaDesde: '',
   fechaHasta: '',
+  yearWorkspace: getDefaultYear(),
 };
 
 function loadFiltersFromSession(): FilterState {
@@ -50,7 +62,8 @@ function filterReducer(state: FilterState, action: FilterAction): FilterState {
     case 'SET_MANY':
       return { ...state, ...action.payload };
     case 'CLEAR_ALL':
-      return initialFilters;
+      // Preserve yearWorkspace on clear
+      return { ...initialFilters, yearWorkspace: state.yearWorkspace };
     default:
       return state;
   }
@@ -63,6 +76,11 @@ export function useLicitacionFilters() {
   useEffect(() => {
     sessionStorage.setItem(STORAGE_KEY, JSON.stringify(filters));
   }, [filters]);
+
+  // Persist yearWorkspace to localStorage (survives browser close)
+  useEffect(() => {
+    try { localStorage.setItem(YEAR_STORAGE_KEY, filters.yearWorkspace); } catch { /* ignore */ }
+  }, [filters.yearWorkspace]);
 
   const setFilter = useCallback((key: keyof FilterState, value: string) => {
     dispatch({ type: 'SET_FILTER', key, value });
@@ -80,6 +98,7 @@ export function useLicitacionFilters() {
     filters.busqueda || filters.fuenteFiltro || filters.statusFiltro ||
     filters.categoryFiltro || filters.workflowFiltro || filters.jurisdiccionFiltro ||
     filters.tipoProcedimientoFiltro || filters.organizacionFiltro ||
+    filters.nodoFiltro ||
     filters.budgetMin || filters.budgetMax ||
     filters.fechaDesde || filters.fechaHasta
   );
@@ -88,6 +107,7 @@ export function useLicitacionFilters() {
     filters.busqueda, filters.fuenteFiltro, filters.statusFiltro,
     filters.categoryFiltro, filters.workflowFiltro, filters.jurisdiccionFiltro,
     filters.tipoProcedimientoFiltro, filters.organizacionFiltro,
+    filters.nodoFiltro,
     filters.budgetMin, filters.budgetMax,
     filters.fechaDesde, filters.fechaHasta,
   ].filter(Boolean).length;
