@@ -335,9 +335,10 @@ class ComprasAppsMendozaScraper(BaseScraper):
                     date_str = f"{apertura_date} {t}"
                 opening_date = parse_date_guess(date_str)
 
-            # Publication date: ComprasApps grid has no real publication date.
-            # Use scraping time, NOT opening_date (which is the future apertura).
-            publication_date = datetime.utcnow()
+            # ComprasApps grid has no real publication date.
+            # Use scraping time but clamp to opening_date so pub is never after apertura.
+            now = datetime.utcnow()
+            publication_date = min(now, opening_date) if opening_date else now
 
             # Status mapping
             status = "active"

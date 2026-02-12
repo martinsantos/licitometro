@@ -240,7 +240,7 @@ class GenericHtmlScraper(BaseScraper):
                 title=title,
                 organization=self.org,
                 jurisdiccion="Mendoza",
-                publication_date=pub_date or datetime.utcnow(),
+                publication_date=pub_date or (min(datetime.utcnow(), opening_date) if opening_date else datetime.utcnow()),
                 opening_date=opening_date,
                 description=description,
                 status="active",
