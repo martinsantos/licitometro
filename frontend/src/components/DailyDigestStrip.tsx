@@ -66,11 +66,11 @@ const DailyDigestStrip = ({ apiUrl, onDaySelect, selectedDate, fechaCampo }: Dai
         onClick={() => setExpanded(!expanded)}
         className="w-full px-3 py-2 flex items-center justify-between hover:bg-gray-50 transition-colors"
       >
-        <div className="flex items-center gap-3 text-xs font-bold">
-          <span className="text-gray-400 uppercase tracking-wide">Actividad</span>
+        <div className="flex items-center gap-1.5 sm:gap-3 text-xs font-bold min-w-0 overflow-x-auto scrollbar-hide">
+          <span className="text-gray-400 uppercase tracking-wide flex-shrink-0 hidden sm:inline">Actividad</span>
           <button
             onClick={(e) => { e.stopPropagation(); onDaySelect(selectedDate === today ? null : today); }}
-            className={`px-2 py-0.5 rounded transition-all ${
+            className={`px-2 py-0.5 rounded transition-all flex-shrink-0 ${
               selectedDate === today
                 ? 'bg-emerald-600 text-white'
                 : 'bg-emerald-50 text-emerald-700 hover:bg-emerald-100'
@@ -80,7 +80,7 @@ const DailyDigestStrip = ({ apiUrl, onDaySelect, selectedDate, fechaCampo }: Dai
           </button>
           <button
             onClick={(e) => { e.stopPropagation(); onDaySelect(selectedDate === yesterday ? null : yesterday); }}
-            className={`px-2 py-0.5 rounded transition-all ${
+            className={`px-2 py-0.5 rounded transition-all flex-shrink-0 ${
               selectedDate === yesterday
                 ? 'bg-blue-600 text-white'
                 : 'bg-blue-50 text-blue-700 hover:bg-blue-100'
@@ -88,12 +88,12 @@ const DailyDigestStrip = ({ apiUrl, onDaySelect, selectedDate, fechaCampo }: Dai
           >
             Ayer {yesterdayCount}
           </button>
-          <span className="text-gray-400">Sem {weekTotal}</span>
-          <span className="text-gray-400">Mes {monthTotal}</span>
+          <span className="text-gray-400 flex-shrink-0">Sem {weekTotal}</span>
+          <span className="text-gray-400 flex-shrink-0 hidden sm:inline">Mes {monthTotal}</span>
           {selectedDate && (
             <button
               onClick={(e) => { e.stopPropagation(); onDaySelect(null); }}
-              className="px-2 py-0.5 bg-red-50 text-red-600 rounded hover:bg-red-100"
+              className="px-2 py-0.5 bg-red-50 text-red-600 rounded hover:bg-red-100 flex-shrink-0"
             >
               &times;
             </button>

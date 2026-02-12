@@ -120,32 +120,32 @@ const StorageQuotaPanel = () => {
   return (
     <div className="space-y-6">
       {/* Summary cards */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        <div className="bg-white border rounded-lg p-4">
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 sm:gap-4">
+        <div className="bg-white border rounded-lg p-3 sm:p-4">
           <div className="text-xs text-gray-500 uppercase tracking-wide">MongoDB Total</div>
-          <div className="text-2xl font-bold mt-1">{formatKB(data.mongodb.total_kb)}</div>
+          <div className="text-xl sm:text-2xl font-bold mt-1">{formatKB(data.mongodb.total_kb)}</div>
           <div className="text-xs text-gray-400 mt-1">
             {formatKB(data.mongodb.total_data_kb)} datos + {formatKB(data.mongodb.total_index_kb)} indices
           </div>
         </div>
 
-        <div className="bg-white border rounded-lg p-4">
+        <div className="bg-white border rounded-lg p-3 sm:p-4">
           <div className="text-xs text-gray-500 uppercase tracking-wide">Licitaciones</div>
-          <div className="text-2xl font-bold mt-1">{data.licitaciones.total}</div>
+          <div className="text-xl sm:text-2xl font-bold mt-1">{data.licitaciones.total}</div>
           <div className="text-xs text-gray-400 mt-1">
             Promedio: {formatBytes(data.licitaciones.avg_doc_bytes)}/doc
           </div>
         </div>
 
-        <div className="bg-white border rounded-lg p-4">
+        <div className="bg-white border rounded-lg p-3 sm:p-4">
           <div className="text-xs text-gray-500 uppercase tracking-wide">Disco (storage/)</div>
-          <div className="text-2xl font-bold mt-1">{data.disk.storage_dir_mb} MB</div>
+          <div className="text-xl sm:text-2xl font-bold mt-1">{data.disk.storage_dir_mb} MB</div>
           <div className="text-xs text-gray-400 mt-1">{data.disk.storage_files} archivos</div>
         </div>
 
-        <div className="bg-white border rounded-lg p-4">
+        <div className="bg-white border rounded-lg p-3 sm:p-4">
           <div className="text-xs text-gray-500 uppercase tracking-wide">Crecimiento Mensual</div>
-          <div className="text-2xl font-bold mt-1">{formatKB(data.growth_projection.monthly_growth_kb)}</div>
+          <div className="text-xl sm:text-2xl font-bold mt-1">{formatKB(data.growth_projection.monthly_growth_kb)}</div>
           <div className="text-xs text-gray-400 mt-1">
             ~{data.growth_projection.estimated_weekly_new} nuevas/semana
           </div>
@@ -172,7 +172,8 @@ const StorageQuotaPanel = () => {
         <div className="px-4 py-3 border-b bg-gray-50">
           <h3 className="font-medium text-sm">Colecciones MongoDB</h3>
         </div>
-        <table className="w-full text-sm">
+        <div className="overflow-x-auto">
+        <table className="min-w-[500px] w-full text-sm">
           <thead className="bg-gray-50 text-gray-500 text-xs uppercase">
             <tr>
               <th className="text-left px-4 py-2">Coleccion</th>
@@ -205,6 +206,7 @@ const StorageQuotaPanel = () => {
             </tr>
           </tfoot>
         </table>
+        </div>
       </div>
 
       {/* Enrichment level breakdown */}
@@ -212,7 +214,8 @@ const StorageQuotaPanel = () => {
         <div className="px-4 py-3 border-b bg-gray-50">
           <h3 className="font-medium text-sm">Tamaño por Nivel de Enriquecimiento</h3>
         </div>
-        <table className="w-full text-sm">
+        <div className="overflow-x-auto">
+        <table className="min-w-[400px] w-full text-sm">
           <thead className="bg-gray-50 text-gray-500 text-xs uppercase">
             <tr>
               <th className="text-left px-4 py-2">Nivel</th>
@@ -241,6 +244,7 @@ const StorageQuotaPanel = () => {
             ))}
           </tbody>
         </table>
+        </div>
       </div>
 
       {/* Growth projections */}
@@ -251,7 +255,8 @@ const StorageQuotaPanel = () => {
             Basado en promedio actual de {formatBytes(data.growth_projection.avg_doc_bytes)}/documento
           </p>
         </div>
-        <table className="w-full text-sm">
+        <div className="overflow-x-auto">
+        <table className="min-w-[400px] w-full text-sm">
           <thead className="bg-gray-50 text-gray-500 text-xs uppercase">
             <tr>
               <th className="text-left px-4 py-2">Registros</th>
@@ -280,6 +285,7 @@ const StorageQuotaPanel = () => {
             ))}
           </tbody>
         </table>
+        </div>
         <div className="px-4 py-3 bg-gray-50 border-t text-xs text-gray-500">
           Crecimiento mensual estimado: ~{formatKB(data.growth_projection.monthly_growth_kb)}
           ({data.growth_projection.estimated_weekly_new * 4} registros/mes)

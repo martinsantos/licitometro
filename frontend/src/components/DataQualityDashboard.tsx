@@ -78,30 +78,30 @@ const DataQualityDashboard = () => {
   return (
     <div>
       {/* Summary cards */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
-        <div className="bg-white border rounded-lg p-4 text-center">
-          <div className="text-2xl font-bold text-gray-800">{data.total_records}</div>
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 sm:gap-4 mb-6">
+        <div className="bg-white border rounded-lg p-3 sm:p-4 text-center">
+          <div className="text-xl sm:text-2xl font-bold text-gray-800">{data.total_records}</div>
           <div className="text-xs text-gray-500">Total registros</div>
         </div>
-        <div className="bg-white border rounded-lg p-4 text-center">
-          <div className="text-2xl font-bold text-green-700">{data.opening_date_pct}%</div>
+        <div className="bg-white border rounded-lg p-3 sm:p-4 text-center">
+          <div className="text-xl sm:text-2xl font-bold text-green-700">{data.opening_date_pct}%</div>
           <div className="text-xs text-gray-500">
             Con fecha apertura ({data.total_with_opening_date}/{data.total_records})
           </div>
         </div>
-        <div className="bg-white border rounded-lg p-4 text-center">
-          <div className="text-2xl font-bold text-orange-600">{data.duplicate_groups}</div>
+        <div className="bg-white border rounded-lg p-3 sm:p-4 text-center">
+          <div className="text-xl sm:text-2xl font-bold text-orange-600">{data.duplicate_groups}</div>
           <div className="text-xs text-gray-500">Grupos duplicados potenciales</div>
         </div>
-        <div className="bg-white border rounded-lg p-4 text-center">
-          <div className="text-2xl font-bold text-blue-700">{data.by_source.length}</div>
+        <div className="bg-white border rounded-lg p-3 sm:p-4 text-center">
+          <div className="text-xl sm:text-2xl font-bold text-blue-700">{data.by_source.length}</div>
           <div className="text-xs text-gray-500">Fuentes de datos</div>
         </div>
       </div>
 
       {/* Dedup action */}
       {data.duplicate_groups > 0 && (
-        <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3 mb-6 flex items-center justify-between">
+        <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3 mb-6 flex flex-col sm:flex-row gap-2 sm:items-center sm:justify-between">
           <div>
             <span className="text-sm font-medium text-yellow-800">
               Se detectaron {data.duplicate_groups} grupos de duplicados potenciales.
@@ -123,7 +123,7 @@ const DataQualityDashboard = () => {
       {/* Per-source table */}
       <h3 className="text-lg font-medium mb-3">Calidad por fuente</h3>
       <div className="overflow-x-auto">
-        <table className="min-w-full text-sm">
+        <table className="min-w-[600px] w-full text-sm">
           <thead>
             <tr className="bg-gray-50 text-left">
               <th className="px-3 py-2 font-medium text-gray-600">Fuente</th>

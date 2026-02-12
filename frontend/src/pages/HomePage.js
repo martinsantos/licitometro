@@ -45,7 +45,7 @@ const HomePage = () => {
     <div className="flex flex-col min-h-screen">
       <main className="flex-grow">
         {/* Hero Section */}
-        <section className="bg-blue-800 text-white py-16">
+        <section className="bg-blue-800 text-white py-8 sm:py-12 lg:py-16">
           <div className="container mx-auto px-4 text-center">
             <h1 className="text-4xl md:text-5xl font-bold mb-4">
               LICITOMETRO
@@ -64,24 +64,24 @@ const HomePage = () => {
         {/* Stats Section */}
         <section className="py-12 bg-gray-100">
           <div className="container mx-auto px-4">
-            <h2 className="text-3xl font-bold text-center mb-10">
+            <h2 className="text-xl sm:text-2xl lg:text-3xl font-bold text-center mb-6 sm:mb-10">
               Estadísticas de Licitaciones
             </h2>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-              <div className="bg-white p-8 rounded-lg shadow-md text-center">
-                <h3 className="text-lg text-gray-600 mb-2">Licitaciones Activas</h3>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-8">
+              <div className="bg-white p-6 sm:p-8 rounded-lg shadow-md text-center">
+                <h3 className="text-base sm:text-lg text-gray-600 mb-2">Licitaciones Activas</h3>
                 {stats.loading ? (
                   <div className="animate-pulse h-10 bg-gray-200 rounded w-1/2 mx-auto"></div>
                 ) : (
-                  <p className="text-5xl font-bold text-blue-800">{stats.activeLicitaciones}</p>
+                  <p className="text-3xl sm:text-4xl lg:text-5xl font-bold text-blue-800">{stats.activeLicitaciones}</p>
                 )}
               </div>
-              <div className="bg-white p-8 rounded-lg shadow-md text-center">
-                <h3 className="text-lg text-gray-600 mb-2">Total Licitaciones</h3>
+              <div className="bg-white p-6 sm:p-8 rounded-lg shadow-md text-center">
+                <h3 className="text-base sm:text-lg text-gray-600 mb-2">Total Licitaciones</h3>
                 {stats.loading ? (
                   <div className="animate-pulse h-10 bg-gray-200 rounded w-1/2 mx-auto"></div>
                 ) : (
-                  <p className="text-5xl font-bold text-blue-800">{stats.total}</p>
+                  <p className="text-3xl sm:text-4xl lg:text-5xl font-bold text-blue-800">{stats.total}</p>
                 )}
               </div>
             </div>
@@ -91,10 +91,10 @@ const HomePage = () => {
         {/* Feature Section */}
         <section className="py-12">
           <div className="container mx-auto px-4">
-            <h2 className="text-3xl font-bold text-center mb-10">
+            <h2 className="text-xl sm:text-2xl lg:text-3xl font-bold text-center mb-6 sm:mb-10">
               ¿Qué ofrece Licitometro?
             </h2>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-8">
               <div className="bg-white p-6 rounded-lg shadow-md">
                 <div className="text-blue-800 mb-4">
                   <svg xmlns="http://www.w3.org/2000/svg" className="h-12 w-12" fill="none" viewBox="0 0 24 24" stroke="currentColor">

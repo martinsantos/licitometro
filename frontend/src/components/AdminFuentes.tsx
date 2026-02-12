@@ -318,13 +318,13 @@ const AdminFuentes = ({ apiUrl }: { apiUrl: string }) => {
                 ) : (
                   <>
                     {/* Header row */}
-                    <div className="flex items-center justify-between mb-2">
+                    <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 mb-2">
                       <div className="flex items-center gap-3">
                         <span className={`w-3 h-3 rounded-full flex-shrink-0 ${config.active ? 'bg-green-500' : 'bg-gray-400'}`}></span>
-                        <h4 className="font-medium">{config.name}</h4>
+                        <h4 className="font-medium text-sm sm:text-base">{config.name}</h4>
                         <span className="text-xs text-gray-400">{config.source_type}</span>
                       </div>
-                      <div className="flex items-center gap-2">
+                      <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
                         <button
                           onClick={() => handleTriggerNow(config.name)}
                           disabled={triggeringName === config.name}
@@ -377,7 +377,7 @@ const AdminFuentes = ({ apiUrl }: { apiUrl: string }) => {
                     </div>
 
                     {/* Details row */}
-                    <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-sm">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 text-sm">
                       <div>
                         <span className="text-gray-500 text-xs">Schedule</span>
                         <div className="mt-0.5">

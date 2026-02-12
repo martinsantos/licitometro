@@ -112,7 +112,7 @@ const PresetSelector: React.FC<PresetSelectorProps> = ({
       </button>
 
       {open && (
-        <div className="absolute right-0 top-full mt-1 bg-white border border-gray-200 rounded-xl shadow-lg z-30 w-64 py-2">
+        <div className="absolute right-0 sm:right-0 top-full mt-1 bg-white border border-gray-200 rounded-xl shadow-lg z-30 w-64 max-w-[calc(100vw-2rem)] py-2">
           <div className="px-3 py-1 text-[10px] font-bold text-gray-400 uppercase">Presets</div>
 
           {/* Built-in presets */}

@@ -124,28 +124,28 @@ const SchedulerMonitor = () => {
   return (
     <div className="space-y-6">
       {/* Status Card */}
-      <div className="bg-white rounded-lg shadow p-6">
-        <div className="flex justify-between items-center mb-4">
-          <h2 className="text-xl font-semibold">Estado del Scheduler</h2>
-          <div className="space-x-2">
+      <div className="bg-white rounded-lg shadow p-4 sm:p-6">
+        <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-3 mb-4">
+          <h2 className="text-lg sm:text-xl font-semibold">Estado del Scheduler</h2>
+          <div className="flex flex-col sm:flex-row gap-2">
             {status?.running ? (
               <button
                 onClick={handleStopScheduler}
-                className="bg-red-600 text-white px-4 py-2 rounded hover:bg-red-700 transition"
+                className="bg-red-600 text-white px-4 py-2 rounded hover:bg-red-700 transition text-sm"
               >
                 Detener Scheduler
               </button>
             ) : (
               <button
                 onClick={handleStartScheduler}
-                className="bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700 transition"
+                className="bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700 transition text-sm"
               >
                 Iniciar Scheduler
               </button>
             )}
             <button
               onClick={fetchData}
-              className="bg-gray-200 text-gray-700 px-4 py-2 rounded hover:bg-gray-300 transition"
+              className="bg-gray-200 text-gray-700 px-4 py-2 rounded hover:bg-gray-300 transition text-sm"
             >
               Refrescar
             </button>
@@ -178,18 +178,18 @@ const SchedulerMonitor = () => {
             <h3 className="font-medium mb-2">Jobs Activos:</h3>
             <div className="space-y-2">
               {status.jobs.map((job, idx) => (
-                <div key={idx} className="flex items-center justify-between bg-gray-50 p-3 rounded">
+                <div key={idx} className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 bg-gray-50 p-3 rounded">
                   <div>
-                    <span className="font-medium">{job.name}</span>
-                    <span className="text-sm text-gray-500 ml-2">({job.trigger})</span>
+                    <span className="font-medium text-sm">{job.name}</span>
+                    <span className="text-xs text-gray-500 ml-2">({job.trigger})</span>
                   </div>
-                  <div className="flex items-center space-x-4">
-                    <span className="text-sm text-gray-600">
+                  <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4">
+                    <span className="text-xs sm:text-sm text-gray-600">
                       Próxima: {job.next_run_time ? formatDate(job.next_run_time) : 'No programado'}
                     </span>
                     <button
                       onClick={() => handleTriggerScraper(job.name)}
-                      className="bg-blue-600 text-white text-sm px-3 py-1 rounded hover:bg-blue-700"
+                      className="bg-blue-600 text-white text-xs sm:text-sm px-3 py-1.5 rounded hover:bg-blue-700 w-full sm:w-auto"
                     >
                       Ejecutar Ahora
                     </button>
@@ -203,18 +203,18 @@ const SchedulerMonitor = () => {
 
       {/* Stats by Scraper */}
       {stats?.by_scraper?.length > 0 && (
-        <div className="bg-white rounded-lg shadow p-6">
-          <h2 className="text-xl font-semibold mb-4">Estadísticas por Scraper</h2>
+        <div className="bg-white rounded-lg shadow p-4 sm:p-6">
+          <h2 className="text-lg sm:text-xl font-semibold mb-4">Estadísticas por Scraper</h2>
           <div className="overflow-x-auto">
-            <table className="min-w-full">
+            <table className="min-w-[500px] w-full">
               <thead className="bg-gray-50">
                 <tr>
-                  <th className="px-4 py-2 text-left">Scraper</th>
-                  <th className="px-4 py-2 text-center">Total</th>
-                  <th className="px-4 py-2 text-center">Exitosos</th>
-                  <th className="px-4 py-2 text-center">Fallidos</th>
-                  <th className="px-4 py-2 text-center">Prom. Items</th>
-                  <th className="px-4 py-2 text-center">Última Ejecución</th>
+                  <th className="px-3 py-2 text-left text-xs sm:text-sm">Scraper</th>
+                  <th className="px-3 py-2 text-center text-xs sm:text-sm">Total</th>
+                  <th className="px-3 py-2 text-center text-xs sm:text-sm">Exitosos</th>
+                  <th className="px-3 py-2 text-center text-xs sm:text-sm">Fallidos</th>
+                  <th className="px-3 py-2 text-center text-xs sm:text-sm">Prom.</th>
+                  <th className="px-3 py-2 text-center text-xs sm:text-sm">Última Ejec.</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-200">
@@ -237,24 +237,24 @@ const SchedulerMonitor = () => {
       )}
 
       {/* Recent Runs */}
-      <div className="bg-white rounded-lg shadow p-6">
-        <h2 className="text-xl font-semibold mb-4">Ejecuciones Recientes</h2>
+      <div className="bg-white rounded-lg shadow p-4 sm:p-6">
+        <h2 className="text-lg sm:text-xl font-semibold mb-4">Ejecuciones Recientes</h2>
         
         {runs.length === 0 ? (
           <p className="text-gray-500 text-center py-8">No hay ejecuciones registradas</p>
         ) : (
           <div className="overflow-x-auto">
-            <table className="min-w-full">
+            <table className="min-w-[600px] w-full">
               <thead className="bg-gray-50">
                 <tr>
-                  <th className="px-4 py-2 text-left">Scraper</th>
-                  <th className="px-4 py-2 text-center">Estado</th>
-                  <th className="px-4 py-2 text-center">Items</th>
-                  <th className="px-4 py-2 text-center">Guardados</th>
-                  <th className="px-4 py-2 text-center">URLs PLIEGO</th>
-                  <th className="px-4 py-2 text-center">Duración</th>
-                  <th className="px-4 py-2 text-center">Fecha</th>
-                  <th className="px-4 py-2 text-center">Acciones</th>
+                  <th className="px-3 py-2 text-left text-xs sm:text-sm">Scraper</th>
+                  <th className="px-3 py-2 text-center text-xs sm:text-sm">Estado</th>
+                  <th className="px-3 py-2 text-center text-xs sm:text-sm">Items</th>
+                  <th className="px-3 py-2 text-center text-xs sm:text-sm">Guard.</th>
+                  <th className="px-3 py-2 text-center text-xs sm:text-sm">Pliego</th>
+                  <th className="px-3 py-2 text-center text-xs sm:text-sm">Duración</th>
+                  <th className="px-3 py-2 text-center text-xs sm:text-sm">Fecha</th>
+                  <th className="px-3 py-2 text-center text-xs sm:text-sm">Acc.</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-200">

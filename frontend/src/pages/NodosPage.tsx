@@ -96,28 +96,28 @@ const NodosPage: React.FC = () => {
 
   return (
     <div className="max-w-5xl mx-auto px-4 py-6">
-      <div className="flex items-center justify-between mb-6">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-6">
         <div>
           <h1 className="text-2xl font-black text-gray-900">Nodos</h1>
-          <p className="text-sm text-gray-500">Mapas semánticos de búsqueda — agrupa licitaciones por nubes de keywords</p>
+          <p className="text-xs sm:text-sm text-gray-500">Mapas semánticos de búsqueda — agrupa licitaciones por nubes de keywords</p>
         </div>
         {!showForm && (
           <div className="flex items-center gap-2">
             <button
               onClick={handleRematchAll}
               disabled={rematchAllStatus === 'Procesando...'}
-              className="px-3 py-2 bg-slate-700 hover:bg-slate-800 disabled:bg-slate-400 text-white rounded-lg text-sm font-bold transition-colors flex items-center gap-1.5"
+              className="px-3 py-2 bg-slate-700 hover:bg-slate-800 disabled:bg-slate-400 text-white rounded-lg text-xs sm:text-sm font-bold transition-colors flex items-center gap-1.5"
             >
               {rematchAllStatus === 'Procesando...' ? (
                 <svg className="w-3.5 h-3.5 animate-spin" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>
               ) : (
                 <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" /></svg>
               )}
-              Re-match Todos
+              <span className="hidden sm:inline">Re-match</span> Todos
             </button>
             <button
               onClick={() => { setEditingNodo(null); setShowForm(true); }}
-              className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-sm font-bold transition-colors"
+              className="px-3 sm:px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs sm:text-sm font-bold transition-colors"
             >
               + Nuevo Nodo
             </button>

@@ -128,7 +128,7 @@ const SearchBar: React.FC<SearchBarProps> = ({
 
         {/* Recent searches dropdown */}
         {showRecent && recentSearches.length > 0 && (
-          <div className="absolute top-full left-0 right-0 mt-1 bg-white border border-gray-200 rounded-xl shadow-lg z-30 py-1 max-h-64 overflow-y-auto">
+          <div className="absolute top-full left-0 right-0 mt-1 bg-white border border-gray-200 rounded-xl shadow-lg z-40 py-1 max-h-64 overflow-y-auto">
             <div className="px-3 py-1.5 flex items-center justify-between">
               <span className="text-[10px] font-bold text-gray-400 uppercase">Busquedas recientes</span>
               <button onClick={handleClearHistory} className="text-[10px] text-red-400 hover:text-red-600 font-bold">

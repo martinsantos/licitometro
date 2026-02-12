@@ -274,7 +274,16 @@ const LicitacionesList = ({ apiUrl }: LicitacionesListProps) => {
         <div className="flex-1 min-w-0">
           {/* Toolbar simplificado */}
           <div className="lg:sticky lg:top-14 z-20 bg-gray-50 pb-2 space-y-1.5">
-            <div className="flex items-center gap-2 flex-wrap">
+            <div className="flex items-center gap-1.5 sm:gap-2 flex-wrap">
+              <div className="order-first w-full sm:order-none sm:w-auto sm:flex-1 sm:min-w-[200px]">
+                <SearchBar
+                  busqueda={filters.busqueda}
+                  onBusquedaChange={(v) => setFilter('busqueda', v)}
+                  autoFilters={autoFilters}
+                  totalItems={paginacion?.total_items ?? null}
+                />
+              </div>
+
               <YearSelector
                 value={filters.yearWorkspace}
                 onChange={(y) => setFilter('yearWorkspace', y)}
@@ -287,13 +296,6 @@ const LicitacionesList = ({ apiUrl }: LicitacionesListProps) => {
                 currentSortBy={prefs.sortBy}
                 currentSortOrder={prefs.sortOrder}
                 criticalRubros={prefs.criticalRubros}
-              />
-
-              <SearchBar
-                busqueda={filters.busqueda}
-                onBusquedaChange={(v) => setFilter('busqueda', v)}
-                autoFilters={autoFilters}
-                totalItems={paginacion?.total_items ?? null}
               />
 
               <SortDropdown

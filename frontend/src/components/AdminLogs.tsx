@@ -101,13 +101,13 @@ const AdminLogs = () => {
   return (
     <div>
       {/* Filters */}
-      <div className="flex gap-4 mb-4">
-        <div>
+      <div className="flex flex-col sm:flex-row gap-2 sm:gap-4 mb-4">
+        <div className="flex-1 sm:flex-none">
           <label className="block text-sm font-medium text-gray-700 mb-1">Scraper</label>
           <select
             value={filterName}
             onChange={(e) => setFilterName(e.target.value)}
-            className="border border-gray-300 rounded px-3 py-2 text-sm"
+            className="border border-gray-300 rounded px-3 py-2 text-sm w-full sm:w-auto"
           >
             <option value="">Todos</option>
             {scraperNames.map((name) => (
@@ -115,12 +115,12 @@ const AdminLogs = () => {
             ))}
           </select>
         </div>
-        <div>
+        <div className="flex-1 sm:flex-none">
           <label className="block text-sm font-medium text-gray-700 mb-1">Estado</label>
           <select
             value={filterStatus}
             onChange={(e) => setFilterStatus(e.target.value)}
-            className="border border-gray-300 rounded px-3 py-2 text-sm"
+            className="border border-gray-300 rounded px-3 py-2 text-sm w-full sm:w-auto"
           >
             <option value="">Todos</option>
             <option value="success">Exitoso</option>
@@ -132,7 +132,7 @@ const AdminLogs = () => {
         <div className="flex items-end">
           <button
             onClick={fetchRuns}
-            className="bg-blue-800 text-white px-4 py-2 rounded text-sm hover:bg-blue-700"
+            className="bg-blue-800 text-white px-4 py-2 rounded text-sm hover:bg-blue-700 w-full sm:w-auto"
           >
             Refrescar
           </button>
@@ -156,28 +156,28 @@ const AdminLogs = () => {
           {runs.map((run) => (
             <div key={run.id} className="border rounded-lg overflow-hidden">
               <div
-                className="flex items-center justify-between px-4 py-3 cursor-pointer hover:bg-gray-50"
+                className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-1 sm:gap-3 px-3 sm:px-4 py-3 cursor-pointer hover:bg-gray-50"
                 onClick={() => fetchLogs(run.id)}
               >
-                <div className="flex items-center gap-3">
-                  <span className={`px-2 py-1 rounded text-xs font-medium ${STATUS_COLORS[run.status] || 'bg-gray-100'}`}>
+                <div className="flex items-center gap-2 sm:gap-3 min-w-0">
+                  <span className={`px-2 py-1 rounded text-xs font-medium flex-shrink-0 ${STATUS_COLORS[run.status] || 'bg-gray-100'}`}>
                     {run.status}
                   </span>
-                  <span className="font-medium text-sm">{run.scraper_name}</span>
-                  <span className="text-gray-500 text-xs">{formatDate(run.started_at)}</span>
+                  <span className="font-medium text-sm truncate">{run.scraper_name}</span>
+                  <span className="text-gray-500 text-xs flex-shrink-0">{formatDate(run.started_at)}</span>
                 </div>
-                <div className="flex items-center gap-4 text-sm text-gray-600">
+                <div className="flex items-center gap-2 sm:gap-4 text-xs sm:text-sm text-gray-600 pl-0 sm:pl-0">
                   <span title="Encontrados">
                     {run.items_found} enc.
                   </span>
                   <span title="Guardados" className="text-green-700">
                     {run.items_saved} nuevos
                   </span>
-                  <span title="Actualizados" className="text-blue-700">
+                  <span title="Actualizados" className="text-blue-700 hidden sm:inline">
                     {run.items_updated} act.
                   </span>
                   {run.duplicates_skipped > 0 && (
-                    <span title="Duplicados omitidos" className="text-orange-600">
+                    <span title="Duplicados omitidos" className="text-orange-600 hidden sm:inline">
                       {run.duplicates_skipped} dup.
                     </span>
                   )}
@@ -185,7 +185,7 @@ const AdminLogs = () => {
                     {formatDuration(run.duration_seconds)}
                   </span>
                   <svg
-                    className={`w-4 h-4 transition-transform ${expandedRun === run.id ? 'rotate-180' : ''}`}
+                    className={`w-4 h-4 transition-transform flex-shrink-0 ${expandedRun === run.id ? 'rotate-180' : ''}`}
                     fill="none" viewBox="0 0 24 24" stroke="currentColor"
                   >
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />

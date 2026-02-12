@@ -19,7 +19,7 @@ const YearSelector: React.FC<YearSelectorProps> = ({ value, onChange }) => (
       <button
         key={y}
         onClick={() => onChange(y)}
-        className={`px-2.5 py-1 rounded-md text-xs font-bold transition-all ${
+        className={`px-1.5 sm:px-2.5 py-1 rounded-md text-[11px] sm:text-xs font-bold transition-all ${
           value === y
             ? 'bg-white text-gray-800 shadow-sm'
             : 'text-gray-500 hover:text-gray-700'

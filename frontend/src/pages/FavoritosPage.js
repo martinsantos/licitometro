@@ -160,9 +160,9 @@ const FavoritosPage = () => {
         <div className="mb-8">
           <div className="flex items-center justify-between">
             <div>
-              <h1 className="text-3xl font-black text-gray-900 flex items-center gap-3">
-                <span className="w-12 h-12 rounded-2xl bg-yellow-100 flex items-center justify-center">
-                  <svg className="w-6 h-6 text-yellow-600" fill="currentColor" viewBox="0 0 24 24">
+              <h1 className="text-xl sm:text-2xl lg:text-3xl font-black text-gray-900 flex items-center gap-2 sm:gap-3">
+                <span className="w-8 h-8 sm:w-12 sm:h-12 rounded-xl sm:rounded-2xl bg-yellow-100 flex items-center justify-center flex-shrink-0">
+                  <svg className="w-4 h-4 sm:w-6 sm:h-6 text-yellow-600" fill="currentColor" viewBox="0 0 24 24">
                     <path d="M5 5a2 2 0 012-2h10a2 2 0 012 2v16l-7-3.5L5 21V5z" />
                   </svg>
                 </span>
@@ -208,7 +208,7 @@ const FavoritosPage = () => {
         ) : (
           <>
             {/* Controls */}
-            <div className="bg-white rounded-2xl shadow-lg p-4 mb-6 flex flex-wrap gap-4 items-center">
+            <div className="bg-white rounded-2xl shadow-lg p-3 sm:p-4 mb-6 flex flex-col sm:flex-row flex-wrap gap-2 sm:gap-4 items-stretch sm:items-center">
               <div className="flex items-center gap-2">
                 <label className="text-sm font-bold text-gray-500">Agrupar por:</label>
                 <select
@@ -294,7 +294,7 @@ const FavoritosPage = () => {
                     {items.map((fav) => (
                       <div
                         key={fav.id}
-                        className="p-6 hover:bg-slate-50/50 transition-colors cursor-pointer group"
+                        className="p-4 sm:p-6 hover:bg-slate-50/50 transition-colors cursor-pointer group"
                         onClick={() => navigate(`/licitacion/${fav.id}`)}
                       >
                         <div className="flex items-start gap-4">
@@ -328,7 +328,7 @@ const FavoritosPage = () => {
                             </div>
 
                             {/* Metadata */}
-                            <div className="flex flex-wrap gap-3 mt-3">
+                            <div className="flex flex-wrap gap-1.5 sm:gap-3 mt-3">
                               {fav.licitacion_number && (
                                 <span className="px-2 py-1 bg-blue-50 text-blue-700 text-xs font-bold rounded-lg">
                                   {fav.licitacion_number}
@@ -404,11 +404,11 @@ const StatCard = ({ label, value, icon, color }) => {
   };
 
   return (
-    <div className="bg-white rounded-2xl p-6 shadow-lg">
-      <div className={`w-12 h-12 rounded-xl ${colorClasses[color]} flex items-center justify-center mb-3`}>
+    <div className="bg-white rounded-2xl p-4 sm:p-6 shadow-lg">
+      <div className={`w-10 h-10 sm:w-12 sm:h-12 rounded-xl ${colorClasses[color]} flex items-center justify-center mb-3`}>
         {icon}
       </div>
-      <p className="text-3xl font-black text-gray-900">{value}</p>
+      <p className="text-2xl sm:text-3xl font-black text-gray-900">{value}</p>
       <p className="text-sm font-bold text-gray-500 mt-1">{label}</p>
     </div>
   );

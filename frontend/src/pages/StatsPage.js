@@ -145,9 +145,9 @@ const StatsPage = () => {
         <div className="flex gap-2 mb-8">
           <button
             onClick={() => setActiveTab('overview')}
-            className={`px-6 py-3 rounded-2xl font-bold transition-all ${
-              activeTab === 'overview' 
-                ? 'bg-blue-600 text-white shadow-lg shadow-blue-200' 
+            className={`px-3 py-2 sm:px-6 sm:py-3 rounded-2xl font-bold text-sm sm:text-base transition-all ${
+              activeTab === 'overview'
+                ? 'bg-blue-600 text-white shadow-lg shadow-blue-200'
                 : 'bg-white/70 text-gray-600 hover:bg-white'
             }`}
           >
@@ -155,9 +155,9 @@ const StatsPage = () => {
           </button>
           <button
             onClick={() => setActiveTab('saved')}
-            className={`px-6 py-3 rounded-2xl font-bold transition-all flex items-center gap-2 ${
-              activeTab === 'saved' 
-                ? 'bg-blue-600 text-white shadow-lg shadow-blue-200' 
+            className={`px-3 py-2 sm:px-6 sm:py-3 rounded-2xl font-bold text-sm sm:text-base transition-all flex items-center gap-2 ${
+              activeTab === 'saved'
+                ? 'bg-blue-600 text-white shadow-lg shadow-blue-200'
                 : 'bg-white/70 text-gray-600 hover:bg-white'
             }`}
           >
@@ -287,11 +287,11 @@ const StatsPage = () => {
 
 // Componente para métricas
 const MetricCard = ({ label, value, icon, gradient }) => (
-  <div className={`bg-gradient-to-br ${gradient} rounded-3xl p-6 text-white shadow-xl`}>
-    <div className="flex items-start justify-between mb-4">
-      <span className="text-4xl">{icon}</span>
+  <div className={`bg-gradient-to-br ${gradient} rounded-3xl p-4 sm:p-6 text-white shadow-xl`}>
+    <div className="flex items-start justify-between mb-3 sm:mb-4">
+      <span className="text-2xl sm:text-4xl">{icon}</span>
     </div>
-    <p className="text-4xl font-black mb-1">{value.toLocaleString()}</p>
+    <p className="text-2xl sm:text-3xl lg:text-4xl font-black mb-1">{value.toLocaleString()}</p>
     <p className="text-white/80 font-medium text-sm">{label}</p>
   </div>
 );
@@ -315,8 +315,8 @@ const StatCard = ({ title, data, colorScheme, statusLabels = false }) => {
   };
 
   return (
-    <div className="glass rounded-3xl p-6 shadow-xl border border-white/40">
-      <h3 className="text-lg font-black text-gray-900 mb-6">{title}</h3>
+    <div className="glass rounded-3xl p-4 sm:p-6 shadow-xl border border-white/40">
+      <h3 className="text-base sm:text-lg font-black text-gray-900 mb-4 sm:mb-6">{title}</h3>
       <div className="space-y-4">
         {entries.map(([key, count]) => (
           <div key={key}>
