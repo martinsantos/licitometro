@@ -35,6 +35,9 @@ from .emesa_scraper import EmesaScraper
 # Godoy Cruz Municipality (GeneXus webapp with embedded JSON grid)
 from .godoy_cruz_scraper import GodoyCruzScraper
 
+# MPF Mendoza (Ministerio Público Fiscal)
+from .mpf_mendoza_scraper import MpfMendozaScraper
+
 # Generic HTML scraper for config-driven sites
 from .generic_html_scraper import GenericHtmlScraper
 
@@ -102,6 +105,11 @@ def create_scraper(config: ScraperConfig) -> Optional[BaseScraper]:
     if "godoycruz" in config_url_lower or "godoy cruz" in config_name_lower:
         logger.info(f"Using GodoyCruzScraper for {config.name}")
         return GodoyCruzScraper(config)
+
+    # MPF Mendoza (Ministerio Público Fiscal)
+    if "mpfmza" in config_url_lower or "mpf mendoza" in config_name_lower:
+        logger.info(f"Using MpfMendozaScraper for {config.name}")
+        return MpfMendozaScraper(config)
 
     # EMESA (Empresa Mendocina de Energía) - /concursos page works without Selenium
     # Falls through to GenericHtmlScraper via selectors config

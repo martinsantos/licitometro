@@ -1,0 +1,112 @@
+{
+  "municipios_mendoza_licitaciones": [
+    {
+      "municipio": "Ciudad de Mendoza (Capital)",
+      "cuc_code": 601,
+      "portal_url": "https://ciudaddemendoza.gob.ar/licitaciones-publicas/",
+      "notas": "Posee API de datos abiertos CKAN independiente [1, 2]"
+    },
+    {
+      "municipio": "General Alvear",
+      "cuc_code": 602,
+      "portal_url": "https://alvearmendoza.gob.ar/licitaciones/",
+      "notas": "Listado cronológico de decretos y pliegos "
+    },
+    {
+      "municipio": "Godoy Cruz",
+      "cuc_code": 603,
+      "portal_url": "https://webapps.godoycruz.gob.ar/consultacompras/index",
+      "notas": "Portal independiente avanzado con buscador propio "
+    },
+    {
+      "municipio": "Guaymallén",
+      "cuc_code": 604,
+      "portal_url": "https://www.guaymallen.gob.ar/category/liciataciones/",
+      "notas": "Uso intensivo de CUC 604 en portal provincial "
+    },
+    {
+      "municipio": "Junín",
+      "cuc_code": 605,
+      "portal_url": "https://www.junin.gob.ar/servicio/licitaciones-y-concursos",
+      "notas": "Publicación propia de pliegos y concursos "
+    },
+    {
+      "municipio": "La Paz",
+      "cuc_code": 606,
+      "portal_url": "https://lapazmendoza.gob.ar/licitaciones/",
+      "notas": "Listado de llamados vigentes "
+    },
+    {
+      "municipio": "Las Heras",
+      "cuc_code": 607,
+      "portal_url": "https://web6.lasheras.gob.ar/apex/f?p=105:22",
+      "notas": "Sistema basado en Oracle APEX (LicitaReporte) "
+    },
+    {
+      "municipio": "Lavalle",
+      "cuc_code": 608,
+      "portal_url": "https://lavallemendoza.gob.ar/public/transparencia/licitaciones/",
+      "notas": "Sección de transparencia activa municipal "
+    },
+    {
+      "municipio": "Luján de Cuyo",
+      "cuc_code": 609,
+      "portal_url": "https://licitaciones.lujandecuyo.gob.ar/",
+      "notas": "Subdominio dedicado con descarga gratuita de pliegos "
+    },
+    {
+      "municipio": "Maipú",
+      "cuc_code": 610,
+      "portal_url": "https://www.maipu.gob.ar/",
+      "notas": "Sección 'Portal de Compras' integrada en la web municipal "
+    },
+    {
+      "municipio": "Malargüe",
+      "cuc_code": 611,
+      "portal_url": "https://www.malargue.gov.ar/licitaciones/",
+      "notas": "Referencia confirmada CUC 611 "
+    },
+    {
+      "municipio": "Rivadavia",
+      "cuc_code": 612,
+      "portal_url": "https://rivadaviamendoza.gob.ar/transparencia/?cat=15",
+      "notas": "Portal de transparencia con avisos de licitación "
+    },
+    {
+      "municipio": "San Carlos",
+      "cuc_code": 613,
+      "portal_url": "https://sancarlos.gob.ar/licitaciones-msc/",
+      "notas": "Buscador propio de licitaciones y compras directas "
+    },
+    {
+      "municipio": "San Martín",
+      "cuc_code": 614,
+      "portal_url": "https://sanmartinmza.gob.ar/licitaciones/",
+      "notas": "Referencia confirmada CUC 614 "
+    },
+    {
+      "municipio": "San Rafael",
+      "cuc_code": 615,
+      "portal_url": "https://www.sanrafael.gov.ar/informacion-publica/licitaciones-2/",
+      "notas": "Referencia confirmada CUC 615 "
+    },
+    {
+      "municipio": "Santa Rosa",
+      "cuc_code": 616,
+      "portal_url": "https://www.santarosa.gob.ar/licitaciones/",
+      "notas": "Listado de procesos publicados vigentes "
+    },
+    {
+      "municipio": "Tunuyán",
+      "cuc_code": 617,
+      "portal_url": "https://www.tunuyan.gov.ar/site/licitaciones",
+      "notas": "Referencia confirmada CUC 617 "
+    },
+    {
+      "municipio": "Tupungato",
+      "cuc_code": 618,
+      "portal_url": "https://tupungato.gov.ar/?page_id=51127",
+      "notas": "Archivo de documentación licitatoria por mes "
+    }
+  ]
+}

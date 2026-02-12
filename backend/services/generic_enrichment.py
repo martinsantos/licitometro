@@ -268,6 +268,14 @@ class GenericEnrichmentService:
         if not source_url:
             return {}
 
+        # COMPR.AR URLs with session params (qs=...) expire and redirect to login.
+        # Skip enrichment entirely for COMPR.AR items — they are "good enough" at scrape time
+        # with title, org, dates, tipo from the listings page. Enrichment won't add significant value.
+        is_comprar_session = "comprar.mendoza.gov.ar" in source_url and "qs=" in source_url
+        if is_comprar_session:
+            logger.debug(f"Skipping COMPR.AR session URL (expires, already enriched at scrape): {source_url[:80]}")
+            return {}
+
         # Handle binary URLs (PDF/ZIP) before attempting HTML fetch
         url_lower = source_url.lower().split("?")[0].split("#")[0]
         if url_lower.endswith(".pdf"):
@@ -283,7 +291,8 @@ class GenericEnrichmentService:
             html = await self.http.fetch(source_url)
         except Exception as e:
             logger.warning(f"Failed to fetch {source_url}: {e}")
-            return {}
+            # Fallback: try attached files if HTML fetch failed
+            return await self._enrich_from_attached_files(lic_doc)
 
         if not html:
             return {}
@@ -474,6 +483,31 @@ class GenericEnrichmentService:
                         h, m = int(time_match.group(1)), int(time_match.group(2))
                         return date_val.replace(hour=h, minute=m)
         return date_val
+
+    async def _enrich_from_attached_files(self, lic_doc: dict) -> Dict[str, Any]:
+        """Extract enrichment data from attached PDF/ZIP files."""
+        attached = lic_doc.get("attached_files") or []
+        if not attached:
+            return {}
+
+        for file_obj in attached:
+            if not isinstance(file_obj, dict):
+                continue
+            file_url = file_obj.get("url", "")
+            file_type = file_obj.get("type", "").lower()
+
+            if file_type == "pdf":
+                text = await self._extract_text_from_pdf_url(file_url)
+                if text:
+                    logger.info(f"Enriched from attached PDF: {file_url[:60]}...")
+                    return self._analyze_extracted_text(text, lic_doc)
+            elif file_type == "zip":
+                text = await self._extract_text_from_zip(file_url)
+                if text:
+                    logger.info(f"Enriched from attached ZIP: {file_url[:60]}...")
+                    return self._analyze_extracted_text(text, lic_doc)
+
+        return {}
 
     def _extract_attachments(self, soup: BeautifulSoup, base_url: str) -> List[dict]:
         """Find all downloadable document links on the page."""

@@ -10,7 +10,7 @@ function loadSessionPref<T>(key: string, fallback: T): T {
 }
 
 export function useLicitacionPreferences() {
-  const [sortBy, setSortBy] = useState<SortField>(() => loadSessionPref('pref_sortBy', 'publication_date'));
+  const [sortBy, setSortBy] = useState<SortField>(() => loadSessionPref('pref_sortBy', 'fecha_scraping'));
   const [sortOrder, setSortOrder] = useState<SortOrder>(() => loadSessionPref('pref_sortOrder', 'desc'));
   const [viewMode, setViewMode] = useState<ViewMode>(() => loadSessionPref('pref_viewMode', 'cards'));
   const [groupBy, setGroupBy] = useState<string>(() => loadSessionPref('pref_groupBy', 'none'));

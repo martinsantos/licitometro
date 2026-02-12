@@ -269,7 +269,11 @@ class SchedulerService:
             log(f"Created scraper instance for {scraper_name}")
 
             # Execute scraper with timeout (10 min default, 20 min for Selenium scrapers)
-            timeout_seconds = 1200 if getattr(config, 'selectors', None) and isinstance(config.selectors, dict) and config.selectors.get('use_selenium_pliego') else 600
+            is_heavy = (
+                (getattr(config, 'selectors', None) and isinstance(config.selectors, dict) and config.selectors.get('use_selenium_pliego'))
+                or 'comprasapps' in scraper_name.lower()
+            )
+            timeout_seconds = 1200 if is_heavy else 600
             try:
                 items = await asyncio.wait_for(scraper.run(), timeout=timeout_seconds)
             except asyncio.TimeoutError:
@@ -358,6 +362,37 @@ class SchedulerService:
                             item_data["created_at"] = datetime.utcnow()
                             await licitaciones_collection.insert_one(item_data)
                             items_saved += 1
+
+                            # Inline lightweight enrichment (CPU only, no HTTP)
+                            try:
+                                _inline_updates = {}
+                                if not item_data.get("objeto"):
+                                    from utils.object_extractor import extract_objeto
+                                    obj = extract_objeto(
+                                        title=item_data.get("title", ""),
+                                        description=item_data.get("description", ""),
+                                        metadata=item_data.get("metadata"),
+                                    )
+                                    if obj:
+                                        _inline_updates["objeto"] = obj
+                                if not item_data.get("category"):
+                                    from services.category_classifier import get_category_classifier
+                                    classifier = get_category_classifier()
+                                    _title = item_data.get("title", "")
+                                    _objeto = _inline_updates.get("objeto", item_data.get("objeto", ""))
+                                    cat = classifier.classify(title=_title, objeto=_objeto)
+                                    if not cat:
+                                        _desc = (item_data.get("description", "") or "")[:500]
+                                        cat = classifier.classify(title=_title, objeto=_objeto, description=_desc)
+                                    if cat:
+                                        _inline_updates["category"] = cat
+                                if _inline_updates:
+                                    await licitaciones_collection.update_one(
+                                        {"id_licitacion": item.id_licitacion},
+                                        {"$set": _inline_updates}
+                                    )
+                            except Exception as inline_err:
+                                log(f"Inline enrichment failed for {item.id_licitacion}: {inline_err}", "warning")
 
                         # Count URLs with PLIEGO
                         if item.metadata and item.metadata.get("comprar_pliego_url"):

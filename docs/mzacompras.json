@@ -1,0 +1,45 @@
+{
+  "mendoza_public_procurement_sources": {
+    "administracion_central_y_servicios_comunes": {
+      "portal_transaccional_comprar": "https://comprar.mendoza.gov.ar/",
+      "buscador_directo_licitaciones_vivas": "https://comprasapps.mendoza.gov.ar/Compras/servlet/hli00049",
+      "boletin_oficial_provincial": "https://boe.mendoza.gov.ar/",
+      "portal_datos_abiertos_ocds": "https://datosabiertos-compras.mendoza.gov.ar/datasets/",
+      "registro_sancionados_y_multas": "https://comprasapps.mendoza.gov.ar/Compras/servlet/hnupro20",
+      "informacion_oficial_contrataciones": "https://informacionoficial.mendoza.gob.ar/haciendayfinanzas/contrataciones-publicas/"
+    },
+    "organismos_descentralizados_con_portales_propios": {
+      "osep_salud_empleados_publicos": "https://comprarosep.mendoza.gov.ar/",
+      "aysam_agua_y_saneamiento": "https://www.aysam.com.ar/pliegosdigitales/licitaciones",
+      "irrigacion_gestion_hidrica": "https://serviciosweb.cloud.irrigacion.gov.ar/public/licitaciones/licitacion",
+      "ipv_instituto_vivienda": "https://www.ipvmendoza.gov.ar/licitaciones-publicas/",
+      "emesa_empresa_energia": "https://emesa.com.ar/licitaciones/",
+      "epre_regulador_electrico": "https://epremendoza.gob.ar/compras-licitaciones-2/",
+      "ftyc_fondo_transformacion": "https://ftyc.gob.ar/licitaciones/",
+      "iscamen_sanidad_agropecuaria": "http://www.iscamen.com.ar/licitaciones.php",
+      "ipjyc_juegos_y_casinos": "https://www.ipjyc.gob.ar/",
+      "vialidad_provincial": "https://informacionoficial.mendoza.gob.ar/vialidad/",
+      "tribunal_de_cuentas_control": "https://www.tribunaldecuentas.mendoza.gov.ar/compras-y-presupuesto",
+      "ministerio_publico_fiscal": "https://mpfmza.jus.mendoza.gov.ar/resoluciones-saf-2023/"
+    },
+    "municipios_gobiernos_locales": {
+      "ciudad_mendoza_capital": "https://ciudaddemendoza.gob.ar/licitaciones-publicas/",
+      "godoy_cruz": "https://webapps.godoycruz.gob.ar/consultacompras/index",
+      "guaymallen": "https://www.guaymallen.gob.ar/category/liciataciones/",
+      "lujan_de_cuyo": "https://licitaciones.lujandecuyo.gob.ar/",
+      "las_heras": "http://190.15.205.231:8512/ords/f?p=116",
+      "san_martin": "https://sanmartinmza.gob.ar/licitaciones/",
+      "maipu": "https://www.maipu.gob.ar/",
+      "rivadavia": "https://rivadaviamendoza.gob.ar/transparencia/?cat=15",
+      "junin": "https://www.junin.gob.ar/servicio/licitaciones-y-concursos",
+      "tupungato": "https://tupungato.gov.ar/?page_id=2281",
+      "malargue": "https://www.malargue.gov.ar/licitaciones/",
+      "san_carlos": "https://sancarlos.gob.ar/licitaciones-msc/",
+      "santa_rosa": "https://www.santarosa.gob.ar/licitaciones/",
+      "la_paz": "https://lapazmendoza.gob.ar/licitaciones/",
+      "lavalle": "https://lavallemendoza.gob.ar/public/transparencia/licitaciones/",
+      "general_alvear": "https://alvearmendoza.gob.ar/licitaciones/",
+      "san_rafael": "http://www.sanrafael.gov.ar"
+    }
+  }
+}

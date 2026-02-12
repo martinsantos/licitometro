@@ -1,0 +1,279 @@
+
+{
+  "meta_info": {
+    "titulo_reporte": "Mapeo de Entidades Licitantes y Códigos CUC - Mendoza",
+    "fecha_generacion": "Febrero 2026",
+    "alcance": "Provincia de Mendoza, Argentina",
+    "fuentes_principales": "Boletín Oficial, Portal COMPR.AR, Edictos Públicos"
+  },
+  "entidades_identificadas":[
+    {
+      "id_entidad": "FUESMEN",
+      "nombre_oficial": "Fundación Universitaria de Ciencias Económicas y Empresariales de Mendoza",
+      "naturaleza_juridica": "Fundación Privada",
+      "codigo_unidad_compra_cuc": "102",
+      "estado_cuc": "Activo",
+      "perfil_licitante": {
+        "mecanismo_principal": "Sistema COMPR.AR",
+        "foco_adquisicion": ["Equipamiento", "Software", "Mobiliario", "Suministros"]
+      },
+      "datos_adicionales": {
+        "direccion": "Av. España 1000, Mendoza",
+        "telefono": "+54 261 429-3000",
+        "pagina_web": "https://www.fuesmen.edu.ar",
+        "portal_proveedores": "https://www.fuesmen.edu.ar/proveedores-transformacion-digital/"
+      },
+      "referencias_documentales": [2, 3, 4, 5]
+    },
+    {
+      "id_entidad": "ADMIN_CENTRAL",
+      "nombre_oficial": "Administración Central / Tesorería General",
+      "naturaleza_juridica": "Gobierno Provincial",
+      "codigo_unidad_compra_cuc": "101",
+      "estado_cuc": "Activo",
+      "perfil_licitante": {
+        "mecanismo_principal": "Sistema COMPR.AR",
+        "foco_adquisicion":
+      },
+      "referencias_documentales": [13]
+    },
+    {
+      "id_entidad": "MUN_MENDOZA",
+      "nombre_oficial": "Municipalidad de la Ciudad de Mendoza",
+      "naturaleza_juridica": "Municipio",
+      "codigo_unidad_compra_cuc": "602",
+      "estado_cuc": "Activo",
+      "perfil_licitante": {
+        "mecanismo_principal": "Sistema COMPR.AR",
+        "foco_adquisicion":
+      },
+      "referencias_documentales": [14, 15]
+    },
+    {
+      "id_entidad": "MUN_GUAYMALLEN",
+      "nombre_oficial": "Municipalidad de Guaymallén",
+      "naturaleza_juridica": "Municipio",
+      "codigo_unidad_compra_cuc": "604",
+      "estado_cuc": "Activo",
+      "perfil_licitante": {
+        "mecanismo_principal": "Sistema COMPR.AR",
+        "foco_adquisicion":
+      },
+      "referencias_documentales": [16]
+    },
+    {
+      "id_entidad": "MUN_LUJAN",
+      "nombre_oficial": "Municipalidad de Luján de Cuyo",
+      "naturaleza_juridica": "Municipio",
+      "codigo_unidad_compra_cuc": "609",
+      "estado_cuc": "Activo",
+      "perfil_licitante": {
+        "mecanismo_principal": "Sistema COMPR.AR (Adhesión a Acuerdos Marco)",
+        "foco_adquisicion":
+      },
+      "referencias_documentales": [10]
+    },
+    {
+      "id_entidad": "MUN_MALARGUE",
+      "nombre_oficial": "Municipalidad de Malargüe",
+      "naturaleza_juridica": "Municipio",
+      "codigo_unidad_compra_cuc": "611",
+      "estado_cuc": "Activo",
+      "perfil_licitante": {
+        "mecanismo_principal": "Sistema COMPR.AR (Adhesión a Acuerdos Marco)",
+        "foco_adquisicion": ["Combustibles", "Logística", "Equipamiento"]
+      },
+      "referencias_documentales": [5, 11, 17]
+    },
+    {
+      "id_entidad": "MUN_RIVADAVIA",
+      "nombre_oficial": "Municipalidad de Rivadavia",
+      "naturaleza_juridica": "Municipio",
+      "codigo_unidad_compra_cuc": "612",
+      "estado_cuc": "Activo",
+      "perfil_licitante": {
+        "mecanismo_principal": "Sistema COMPR.AR (Catálogo Permanente)",
+        "foco_adquisicion":
+      },
+      "referencias_documentales": [9]
+    },
+    {
+      "id_entidad": "MUN_JUNIN",
+      "nombre_oficial": "Municipalidad de Junín",
+      "naturaleza_juridica": "Municipio",
+      "codigo_unidad_compra_cuc": "613",
+      "estado_cuc": "Activo",
+      "perfil_licitante": {
+        "mecanismo_principal": "Sistema COMPR.AR",
+        "foco_adquisicion":
+      },
+      "referencias_documentales": [18, 19]
+    },
+    {
+      "id_entidad": "MUN_SAN_MARTIN",
+      "nombre_oficial": "Municipalidad de General San Martín",
+      "naturaleza_juridica": "Municipio",
+      "codigo_unidad_compra_cuc": "614",
+      "estado_cuc": "Activo (Nota: Históricamente vinculado a Gral Alvear en 2005, confirmado para San Martín en 2021)",
+      "perfil_licitante": {
+        "mecanismo_principal": "Sistema COMPR.AR (Adhesión a Acuerdos Marco)",
+        "foco_adquisicion": ["Urbanización", "Combustibles", "Librería"]
+      },
+      "referencias_documentales": [12, 20]
+    },
+    {
+      "id_entidad": "MUN_SAN_RAFAEL",
+      "nombre_oficial": "Municipalidad de San Rafael",
+      "naturaleza_juridica": "Municipio",
+      "codigo_unidad_compra_cuc": "615",
+      "estado_cuc": "Activo",
+      "perfil_licitante": {
+        "mecanismo_principal": "Sistema COMPR.AR",
+        "foco_adquisicion":
+      },
+      "referencias_documentales": [21]
+    },
+    {
+      "id_entidad": "MUN_TUNUYAN",
+      "nombre_oficial": "Municipalidad de Tunuyán",
+      "naturaleza_juridica": "Municipio",
+      "codigo_unidad_compra_cuc": "617",
+      "estado_cuc": "Activo",
+      "perfil_licitante": {
+        "mecanismo_principal": "Sistema COMPR.AR",
+        "foco_adquisicion":
+      },
+      "referencias_documentales": [1, 22, 23]
+    },
+    {
+
+    "titulo_reporte": "Mapeo de Entidades Licitantes y Códigos CUC - Mendoza",
+    "fecha_generacion": "Febrero 2026",
+    "alcance": "Provincia de Mendoza, Argentina",
+    "fuentes_principales": "Boletín Oficial, Portal COMPR.AR, Edictos Públicos"
+     },
+  "entidades_identificadas":,
+        "portal_proveedores": "https://www.fuesmen.edu.ar/proveedores-transformacion-digital/"
+      },
+      "referencias_documentales": [2, 3, 4, 5]
+    },
+    {
+      "id_entidad": "ADMIN_CENTRAL",
+      "nombre_oficial": "Administración Central / Tesorería General",
+      "naturaleza_juridica": "Gobierno Provincial",
+      "codigo_unidad_compra_cuc": "101",
+      "estado_cuc": "Activo",
+      "perfil_licitante": {
+        "mecanismo_principal": "Sistema COMPR.AR",
+        "foco_adquisicion":
+      },
+      "referencias_documentales": [13]
+    },
+    {
+      "id_entidad": "MUN_MENDOZA",
+      "nombre_oficial": "Municipalidad de la Ciudad de Mendoza",
+      "naturaleza_juridica": "Municipio",
+      "codigo_unidad_compra_cuc": "602",
+      "estado_cuc": "Activo",
+      "perfil_licitante": {
+        "mecanismo_principal": "Sistema COMPR.AR",
+        "foco_adquisicion":
+      },
+      "referencias_documentales": [14, 15]
+    },
+    {
+      "id_entidad": "MUN_GUAYMALLEN",
+      "nombre_oficial": "Municipalidad de Guaymallén",
+      "naturaleza_juridica": "Municipio",
+      "codigo_unidad_compra_cuc": "604",
+      "estado_cuc": "Activo",
+      "perfil_licitante": {
+        "mecanismo_principal": "Sistema COMPR.AR",
+        "foco_adquisicion":
+      },
+      "referencias_documentales": [16]
+    },
+    {
+      "id_entidad": "MUN_LUJAN",
+      "nombre_oficial": "Municipalidad de Luján de Cuyo",
+      "naturaleza_juridica": "Municipio",
+      "codigo_unidad_compra_cuc": "609",
+      "estado_cuc": "Activo",
+      "perfil_licitante": {
+        "mecanismo_principal": "Sistema COMPR.AR (Adhesión a Acuerdos Marco)",
+        "foco_adquisicion":
+      },
+      "referencias_documentales": [10]
+    },
+    {
+      "id_entidad": "MUN_MALARGUE",
+      "nombre_oficial": "Municipalidad de Malargüe",
+      "naturaleza_juridica": "Municipio",
+      "codigo_unidad_compra_cuc": "611",
+      "estado_cuc": "Activo",
+      "perfil_licitante": {
+        "mecanismo_principal": "Sistema COMPR.AR (Adhesión a Acuerdos Marco)",
+        "foco_adquisicion": ["Combustibles", "Logística", "Equipamiento"]
+      },
+      "referencias_documentales": [5, 11, 17]
+    },
+    {
+      "id_entidad": "MUN_RIVADAVIA",
+      "nombre_oficial": "Municipalidad de Rivadavia",
+      "naturaleza_juridica": "Municipio",
+      "codigo_unidad_compra_cuc": "612",
+      "estado_cuc": "Activo",
+      "perfil_licitante": {
+        "mecanismo_principal": "Sistema COMPR.AR (Catálogo Permanente)",
+        "foco_adquisicion":
+      },
+      "referencias_documentales": [9]
+    },
+    {
+      "id_entidad": "MUN_JUNIN",
+      "nombre_oficial": "Municipalidad de Junín",
+      "naturaleza_juridica": "Municipio",
+      "codigo_unidad_compra_cuc": "613",
+      "estado_cuc": "Activo",
+      "perfil_licitante": {
+        "mecanismo_principal": "Sistema COMPR.AR",
+        "foco_adquisicion":
+      },
+      "referencias_documentales": [18, 19]
+    },
+    {
+      "id_entidad": "MUN_SAN_MARTIN",
+      "nombre_oficial": "Municipalidad de General San Martín",
+      "naturaleza_juridica": "Municipio",
+      "codigo_unidad_compra_cuc": "614",
+      "estado_cuc": "Activo (Nota: Históricamente vinculado a Gral Alvear en 2005, confirmado para San Martín en 2021)",
+      "perfil_licitante": {
+        "mecanismo_principal": "Sistema COMPR.AR (Adhesión a Acuerdos Marco)",
+        "foco_adquisicion": ["Urbanización", "Combustibles", "Librería"]
+      },
+      "referencias_documentales": [12, 20]
+    },
+    {
+      "id_entidad": "MUN_SAN_RAFAEL",
+      "nombre_oficial": "Municipalidad de San Rafael",
+      "naturaleza_juridica": "Municipio",
+      "codigo_unidad_compra_cuc": "615",
+      "estado_cuc": "Activo",
+      "perfil_licitante": {
+        "mecanismo_principal": "Sistema COMPR.AR",
+        "foco_adquisicion":
+      },
+      "referencias_documentales": [21]
+    },
+    {
+      "id_entidad": "MUN_TUNUYAN",
+      "nombre_oficial": "Municipalidad de Tunuyán",
+      "naturaleza_juridica": "Municipio",
+      "codigo_unidad_compra_cuc": "617",
+      "estado_cuc": "Activo",
+      "perfil_licitante": {
+        "mecanismo_principal": "Sistema COMPR.AR",
+        "foco_adquisicion":
+      },
+      "referencias_documentales": [1, 22, 23]
+    }

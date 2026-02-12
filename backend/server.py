@@ -187,6 +187,20 @@ async def startup_db_client():
         )
         logger.info("Auto-update of active licitaciones scheduled at 8:00 AM")
 
+        # Schedule enrichment cron every 30 minutes
+        from services.enrichment_cron_service import get_enrichment_cron_service
+        from apscheduler.triggers.interval import IntervalTrigger
+        enrichment_cron = get_enrichment_cron_service(database)
+        scheduler_service.scheduler.add_job(
+            func=enrichment_cron.run_enrichment_cycle,
+            trigger=IntervalTrigger(minutes=30),
+            id="enrichment_cron",
+            name="Enrichment cron (L1→L2)",
+            replace_existing=True,
+            max_instances=1,
+        )
+        logger.info("Enrichment cron scheduled every 30 minutes")
+
         # Schedule daily notification digest at 9am
         try:
             from services.notification_service import get_notification_service
