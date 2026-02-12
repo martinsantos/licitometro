@@ -44,7 +44,7 @@ licitometro/
 │   │   ├── scraper_configs.py     # Scraper config CRUD
 │   │   ├── workflow.py            # Workflow state transitions
 │   │   ├── offer_templates.py     # Offer templates CRUD
-│   │   ├── auth.py                # Login/logout (JWT cookie)
+│   │   ├── auth.py                # Login/logout/token-login (JWT cookie)
 │   │   ├── comprar.py             # COMPR.AR proxy endpoints
 │   │   └── public.py              # Public health/stats endpoints
 │   ├── scrapers/
@@ -73,11 +73,12 @@ licitometro/
 │   │   ├── nodo_matcher.py        # Fuzzy keyword matching for nodos (Spanish stemming, accent-tolerant)
 │   │   ├── workflow_service.py    # State machine (descubierta→evaluando→...)
 │   │   ├── enrichment_service.py  # Enrichment orchestration
-│   │   ├── notification_service.py # Telegram + Email (daily digest 9am) + per-nodo alerts
+│   │   ├── notification_service.py # Telegram + Email (daily digest 9am)
+│   │   ├── nodo_digest_service.py # Per-nodo digest notifications (9:15am + 6pm)
 │   │   ├── auto_update_service.py # Re-enrich active licitaciones (8am cron)
 │   │   ├── smart_search_parser.py # NLP search query parsing
 │   │   ├── deduplication_service.py # Content hash dedup
-│   │   ├── auth_service.py        # bcrypt + JWT
+│   │   ├── auth_service.py        # bcrypt + JWT (user + reader tokens)
 │   │   ├── storage_cleanup_service.py # Disk cleanup
 │   │   └── url_resolver.py        # URL resolution
 │   ├── utils/
@@ -261,6 +262,8 @@ Auth middleware bloquea requests localhost en Docker; siempre usar `docker exec`
 | Scraping | 8,10,12,15,19hs (7 dias/sem) | scheduler_service.py |
 | Auto-update | 8am | auto_update_service.py |
 | Daily digest | 9am | notification_service.py (Telegram + Email) |
+| Nodo digest morning | 9:15am | nodo_digest_service.py (daily + twice_daily) |
+| Nodo digest evening | 6pm | nodo_digest_service.py (twice_daily only) |
 | Backup | 2am | scripts/backup.sh (mongodump) |
 | Health monitor | cada 5min | scripts/health_monitor.sh |
 
@@ -302,6 +305,7 @@ Docker Compose lee `.env` (NO `.env.production`). En prod hay symlink `.env → 
 - Docker IPv6 requiere 3 configs simultaneas: daemon.json + sysctl forwarding + compose network. Si falta una, no funciona
 - VPS Hostinger no tiene git credentials HTTPS. Usar `scp` para deploy y `docker compose build` para rebuild
 - SSL verificacion deshabilitada globalmente en ResilientHttpClient (`ssl=False`) por certs rotos en sitios gov.ar
+- Nodo email `config.to` puede tener semicolons (`"a@x;b@x"` como un solo string en el array). Siempre splitear por `;` antes de enviar via SMTP
 
 ---
 
@@ -338,6 +342,8 @@ Nodos son zonas de interes definidas por nubes de keywords. Cada nodo agrupa lic
   - email: `config.to` (lista), `config.subject_prefix`
   - telegram: `config.chat_id`
   - tag: `config.keyword` (auto-agrega al campo keywords de la licitacion)
+- `digest_frequency`: `"none"` | `"daily"` (default) | `"twice_daily"`
+- `last_digest_sent`: datetime (se actualiza al enviar digest, se inicializa al crear nodo)
 - `active`, `matched_count`, timestamps
 
 ### Campo en licitaciones
@@ -374,7 +380,8 @@ Patron singleton `get_nodo_matcher(db)` con cache de regex compilados. Se recomp
 
 ### Frontend
 - `/nodos` — Pagina de gestion (NodosPage.tsx)
-- NodoForm: keyword groups + acciones + color picker
+- NodoForm: keyword groups + acciones + color picker + digest frequency selector
+- NodoCard: frequency badge (violet "1x/dia"/"2x/dia"), last digest timestamp
 - NodoBadge: Badge con color dot en cards y detail page
 - FilterSidebar/MobileFilterDrawer: Seccion "Nodos" con faceted counts
 - ActiveFiltersChips: Muestra nombre del nodo (via nodoMap)
@@ -388,6 +395,58 @@ Patron singleton `get_nodo_matcher(db)` con cache de regex compilados. Se recomp
 ### Datos actuales
 - 1,495/3,231 licitaciones matcheadas (46%)
 - IT: 1,296 matches | Vivero: 259 matches
+
+### Nodo Digest Notifications (nodo_digest_service.py)
+
+Envia digests periodicos por nodo con licitaciones nuevas desde `last_digest_sent`.
+
+**Frecuencias** (campo `digest_frequency` en nodo):
+- `"none"` — sin notificaciones
+- `"daily"` — 1x/dia a las 9:15am (default)
+- `"twice_daily"` — 2x/dia a las 9:15am y 6pm
+
+**Flujo**:
+1. APScheduler llama `run_digest(["daily", "twice_daily"])` a las 9:15am
+2. Query nodos activos con frecuencia matcheante
+3. Para cada nodo: query licitaciones con `nodos: nodo_id` AND `fecha_scraping > last_digest_sent`
+4. Si hay items nuevos: genera token publico, construye mensaje, envia por acciones habilitadas
+5. Actualiza `last_digest_sent` en el nodo
+
+**Telegram**: Max 10 items, titulo+org+presupuesto, link clickeable con token.
+**Email**: HTML con tabla (max 20 items), header con color del nodo, columnas: licitacion, organizacion, presupuesto, apertura.
+
+**CRITICO**: Email `config.to` puede contener direcciones separadas por `;` (legacy). El digest service normaliza splitting por `;` antes de enviar. El NodoForm frontend tambien splitea por `,` y `;`.
+
+**Test manual**:
+```bash
+ssh root@76.13.234.213 "docker exec -w /app -e PYTHONPATH=/app licitometro-backend-1 python3 -c \"
+import asyncio; from motor.motor_asyncio import AsyncIOMotorClient; import os
+async def run():
+    db = AsyncIOMotorClient(os.environ['MONGO_URL'])[os.environ['DB_NAME']]
+    from services.nodo_digest_service import get_nodo_digest_service
+    await get_nodo_digest_service(db).run_digest(['daily', 'twice_daily'])
+asyncio.run(run())
+\""
+```
+
+---
+
+## Acceso Publico via Token
+
+Los links en notificaciones de nodo incluyen `?token=xxx` (JWT con `sub: "reader"`, TTL 30 dias).
+
+### Flujo
+1. `create_public_access_token(ttl_days=30)` en `auth_service.py` genera JWT reader
+2. Links: `https://licitometro.ar/licitacion/{id}?token=xxx`
+3. `POST /api/auth/token-login` (auth-exempt) valida token y setea cookie `access_token`
+4. Frontend `App.js`: al montar, si URL tiene `?token=xxx`, llama token-login, recibe cookie, limpia URL con `history.replaceState`
+5. SPA funciona normalmente con la cookie de sesion
+
+### Archivos involucrados
+- `backend/services/auth_service.py`: `create_public_access_token()`, `verify_token()` acepta `sub: "reader"`
+- `backend/routers/auth.py`: `POST /api/auth/token-login`
+- `backend/server.py`: `/api/auth/token-login` en `AUTH_EXEMPT_PATHS`
+- `frontend/src/App.js`: Token exchange en `handleStartup()`
 
 ---
 
