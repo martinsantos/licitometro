@@ -116,11 +116,10 @@ class EnrichmentCronService:
                     if cat:
                         updates["category"] = cat
 
-                # Set enrichment level + workflow
+                # Set enrichment level only - DO NOT auto-transition workflow state
+                # Workflow transitions should be explicit business logic, not automatic
                 updates["enrichment_level"] = 2
                 updates["updated_at"] = datetime.utcnow()
-                if doc.get("workflow_state", "descubierta") == "descubierta":
-                    updates["workflow_state"] = "evaluando"
 
                 await self.collection.update_one(
                     {"_id": doc["_id"]},
@@ -172,8 +171,7 @@ class EnrichmentCronService:
 
                     updates["enrichment_level"] = 2
                     updates["updated_at"] = datetime.utcnow()
-                    if doc.get("workflow_state", "descubierta") == "descubierta":
-                        updates["workflow_state"] = "evaluando"
+                    # DO NOT auto-transition workflow state - must be explicit business logic
 
                     # Re-run nodo matching with enriched data
                     try:
