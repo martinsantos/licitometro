@@ -306,6 +306,7 @@ Docker Compose lee `.env` (NO `.env.production`). En prod hay symlink `.env → 
 - VPS Hostinger no tiene git credentials HTTPS. Usar `scp` para deploy y `docker compose build` para rebuild
 - SSL verificacion deshabilitada globalmente en ResilientHttpClient (`ssl=False`) por certs rotos en sitios gov.ar
 - Nodo email `config.to` puede tener semicolons (`"a@x;b@x"` como un solo string en el array). Siempre splitear por `;` antes de enviar via SMTP
+- **CRITICAL - Workflow State is Business-Critical**: NUNCA hacer auto-transiciones de workflow_state basadas en enriquecimiento. Being enriched ≠ being in evaluation status. Las transiciones de estado deben ser EXPLÍCITAS y MANUALES (validadas por usuario/API). enrichment_cron_service debe SOLO enriquecer datos (objeto, category, enrichment_level), NUNCA cambiar workflow_state.
 
 ---
 
