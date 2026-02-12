@@ -766,7 +766,8 @@ class MendozaCompraScraper(BaseScraper):
                 opening_date = parse_date_guess(apertura) if apertura else None
                 if apertura and not opening_date:
                     logger.warning(f"Could not parse apertura '{apertura}' for {numero}")
-                publication_date = opening_date or datetime.utcnow()
+                # Use scraping time, NOT opening_date (apertura is future)
+                publication_date = datetime.utcnow()
 
                 pliego_url = entry.get("pliego_url")
                 if pliego_url and not pliego_url.startswith(("http://", "https://")):

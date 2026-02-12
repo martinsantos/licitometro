@@ -257,7 +257,8 @@ class OsepScraper(BaseScraper):
                     target = row.get("target")
                     
                     opening_date = parse_date_guess(apertura) if apertura else None
-                    publication_date = opening_date or datetime.utcnow()
+                    # Use scraping time, NOT opening_date (apertura is future)
+                    publication_date = datetime.utcnow()
                     
                     # Build proxy URLs
                     proxy_open_url = None

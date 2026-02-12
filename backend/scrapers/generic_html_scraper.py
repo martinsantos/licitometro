@@ -15,7 +15,8 @@ Config selectors:
   selectors.next_page_selector: CSS selector for next page link
   selectors.list_item_selector: CSS selector for items on list page (for inline extraction)
   selectors.list_title_selector: CSS selector for title within list item
-  selectors.list_date_selector:  CSS selector for date within list item
+  selectors.list_date_selector:  CSS selector for publication date within list item
+  selectors.list_opening_date_selector: CSS selector for opening/apertura date within list item
   selectors.list_link_selector:  CSS selector for link within list item
   selectors.inline_mode:        If true, extract from list page directly (no detail fetch)
 """
@@ -205,13 +206,19 @@ class GenericHtmlScraper(BaseScraper):
                 except ValueError:
                     pass
 
+            # Opening date from separate selector (if configured)
+            opening_date = None
+            open_sel = self._sel("list_opening_date_selector", "")
+            if open_sel:
+                open_el = item.select_one(open_sel)
+                if open_el:
+                    opening_date = parse_date_guess(open_el.get_text(strip=True))
+
             link_sel = self._sel("list_link_selector", "a[href]")
             link_el = item.select_one(link_sel)
             url = ""
             if link_el and link_el.get("href"):
                 url = urljoin(str(self.config.url), link_el["href"])
-
-            # pub_date already extracted above for min_date filtering
 
             # Use description selector if configured, otherwise use title as description
             desc_sel = self._sel("list_description_selector", "")
@@ -234,6 +241,7 @@ class GenericHtmlScraper(BaseScraper):
                 organization=self.org,
                 jurisdiccion="Mendoza",
                 publication_date=pub_date or datetime.utcnow(),
+                opening_date=opening_date,
                 description=description,
                 status="active",
                 source_url=url or str(self.config.url),

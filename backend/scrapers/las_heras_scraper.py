@@ -514,7 +514,8 @@ class LasHerasScraper(BaseScraper):
             opening_date = parse_date_guess(fecha_ap_raw) if fecha_ap_raw else None
 
             if not publication_date:
-                publication_date = opening_date or datetime.utcnow()
+                # Fallback to scraping time, NOT opening_date (apertura is future)
+                publication_date = datetime.utcnow()
 
             # Type
             tipo_procedimiento = tipo_raw or "Licitación"
