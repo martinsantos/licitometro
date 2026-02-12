@@ -200,6 +200,20 @@ const LicitacionesList = ({ apiUrl }: LicitacionesListProps) => {
     prefs.handleSortChange(newSort);
   }, [prefs.handleSortChange]);
 
+  // Toggle "Nuevas de hoy" filter WITHOUT clearing other filters
+  const handleToggleTodayFilter = useCallback((today: string | null) => {
+    if (today) {
+      setFilter('fechaDesde', today);
+      setFilter('fechaHasta', today);
+    } else {
+      setFilter('fechaDesde', '');
+      setFilter('fechaHasta', '');
+    }
+  }, [setFilter]);
+
+  // Check if "Nuevas de hoy" filter is active
+  const isTodayFilterActive = filters.fechaDesde === filters.fechaHasta && filters.fechaDesde !== '';
+
   // Preset loading
   const handleLoadPreset = useCallback((presetFilters: Partial<FilterState>, sortBy?: string, sortOrder?: string) => {
     clearAll();
@@ -291,8 +305,9 @@ const LicitacionesList = ({ apiUrl }: LicitacionesListProps) => {
               />
 
               <QuickPresetButton
-                onApplyPreset={handleLoadPreset}
+                onToggleTodayFilter={handleToggleTodayFilter}
                 newItemsCount={newItemsCount}
+                isActive={isTodayFilterActive}
               />
 
               <PresetSelector
