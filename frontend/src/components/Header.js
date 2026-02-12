@@ -1,11 +1,14 @@
 import React, { useState } from 'react';
-import { Link, useLocation } from 'react-router-dom';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
+import axios from 'axios';
 
-const Header = () => {
+const Header = ({ userRole }) => {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const location = useLocation();
+  const navigate = useNavigate();
 
   const isActive = (path) => location.pathname === path;
+  const isAdmin = userRole === 'admin';
 
   const navLinks = [
     { path: '/', label: 'Inicio' },
@@ -15,11 +18,18 @@ const Header = () => {
         <path d="M5 5a2 2 0 012-2h10a2 2 0 012 2v16l-7-3.5L5 21V5z" />
       </svg>
     )},
-    { path: '/nodos', label: 'Nodos' },
-    { path: '/templates', label: 'Plantillas' },
+    { path: '/nodos', label: 'Nodos', adminOnly: true },
+    { path: '/templates', label: 'Plantillas', adminOnly: true },
     { path: '/stats', label: 'Estadísticas' },
-    { path: '/admin', label: 'Admin' },
-  ];
+    { path: '/admin', label: 'Admin', adminOnly: true },
+  ].filter(link => !link.adminOnly || isAdmin);
+
+  const handleLogout = async () => {
+    try {
+      await axios.post('/api/auth/logout');
+    } catch {}
+    window.location.href = '/';
+  };
 
   return (
     <header className="bg-slate-900 text-white sticky top-0 z-50 will-change-transform">
@@ -36,7 +46,7 @@ const Header = () => {
           </Link>
 
           {/* Desktop Nav */}
-          <nav className="hidden md:block">
+          <nav className="hidden md:flex items-center gap-1">
             <ul className="flex items-center gap-1">
               {navLinks.map(({ path, label, icon }) => (
                 <li key={path}>
@@ -54,6 +64,16 @@ const Header = () => {
                 </li>
               ))}
             </ul>
+            {/* Logout button */}
+            <button
+              onClick={handleLogout}
+              className="ml-2 px-3 py-2 rounded-md text-sm font-medium text-slate-400 hover:bg-white/5 hover:text-white transition-colors"
+              title="Cerrar sesión"
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+              </svg>
+            </button>
           </nav>
 
           {/* Mobile menu button */}
@@ -91,6 +111,17 @@ const Header = () => {
                   </Link>
                 </li>
               ))}
+              <li>
+                <button
+                  onClick={handleLogout}
+                  className="w-full flex items-center gap-2 px-3 py-2 rounded-md text-sm font-medium text-slate-400 hover:bg-white/5 hover:text-white transition-colors"
+                >
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+                  </svg>
+                  Cerrar sesión
+                </button>
+              </li>
             </ul>
           </nav>
         )}

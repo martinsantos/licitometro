@@ -51,7 +51,16 @@ const NodoForm: React.FC<NodoFormProps> = ({ nodo, onSave, onCancel }) => {
           name: g.name.trim(),
           keywords: g.keywords.split(',').map(k => k.trim()).filter(Boolean),
         })),
-      actions,
+      actions: actions.map(a => {
+        const config = { ...a.config };
+        if (a.type === 'email') {
+          // Split raw text input into array, remove empties
+          const raw = config._rawTo ?? (config.to || []).join(', ');
+          config.to = raw.split(/[,;]/).map((s: string) => s.trim()).filter(Boolean);
+        }
+        delete config._rawTo;
+        return { ...a, config };
+      }),
     };
     onSave(data);
   };
@@ -191,9 +200,9 @@ const NodoForm: React.FC<NodoFormProps> = ({ nodo, onSave, onCancel }) => {
                   <>
                     <input
                       type="text"
-                      placeholder="Destinatarios (separados por coma)"
-                      value={(action.config.to || []).join(', ')}
-                      onChange={e => updateActionConfig(i, 'to', e.target.value.split(/[,;]/).map(s => s.trim()).filter(Boolean))}
+                      placeholder="Destinatarios (separados por coma o punto y coma)"
+                      value={action.config._rawTo ?? (action.config.to || []).join(', ')}
+                      onChange={e => updateActionConfig(i, '_rawTo', e.target.value)}
                       className="w-full px-2 py-1 border border-gray-200 rounded text-xs focus:border-emerald-400 outline-none"
                     />
                     <input

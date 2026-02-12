@@ -1,4 +1,5 @@
 import React from 'react';
+import { useNavigate } from 'react-router-dom';
 import type { Nodo } from '../../types/licitacion';
 
 interface NodoCardProps {
@@ -14,6 +15,7 @@ const FREQ_LABELS: Record<string, string> = {
 };
 
 const NodoCard: React.FC<NodoCardProps> = ({ nodo, onEdit, onDelete, onRematch }) => {
+  const navigate = useNavigate();
   const totalKeywords = nodo.keyword_groups.reduce((sum, g) => sum + g.keywords.length, 0);
   const enabledActions = nodo.actions.filter(a => a.enabled);
   const freqLabel = FREQ_LABELS[nodo.digest_frequency];
@@ -28,9 +30,15 @@ const NodoCard: React.FC<NodoCardProps> = ({ nodo, onEdit, onDelete, onRematch }
             <span className="px-2 py-0.5 bg-gray-200 text-gray-500 rounded text-[10px] font-bold">INACTIVO</span>
           )}
         </div>
-        <span className="px-3 py-1 bg-emerald-50 text-emerald-700 rounded-lg text-sm font-bold">
+        <button
+          onClick={() => {
+            sessionStorage.setItem('licitacionFilters', JSON.stringify({ nodoFiltro: nodo.id }));
+            navigate('/licitaciones');
+          }}
+          className="px-3 py-1 bg-emerald-50 text-emerald-700 rounded-lg text-sm font-bold hover:bg-emerald-100 transition-colors cursor-pointer"
+        >
           {nodo.matched_count} matches
-        </span>
+        </button>
       </div>
 
       {nodo.description && (

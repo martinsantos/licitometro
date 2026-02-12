@@ -15,7 +15,8 @@ const ENRICHMENT_LABELS = {
   3: { label: 'Completo', color: 'bg-emerald-100 text-emerald-700' },
 };
 
-const LicitacionDetailPage = () => {
+const LicitacionDetailPage = ({ userRole }) => {
+  const isAdmin = userRole === 'admin';
   const { id } = useParams();
   const [licitacion, setLicitacion] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -296,7 +297,7 @@ const LicitacionDetailPage = () => {
         {/* Main Card */}
         <div className="glass rounded-[2.5rem] shadow-[0_20px_60px_rgba(0,0,0,0.1)] border border-white/40 overflow-hidden">
           {/* Header */}
-          <div className="relative bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 p-8 sm:p-10">
+          <div className="relative bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 p-4 sm:p-6 lg:p-10">
             <div className="absolute inset-0 bg-[url('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNjAiIGhlaWdodD0iNjAiIHZpZXdCb3g9IjAgMCA2MCA2MCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48ZyBmaWxsPSJub25lIiBmaWxsLXJ1bGU9ImV2ZW5vZGQiPjxnIGZpbGw9IiNmZmYiIGZpbGwtb3BhY2l0eT0iMC4wNSI+PHBhdGggZD0iTTM2IDM0djItSDI0di0yaDEyek0zNiAzMHYySDI0di0yaDEyeiBNMzYgMjZ2MkgyNHYtMmgxMnoiLz48L2c+PC9nPjwvc3ZnPg==')] opacity-30"></div>
             
             <div className="relative flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
@@ -426,7 +427,7 @@ const LicitacionDetailPage = () => {
                   </div>
                 </div>
 
-                {licitacion?.source_url && (
+                {isAdmin && licitacion?.source_url && (
                   <div className="flex sm:flex-col gap-2">
                     <button
                       onClick={() => enrichLicitacion(2)}
@@ -466,26 +467,28 @@ const LicitacionDetailPage = () => {
             </div>
           </div>
 
-          {/* Workflow Stepper */}
-          <div className="px-8 sm:px-10 py-4 bg-gray-50 border-t border-gray-100">
-            <WorkflowStepper
-              licId={id}
-              currentState={licitacion.workflow_state || 'descubierta'}
-              history={licitacion.workflow_history || []}
-              onStateChange={handleWorkflowChange}
-            />
-          </div>
+          {/* Workflow Stepper (admin only) */}
+          {isAdmin && (
+            <div className="px-8 sm:px-10 py-4 bg-gray-50 border-t border-gray-100">
+              <WorkflowStepper
+                licId={id}
+                currentState={licitacion.workflow_state || 'descubierta'}
+                history={licitacion.workflow_history || []}
+                onStateChange={handleWorkflowChange}
+              />
+            </div>
+          )}
 
           {/* Tabs Navigation */}
-          <div className="px-8 sm:px-10 border-b border-gray-200 bg-white" ref={tabNavRef}>
-            <nav className="flex gap-1 overflow-x-auto -mb-px">
+          <div className="px-4 sm:px-6 lg:px-10 border-b border-gray-200 bg-white" ref={tabNavRef}>
+            <nav className="flex gap-1 overflow-x-auto scrollbar-hide -mb-px">
               {[
                 { id: 'general', label: 'Info General' },
                 { id: 'items', label: 'Items', count: (licitacion.items || []).length },
                 { id: 'docs', label: 'Documentos', count: (licitacion.attached_files || []).length + (licitacion.pliegos_bases || []).length },
                 { id: 'cronograma', label: 'Cronograma', show: hasCronograma },
-                { id: 'workflow', label: 'Workflow' },
-                { id: 'oferta', label: 'Oferta', show: licitacion?.workflow_state === 'preparando' },
+                { id: 'workflow', label: 'Workflow', show: isAdmin },
+                { id: 'oferta', label: 'Oferta', show: isAdmin && licitacion?.workflow_state === 'preparando' },
               ].filter(t => t.show !== false).map(tab => (
                 <button
                   key={tab.id}
@@ -1098,60 +1101,62 @@ const LicitacionDetailPage = () => {
                   )}
                 </section>
 
-                {/* Public Sharing Toggle */}
-                <section className="bg-white rounded-2xl p-6 shadow-lg border border-gray-100">
-                  <h3 className="text-sm font-black text-gray-500 uppercase tracking-wider mb-4">Compartir Públicamente</h3>
-                  <div className="flex items-center justify-between mb-3">
-                    <span className="text-sm text-gray-600">
-                      {isPublic ? 'Visible sin login' : 'Solo usuarios autenticados'}
-                    </span>
-                    <button
-                      onClick={async () => {
-                        setTogglingPublic(true);
-                        try {
-                          const res = await axios.post(`${API}/licitaciones/${id}/toggle-public`);
-                          setIsPublic(res.data.is_public);
-                          setPublicSlug(res.data.public_slug);
-                        } catch (err) {
-                          console.error('Error toggling public:', err);
-                        } finally {
-                          setTogglingPublic(false);
-                        }
-                      }}
-                      disabled={togglingPublic}
-                      className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
-                        isPublic ? 'bg-emerald-500' : 'bg-gray-300'
-                      } ${togglingPublic ? 'opacity-50' : ''}`}
-                    >
-                      <span
-                        className={`inline-block h-4 w-4 rounded-full bg-white transition-transform ${
-                          isPublic ? 'translate-x-6' : 'translate-x-1'
-                        }`}
-                      />
-                    </button>
-                  </div>
-                  {isPublic && publicSlug && (
-                    <div className="mt-3">
-                      <div className="flex items-center gap-2">
-                        <input
-                          type="text"
-                          readOnly
-                          value={`${window.location.origin}/p/${publicSlug}`}
-                          className="flex-1 text-xs bg-gray-50 border border-gray-200 rounded-lg px-3 py-2 text-gray-600 font-mono"
+                {/* Public Sharing Toggle (admin only) */}
+                {isAdmin && (
+                  <section className="bg-white rounded-2xl p-6 shadow-lg border border-gray-100">
+                    <h3 className="text-sm font-black text-gray-500 uppercase tracking-wider mb-4">Compartir Públicamente</h3>
+                    <div className="flex items-center justify-between mb-3">
+                      <span className="text-sm text-gray-600">
+                        {isPublic ? 'Visible sin login' : 'Solo usuarios autenticados'}
+                      </span>
+                      <button
+                        onClick={async () => {
+                          setTogglingPublic(true);
+                          try {
+                            const res = await axios.post(`${API}/licitaciones/${id}/toggle-public`);
+                            setIsPublic(res.data.is_public);
+                            setPublicSlug(res.data.public_slug);
+                          } catch (err) {
+                            console.error('Error toggling public:', err);
+                          } finally {
+                            setTogglingPublic(false);
+                          }
+                        }}
+                        disabled={togglingPublic}
+                        className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+                          isPublic ? 'bg-emerald-500' : 'bg-gray-300'
+                        } ${togglingPublic ? 'opacity-50' : ''}`}
+                      >
+                        <span
+                          className={`inline-block h-4 w-4 rounded-full bg-white transition-transform ${
+                            isPublic ? 'translate-x-6' : 'translate-x-1'
+                          }`}
                         />
-                        <button
-                          onClick={() => {
-                            navigator.clipboard.writeText(`${window.location.origin}/p/${publicSlug}`);
-                            alert('Link público copiado');
-                          }}
-                          className="px-3 py-2 bg-emerald-100 text-emerald-700 rounded-lg text-xs font-bold hover:bg-emerald-200 transition-colors"
-                        >
-                          Copiar
-                        </button>
-                      </div>
+                      </button>
                     </div>
-                  )}
-                </section>
+                    {isPublic && publicSlug && (
+                      <div className="mt-3">
+                        <div className="flex items-center gap-2">
+                          <input
+                            type="text"
+                            readOnly
+                            value={`${window.location.origin}/p/${publicSlug}`}
+                            className="flex-1 text-xs bg-gray-50 border border-gray-200 rounded-lg px-3 py-2 text-gray-600 font-mono"
+                          />
+                          <button
+                            onClick={() => {
+                              navigator.clipboard.writeText(`${window.location.origin}/p/${publicSlug}`);
+                              alert('Link público copiado');
+                            }}
+                            className="px-3 py-2 bg-emerald-100 text-emerald-700 rounded-lg text-xs font-bold hover:bg-emerald-200 transition-colors"
+                          >
+                            Copiar
+                          </button>
+                        </div>
+                      </div>
+                    )}
+                  </section>
+                )}
 
                 {/* Metadata */}
                 <section className="bg-gray-50 rounded-2xl p-6 border border-gray-100">

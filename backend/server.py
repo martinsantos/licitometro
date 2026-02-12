@@ -61,7 +61,9 @@ app.add_middleware(
 
 @app.middleware("http")
 async def auth_middleware(request: Request, call_next):
-    """Require authentication for all API routes except exempt ones."""
+    """Require authentication for all API routes except exempt ones.
+    Non-GET requests require admin role.
+    """
     path = request.url.path
 
     # Skip auth for non-API routes, exempt paths, and public API
@@ -69,11 +71,24 @@ async def auth_middleware(request: Request, call_next):
         return await call_next(request)
 
     token = request.cookies.get("access_token")
-    if not token or not verify_token(token):
+    if not token:
+        return JSONResponse(status_code=401, content={"detail": "Not authenticated"})
+
+    token_data = verify_token(token)
+    if not token_data["valid"]:
+        return JSONResponse(status_code=401, content={"detail": "Not authenticated"})
+
+    role = token_data.get("role", "reader")
+
+    # Non-GET requests require admin (except auth-exempt paths already handled above)
+    if request.method != "GET" and role != "admin":
         return JSONResponse(
-            status_code=401,
-            content={"detail": "Not authenticated"},
+            status_code=403,
+            content={"detail": "Acceso de administrador requerido"},
         )
+
+    request.state.user_role = role
+    request.state.user_email = token_data.get("email", "")
 
     return await call_next(request)
 
@@ -100,6 +115,31 @@ async def startup_db_client():
     app.mongodb_client = client
     app.mongodb = database
     logger.info(f"Connected to MongoDB at {MONGO_URL}, database: {DB_NAME}")
+
+    # Auto-seed admin user if users collection is empty
+    try:
+        from services.auth_service import AUTH_PASSWORD_HASH
+        from datetime import datetime
+        count = await database.users.count_documents({})
+        if count == 0 and AUTH_PASSWORD_HASH:
+            await database.users.insert_one({
+                "email": "santosma@gmail.com",
+                "password_hash": AUTH_PASSWORD_HASH,
+                "role": "admin",
+                "name": "Martin Santos",
+                "active": True,
+                "created_at": datetime.utcnow(),
+                "updated_at": datetime.utcnow(),
+            })
+            await database.users.create_index("email", unique=True)
+            logger.info("Admin user seeded: santosma@gmail.com")
+        elif count == 0:
+            logger.warning("No users and AUTH_PASSWORD_HASH not set - no admin seeded")
+        else:
+            # Ensure unique index exists even if users already present
+            await database.users.create_index("email", unique=True)
+    except Exception as e:
+        logger.error(f"Failed to seed admin user: {e}")
 
     # Ensure indexes are created
     try:

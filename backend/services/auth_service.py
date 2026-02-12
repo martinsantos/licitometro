@@ -1,5 +1,5 @@
 """
-Authentication service - shared password with JWT tokens.
+Authentication service - user accounts with role-based JWT tokens.
 """
 
 import os
@@ -21,26 +21,25 @@ TOKEN_EXPIRY_HOURS = int(os.environ.get("TOKEN_EXPIRY_HOURS", "24"))
 AUTH_PASSWORD_HASH = os.environ.get("AUTH_PASSWORD_HASH", "")
 
 
-def verify_password(plain_password: str) -> bool:
-    """Verify the shared password against the stored bcrypt hash."""
-    if not AUTH_PASSWORD_HASH:
-        logger.critical("AUTH_PASSWORD_HASH not set - rejecting all login attempts")
-        return False
+async def authenticate_user(db, email: str, password: str) -> dict | None:
+    """Authenticate user by email+password. Returns user doc or None."""
+    user = await db.users.find_one({"email": email, "active": True})
+    if not user:
+        return None
     try:
-        return _bcrypt.checkpw(
-            plain_password.encode("utf-8"),
-            AUTH_PASSWORD_HASH.encode("utf-8"),
-        )
+        if _bcrypt.checkpw(password.encode("utf-8"), user["password_hash"].encode("utf-8")):
+            return user
     except Exception as e:
-        logger.error(f"Password verification error: {e}")
-        return False
+        logger.error(f"Password verification error for {email}: {e}")
+    return None
 
 
-def create_access_token() -> str:
-    """Create a JWT access token."""
+def create_access_token(email: str, role: str) -> str:
+    """Create a JWT access token with email and role."""
     expire = datetime.now(timezone.utc) + timedelta(hours=TOKEN_EXPIRY_HOURS)
     payload = {
-        "sub": "user",
+        "sub": email,
+        "role": role,
         "exp": expire,
         "iat": datetime.now(timezone.utc),
     }
@@ -58,15 +57,20 @@ def create_public_access_token(ttl_days: int = 30) -> str:
     return jwt.encode(payload, JWT_SECRET_KEY, algorithm=JWT_ALGORITHM)
 
 
-def verify_token(token: str) -> bool:
-    """Verify a JWT token is valid and not expired. Accepts both 'user' and 'reader' subjects."""
+def verify_token(token: str) -> dict:
+    """Verify a JWT token. Returns dict with valid, email, role."""
     try:
         payload = jwt.decode(token, JWT_SECRET_KEY, algorithms=[JWT_ALGORITHM])
-        return payload.get("sub") in ("user", "reader")
+        sub = payload.get("sub", "")
+        if sub == "reader":
+            return {"valid": True, "email": "", "role": "reader"}
+        if sub:
+            return {"valid": True, "email": sub, "role": payload.get("role", "viewer")}
+        return {"valid": False, "email": "", "role": ""}
     except jwt.ExpiredSignatureError:
-        return False
+        return {"valid": False, "email": "", "role": ""}
     except jwt.InvalidTokenError:
-        return False
+        return {"valid": False, "email": "", "role": ""}
 
 
 def hash_password(plain_password: str) -> str:

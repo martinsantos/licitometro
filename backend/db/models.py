@@ -201,3 +201,16 @@ def nodo_entity(nodo) -> dict:
 def nodos_entity(nodos) -> list:
     """Convert a list of MongoDB nodo documents to a list of dicts"""
     return [nodo_entity(nodo) for nodo in nodos]
+
+
+def user_entity(user) -> dict:
+    """Convert MongoDB user document to dict"""
+    return {
+        "id": str(user["_id"]),
+        "email": user["email"],
+        "role": user.get("role", "viewer"),
+        "name": user.get("name", ""),
+        "active": user.get("active", True),
+        "created_at": user.get("created_at", datetime.utcnow()),
+        "updated_at": user.get("updated_at", datetime.utcnow()),
+    }

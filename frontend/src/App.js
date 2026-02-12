@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import "./App.css";
-import { BrowserRouter, Routes, Route, useLocation } from "react-router-dom";
+import { BrowserRouter, Routes, Route, Navigate, useLocation } from "react-router-dom";
 import axios from "axios";
 
 // Components
@@ -28,29 +28,30 @@ axios.defaults.baseURL = BACKEND_URL;
 axios.defaults.withCredentials = true;
 
 // Authenticated app shell with Header/Footer
-const AuthenticatedApp = () => (
+const AuthenticatedApp = ({ userRole }) => (
   <div className="App flex flex-col min-h-screen">
-    <Header />
+    <Header userRole={userRole} />
     <main className="flex-grow">
       <Routes>
         <Route path="/" element={<HomePage />} />
         <Route path="/licitaciones" element={<LicitacionesPage apiUrl={BACKEND_URL} />} />
-        <Route path="/licitaciones/:id" element={<LicitacionDetailPage />} />
-        <Route path="/licitacion/:id" element={<LicitacionDetailPage />} />
+        <Route path="/licitaciones/:id" element={<LicitacionDetailPage userRole={userRole} />} />
+        <Route path="/licitacion/:id" element={<LicitacionDetailPage userRole={userRole} />} />
         <Route path="/favoritos" element={<FavoritosPage />} />
         <Route path="/stats" element={<StatsPage />} />
-        <Route path="/admin" element={<AdminPage />} />
-        <Route path="/admin/licitacion/:id" element={<LicitacionDetailPage />} />
-        <Route path="/admin/scraper/:id" element={<ScraperFormPage />} />
-        <Route path="/templates" element={<OfferTemplatesPage />} />
-        <Route path="/nodos" element={<NodosPage />} />
+        {/* Admin-only routes */}
+        <Route path="/admin" element={userRole === 'admin' ? <AdminPage /> : <Navigate to="/licitaciones" />} />
+        <Route path="/admin/licitacion/:id" element={userRole === 'admin' ? <LicitacionDetailPage userRole={userRole} /> : <Navigate to="/licitaciones" />} />
+        <Route path="/admin/scraper/:id" element={userRole === 'admin' ? <ScraperFormPage /> : <Navigate to="/licitaciones" />} />
+        <Route path="/templates" element={userRole === 'admin' ? <OfferTemplatesPage /> : <Navigate to="/licitaciones" />} />
+        <Route path="/nodos" element={userRole === 'admin' ? <NodosPage /> : <Navigate to="/licitaciones" />} />
       </Routes>
     </main>
     <Footer />
   </div>
 );
 
-function AppRouter({ authenticated, setAuthenticated }) {
+function AppRouter({ authState, setAuthState }) {
   const location = useLocation();
 
   // Public routes - no auth required
@@ -64,7 +65,7 @@ function AppRouter({ authenticated, setAuthenticated }) {
   }
 
   // Loading state
-  if (authenticated === null) {
+  if (authState === null) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-50">
         <div className="text-gray-500 text-lg">Cargando...</div>
@@ -73,15 +74,20 @@ function AppRouter({ authenticated, setAuthenticated }) {
   }
 
   // Not authenticated - show login
-  if (!authenticated) {
-    return <LoginPage onLogin={() => setAuthenticated(true)} />;
+  if (authState === false) {
+    return (
+      <LoginPage
+        onLogin={(role, email) => setAuthState({ role, email })}
+      />
+    );
   }
 
-  return <AuthenticatedApp />;
+  return <AuthenticatedApp userRole={authState.role} />;
 }
 
 function App() {
-  const [authenticated, setAuthenticated] = useState(null); // null = loading
+  // null = loading, false = not auth, { role, email } = authenticated
+  const [authState, setAuthState] = useState(null);
 
   useEffect(() => {
     handleStartup();
@@ -109,17 +115,17 @@ function App() {
 
   const checkAuth = async () => {
     try {
-      await axios.get("/api/auth/check");
-      setAuthenticated(true);
+      const res = await axios.get("/api/auth/check");
+      setAuthState({ role: res.data.role, email: res.data.email });
     } catch {
-      setAuthenticated(false);
+      setAuthState(false);
     }
   };
 
   return (
     <BrowserRouter>
       <ScrollToTop />
-      <AppRouter authenticated={authenticated} setAuthenticated={setAuthenticated} />
+      <AppRouter authState={authState} setAuthState={setAuthState} />
     </BrowserRouter>
   );
 }
