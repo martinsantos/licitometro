@@ -322,6 +322,34 @@ descubierta → evaluando → preparando → presentada
 2. **Detailed** (enrichment): description, opening_date, budget, objeto, category
 3. **Documents** (PDF/ZIP): full pliego text, extracted fields
 
+### CRITICAL: Workflow State Transitions Rules
+
+**GOLDEN RULE: ENRICHMENT MUST NEVER CHANGE WORKFLOW STATE**
+
+- `enrichment_level` (1→2→3) = data completeness, NOT workflow state
+- `workflow_state` (descubierta→evaluando→preparando→presentada) = business status, MUST be manual
+- Being enriched ≠ Being under evaluation
+- Enrichment services (`enrichment_cron_service`, `generic_enrichment`, `auto_update_service`) MUST ONLY enrich data fields (objeto, category, description, budget, etc.)
+- They NEVER touch `workflow_state`
+
+**Transition Rules**:
+1. **descubierta** (default): New item, recently scraped, waiting for review
+2. **evaluando** (manual only): User/system explicitly marks for evaluation
+3. **preparando** (manual only): Item under active preparation, proposals coming in
+4. **presentada** (manual): Completed, proposals received, closed
+5. **descartada** (manual): Rejected, no longer relevant
+
+**Implementation**:
+- Workflow transitions happen via explicit API calls (not automatic)
+- Frontend: workflow.py router has `PUT /api/licitaciones/{id}/workflow` endpoint
+- Admin action required: User clicks button → HTTP PUT → state changes
+- Never as side-effect of enrichment or cron jobs
+
+**Why This Matters**:
+- Workflow state affects business logic downstream (notifications, deadlines, UI flags)
+- Auto-transitions cause data corruption (as discovered in Feb 12 emergency)
+- Manual control = data integrity = business alignment
+
 ---
 
 ## Categorias (Rubros)
