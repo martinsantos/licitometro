@@ -25,6 +25,7 @@ import Pagination from './licitaciones/Pagination';
 import ListSkeleton from './licitaciones/ListSkeleton';
 import MobileFilterDrawer from './licitaciones/MobileFilterDrawer';
 import PresetSelector from './licitaciones/PresetSelector';
+import QuickPresetButton from './licitaciones/QuickPresetButton';
 import YearSelector from './licitaciones/YearSelector';
 
 // Derive the date field for filtering from the current sort field
@@ -287,6 +288,11 @@ const LicitacionesList = ({ apiUrl }: LicitacionesListProps) => {
               <YearSelector
                 value={filters.yearWorkspace}
                 onChange={(y) => setFilter('yearWorkspace', y)}
+              />
+
+              <QuickPresetButton
+                onApplyPreset={handleLoadPreset}
+                newItemsCount={newItemsCount}
               />
 
               <PresetSelector
