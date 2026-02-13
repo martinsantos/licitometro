@@ -62,6 +62,8 @@ async def get_licitaciones(
     fecha_desde: Optional[date] = Query(None, description="Filter from date (inclusive)"),
     fecha_hasta: Optional[date] = Query(None, description="Filter to date (inclusive)"),
     fecha_campo: str = Query("publication_date", description="Date field to filter on"),
+    nuevas_desde: Optional[date] = Query(None, description="Filter by first_seen_at >= date (truly new items)"),
+    year: Optional[str] = Query(None, description="Filter by publication year (e.g., '2026' or 'all')"),
     sort_by: str = Query("publication_date", description="Field to sort by"),
     sort_order: str = Query("desc", description="Sort order: asc or desc"),
     repo: LicitacionRepository = Depends(get_licitacion_repository)
@@ -189,7 +191,7 @@ async def get_licitaciones(
     # Date range filter
     allowed_date_fields = ["publication_date", "opening_date", "expiration_date",
                            "fecha_publicacion_portal", "fecha_inicio_consultas", "fecha_fin_consultas",
-                           "created_at", "fecha_scraping"]
+                           "created_at", "fecha_scraping", "first_seen_at"]
     if fecha_campo not in allowed_date_fields:
         fecha_campo = "publication_date"
 
@@ -201,6 +203,32 @@ async def get_licitaciones(
             date_filter["$lte"] = datetime.combine(fecha_hasta, datetime.max.time())
         if date_filter:
             filters[fecha_campo] = date_filter
+
+    # Year archival filter (enforces publication_date within year range)
+    if year and year != "all":
+        try:
+            year_num = int(year)
+            year_start = datetime(year_num, 1, 1)
+            year_end = datetime(year_num, 12, 31, 23, 59, 59)
+            # Use publication_date for year filtering (not fecha_scraping)
+            if "publication_date" in filters:
+                # Merge with existing date filter
+                existing = filters["publication_date"]
+                filters["publication_date"] = {
+                    "$gte": max(existing.get("$gte", year_start), year_start),
+                    "$lte": min(existing.get("$lte", year_end), year_end)
+                }
+            else:
+                filters["publication_date"] = {
+                    "$gte": year_start,
+                    "$lte": year_end
+                }
+        except (ValueError, TypeError):
+            pass  # Invalid year format, ignore
+
+    # "Nuevas desde" filter (first_seen_at >= date) - for "Nuevas de hoy" button
+    if nuevas_desde:
+        filters["first_seen_at"] = {"$gte": datetime.combine(nuevas_desde, datetime.min.time())}
 
     # Handle sort order
     order_val = 1 if sort_order == "asc" else -1
@@ -552,7 +580,7 @@ async def get_daily_counts(
 
     allowed_date_fields = ["publication_date", "opening_date", "expiration_date",
                            "fecha_publicacion_portal", "fecha_inicio_consultas", "fecha_fin_consultas",
-                           "created_at", "fecha_scraping"]
+                           "created_at", "fecha_scraping", "first_seen_at"]
     if fecha_campo not in allowed_date_fields:
         fecha_campo = "publication_date"
 
@@ -686,12 +714,12 @@ async def get_recent_activity(
     since = datetime.utcnow() - timedelta(hours=hours)
 
     pipeline = [
-        {"$match": {"created_at": {"$gte": since}}},
-        {"$sort": {"created_at": -1}},
+        {"$match": {"first_seen_at": {"$gte": since}}},
+        {"$sort": {"first_seen_at": -1}},
         {"$group": {
             "_id": "$fuente",
             "count": {"$sum": 1},
-            "latest": {"$first": "$created_at"},
+            "latest": {"$first": "$first_seen_at"},
             "sample_titles": {"$push": "$title"},
         }},
         {"$sort": {"count": -1}}
@@ -714,6 +742,115 @@ async def get_recent_activity(
         "total_new": total_new,
         "by_source": by_source,
     }
+
+
+@router.get("/stats/scraping-activity")
+async def get_scraping_activity(request: Request, hours: int = 24):
+    """Get categorized scraping activity: truly new, re-indexed, and updated items"""
+    from datetime import timedelta
+
+    db = request.app.mongodb
+    collection = db.licitaciones
+
+    since = datetime.utcnow() - timedelta(hours=hours)
+
+    # Count truly new items (first_seen_at >= since)
+    truly_new_pipeline = [
+        {"$match": {"first_seen_at": {"$gte": since}}},
+        {"$group": {
+            "_id": "$fuente",
+            "count": {"$sum": 1}
+        }}
+    ]
+    truly_new_results = await collection.aggregate(truly_new_pipeline).to_list(100)
+    truly_new_by_source = {r["_id"]: r["count"] for r in truly_new_results}
+    total_truly_new = sum(truly_new_by_source.values())
+
+    # Count re-indexed items (fecha_scraping >= since AND first_seen_at < since)
+    re_indexed_pipeline = [
+        {"$match": {
+            "fecha_scraping": {"$gte": since},
+            "$or": [
+                {"first_seen_at": {"$lt": since}},
+                {"first_seen_at": {"$exists": False}}
+            ]
+        }},
+        {"$group": {
+            "_id": "$fuente",
+            "count": {"$sum": 1}
+        }}
+    ]
+    re_indexed_results = await collection.aggregate(re_indexed_pipeline).to_list(100)
+    re_indexed_by_source = {r["_id"]: r["count"] for r in re_indexed_results}
+    total_re_indexed = sum(re_indexed_by_source.values())
+
+    # Count updated items (updated_at >= since AND created_at < since AND fecha_scraping < since)
+    updated_pipeline = [
+        {"$match": {
+            "updated_at": {"$gte": since},
+            "created_at": {"$lt": since},
+            "$or": [
+                {"fecha_scraping": {"$lt": since}},
+                {"fecha_scraping": {"$exists": False}}
+            ]
+        }},
+        {"$group": {
+            "_id": "$fuente",
+            "count": {"$sum": 1}
+        }}
+    ]
+    updated_results = await collection.aggregate(updated_pipeline).to_list(100)
+    updated_by_source = {r["_id"]: r["count"] for r in updated_results}
+    total_updated = sum(updated_by_source.values())
+
+    # Combine all sources
+    all_sources = set(truly_new_by_source.keys()) | set(re_indexed_by_source.keys()) | set(updated_by_source.keys())
+    by_source = []
+    for source in sorted(all_sources):
+        by_source.append({
+            "fuente": source or "Desconocida",
+            "truly_new": truly_new_by_source.get(source, 0),
+            "re_indexed": re_indexed_by_source.get(source, 0),
+            "updated": updated_by_source.get(source, 0)
+        })
+
+    # Sort by total activity
+    by_source.sort(key=lambda x: x["truly_new"] + x["re_indexed"] + x["updated"], reverse=True)
+
+    return {
+        "hours": hours,
+        "truly_new": total_truly_new,
+        "re_indexed": total_re_indexed,
+        "updated": total_updated,
+        "by_source": by_source
+    }
+
+
+@router.get("/stats/year-range")
+async def get_year_range(request: Request):
+    """Get min/max publication years for dynamic year selector"""
+    db = request.app.mongodb
+    collection = db.licitaciones
+
+    pipeline = [
+        {"$match": {"publication_date": {"$ne": None}}},
+        {"$group": {
+            "_id": None,
+            "min_date": {"$min": "$publication_date"},
+            "max_date": {"$max": "$publication_date"}
+        }}
+    ]
+
+    result = await collection.aggregate(pipeline).to_list(1)
+
+    if not result or not result[0].get("min_date") or not result[0].get("max_date"):
+        current_year = datetime.now().year
+        return {"min_year": current_year, "max_year": current_year}
+
+    min_year = result[0]["min_date"].year
+    max_year = result[0]["max_date"].year
+
+    return {"min_year": min_year, "max_year": max_year}
 
 
 @router.get("/stats/storage")

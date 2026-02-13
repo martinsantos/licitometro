@@ -66,7 +66,12 @@ class GenericHtmlScraper(BaseScraper):
         return f"{slug}:{h}"
 
     def _content_hash(self, title: str, pub_date: Optional[datetime]) -> str:
-        s = f"{(title or '').lower().strip()}|{self.config.name}|{(pub_date or datetime.utcnow()).strftime('%Y%m%d')}"
+        # Use stable date component - if no pub_date, use "unknown" to prevent daily hash changes
+        if pub_date:
+            date_str = pub_date.strftime('%Y%m%d')
+        else:
+            date_str = "unknown"  # Stable fallback prevents re-indexing inflation
+        s = f"{(title or '').lower().strip()}|{self.config.name}|{date_str}"
         return hashlib.md5(s.encode()).hexdigest()
 
     def _parse_budget_text(self, text: str) -> tuple:

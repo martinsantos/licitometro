@@ -2,14 +2,16 @@ import React, { useState, useEffect } from 'react';
 
 interface SourceActivity {
   fuente: string;
-  count: number;
-  latest: string | null;
-  sample_titles: string[];
+  truly_new: number;
+  re_indexed: number;
+  updated: number;
 }
 
-interface RecentActivity {
+interface ScrapingActivity {
   hours: number;
-  total_new: number;
+  truly_new: number;
+  re_indexed: number;
+  updated: number;
   by_source: SourceActivity[];
 }
 
@@ -19,7 +21,7 @@ interface NovedadesStripProps {
 }
 
 const NovedadesStrip: React.FC<NovedadesStripProps> = ({ apiUrl, onSourceClick }) => {
-  const [activity, setActivity] = useState<RecentActivity | null>(null);
+  const [activity, setActivity] = useState<ScrapingActivity | null>(null);
   const [hours, setHours] = useState(24);
   const [expanded, setExpanded] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -28,14 +30,13 @@ const NovedadesStrip: React.FC<NovedadesStripProps> = ({ apiUrl, onSourceClick }
     const fetchActivity = async () => {
       setLoading(true);
       try {
-        const res = await fetch(`${apiUrl}/api/licitaciones/stats/recent-activity?hours=${hours}`, { credentials: 'include' });
+        const res = await fetch(`${apiUrl}/api/licitaciones/stats/scraping-activity?hours=${hours}`, { credentials: 'include' });
         if (res.ok) {
           const data = await res.json();
           setActivity(data);
-          // Start collapsed — user can expand on click
         }
       } catch {
-        // Recent activity fetch failure is non-critical
+        // Scraping activity fetch failure is non-critical
       } finally {
         setLoading(false);
       }
@@ -43,18 +44,8 @@ const NovedadesStrip: React.FC<NovedadesStripProps> = ({ apiUrl, onSourceClick }
     fetchActivity();
   }, [apiUrl, hours]);
 
-  const formatTimeAgo = (isoStr: string | null) => {
-    if (!isoStr) return '';
-    const diff = Date.now() - new Date(isoStr).getTime();
-    const mins = Math.floor(diff / 60000);
-    if (mins < 60) return `hace ${mins}m`;
-    const hrs = Math.floor(mins / 60);
-    if (hrs < 24) return `hace ${hrs}h`;
-    const days = Math.floor(hrs / 24);
-    return `hace ${days}d`;
-  };
-
-  const hasActivity = !loading && activity && activity.total_new > 0;
+  const hasActivity = !loading && activity && (activity.truly_new > 0 || activity.re_indexed > 0 || activity.updated > 0);
+  const totalActivity = activity ? activity.truly_new + activity.re_indexed + activity.updated : 0;
 
   // Never return null - use CSS transition for smooth appearance/disappearance
   return (
@@ -67,17 +58,27 @@ const NovedadesStrip: React.FC<NovedadesStripProps> = ({ apiUrl, onSourceClick }
       }}
     >
       <div className="bg-white rounded-xl border border-gray-100 overflow-hidden">
-        {/* Header - always visible when has activity */}
+        {/* Header - categorized badges */}
         <button
           onClick={() => setExpanded(!expanded)}
           className="w-full px-3 py-2 flex items-center justify-between hover:bg-gray-50 transition-colors"
         >
-          <div className="flex items-center gap-2 sm:gap-3 min-w-0">
+          <div className="flex items-center gap-2 sm:gap-3 min-w-0 flex-wrap">
             <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse flex-shrink-0" />
-            <span className="text-xs sm:text-sm font-black text-gray-800 flex-shrink-0">NOVEDADES</span>
-            {activity && (
+            <span className="text-xs sm:text-sm font-black text-gray-800 flex-shrink-0">ACTIVIDAD</span>
+            {activity && activity.truly_new > 0 && (
               <span className="px-2 py-0.5 bg-emerald-100 text-emerald-700 rounded-full text-[10px] sm:text-xs font-bold flex-shrink-0">
-                +{activity.total_new}
+                {activity.truly_new} nuevas
+              </span>
+            )}
+            {activity && activity.re_indexed > 0 && (
+              <span className="px-2 py-0.5 bg-amber-100 text-amber-700 rounded-full text-[10px] sm:text-xs font-bold flex-shrink-0">
+                {activity.re_indexed} reindexadas
+              </span>
+            )}
+            {activity && activity.updated > 0 && (
+              <span className="px-2 py-0.5 bg-blue-100 text-blue-700 rounded-full text-[10px] sm:text-xs font-bold flex-shrink-0">
+                {activity.updated} actualizadas
               </span>
             )}
           </div>
@@ -108,36 +109,60 @@ const NovedadesStrip: React.FC<NovedadesStripProps> = ({ apiUrl, onSourceClick }
           </div>
         </button>
 
-        {/* Expanded content */}
-        {expanded && activity && (
+        {/* Expanded content - source breakdown */}
+        {expanded && activity && activity.by_source.length > 0 && (
           <div className="px-4 pb-4 border-t border-gray-100">
             <div className="mt-3 space-y-2">
-              {activity.by_source.map((src) => (
-                <button
-                  key={src.fuente}
-                  onClick={() => onSourceClick?.(src.fuente)}
-                  className="w-full flex items-center gap-3 px-3 py-2 rounded-xl hover:bg-gray-50 transition-colors text-left"
-                >
-                  <span className="w-2 h-2 rounded-full bg-violet-500 flex-shrink-0" />
-                  <span className="text-sm font-bold text-gray-700 flex-1 min-w-0 truncate">
-                    {src.fuente}
-                  </span>
-                  <span className="px-2 py-0.5 bg-emerald-50 text-emerald-700 rounded text-xs font-bold flex-shrink-0">
-                    +{src.count} nuevas
-                  </span>
-                  <span className="text-xs text-gray-400 flex-shrink-0">
-                    {formatTimeAgo(src.latest)}
-                  </span>
-                </button>
-              ))}
+              {activity.by_source.map((src) => {
+                const srcTotal = src.truly_new + src.re_indexed + src.updated;
+                if (srcTotal === 0) return null;
+
+                return (
+                  <button
+                    key={src.fuente}
+                    onClick={() => onSourceClick?.(src.fuente)}
+                    className="w-full flex items-center gap-2 px-3 py-2 rounded-xl hover:bg-gray-50 transition-colors text-left"
+                  >
+                    <span className="w-2 h-2 rounded-full bg-violet-500 flex-shrink-0" />
+                    <span className="text-sm font-bold text-gray-700 flex-1 min-w-0 truncate">
+                      {src.fuente}
+                    </span>
+                    <div className="flex items-center gap-1 flex-shrink-0">
+                      {src.truly_new > 0 && (
+                        <span className="px-1.5 py-0.5 bg-emerald-50 text-emerald-700 rounded text-[10px] font-bold">
+                          {src.truly_new}
+                        </span>
+                      )}
+                      {src.re_indexed > 0 && (
+                        <span className="px-1.5 py-0.5 bg-amber-50 text-amber-700 rounded text-[10px] font-bold">
+                          {src.re_indexed}
+                        </span>
+                      )}
+                      {src.updated > 0 && (
+                        <span className="px-1.5 py-0.5 bg-blue-50 text-blue-700 rounded text-[10px] font-bold">
+                          {src.updated}
+                        </span>
+                      )}
+                    </div>
+                  </button>
+                );
+              })}
             </div>
 
-            {activity.by_source.length > 0 && (
-              <div className="mt-3 pt-3 border-t border-gray-100 text-xs text-gray-400">
-                Ultimo scraping: {activity.by_source[0].fuente}{' '}
-                {formatTimeAgo(activity.by_source[0].latest)}
+            <div className="mt-3 pt-3 border-t border-gray-100 text-xs text-gray-400 flex items-center gap-3">
+              <div className="flex items-center gap-1">
+                <span className="w-2 h-2 rounded-full bg-emerald-500" />
+                <span>Nuevas</span>
               </div>
-            )}
+              <div className="flex items-center gap-1">
+                <span className="w-2 h-2 rounded-full bg-amber-500" />
+                <span>Re-indexadas</span>
+              </div>
+              <div className="flex items-center gap-1">
+                <span className="w-2 h-2 rounded-full bg-blue-500" />
+                <span>Actualizadas</span>
+              </div>
+            </div>
           </div>
         )}
       </div>

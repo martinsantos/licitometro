@@ -70,23 +70,31 @@ const DailyDigestStrip = ({ apiUrl, onDaySelect, selectedDate, fechaCampo }: Dai
           <span className="text-gray-400 uppercase tracking-wide flex-shrink-0 hidden sm:inline">Actividad</span>
           <button
             onClick={(e) => { e.stopPropagation(); onDaySelect(selectedDate === today ? null : today); }}
-            className={`px-2 py-0.5 rounded transition-all flex-shrink-0 ${
+            className={`px-2 py-0.5 rounded transition-all flex-shrink-0 flex items-center gap-1 ${
               selectedDate === today
                 ? 'bg-emerald-600 text-white'
                 : 'bg-emerald-50 text-emerald-700 hover:bg-emerald-100'
             }`}
+            title="Licitaciones indexadas hoy (incluye nuevas + reindexadas)"
           >
-            Hoy {todayCount}
+            <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+            </svg>
+            <span>Hoy {todayCount}</span>
           </button>
           <button
             onClick={(e) => { e.stopPropagation(); onDaySelect(selectedDate === yesterday ? null : yesterday); }}
-            className={`px-2 py-0.5 rounded transition-all flex-shrink-0 ${
+            className={`px-2 py-0.5 rounded transition-all flex-shrink-0 flex items-center gap-1 ${
               selectedDate === yesterday
                 ? 'bg-blue-600 text-white'
                 : 'bg-blue-50 text-blue-700 hover:bg-blue-100'
             }`}
+            title="Licitaciones indexadas ayer (incluye nuevas + reindexadas)"
           >
-            Ayer {yesterdayCount}
+            <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+            </svg>
+            <span>Ayer {yesterdayCount}</span>
           </button>
           <span className="text-gray-400 flex-shrink-0">Sem {weekTotal}</span>
           <span className="text-gray-400 flex-shrink-0 hidden sm:inline">Mes {monthTotal}</span>

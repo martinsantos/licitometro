@@ -20,6 +20,9 @@ const DATE_FIELDS = [
   { value: 'publication_date', label: 'Publicación' },
   { value: 'opening_date', label: 'Apertura' },
   { value: 'expiration_date', label: 'Vencimiento' },
+  { value: 'first_seen_at', label: 'Descubierta (1ra vez)' },
+  { value: 'fecha_scraping', label: 'Indexada (última)' },
+  { value: 'created_at', label: 'Creada en BD' },
 ];
 
 const DateRangeFilter: React.FC<DateRangeFilterProps> = ({

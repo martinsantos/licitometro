@@ -112,7 +112,8 @@ def licitacion_entity(licitacion) -> dict:
         "nodos": licitacion.get("nodos", []),
         # Timestamps
         "created_at": licitacion.get("created_at", datetime.utcnow()),
-        "updated_at": licitacion.get("updated_at", datetime.utcnow())
+        "updated_at": licitacion.get("updated_at", datetime.utcnow()),
+        "first_seen_at": licitacion.get("first_seen_at", licitacion.get("created_at", datetime.utcnow()))
     }
 
 def licitaciones_entity(licitaciones) -> list:

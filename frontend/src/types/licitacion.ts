@@ -21,6 +21,7 @@ export interface Licitacion {
   enrichment_level?: number;
   fecha_scraping?: string;
   created_at?: string;
+  first_seen_at?: string;
   nodos?: string[];
   metadata?: {
     comprar_estado?: string;
@@ -85,6 +86,7 @@ export interface FilterState {
   budgetMax: string;
   fechaDesde: string;
   fechaHasta: string;
+  nuevasDesde: string;  // Filter by first_seen_at >= date (truly new items)
   yearWorkspace: string;
 }
 

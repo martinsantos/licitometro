@@ -107,8 +107,10 @@ export function useLicitacionPreferences() {
   }, []);
 
   const isNewItem = useCallback((lic: Licitacion) => {
-    if (!lastVisitRef.current || !lic.created_at) return false;
-    return new Date(lic.created_at) > new Date(lastVisitRef.current);
+    if (!lastVisitRef.current) return false;
+    const firstSeen = lic.first_seen_at || lic.created_at;
+    if (!firstSeen) return false;
+    return new Date(firstSeen) > new Date(lastVisitRef.current);
   }, []);
 
   return {

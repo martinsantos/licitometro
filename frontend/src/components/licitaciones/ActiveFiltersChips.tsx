@@ -74,6 +74,9 @@ const ActiveFiltersChips: React.FC<ActiveFiltersChipsProps> = ({
       {(filters.fechaDesde || filters.fechaHasta) && (
         <Chip label={`${filters.fechaDesde || '...'} a ${filters.fechaHasta || '...'}`} color="bg-green-100 text-green-700" onRemove={() => { onFilterChange('fechaDesde', ''); onFilterChange('fechaHasta', ''); }} />
       )}
+      {filters.nuevasDesde && (
+        <Chip label={`✨ Nuevas desde ${filters.nuevasDesde}`} color="bg-emerald-100 text-emerald-700" onRemove={() => onFilterChange('nuevasDesde', '')} />
+      )}
       {hasActiveFilters && (
         <button
           onClick={onClearAll}

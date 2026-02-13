@@ -358,8 +358,10 @@ class SchedulerService:
                             )
                             items_updated += 1
                         else:
-                            # Insert
-                            item_data["created_at"] = datetime.utcnow()
+                            # Insert - set both created_at AND first_seen_at
+                            now = datetime.utcnow()
+                            item_data["created_at"] = now
+                            item_data["first_seen_at"] = now
                             await licitaciones_collection.insert_one(item_data)
                             items_saved += 1
 

@@ -203,16 +203,14 @@ const LicitacionesList = ({ apiUrl }: LicitacionesListProps) => {
   // Toggle "Nuevas de hoy" filter WITHOUT clearing other filters
   const handleToggleTodayFilter = useCallback((today: string | null) => {
     if (today) {
-      setFilter('fechaDesde', today);
-      setFilter('fechaHasta', today);
+      setFilter('nuevasDesde', today);
     } else {
-      setFilter('fechaDesde', '');
-      setFilter('fechaHasta', '');
+      setFilter('nuevasDesde', '');
     }
   }, [setFilter]);
 
   // Check if "Nuevas de hoy" filter is active
-  const isTodayFilterActive = filters.fechaDesde === filters.fechaHasta && filters.fechaDesde !== '';
+  const isTodayFilterActive = filters.nuevasDesde !== '';
 
   // Preset loading
   const handleLoadPreset = useCallback((presetFilters: Partial<FilterState>, sortBy?: string, sortOrder?: string) => {

@@ -28,6 +28,7 @@ const initialFilters: FilterState = {
   budgetMax: '',
   fechaDesde: '',
   fechaHasta: '',
+  nuevasDesde: '',
   yearWorkspace: getDefaultYear(),
 };
 
@@ -100,7 +101,8 @@ export function useLicitacionFilters() {
     filters.tipoProcedimientoFiltro || filters.organizacionFiltro ||
     filters.nodoFiltro ||
     filters.budgetMin || filters.budgetMax ||
-    filters.fechaDesde || filters.fechaHasta
+    filters.fechaDesde || filters.fechaHasta ||
+    filters.nuevasDesde
   );
 
   const activeFilterCount = [
@@ -110,6 +112,7 @@ export function useLicitacionFilters() {
     filters.nodoFiltro,
     filters.budgetMin, filters.budgetMax,
     filters.fechaDesde, filters.fechaHasta,
+    filters.nuevasDesde,
   ].filter(Boolean).length;
 
   return { filters, setFilter, setMany, clearAll, hasActiveFilters, activeFilterCount };

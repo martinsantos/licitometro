@@ -72,6 +72,7 @@ export function useLicitacionData({
       } else if (filters.yearWorkspace && filters.yearWorkspace !== 'all') {
         params.append('fecha_hasta', `${filters.yearWorkspace}-12-31`);
       }
+      if (filters.nuevasDesde) params.append('nuevas_desde', filters.nuevasDesde);
       if (fechaCampo) params.append('fecha_campo', fechaCampo);
 
       const response = await fetch(`${apiUrl}/api/licitaciones/?${params.toString()}`, {

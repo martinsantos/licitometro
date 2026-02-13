@@ -198,6 +198,10 @@ class Licitacion(LicitacionBase):
     id: str = Field(default_factory=lambda: str(uuid4()))
     created_at: datetime = Field(default_factory=datetime.utcnow)
     updated_at: datetime = Field(default_factory=datetime.utcnow)
+    first_seen_at: datetime = Field(
+        default_factory=datetime.utcnow,
+        description="When this item was FIRST discovered (never changes on re-index)"
+    )
     
     class Config:
         orm_mode = True
