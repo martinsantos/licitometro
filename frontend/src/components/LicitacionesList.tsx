@@ -181,13 +181,14 @@ const LicitacionesList = ({ apiUrl }: LicitacionesListProps) => {
     setFilter(key, value);
   }, [setFilter]);
 
-  // MUTUALLY EXCLUSIVE: DailyDigest date filter vs "Nuevas de hoy"
+  // SYNCHRONIZED: DailyDigest "Hoy" and "Nuevas de hoy" activate BOTH filters together
   const handleDaySelect = useCallback((dateStr: string | null) => {
     if (dateStr) {
-      // Activar fecha_scraping filter, LIMPIAR nuevasDesde filter
-      setMany({ fechaDesde: dateStr, fechaHasta: dateStr, nuevasDesde: '' });
+      // Activar AMBOS filtros simultáneamente (nuevasDesde Y fechaDesde/fechaHasta)
+      setMany({ fechaDesde: dateStr, fechaHasta: dateStr, nuevasDesde: dateStr });
     } else {
-      setMany({ fechaDesde: '', fechaHasta: '' });
+      // Limpiar AMBOS filtros simultáneamente
+      setMany({ fechaDesde: '', fechaHasta: '', nuevasDesde: '' });
     }
   }, [setMany]);
 
@@ -199,18 +200,20 @@ const LicitacionesList = ({ apiUrl }: LicitacionesListProps) => {
     prefs.handleSortChange(newSort);
   }, [prefs.handleSortChange]);
 
-  // MUTUALLY EXCLUSIVE: "Nuevas de hoy" vs DailyDigest date filter
+  // SYNCHRONIZED: "Nuevas de hoy" and DailyDigest "Hoy" activate BOTH filters together
   const handleToggleTodayFilter = useCallback((today: string | null) => {
     if (today) {
-      // Activar nuevasDesde filter, LIMPIAR fecha_scraping filters
-      setMany({ nuevasDesde: today, fechaDesde: '', fechaHasta: '' });
+      // Activar AMBOS filtros simultáneamente (nuevasDesde Y fechaDesde/fechaHasta)
+      setMany({ nuevasDesde: today, fechaDesde: today, fechaHasta: today });
     } else {
-      setFilter('nuevasDesde', '');
+      // Limpiar AMBOS filtros simultáneamente
+      setMany({ nuevasDesde: '', fechaDesde: '', fechaHasta: '' });
     }
-  }, [setMany, setFilter]);
+  }, [setMany]);
 
-  // Check if "Nuevas de hoy" filter is active
-  const isTodayFilterActive = filters.nuevasDesde !== '';
+  // Check if "Nuevas de hoy" filter is active (either nuevasDesde OR fechaDesde for "today")
+  const todayDate = new Date().toISOString().slice(0, 10);
+  const isTodayFilterActive = filters.nuevasDesde === todayDate || filters.fechaDesde === todayDate;
 
   // Preset loading
   const handleLoadPreset = useCallback((presetFilters: Partial<FilterState>, sortBy?: string, sortOrder?: string) => {

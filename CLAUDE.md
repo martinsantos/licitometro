@@ -228,19 +228,24 @@ Los 3 pasos son necesarios. Fuentes afectadas: COPIG, La Paz, San Carlos.
 - ❌ ANTES: "Nuevas de hoy" filtraba por `fecha_scraping = hoy` → mostraba 5329 items (todas las scrapeadas)
 - ✅ AHORA: Filtra por `first_seen_at >= hoy` → muestra ~10-50 items (verdaderamente nuevas)
 
-### Filtros de Fecha Mutuamente Exclusivos (Feb 13, 2026)
-**CRÍTICO**: Los filtros `nuevasDesde` (first_seen_at) y `fechaDesde/fechaHasta` (fecha_scraping/fecha_campo) son **mutuamente exclusivos**. Activar uno LIMPIA el otro automáticamente para evitar confusión.
+### Filtros de Fecha Sincronizados (Feb 13, 2026)
+**CRÍTICO**: Los filtros `nuevasDesde` (first_seen_at) y `fechaDesde/fechaHasta` (fecha_scraping) están **sincronizados**. Activar uno activa AMBOS; desactivar uno desactiva AMBOS.
 
 **Implementación en `LicitacionesList.tsx`**:
-- `handleToggleTodayFilter()`: Al activar "Nuevas de hoy" (nuevasDesde), limpia fechaDesde/fechaHasta con `setMany()`
-- `handleDaySelect()`: Al activar DailyDigest day (fechaDesde/fechaHasta), limpia nuevasDesde con `setMany()`
+- `handleToggleTodayFilter()`: Al activar "Nuevas de hoy", setea AMBOS (nuevasDesde Y fechaDesde/fechaHasta) con `setMany()`
+- `handleDaySelect()`: Al activar DailyDigest "Hoy", setea AMBOS (fechaDesde/fechaHasta Y nuevasDesde) con `setMany()`
+- `isTodayFilterActive`: Detecta si CUALQUIERA de los dos está activo (`nuevasDesde === hoy OR fechaDesde === hoy`)
 
-**Por qué**: Ambos filtros usan campos de fecha DIFERENTES (`first_seen_at` vs `fecha_scraping`). Permitir que estén activos simultáneamente causa resultados inesperados y UX confusa.
+**Por qué**: Para el usuario, "HOY" es un concepto único. Aunque técnicamente filtran campos diferentes (`first_seen_at` vs `fecha_scraping`), ambos botones deben actuar como indicadores del mismo estado.
 
-**Indicadores visuales**:
-- QuickPresetButton: Verde sólido cuando activo, verde claro cuando inactivo
-- DailyDigestStrip: Botón "Hoy"/"Ayer" con bg-emerald-600 cuando seleccionado
-- ActiveFiltersChips: Muestra chip emerald "✨ Nuevas desde YYYY-MM-DD" o chip verde "YYYY-MM-DD a YYYY-MM-DD"
+**Resultado**: El backend aplica AMBOS filtros simultáneamente (AND condition):
+- `first_seen_at >= hoy` AND `fecha_scraping = hoy`
+- Esto muestra items verdaderamente nuevos (descubiertos HOY) que también fueron scrapeados HOY
+
+**Indicadores visuales sincronizados**:
+- QuickPresetButton: Verde sólido cuando `nuevasDesde=hoy` O `fechaDesde=hoy`
+- DailyDigestStrip: Botón "Hoy" con bg-emerald-600 cuando `fechaDesde=hoy` (derivado de `selectedDate`)
+- ActiveFiltersChips: Muestra AMBOS chips cuando ambos filtros están activos
 
 **Parámetros de API**:
 - `fecha_desde` + `fecha_hasta` + `fecha_campo` → Filtro genérico de rango por campo elegido
