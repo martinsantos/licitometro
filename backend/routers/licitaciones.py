@@ -855,14 +855,14 @@ async def get_truly_new_count(
     # Optional: breakdown by source for debugging
     pipeline = [
         {"$match": {"first_seen_at": {"$gte": since_datetime}}},
-        {"$group": {"_id": "$source", "count": {"$sum": 1}}},
+        {"$group": {"_id": "$fuente", "count": {"$sum": 1}}},
         {"$sort": {"count": -1}},
         {"$limit": 10}
     ]
 
     by_source = []
     async for doc in collection.aggregate(pipeline):
-        by_source.append({"source": doc["_id"], "count": doc["count"]})
+        by_source.append({"fuente": doc["_id"] or "Desconocida", "count": doc["count"]})
 
     return {
         "total": count,
