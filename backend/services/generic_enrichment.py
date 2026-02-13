@@ -372,6 +372,51 @@ class GenericEnrichmentService:
             if cat:
                 updates["category"] = cat
 
+        # 9. Check for prórroga (date extension) via keywords or date change
+        new_opening = updates.get("opening_date")
+        current_opening = lic_doc.get("opening_date")
+        new_description = updates.get("description", lic_doc.get("description", "")) or ""
+
+        # Keywords that indicate prórroga
+        prorroga_keywords = [
+            "prorroga", "prórroga", "extension", "extensión",
+            "modificacion de fecha", "modificación de fecha",
+            "nuevo plazo", "ampliacion de plazo", "ampliación de plazo",
+            "postergacion", "postergación"
+        ]
+        has_prorroga_keyword = any(kw in new_description.lower() for kw in prorroga_keywords)
+
+        # Detect prórroga if:
+        # 1. Opening date increased, OR
+        # 2. Prórroga keyword found AND opening date present
+        if new_opening and current_opening and new_opening > current_opening:
+            # Date increased - confirmed prórroga
+            updates["fecha_prorroga"] = new_opening
+            updates["estado"] = "prorrogada"
+            meta = updates.get("metadata", lic_doc.get("metadata", {})) or {}
+            meta["circular_prorroga"] = {
+                "old_date": current_opening,
+                "new_date": new_opening,
+                "detected_at": datetime.utcnow(),
+                "detection_method": "date_change"
+            }
+            updates["metadata"] = meta
+            logger.info(f"Prórroga detected (date change): {current_opening.date()} → {new_opening.date()}")
+        elif has_prorroga_keyword and (new_opening or current_opening):
+            # Keyword found - mark as prórroga
+            effective_opening = new_opening or current_opening
+            updates["fecha_prorroga"] = effective_opening
+            updates["estado"] = "prorrogada"
+            meta = updates.get("metadata", lic_doc.get("metadata", {})) or {}
+            meta["circular_prorroga"] = {
+                "old_date": current_opening,
+                "new_date": effective_opening,
+                "detected_at": datetime.utcnow(),
+                "detection_method": "keyword"
+            }
+            updates["metadata"] = meta
+            logger.info(f"Prórroga detected (keyword): fecha_prorroga = {effective_opening.date()}")
+
         if updates:
             updates["last_enrichment"] = datetime.utcnow()
             updates["updated_at"] = datetime.utcnow()

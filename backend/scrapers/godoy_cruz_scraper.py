@@ -130,9 +130,26 @@ class GodoyCruzScraper(BaseScraper):
                 if not title or len(title) < 3:
                     continue
 
-                # Parse dates
-                pub_date = parse_date_guess(row[COL_PUB_DATE]) if row[COL_PUB_DATE] else None
-                opening_date = parse_date_guess(row[COL_OPENING]) if row[COL_OPENING] else None
+                # Parse dates from grid
+                pub_date_parsed = parse_date_guess(row[COL_PUB_DATE]) if row[COL_PUB_DATE] else None
+                opening_date_parsed = parse_date_guess(row[COL_OPENING]) if row[COL_OPENING] else None
+
+                # VIGENCIA MODEL: Resolve dates with multi-source fallback
+                publication_date = self._resolve_publication_date(
+                    parsed_date=pub_date_parsed,
+                    title=title,
+                    description=title,  # title IS the objeto in Godoy Cruz
+                    opening_date=opening_date_parsed,
+                    attached_files=[]
+                )
+
+                opening_date = self._resolve_opening_date(
+                    parsed_date=opening_date_parsed,
+                    title=title,
+                    description=title,
+                    publication_date=publication_date,
+                    attached_files=[]
+                )
 
                 # Parse budget — Godoy Cruz publishes COSTO DEL PLIEGO, not presupuesto.
                 # Pliego cost = 0.1% (1/1000) of presupuesto oficial in Godoy Cruz.
@@ -154,10 +171,13 @@ class GodoyCruzScraper(BaseScraper):
                 # Build stable ID
                 id_licitacion = f"godoy-cruz:{internal_id}"
 
-                # Content hash for dedup
+                # Content hash for dedup (handle None publication_date)
                 content_hash = hashlib.md5(
-                    f"{title.lower()}|godoy cruz|{(pub_date or datetime.utcnow()).strftime('%Y%m%d')}".encode()
+                    f"{title.lower()}|godoy cruz|{publication_date.strftime('%Y%m%d') if publication_date else 'unknown'}".encode()
                 ).hexdigest()
+
+                # Compute estado
+                estado = self._compute_estado(publication_date, opening_date, fecha_prorroga=None)
 
                 lic = LicitacionCreate(
                     id_licitacion=id_licitacion,
@@ -165,7 +185,7 @@ class GodoyCruzScraper(BaseScraper):
                     objeto=title,  # Title IS the objeto in Godoy Cruz
                     organization=row[COL_ORG] or "Municipalidad de Godoy Cruz",
                     jurisdiccion="Mendoza",
-                    publication_date=pub_date or datetime.utcnow(),
+                    publication_date=publication_date,
                     opening_date=opening_date,
                     expedient_number=expediente,
                     licitacion_number=lic_number,
@@ -178,6 +198,8 @@ class GodoyCruzScraper(BaseScraper):
                     budget=budget,
                     currency="ARS" if budget else None,
                     content_hash=content_hash,
+                    estado=estado,
+                    fecha_prorroga=None,
                     metadata={
                         "godoy_cruz_id": internal_id,
                         "godoy_cruz_year": row[COL_YEAR] if len(row) > COL_YEAR else None,

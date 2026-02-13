@@ -110,6 +110,9 @@ def licitacion_entity(licitacion) -> dict:
         "public_slug": licitacion.get("public_slug"),
         # Nodos
         "nodos": licitacion.get("nodos", []),
+        # Vigencia
+        "estado": licitacion.get("estado", "vigente"),
+        "fecha_prorroga": licitacion.get("fecha_prorroga"),
         # Timestamps
         "created_at": licitacion.get("created_at", datetime.utcnow()),
         "updated_at": licitacion.get("updated_at", datetime.utcnow()),

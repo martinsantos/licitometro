@@ -1,6 +1,7 @@
 import React, { useState, useMemo, useCallback } from 'react';
 import type { FilterState, FilterOptions, Nodo } from '../../types/licitacion';
 import type { FacetData, FacetValue } from '../../hooks/useFacetedFilters';
+import { EstadoFilter } from './EstadoFilter';
 
 const FECHA_CAMPO_LABELS: Record<string, string> = {
   publication_date: 'Publicacion',
@@ -207,8 +208,16 @@ const FilterSidebar: React.FC<FilterSidebarProps> = ({
             ))}
           </FilterSection>
 
-          {/* 2. Estado */}
-          <FilterSection title="Estado" badge={filters.statusFiltro ? 1 : 0}>
+          {/* 2. Vigencia */}
+          <FilterSection title="Vigencia" badge={filters.estadoFiltro ? 1 : 0}>
+            <EstadoFilter
+              value={filters.estadoFiltro}
+              onChange={(value) => onFilterChange('estadoFiltro', value)}
+            />
+          </FilterSection>
+
+          {/* 3. Estado Licitación (legacy) */}
+          <FilterSection title="Status" defaultOpen={false} badge={filters.statusFiltro ? 1 : 0}>
             {statusItems.map((f: FacetValue) => (
               <FacetItem
                 key={f.value}
@@ -221,7 +230,7 @@ const FilterSidebar: React.FC<FilterSidebarProps> = ({
             ))}
           </FilterSection>
 
-          {/* 3. Rubro */}
+          {/* 4. Rubro */}
           <FilterSection title="Rubro" badge={filters.categoryFiltro ? 1 : 0}>
             <div className="max-h-48 overflow-y-auto">
               {categoryItems.map((f: FacetValue) => (
@@ -272,7 +281,7 @@ const FilterSidebar: React.FC<FilterSidebarProps> = ({
             )}
           </FilterSection>
 
-          {/* 4. Organizacion */}
+          {/* 5. Organizacion */}
           <FilterSection title="Organizacion" badge={filters.organizacionFiltro ? 1 : 0}>
             <input
               type="text"

@@ -59,6 +59,7 @@ export function useLicitacionData({
       if (filters.tipoProcedimientoFiltro) params.append('tipo_procedimiento', filters.tipoProcedimientoFiltro);
       if (filters.organizacionFiltro) params.append('organization', filters.organizacionFiltro);
       if (filters.nodoFiltro) params.append('nodo', filters.nodoFiltro);
+      if (filters.estadoFiltro) params.append('estado', filters.estadoFiltro);
       if (filters.budgetMin) params.append('budget_min', filters.budgetMin);
       if (filters.budgetMax) params.append('budget_max', filters.budgetMax);
       // Year workspace → use 'year' param (always filters publication_date)

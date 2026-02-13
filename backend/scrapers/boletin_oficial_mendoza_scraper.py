@@ -540,6 +540,20 @@ class BoletinOficialMendozaScraper(BaseScraper):
             is_decreto = self._is_decreto(proc["process_type"], proc.get("content", ""))
             tipo = "decreto" if is_decreto else None
 
+            # VIGENCIA MODEL: Resolve dates (PDF text-based extraction)
+            # pub_date comes from Boletin publication date (reliable)
+            # Try to extract opening_date from content
+            opening_date = self._resolve_opening_date(
+                parsed_date=None,
+                title=proc["title"],
+                description=proc.get("content", ""),
+                publication_date=pub_date,
+                attached_files=[{"name": f"Boletín {boletin_num}", "url": pdf_url, "type": "pdf", "filename": f"boletin_{boletin_num}.pdf"}]
+            )
+
+            # Compute estado
+            estado = self._compute_estado(pub_date, opening_date, fecha_prorroga=None)
+
             licitacion = LicitacionCreate(
                 id_licitacion=id_licitacion,
                 title=proc["title"],
@@ -547,6 +561,7 @@ class BoletinOficialMendozaScraper(BaseScraper):
                 organization=proc["organization"],
                 jurisdiccion="Mendoza",
                 publication_date=pub_date,
+                opening_date=opening_date,
                 licitacion_number=process_number,
                 description=description[:3000],
                 status="active",
@@ -560,6 +575,8 @@ class BoletinOficialMendozaScraper(BaseScraper):
                 keywords=proc.get("keywords_found", []),
                 content_hash=content_hash,
                 metadata={"boe_apertura_raw": proc.get("content", "")[:500]},
+                estado=estado,
+                fecha_prorroga=None,
             )
             licitaciones.append(licitacion)
 
@@ -705,13 +722,34 @@ class BoletinOficialMendozaScraper(BaseScraper):
                 if any(kw in desc_upper for kw in ("LICITACI", "CONTRATACI", "CONCURSO", "COMPULSA")):
                     is_decreto = False
 
+            # VIGENCIA MODEL: Resolve dates with multi-source fallback
+            publication_date = self._resolve_publication_date(
+                parsed_date=pub_dt,  # API publication date
+                title=title or "",
+                description=description or "",
+                opening_date=None,
+                attached_files=attached_files
+            )
+
+            opening_date = self._resolve_opening_date(
+                parsed_date=None,
+                title=title or "",
+                description=description or "",
+                publication_date=publication_date,
+                attached_files=attached_files
+            )
+
+            # Compute estado
+            estado = self._compute_estado(publication_date, opening_date, fecha_prorroga=None)
+
             licitacion = LicitacionCreate(
                 id_licitacion=id_licitacion,
                 title=title or "Boletin Oficial Mendoza",
                 objeto=objeto,
                 organization=organization,
                 jurisdiccion="Mendoza",
-                publication_date=pub_dt or datetime.utcnow(),
+                publication_date=publication_date,  # Can be None (no fallback!)
+                opening_date=opening_date,
                 licitacion_number=norma or None,
                 description=description,
                 status="active",
@@ -724,6 +762,8 @@ class BoletinOficialMendozaScraper(BaseScraper):
                 attached_files=attached_files,
                 keywords=[keyword] if keyword else [],
                 metadata={"boe_apertura_raw": description[:500] if description else ""},
+                estado=estado,
+                fecha_prorroga=None,
             )
             licitaciones.append(licitacion)
 

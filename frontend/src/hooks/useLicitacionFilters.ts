@@ -24,6 +24,7 @@ const initialFilters: FilterState = {
   tipoProcedimientoFiltro: '',
   organizacionFiltro: '',
   nodoFiltro: '',
+  estadoFiltro: '',
   budgetMin: '',
   budgetMax: '',
   fechaDesde: '',

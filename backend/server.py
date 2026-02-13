@@ -63,11 +63,16 @@ app.add_middleware(
 async def auth_middleware(request: Request, call_next):
     """Require authentication for all API routes except exempt ones.
     Non-GET requests require admin role.
+    GET requests to licitaciones are public (no auth required).
     """
     path = request.url.path
 
     # Skip auth for non-API routes, exempt paths, and public API
     if not path.startswith("/api") or path in AUTH_EXEMPT_PATHS or path.startswith("/api/public/"):
+        return await call_next(request)
+
+    # Allow public GET access to licitaciones endpoints
+    if request.method == "GET" and path.startswith("/api/licitaciones"):
         return await call_next(request)
 
     token = request.cookies.get("access_token")
@@ -244,6 +249,22 @@ async def startup_db_client():
             logger.info("Nodo digests scheduled at 9:15 AM and 6:00 PM")
         except Exception as e:
             logger.warning(f"Nodo digest service not configured: {e}")
+
+        # Schedule daily estado update at 6:00 AM
+        try:
+            from services.vigencia_service import get_vigencia_service
+            vigencia_service = get_vigencia_service(database)
+            scheduler_service.scheduler.add_job(
+                func=vigencia_service.update_estados_batch,
+                trigger=CronTrigger(hour=6, minute=0),
+                id="daily_estado_update",
+                name="Daily estado update (mark vencidas)",
+                replace_existing=True,
+                max_instances=1,
+            )
+            logger.info("Daily estado update scheduled at 6:00 AM")
+        except Exception as e:
+            logger.warning(f"Vigencia service not configured: {e}")
 
     except Exception as e:
         logger.error(f"Failed to auto-start scheduler: {e}")

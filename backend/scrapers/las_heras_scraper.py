@@ -509,14 +509,26 @@ class LasHerasScraper(BaseScraper):
             title = titulo or f"Licitación {numero}"
             organization = organismo_raw or "Municipalidad de Las Heras"
 
-            # Parse dates
-            publication_date = parse_date_guess(fecha_pub_raw) if fecha_pub_raw else None
-            opening_date = parse_date_guess(fecha_ap_raw) if fecha_ap_raw else None
+            # Parse dates from row
+            pub_date_parsed = parse_date_guess(fecha_pub_raw) if fecha_pub_raw else None
+            opening_date_parsed = parse_date_guess(fecha_ap_raw) if fecha_ap_raw else None
 
-            if not publication_date:
-                # Fallback to scraping time, clamped to opening_date so pub is never after apertura.
-                now = datetime.utcnow()
-                publication_date = min(now, opening_date) if opening_date else now
+            # VIGENCIA MODEL: Resolve dates with multi-source fallback
+            publication_date = self._resolve_publication_date(
+                parsed_date=pub_date_parsed,
+                title=title,
+                description=title,  # Use title as description
+                opening_date=opening_date_parsed,
+                attached_files=[]
+            )
+
+            opening_date = self._resolve_opening_date(
+                parsed_date=opening_date_parsed,
+                title=title,
+                description=title,
+                publication_date=publication_date,
+                attached_files=[]
+            )
 
             # Type
             tipo_procedimiento = tipo_raw or "Licitación"
@@ -556,9 +568,12 @@ class LasHerasScraper(BaseScraper):
                 f"lasheras|{title}|{publication_date.isoformat()}".encode()
             ).hexdigest()[:16]
 
-            # Content hash for deduplication
+            # Compute estado
+            estado = self._compute_estado(publication_date, opening_date, fecha_prorroga=None)
+
+            # Content hash for deduplication (handle None publication_date)
             content_hash = hashlib.md5(
-                f"{title.lower().strip()}|{organization}|{publication_date.strftime('%Y%m%d')}".encode()
+                f"{title.lower().strip()}|{organization}|{publication_date.strftime('%Y%m%d') if publication_date else 'unknown'}".encode()
             ).hexdigest()
 
             # Metadata with raw row for debugging
@@ -590,6 +605,8 @@ class LasHerasScraper(BaseScraper):
                 fuente="Municipalidad de Las Heras",
                 currency=currency if budget else None,
                 budget=budget,
+                estado=estado,
+                fecha_prorroga=None,
                 metadata=metadata,
                 licitacion_number=numero or None,
                 provincia="Mendoza",

@@ -59,18 +59,13 @@ class OsepScraper(BaseScraper):
             tipo_procedimiento = value_by_label(["Procedimiento de selección"]) or "Proceso de compra"
             contact = value_by_label(["Consultas", "Contacto"])
             
-            publication_date = None
+            # Parse dates from selectors
             pub_raw = value_by_label(["Fecha y hora estimada de publicación en el portal", "Fecha de publicación"])
-            if pub_raw:
-                publication_date = parse_date_guess(pub_raw)
-            if not publication_date:
-                publication_date = datetime.utcnow()
-            
-            opening_date = None
+            pub_date_parsed = parse_date_guess(pub_raw) if pub_raw else None
+
             open_raw = value_by_label(["Fecha y hora acto de apertura", "Fecha de Apertura"])
-            if open_raw:
-                opening_date = parse_date_guess(open_raw)
-            
+            opening_date_parsed = parse_date_guess(open_raw) if open_raw else None
+
             attached_files = []
             for a in soup.find_all('a', href=True):
                 href = a.get('href')
@@ -80,13 +75,34 @@ class OsepScraper(BaseScraper):
                     attached_files.append({
                         "name": a.get_text(' ', strip=True) or href.split('/')[-1],
                         "url": urljoin(url, href),
-                        "type": href.split('.')[-1].lower() if '.' in href else "unknown"
+                        "type": href.split('.')[-1].lower() if '.' in href else "unknown",
+                        "filename": href.split('/')[-1]
                     })
+
+            # VIGENCIA MODEL: Resolve dates with multi-source fallback
+            publication_date = self._resolve_publication_date(
+                parsed_date=pub_date_parsed,
+                title=title,
+                description=description or "",
+                opening_date=opening_date_parsed,
+                attached_files=attached_files
+            )
+
+            opening_date = self._resolve_opening_date(
+                parsed_date=opening_date_parsed,
+                title=title,
+                description=description or "",
+                publication_date=publication_date,
+                attached_files=attached_files
+            )
             
+            # Compute estado
+            estado = self._compute_estado(publication_date, opening_date, fecha_prorroga=None)
+
             content_hash = hashlib.md5(
-                f"{title.lower().strip()}|osep|{publication_date.strftime('%Y%m%d')}".encode()
+                f"{title.lower().strip()}|osep|{publication_date.strftime('%Y%m%d') if publication_date else 'unknown'}".encode()
             ).hexdigest()
-            
+
             lic = LicitacionCreate(
                 title=title,
                 organization=organization,
@@ -110,6 +126,8 @@ class OsepScraper(BaseScraper):
                 tipo_acceso="COMPR.AR OSEP",
                 fecha_scraping=datetime.utcnow(),
                 fuente="OSEP",
+                estado=estado,
+                fecha_prorroga=None,
             )
             
             return lic
@@ -255,21 +273,38 @@ class OsepScraper(BaseScraper):
                     apertura = row.get("apertura")
                     estado = row.get("estado")
                     target = row.get("target")
-                    
-                    opening_date = parse_date_guess(apertura) if apertura else None
-                    # Use scraping time but clamp to opening_date so pub is never after apertura.
-                    now = datetime.utcnow()
-                    publication_date = min(now, opening_date) if opening_date else now
+
+                    opening_date_parsed = parse_date_guess(apertura) if apertura else None
+
+                    # VIGENCIA MODEL: Resolve dates
+                    publication_date = self._resolve_publication_date(
+                        parsed_date=None,  # No pub date in list
+                        title=title,
+                        description=title,
+                        opening_date=opening_date_parsed,
+                        attached_files=[]
+                    )
+
+                    opening_date = self._resolve_opening_date(
+                        parsed_date=opening_date_parsed,
+                        title=title,
+                        description=title,
+                        publication_date=publication_date,
+                        attached_files=[]
+                    )
                     
                     # Build proxy URLs
                     proxy_open_url = None
                     if target:
                         proxy_open_url = f"{api_base}/api/comprar/proceso/open?list_url={quote_plus(list_url)}&target={quote_plus(target)}"
                     
+                    # Compute estado
+                    estado_vigencia = self._compute_estado(publication_date, opening_date, fecha_prorroga=None)
+
                     content_hash = hashlib.md5(
-                        f"{title.lower().strip()}|osep|{publication_date.strftime('%Y%m%d')}".encode()
+                        f"{title.lower().strip()}|osep|{publication_date.strftime('%Y%m%d') if publication_date else 'unknown'}".encode()
                     ).hexdigest()
-                    
+
                     lic = LicitacionCreate(
                         title=title,
                         organization="OSEP - Obra Social de Empleados Públicos",
@@ -300,7 +335,9 @@ class OsepScraper(BaseScraper):
                             "osep_list_url": list_url,
                             "osep_target": target,
                             "osep_estado": estado,
-                        }
+                        },
+                        estado=estado_vigencia,
+                        fecha_prorroga=None,
                     )
                     
                     licitaciones.append(lic)

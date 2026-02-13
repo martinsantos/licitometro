@@ -66,7 +66,7 @@ class EpreScraper(BaseScraper):
                 if not expediente or not detalle:
                     continue
 
-                pub_date = parse_date_guess(fecha_str.replace(" hs", "").strip())
+                pub_date_parsed = parse_date_guess(fecha_str.replace(" hs", "").strip())
 
                 # Extract PDF links
                 attached_files = []
@@ -79,19 +79,42 @@ class EpreScraper(BaseScraper):
                             "name": name or href.split("/")[-1],
                             "url": full_url,
                             "type": "pdf",
+                            "filename": href.split("/")[-1]
                         })
+
+                # VIGENCIA MODEL: Resolve dates with multi-source fallback
+                title = f"{tipo} - {detalle[:120]}"
+                publication_date = self._resolve_publication_date(
+                    parsed_date=pub_date_parsed,
+                    title=title,
+                    description=detalle,
+                    opening_date=None,
+                    attached_files=attached_files
+                )
+
+                opening_date = self._resolve_opening_date(
+                    parsed_date=None,
+                    title=title,
+                    description=detalle,
+                    publication_date=publication_date,
+                    attached_files=attached_files
+                )
+
+                # Compute estado
+                estado_vigencia = self._compute_estado(publication_date, opening_date, fecha_prorroga=None)
 
                 id_lic = f"epre:{expediente.replace(' ', '')}"
                 content_hash = hashlib.md5(
-                    f"{detalle.lower().strip()}|epre|{expediente}".encode()
+                    f"{detalle.lower().strip()}|epre|{publication_date.strftime('%Y%m%d') if publication_date else expediente}".encode()
                 ).hexdigest()
 
                 lic = LicitacionCreate(
                     id_licitacion=id_lic,
-                    title=f"{tipo} - {detalle[:120]}",
+                    title=title,
                     organization="EPRE - Ente Provincial Regulador Eléctrico",
                     jurisdiccion="Mendoza",
-                    publication_date=pub_date or datetime.utcnow(),
+                    publication_date=publication_date,
+                    opening_date=opening_date,
                     expedient_number=expediente,
                     description=detalle,
                     status="active" if estado == "VIGENTE" else "closed",
@@ -102,6 +125,8 @@ class EpreScraper(BaseScraper):
                     fecha_scraping=datetime.utcnow(),
                     attached_files=attached_files,
                     content_hash=content_hash,
+                    estado=estado_vigencia,
+                    fecha_prorroga=None,
                     metadata={"epre_estado": estado, "epre_expediente": expediente},
                 )
                 licitaciones.append(lic)

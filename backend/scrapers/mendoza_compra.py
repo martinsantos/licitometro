@@ -56,17 +56,11 @@ class MendozaCompraScraper(BaseScraper):
             tipo_procedimiento = value_by_label(["Procedimiento de selección"]) or "Proceso de compra"
             contact = value_by_label(["Consultas", "Contacto"])
 
-            publication_date = None
             pub_raw = value_by_label(["Fecha y hora estimada de publicación en el portal", "Fecha de publicación"])
-            if pub_raw:
-                publication_date = parse_date_guess(pub_raw)
-            if not publication_date:
-                publication_date = datetime.utcnow()
+            pub_date_parsed = parse_date_guess(pub_raw) if pub_raw else None
 
-            opening_date = None
             open_raw = value_by_label(["Fecha y hora acto de apertura", "Fecha de Apertura"])
-            if open_raw:
-                opening_date = parse_date_guess(open_raw)
+            opening_date_parsed = parse_date_guess(open_raw) if open_raw else None
 
             attached_files = []
             for a in soup.find_all('a', href=True):
@@ -77,9 +71,30 @@ class MendozaCompraScraper(BaseScraper):
                     attached_files.append({
                         "name": a.get_text(' ', strip=True) or href.split('/')[-1],
                         "url": urljoin(url, href),
-                        "type": href.split('.')[-1].lower() if '.' in href else "unknown"
+                        "type": href.split('.')[-1].lower() if '.' in href else "unknown",
+                        "filename": href.split('/')[-1]
                     })
-            
+
+            # VIGENCIA MODEL: Resolve dates with multi-source fallback
+            publication_date = self._resolve_publication_date(
+                parsed_date=pub_date_parsed,
+                title=title,
+                description=description or "",
+                opening_date=opening_date_parsed,
+                attached_files=attached_files
+            )
+
+            opening_date = self._resolve_opening_date(
+                parsed_date=opening_date_parsed,
+                title=title,
+                description=description or "",
+                publication_date=publication_date,
+                attached_files=attached_files
+            )
+
+            # Compute estado
+            estado = self._compute_estado(publication_date, opening_date, fecha_prorroga=None)
+
             # Create the licitacion object
             source_url = url
             if licitacion_number:
@@ -103,8 +118,10 @@ class MendozaCompraScraper(BaseScraper):
                 "tipo_acceso": "COMPR.AR",
                 "fecha_scraping": datetime.utcnow(),
                 "fuente": "COMPR.AR Mendoza",
+                "estado": estado,
+                "fecha_prorroga": None,
             }
-            
+
             return LicitacionCreate(**licitacion_data)
         
         except Exception as e:
@@ -763,12 +780,27 @@ class MendozaCompraScraper(BaseScraper):
                 list_url = entry.get("list_url") or base_url
                 target = entry.get("target")
 
-                opening_date = parse_date_guess(apertura) if apertura else None
-                if apertura and not opening_date:
+                opening_date_parsed = parse_date_guess(apertura) if apertura else None
+                if apertura and not opening_date_parsed:
                     logger.warning(f"Could not parse apertura '{apertura}' for {numero}")
-                # Use scraping time but clamp to opening_date so pub is never after apertura.
-                now = datetime.utcnow()
-                publication_date = min(now, opening_date) if opening_date else now
+
+                # VIGENCIA MODEL: Resolve dates with multi-source fallback
+                # COMPR.AR grid has no real publication date in list view
+                publication_date = self._resolve_publication_date(
+                    parsed_date=None,  # No pub date in grid
+                    title=title,
+                    description=title,  # Use title as description for year extraction
+                    opening_date=opening_date_parsed,
+                    attached_files=[]
+                )
+
+                opening_date = self._resolve_opening_date(
+                    parsed_date=opening_date_parsed,
+                    title=title,
+                    description=title,
+                    publication_date=publication_date,
+                    attached_files=[]
+                )
 
                 pliego_url = entry.get("pliego_url")
                 if pliego_url and not pliego_url.startswith(("http://", "https://")):
@@ -967,10 +999,13 @@ class MendozaCompraScraper(BaseScraper):
                 if fecha_apertura:
                     opening_date = fecha_apertura
 
-                # Compute content hash for deduplication
+                # Compute content hash for deduplication (handle None publication_date)
                 content_hash = hashlib.md5(
-                    f"{title.lower().strip()}|{servicio_admin or unidad or ''}|{publication_date.strftime('%Y%m%d')}".encode()
+                    f"{title.lower().strip()}|{servicio_admin or unidad or ''}|{publication_date.strftime('%Y%m%d') if publication_date else 'unknown'}".encode()
                 ).hexdigest()
+
+                # Compute estado
+                estado_vigencia = self._compute_estado(publication_date, opening_date, fecha_prorroga=None)
 
                 lic = LicitacionCreate(**{
                     "title": title,
@@ -997,6 +1032,8 @@ class MendozaCompraScraper(BaseScraper):
                     "fuente": "COMPR.AR Mendoza",
                     "currency": currency,
                     "budget": budget,
+                    "estado": estado_vigencia,
+                    "fecha_prorroga": None,
                     # CRONOGRAMA - Fechas críticas
                     "fecha_publicacion_portal": fecha_publicacion_portal,
                     "fecha_inicio_consultas": fecha_inicio_consultas,

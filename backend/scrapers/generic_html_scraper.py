@@ -74,6 +74,76 @@ class GenericHtmlScraper(BaseScraper):
         s = f"{(title or '').lower().strip()}|{self.config.name}|{date_str}"
         return hashlib.md5(s.encode()).hexdigest()
 
+    def _extract_date_from_meta_tags(self, soup, url: str) -> Optional[datetime]:
+        """
+        Extract publication date from HTML meta tags (PRIORITY 1).
+
+        Meta tag patterns (WordPress, CMS, news sites):
+        1. <meta property="article:published_time" content="...">
+        2. <meta property="og:published_time" content="...">
+        3. <meta name="date" content="...">
+        4. <meta name="publishdate" content="...">
+        5. <time datetime="..." itemprop="datePublished">
+
+        Returns: datetime or None
+        """
+        # Try article:published_time (WordPress, news sites)
+        meta_article = soup.find('meta', property='article:published_time')
+        if meta_article and meta_article.get('content'):
+            try:
+                parsed = parse_date_guess(meta_article['content'])
+                if parsed:
+                    logger.info(f"[{self.config.name}] Extracted date from meta article:published_time: {parsed.date()}")
+                    return parsed
+            except:
+                pass
+
+        # Try og:published_time (Open Graph)
+        meta_og = soup.find('meta', property='og:published_time')
+        if meta_og and meta_og.get('content'):
+            try:
+                parsed = parse_date_guess(meta_og['content'])
+                if parsed:
+                    logger.info(f"[{self.config.name}] Extracted date from meta og:published_time: {parsed.date()}")
+                    return parsed
+            except:
+                pass
+
+        # Try meta name="date"
+        meta_date = soup.find('meta', attrs={'name': 'date'})
+        if meta_date and meta_date.get('content'):
+            try:
+                parsed = parse_date_guess(meta_date['content'])
+                if parsed:
+                    logger.info(f"[{self.config.name}] Extracted date from meta name=date: {parsed.date()}")
+                    return parsed
+            except:
+                pass
+
+        # Try meta name="publishdate"
+        meta_pub = soup.find('meta', attrs={'name': 'publishdate'})
+        if meta_pub and meta_pub.get('content'):
+            try:
+                parsed = parse_date_guess(meta_pub['content'])
+                if parsed:
+                    logger.info(f"[{self.config.name}] Extracted date from meta name=publishdate: {parsed.date()}")
+                    return parsed
+            except:
+                pass
+
+        # Try <time datetime itemprop="datePublished">
+        time_pub = soup.find('time', itemprop='datePublished')
+        if time_pub and time_pub.get('datetime'):
+            try:
+                parsed = parse_date_guess(time_pub['datetime'])
+                if parsed:
+                    logger.info(f"[{self.config.name}] Extracted date from time[itemprop=datePublished]: {parsed.date()}")
+                    return parsed
+            except:
+                pass
+
+        return None
+
     def _parse_budget_text(self, text: str) -> tuple:
         """Parse Argentine budget: $1.234.567,89 -> (1234567.89, 'ARS')"""
         currency = "USD" if re.search(r"USD|U\$S", text, re.I) else "ARS"
@@ -91,15 +161,6 @@ class GenericHtmlScraper(BaseScraper):
                 pass
         return None, currency
 
-    def _extract_year_from_title(self, title: str) -> Optional[int]:
-        """Extract year from title like 'Licitación 13/2024' -> 2024"""
-        m = re.search(r'/(\d{4})', title)
-        if m:
-            year = int(m.group(1))
-            if 2020 <= year <= 2030:
-                return year
-        return None
-
     async def extract_licitacion_data(self, html: str, url: str) -> Optional[LicitacionCreate]:
         soup = BeautifulSoup(html, "html.parser")
 
@@ -108,14 +169,16 @@ class GenericHtmlScraper(BaseScraper):
             return None
 
         description = self._extract_text(soup, self._sel("description_selector", ".entry-content, .descripcion, .objeto, article"))
-        pub_date = self._extract_date(soup, self._sel("date_selector", "time, .date, .fecha, .published"))
-        opening_date = self._extract_date(soup, self._sel("opening_date_selector", ""))
 
-        # If no pub_date found, try to extract year from title (e.g., "13/2024" -> 2024)
-        if not pub_date:
-            year = self._extract_year_from_title(title)
-            if year:
-                pub_date = datetime(year, 1, 1)
+        # PRIORITY 1: Extract dates from meta tags (most reliable for WordPress/CMS)
+        pub_date_from_meta = self._extract_date_from_meta_tags(soup, url)
+
+        # PRIORITY 2: Extract dates from CSS selectors (if no meta tag)
+        pub_date_from_selector = self._extract_date(soup, self._sel("date_selector", "time, .date, .fecha, .published"))
+        opening_date_parsed = self._extract_date(soup, self._sel("opening_date_selector", ""))
+
+        # Use meta tag date if available, otherwise use selector
+        pub_date_parsed = pub_date_from_meta or pub_date_from_selector
 
         # Extract budget
         budget = None
@@ -138,14 +201,39 @@ class GenericHtmlScraper(BaseScraper):
                     "name": a.get_text(strip=True) or href.split("/")[-1],
                     "url": urljoin(url, href),
                     "type": href.rsplit(".", 1)[-1].lower() if "." in href else "unknown",
+                    "filename": href.split("/")[-1],  # For date extraction
                 })
+
+        # VIGENCIA MODEL: Resolve dates with multi-source fallback
+        publication_date = self._resolve_publication_date(
+            parsed_date=pub_date_parsed,
+            title=title,
+            description=description or "",
+            opening_date=opening_date_parsed,
+            attached_files=attached_files
+        )
+
+        opening_date = self._resolve_opening_date(
+            parsed_date=opening_date_parsed,
+            title=title,
+            description=description or "",
+            publication_date=publication_date,
+            attached_files=attached_files
+        )
+
+        # Compute estado
+        estado = self._compute_estado(publication_date, opening_date, fecha_prorroga=None)
+
+        # Extract expiration date (deadline for ofertas)
+        from utils.dates import extract_expiration_date
+        expiration_date = extract_expiration_date(description or "", opening_date)
 
         return LicitacionCreate(
             id_licitacion=self._make_id(url, title),
             title=title,
             organization=self.org,
             jurisdiccion="Mendoza",
-            publication_date=pub_date or datetime.utcnow(),
+            publication_date=publication_date,  # Can be None now (no fallback!)
             opening_date=opening_date,
             description=(description or "")[:3000],
             status="active",
@@ -155,9 +243,12 @@ class GenericHtmlScraper(BaseScraper):
             tipo_acceso="Portal Web",
             fecha_scraping=datetime.utcnow(),
             attached_files=attached_files,
-            content_hash=self._content_hash(title, pub_date),
+            content_hash=self._content_hash(title, publication_date),
             budget=budget,
             currency=currency if budget else None,
+            estado=estado,
+            fecha_prorroga=None,
+            expiration_date=expiration_date,
         )
 
     async def extract_links(self, html: str) -> List[str]:
@@ -210,29 +301,30 @@ class GenericHtmlScraper(BaseScraper):
             if not title or len(title) < 5:
                 continue
 
-            # Date filtering: skip items before min_date if configured
+            # Parse dates from selectors (may be None)
             date_sel = self._sel("list_date_selector", "time, .date, .fecha")
-            pub_date = None
+            pub_date_parsed = None
             date_el = item.select_one(date_sel)
             if date_el:
-                pub_date = parse_date_guess(date_el.get_text(strip=True))
-
-            min_date_str = self._sel("min_date", "")
-            if min_date_str and pub_date:
-                try:
-                    min_dt = datetime.strptime(min_date_str, "%Y-%m-%d")
-                    if pub_date < min_dt:
-                        continue
-                except ValueError:
-                    pass
+                pub_date_parsed = parse_date_guess(date_el.get_text(strip=True))
 
             # Opening date from separate selector (if configured)
-            opening_date = None
+            opening_date_parsed = None
             open_sel = self._sel("list_opening_date_selector", "")
             if open_sel:
                 open_el = item.select_one(open_sel)
                 if open_el:
-                    opening_date = parse_date_guess(open_el.get_text(strip=True))
+                    opening_date_parsed = parse_date_guess(open_el.get_text(strip=True))
+
+            # Date filtering: skip items before min_date if configured
+            min_date_str = self._sel("min_date", "")
+            if min_date_str and pub_date_parsed:
+                try:
+                    min_dt = datetime.strptime(min_date_str, "%Y-%m-%d")
+                    if pub_date_parsed < min_dt:
+                        continue
+                except ValueError:
+                    pass
 
             link_sel = self._sel("list_link_selector", "a[href]")
             link_el = item.select_one(link_sel)
@@ -255,12 +347,36 @@ class GenericHtmlScraper(BaseScraper):
                 else:
                     description = item.get_text(" ", strip=True)[:1000]
 
+            # VIGENCIA MODEL: Resolve dates with multi-source fallback
+            publication_date = self._resolve_publication_date(
+                parsed_date=pub_date_parsed,
+                title=title,
+                description=description,
+                opening_date=opening_date_parsed,
+                attached_files=[]  # Inline mode doesn't extract files
+            )
+
+            opening_date = self._resolve_opening_date(
+                parsed_date=opening_date_parsed,
+                title=title,
+                description=description,
+                publication_date=publication_date,
+                attached_files=[]
+            )
+
+            # Compute estado
+            estado = self._compute_estado(publication_date, opening_date, fecha_prorroga=None)
+
+            # Extract expiration date (deadline for ofertas)
+            from utils.dates import extract_expiration_date
+            expiration_date = extract_expiration_date(description, opening_date)
+
             licitaciones.append(LicitacionCreate(
                 id_licitacion=self._make_id(url or title, title),
                 title=title,
                 organization=self.org,
                 jurisdiccion="Mendoza",
-                publication_date=pub_date or (min(datetime.utcnow(), opening_date) if opening_date else datetime.utcnow()),
+                publication_date=publication_date,  # Can be None now (no fallback!)
                 opening_date=opening_date,
                 description=description,
                 status="active",
@@ -269,7 +385,10 @@ class GenericHtmlScraper(BaseScraper):
                 tipo_procedimiento=self._sel("tipo_procedimiento", "Licitación"),
                 tipo_acceso="Portal Web",
                 fecha_scraping=datetime.utcnow(),
-                content_hash=self._content_hash(title, pub_date),
+                content_hash=self._content_hash(title, publication_date),
+                estado=estado,
+                fecha_prorroga=None,
+                expiration_date=expiration_date,
             ))
 
         return licitaciones

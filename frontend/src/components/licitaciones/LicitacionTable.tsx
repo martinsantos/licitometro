@@ -3,6 +3,7 @@ import { format, formatDistanceToNow } from 'date-fns';
 import { es } from 'date-fns/locale';
 import type { Licitacion } from '../../types/licitacion';
 import { getDaysUntilOpening, getUrgencyColor, parseUTCDate, shareViaWhatsApp, highlightMatches } from '../../utils/formatting';
+import { EstadoBadge } from './EstadoBadge';
 
 interface LicitacionTableProps {
   licitaciones: Licitacion[];
@@ -77,11 +78,11 @@ const LicitacionTable: React.FC<LicitacionTableProps> = ({
                     ) : '-'}
                   </td>
                   <td className="px-4 py-4">
-                    <span className={`px-2 py-1 rounded text-xs font-bold ${
-                      lic.status === 'active' ? 'bg-emerald-100 text-emerald-700' : 'bg-red-100 text-red-700'
-                    }`}>
-                      {lic.status === 'active' ? 'Abierta' : 'Cerrada'}
-                    </span>
+                    {lic.estado ? (
+                      <EstadoBadge estado={lic.estado as 'vigente' | 'vencida' | 'prorrogada' | 'archivada'} size="xs" />
+                    ) : (
+                      <span className="text-xs text-gray-300">-</span>
+                    )}
                   </td>
                   <td className="px-3 py-4 whitespace-nowrap">
                     {lic.fecha_scraping ? (

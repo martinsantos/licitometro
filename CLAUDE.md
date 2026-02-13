@@ -391,6 +391,250 @@ descubierta → evaluando → preparando → presentada
 
 ---
 
+## Modelo de Vigencia de Licitaciones
+
+### Campos de Fecha (3 tipos)
+
+| Campo | Tipo | Propósito | Fuente | Mutable |
+|-------|------|-----------|--------|---------|
+| `fecha_scraping` | datetime | Tracking interno (cuándo descubrimos el item) | Sistema | Sí (cada scrape) |
+| `publication_date` | datetime? | Fecha oficial de publicación del gobierno | Scraping | No (dato oficial) |
+| `opening_date` | datetime? | Deadline para ofertas | Scraping | **SÍ (puede cambiar por circular)** |
+| `fecha_prorroga` | datetime? | Nueva fecha si extendida | Circular | Sí |
+
+### Estados de Vigencia
+
+| Estado | Criterio | UI Badge | Significado |
+|--------|----------|----------|-------------|
+| `vigente` | `opening_date > hoy` OR `opening_date = null` | Verde (CheckCircle) | Activa, acepta ofertas |
+| `vencida` | `opening_date < hoy` AND NO prórroga | Gris (XCircle) | Cerrada, no acepta ofertas |
+| `prorrogada` | `fecha_prorroga > hoy` | Amarillo (Clock) | Extendida por circular |
+| `archivada` | `publication_date < 2025-01-01` | Slate (Archive) | Histórica, solo consulta |
+
+### Reglas de Validación (CRÍTICAS)
+
+**Regla 1: Orden cronológico**
+```
+opening_date >= publication_date
+```
+- La apertura NO puede ser antes de la publicación
+- Si se viola: RECHAZAR o INFERIR publicación = opening - 30 días
+
+**Regla 2: Rango de tiempo**
+```
+2024 <= year(publication_date) <= 2027
+2024 <= year(opening_date) <= 2027
+```
+- NO permitir años imposibles (2028+)
+- NO permitir años muy antiguos (< 2024, excepto archivadas)
+- Si se viola: RECHAZAR, buscar en otros campos
+
+**Regla 3: NO usar datetime.utcnow() como fallback**
+- CRÍTICO: Retornar `None` si no se puede resolver fecha
+- NUNCA usar `datetime.utcnow()` - causa corrupción masiva de datos
+
+### Extracción de Fechas (Source-Specific)
+
+Cada fuente tiene su propia convención de año:
+- **ComprasApps**: `3/2026-616` → año 2026
+- **Boletin**: `Decreto 140/2024` → año 2024
+- **Santa Rosa**: `13/2024` → año 2024
+- **MPF**: `Resolución 100-2024` → año 2024
+
+**Implementación en scrapers**:
+
+Usar `BaseScraper._resolve_publication_date()` con 7-priority fallback:
+
+```python
+publication_date = self._resolve_publication_date(
+    parsed_date=parse_date_guess(raw_date),  # Priority 1
+    title=title,                               # Priority 2-4
+    description=description,                   # Priority 3-5
+    opening_date=opening_date_parsed,         # Priority 6 (constraint + estimate)
+    attached_files=attached_files             # Priority 7
+)
+# Returns None if no valid date found (NEVER datetime.utcnow())
+```
+
+Usar `BaseScraper._resolve_opening_date()` con 5-priority fallback:
+
+```python
+opening_date = self._resolve_opening_date(
+    parsed_date=parse_date_guess(raw_apertura),  # Priority 1
+    title=title,                                   # Priority 3
+    description=description,                       # Priority 2-3
+    publication_date=publication_date,            # Constraint + estimate base
+    attached_files=attached_files                 # Priority 4
+)
+# Returns None if no valid date found
+```
+
+Computar estado:
+
+```python
+estado = self._compute_estado(
+    publication_date=publication_date,
+    opening_date=opening_date,
+    fecha_prorroga=None  # Detectar en enrichment phase
+)
+# Returns: "vigente" | "vencida" | "prorrogada" | "archivada"
+```
+
+### API Endpoints
+
+```bash
+# Vigentes hoy (shortcut)
+GET /api/licitaciones/vigentes
+# Filters: estado IN (vigente, prorrogada), pub_date [2024-2027], opening >= today
+# Sort: opening_date ASC (nearest deadline first)
+
+# Filtro por estado
+GET /api/licitaciones/?estado=vigente
+
+# Stats por estado
+GET /api/licitaciones/stats/estado-distribution
+# Returns: { "by_estado": {...}, "by_year": {...}, "vigentes_hoy": N }
+```
+
+### Validación en Pydantic
+
+El modelo `LicitacionBase` incluye validador automático:
+
+```python
+@model_validator(mode='after')
+def validate_dates_and_estado(self):
+    # Rule 1: Validate year ranges [2024-2027]
+    # Rule 2: Validate chronological order (opening >= publication)
+    # Raises ValueError if violations detected
+```
+
+### Migración
+
+Script: `backend/scripts/migrate_add_vigencia.py`
+
+```bash
+# Dry run (no changes)
+python scripts/migrate_add_vigencia.py --dry-run
+
+# Execute migration
+python scripts/migrate_add_vigencia.py
+```
+
+Pasos de migración:
+1. Agregar campos `estado` y `fecha_prorroga` con defaults
+2. Validar y corregir violaciones de orden cronológico
+3. Recomputar estado correcto para TODOS los items
+4. Flagear años imposibles (≥2028) para revisión manual
+
+### Frontend Components
+
+- **`EstadoBadge.tsx`**: Badge con color/icono por estado
+- **`EstadoFilter.tsx`**: Filtros de sidebar (4 botones de estado)
+- **`useLicitacionFilters.ts`**: Incluye `estadoFiltro` en reducer
+- **Quick button**: "Vigentes Hoy" llama a `/vigentes` endpoint
+
+### Servicio de Vigencia
+
+**`backend/services/vigencia_service.py`**:
+
+- `compute_estado()` - Lógica de estado
+- `update_estados_batch()` - Cron diario (6am) marca vencidas
+- `detect_prorroga()` - Detecta extensiones de fecha
+- `recompute_all_estados()` - Re-cálculo masivo (migración)
+
+### Lecciones Críticas
+
+1. **NUNCA** usar `datetime.utcnow()` como fallback → retornar `None`
+2. **Source-specific patterns** son esenciales (cada fuente tiene su formato de año)
+3. **Multi-source date search** es crítico (title + description + attachments)
+4. **Cross-field validation** previene corrupción (opening >= publication)
+5. **Estado is business-critical** - auto-transiciones son peligrosas
+6. **2-digit year normalization**: 24-27 → 2024-2027, REJECT 28+
+
+### Implementación Completa (Feb 13, 2026)
+
+**Estado**: ✅ COMPLETADO - Todas las 6 fases críticas implementadas
+
+#### Fase 1: Extracción de Meta Tags (CRÍTICA)
+- **Archivo**: `backend/scrapers/generic_html_scraper.py`
+- **Método**: `_extract_date_from_meta_tags()`
+- **Patrón**: Busca fechas en meta tags HTML ANTES de CSS selectors:
+  1. `<meta property="article:published_time">`
+  2. `<meta property="og:published_time">`
+  3. `<meta name="date">`
+  4. `<meta name="publishdate">`
+  5. `<time itemprop="datePublished">`
+- **Impacto**: Previene bugs como General Alvear (fechas de 2021 aparecían como 2026)
+
+#### Fase 2: Cron Diario de Estado
+- **Archivo**: `backend/server.py`
+- **Schedule**: 6:00 AM diario
+- **Función**: `vigencia_service.update_estados_batch()`
+- **Acción**: Marca automáticamente `estado = "vencida"` cuando `opening_date < today`
+
+#### Fase 3: Estados Visibles en UI
+- **Archivos**: `EstadoBadge.tsx`, `LicitacionTable.tsx`
+- **Props**: `size = 'xs' | 'sm' | 'md'`
+- **Colores**:
+  - Vigente: verde (emerald)
+  - Vencida: gris (gray)
+  - Prorrogada: amarillo (yellow)
+  - Archivada: slate
+
+#### Fase 4: Detección Automática de Prórrogas
+- **Archivo**: `backend/services/generic_enrichment.py`
+- **Detección por**:
+  1. Cambio de fecha: `new_opening_date > current_opening_date`
+  2. Keywords: "prorroga", "prórroga", "extensión", "modificación de fecha", etc.
+- **Resultado**: Setea `fecha_prorroga`, `estado = "prorrogada"`, `metadata.circular_prorroga`
+
+#### Fase 5: Endpoints Admin para Estado
+**Nuevos endpoints en** `backend/routers/licitaciones.py`:
+
+```bash
+# Override manual de estado (admin only)
+PUT /api/licitaciones/{id}/estado
+Body: { "estado": "archivada", "reason": "Manual correction" }
+
+# Historial de cambios
+GET /api/licitaciones/{id}/estado-history
+Returns: { "current_estado": "vigente", "history": [...] }
+```
+
+- Registra en `metadata.estado_history[]`: old_estado, new_estado, timestamp, reason, method
+
+#### Fase 6: Fechas de Expiración
+- **Archivo**: `backend/utils/dates.py` → `extract_expiration_date()`
+- **Busca en description**:
+  - "Vence: DD/MM/YYYY"
+  - "Plazo hasta: DD/MM/YYYY"
+  - "Fecha límite: DD/MM/YYYY"
+- **Fallback**: `opening_date + 30 días`
+- **Integrado en**: `GenericHtmlScraper` (extract + inline modes)
+
+#### Archivos Modificados (Total: 10)
+**Backend (7 files):**
+1. `scrapers/generic_html_scraper.py` - Meta tags + expiration_date
+2. `server.py` - Daily cron
+3. `services/generic_enrichment.py` - Prórroga detection
+4. `routers/licitaciones.py` - Admin endpoints
+5. `utils/dates.py` - extract_expiration_date()
+6. `services/vigencia_service.py` - (ya existía, sin cambios)
+7. `scrapers/base_scraper.py` - (ya existía, sin cambios)
+
+**Frontend (2 files):**
+1. `components/licitaciones/EstadoBadge.tsx` - Size prop
+2. `components/licitaciones/LicitacionTable.tsx` - Estado column
+
+**Infraestructura ya existente (80%):**
+- ✅ `utils/dates.py`: extract_year, extract_date, validate_date_range, validate_date_order
+- ✅ `base_scraper.py`: _resolve_publication_date, _resolve_opening_date, _compute_estado
+- ✅ `vigencia_service.py`: compute_estado, update_estados_batch, detect_prorroga
+- ✅ `EstadoBadge.tsx`: Badge component
+- ✅ Pydantic validators en models/licitacion.py
+
+---
+
 ## Categorias (Rubros)
 
 34 categorias en `backend/data/rubros_comprar.json`. Clasificacion automatica via `category_classifier.py` usando keywords match contra titulo + objeto + description (primeros 500 chars para evitar falsos positivos de boilerplate).

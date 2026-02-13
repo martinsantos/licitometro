@@ -57,6 +57,7 @@ async def get_licitaciones(
     jurisdiccion: Optional[str] = None,
     tipo_procedimiento: Optional[str] = None,
     nodo: Optional[str] = Query(None, description="Filter by nodo ID"),
+    estado: Optional[str] = Query(None, description="Filter by estado: vigente | vencida | prorrogada | archivada"),
     budget_min: Optional[float] = Query(None, description="Minimum budget"),
     budget_max: Optional[float] = Query(None, description="Maximum budget"),
     fecha_desde: Optional[date] = Query(None, description="Filter from date (inclusive)"),
@@ -116,6 +117,7 @@ async def get_licitaciones(
         if jurisdiccion: extra_filters["jurisdiccion"] = jurisdiccion
         if tipo_procedimiento: extra_filters["tipo_procedimiento"] = tipo_procedimiento
         if nodo: extra_filters["nodos"] = nodo
+        if estado: extra_filters["estado"] = estado
 
         # Budget range
         if budget_min is not None or budget_max is not None:
@@ -178,6 +180,8 @@ async def get_licitaciones(
         filters["tipo_procedimiento"] = tipo_procedimiento
     if nodo:
         filters["nodos"] = nodo
+    if estado:
+        filters["estado"] = estado
 
     # Budget range filter
     if budget_min is not None or budget_max is not None:
@@ -230,6 +234,7 @@ async def get_licitaciones(
     if nuevas_desde:
         filters["first_seen_at"] = {"$gte": datetime.combine(nuevas_desde, datetime.min.time())}
 
+
     # Handle sort order
     order_val = 1 if sort_order == "asc" else -1
 
@@ -257,6 +262,61 @@ async def get_licitaciones(
             "total_paginas": (total_items + size - 1) // size
         }
     }
+
+
+@router.get("/vigentes", response_model=Dict[str, Any])
+async def get_vigentes(
+    page: int = Query(1, ge=1),
+    size: int = Query(15, ge=1, le=100),
+    repo: LicitacionRepository = Depends(get_licitacion_repository)
+):
+    """
+    Shortcut endpoint for vigent licitaciones (active today).
+
+    Criteria:
+    - estado = vigente OR prorrogada
+    - opening_date >= today (or missing)
+    - publication_date in [2024, 2027]
+
+    Sort: opening_date ASC (nearest deadline first)
+    """
+    today = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
+
+    filters = {
+        "estado": {"$in": ["vigente", "prorrogada"]},
+        "publication_date": {
+            "$gte": datetime(2024, 1, 1),
+            "$lte": datetime(2027, 12, 31)
+        },
+        "$or": [
+            {"opening_date": {"$gte": today}},
+            {"opening_date": None}  # Missing opening_date
+        ]
+    }
+
+    skip = (page - 1) * size
+
+    # Sort by opening_date ASC (nearest deadline first), nulls last
+    items = await repo.get_all(
+        skip=skip,
+        limit=size,
+        filters=filters,
+        sort_by="opening_date",
+        sort_order=1,  # ASC
+        nulls_last=True
+    )
+    total_items = await repo.count(filters=filters)
+
+    return {
+        "items": items,
+        "paginacion": {
+            "pagina": page,
+            "por_pagina": size,
+            "total_items": total_items,
+            "total_paginas": (total_items + size - 1) // size
+        }
+    }
+
 
 @router.get("/search", response_model=Dict[str, Any])
 async def search_licitaciones(
@@ -1041,6 +1101,63 @@ async def get_storage_stats(request: Request):
     }
 
 
+@router.get("/stats/estado-distribution")
+async def get_estado_distribution(request: Request):
+    """
+    Return counts by estado + year.
+
+    Example response:
+    {
+        "by_estado": {
+            "vigente": 245,
+            "vencida": 1203,
+            "prorrogada": 12,
+            "archivada": 3156
+        },
+        "by_year": {
+            "2024": 1890,
+            "2025": 2301,
+            "2026": 425
+        },
+        "vigentes_hoy": 245
+    }
+    """
+    db = request.app.mongodb
+
+    # Count by estado
+    estado_pipeline = [
+        {"$group": {"_id": "$estado", "count": {"$sum": 1}}},
+        {"$sort": {"_id": 1}}
+    ]
+    estado_result = await db.licitaciones.aggregate(estado_pipeline).to_list(100)
+    by_estado = {doc["_id"]: doc["count"] for doc in estado_result}
+
+    # Count by publication year
+    year_pipeline = [
+        {"$match": {"publication_date": {"$exists": True, "$ne": None}}},
+        {"$group": {"_id": {"$year": "$publication_date"}, "count": {"$sum": 1}}},
+        {"$sort": {"_id": 1}}
+    ]
+    year_result = await db.licitaciones.aggregate(year_pipeline).to_list(100)
+    by_year = {str(doc["_id"]): doc["count"] for doc in year_result}
+
+    # Count vigentes hoy (vigente + prorrogada, with future or missing opening_date)
+    today = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
+    vigentes_count = await db.licitaciones.count_documents({
+        "estado": {"$in": ["vigente", "prorrogada"]},
+        "$or": [
+            {"opening_date": {"$gte": today}},
+            {"opening_date": None}
+        ]
+    })
+
+    return {
+        "by_estado": by_estado,
+        "by_year": by_year,
+        "vigentes_hoy": vigentes_count
+    }
+
+
 @router.post("/{licitacion_id}/toggle-public")
 async def toggle_public(
     licitacion_id: str,
@@ -1232,6 +1349,90 @@ async def delete_licitacion(
     if not deleted:
         raise HTTPException(status_code=404, detail="Licitación not found")
     return {"message": "Licitación deleted successfully"}
+
+
+@router.put("/{licitacion_id}/estado")
+async def update_estado(
+    licitacion_id: str,
+    estado: str = Body(..., description="vigente | vencida | prorrogada | archivada", embed=True),
+    reason: Optional[str] = Body(None, description="Reason for manual change", embed=True),
+    repo: LicitacionRepository = Depends(get_licitacion_repository)
+):
+    """
+    Manually update estado for a licitacion (admin only).
+
+    This endpoint allows admins to override the automatic estado computation
+    when the automatic calculation is incorrect or needs manual adjustment.
+    """
+    # Validate estado value
+    valid_estados = ["vigente", "vencida", "prorrogada", "archivada"]
+    if estado not in valid_estados:
+        raise HTTPException(400, f"Invalid estado value. Must be one of: {', '.join(valid_estados)}")
+
+    # Fetch current licitacion
+    item = await repo.get_by_id(licitacion_id)
+    if not item:
+        raise HTTPException(404, "Licitacion not found")
+
+    # Build update document
+    from datetime import datetime
+    old_estado = item.get("estado", "vigente")
+
+    # Update estado + add to history
+    await repo.collection.update_one(
+        {"_id": ObjectId(licitacion_id)},
+        {
+            "$set": {
+                "estado": estado,
+                "updated_at": datetime.utcnow()
+            },
+            "$push": {
+                "metadata.estado_history": {
+                    "old_estado": old_estado,
+                    "new_estado": estado,
+                    "changed_at": datetime.utcnow(),
+                    "reason": reason or "Manual override via admin API",
+                    "method": "admin_api"
+                }
+            }
+        }
+    )
+
+    logger.info(f"Estado manually updated for {licitacion_id}: {old_estado} → {estado} (reason: {reason})")
+
+    return {
+        "success": True,
+        "licitacion_id": licitacion_id,
+        "old_estado": old_estado,
+        "new_estado": estado
+    }
+
+
+@router.get("/{licitacion_id}/estado-history")
+async def get_estado_history(
+    licitacion_id: str,
+    repo: LicitacionRepository = Depends(get_licitacion_repository)
+):
+    """
+    Get estado change history for a licitacion.
+
+    Returns the full history of estado transitions, including automatic
+    and manual changes, with timestamps and reasons.
+    """
+    item = await repo.get_by_id(licitacion_id)
+    if not item:
+        raise HTTPException(404, "Licitacion not found")
+
+    metadata = item.get("metadata", {})
+    history = metadata.get("estado_history", [])
+
+    return {
+        "licitacion_id": licitacion_id,
+        "current_estado": item.get("estado", "vigente"),
+        "history": history,
+        "history_count": len(history)
+    }
+
 
 @router.get("/distinct/{field_name}", response_model=List[str])
 async def get_distinct_values(

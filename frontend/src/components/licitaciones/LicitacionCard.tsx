@@ -4,6 +4,7 @@ import { es } from 'date-fns/locale';
 import WorkflowBadge from '../WorkflowBadge';
 import type { Licitacion, SortField, Nodo } from '../../types/licitacion';
 import NodoBadge from '../nodos/NodoBadge';
+import { EstadoBadge } from './EstadoBadge';
 import { getDaysUntilOpening, getUrgencyColor, formatFechaScraping, parseUTCDate, shareViaEmail, shareViaWhatsApp, copyLink, highlightMatches } from '../../utils/formatting';
 
 interface LicitacionCardProps {
@@ -177,6 +178,13 @@ const LicitacionCard: React.FC<LicitacionCardProps> = ({
                 </div>
               )}
 
+              {/* Estado badge */}
+              {lic.estado && (
+                <div className="mb-1.5">
+                  <EstadoBadge estado={lic.estado as 'vigente' | 'vencida' | 'prorrogada' | 'archivada'} />
+                </div>
+              )}
+
               {/* Descriptive title = main heading */}
               <h3 className="text-base font-black text-gray-900 group-hover:text-blue-700 leading-tight mb-1.5 line-clamp-2">
                 {searchQuery ? highlightMatches(lic.objeto || lic.title, searchQuery) : (lic.objeto || lic.title)}
@@ -208,6 +216,18 @@ const LicitacionCard: React.FC<LicitacionCardProps> = ({
                       Proyectado
                     </span>
                   )}
+                </div>
+              )}
+
+              {/* Prórroga indicator */}
+              {lic.estado === 'prorrogada' && lic.fecha_prorroga && (
+                <div className="flex items-center gap-1.5 mb-1.5">
+                  <svg className="w-4 h-4 text-yellow-600 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                  <span className="text-sm text-yellow-700 font-semibold">
+                    Prorrogada hasta {format(new Date(lic.fecha_prorroga), 'dd/MM/yyyy', { locale: es })}
+                  </span>
                 </div>
               )}
 

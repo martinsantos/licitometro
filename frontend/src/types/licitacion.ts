@@ -23,6 +23,8 @@ export interface Licitacion {
   created_at?: string;
   first_seen_at?: string;
   nodos?: string[];
+  estado?: 'vigente' | 'vencida' | 'prorrogada' | 'archivada';
+  fecha_prorroga?: string;
   metadata?: {
     comprar_estado?: string;
     comprar_directa_tipo?: string;
@@ -82,6 +84,7 @@ export interface FilterState {
   tipoProcedimientoFiltro: string;
   organizacionFiltro: string;
   nodoFiltro: string;
+  estadoFiltro: string;
   budgetMin: string;
   budgetMax: string;
   fechaDesde: string;

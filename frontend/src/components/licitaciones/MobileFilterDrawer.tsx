@@ -2,6 +2,7 @@ import React, { useState, useMemo } from 'react';
 import type { FilterState, FilterOptions, SortField, SortOrder, Nodo } from '../../types/licitacion';
 import type { FacetData, FacetValue } from '../../hooks/useFacetedFilters';
 import YearSelector from './YearSelector';
+import { EstadoFilter } from './EstadoFilter';
 
 // Ensure active filter value always appears in facet list (even when 0 results)
 function ensureActiveValue(facetItems: FacetValue[], activeValue: string): FacetValue[] {
@@ -219,8 +220,16 @@ const MobileFilterDrawer: React.FC<MobileFilterDrawerProps> = ({
               ))}
             </Section>
 
-            {/* Estado */}
-            <Section title="Estado" badge={filters.statusFiltro ? 1 : 0}>
+            {/* Vigencia */}
+            <Section title="Vigencia" badge={filters.estadoFiltro ? 1 : 0}>
+              <EstadoFilter
+                value={filters.estadoFiltro}
+                onChange={(value) => onFilterChange('estadoFiltro', value)}
+              />
+            </Section>
+
+            {/* Estado (legacy) */}
+            <Section title="Status" defaultOpen={false} badge={filters.statusFiltro ? 1 : 0}>
               {statusItems.map((f: FacetValue) => (
                 <FacetItem
                   key={f.value}

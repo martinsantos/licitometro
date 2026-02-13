@@ -316,7 +316,7 @@ class ComprasAppsMendozaScraper(BaseScraper):
             organization = org_name or "Gobierno de Mendoza"
 
             # Parse opening date
-            opening_date = None
+            opening_date_parsed = None
             if apertura_date and apertura_date.strip() not in ("", "/  /"):
                 date_str = apertura_date
                 if apertura_time and apertura_time.strip():
@@ -333,12 +333,25 @@ class ComprasAppsMendozaScraper(BaseScraper):
                         # "1000" → "10:00", "900" → "9:00"
                         t = f"{t[:-2]}:{t[-2:]}"
                     date_str = f"{apertura_date} {t}"
-                opening_date = parse_date_guess(date_str)
+                opening_date_parsed = parse_date_guess(date_str)
 
-            # ComprasApps grid has no real publication date.
-            # Use scraping time but clamp to opening_date so pub is never after apertura.
-            now = datetime.utcnow()
-            publication_date = min(now, opening_date) if opening_date else now
+            # VIGENCIA MODEL: Resolve dates with multi-source fallback
+            # ComprasApps grid has no real publication date, but title has year "3/2026-616"
+            publication_date = self._resolve_publication_date(
+                parsed_date=None,  # No pub date in grid
+                title=titulo,  # Extract year from "3/2026-616" format
+                description=titulo,
+                opening_date=opening_date_parsed,
+                attached_files=[]
+            )
+
+            opening_date = self._resolve_opening_date(
+                parsed_date=opening_date_parsed,
+                title=titulo,
+                description=titulo,
+                publication_date=publication_date,
+                attached_files=[]
+            )
 
             # Status mapping
             status = "active"
@@ -380,6 +393,9 @@ class ComprasAppsMendozaScraper(BaseScraper):
                 if "Municipalidad de" in name:
                     jurisdiccion = name.replace("Municipalidad de ", "")
 
+            # Compute estado
+            estado_vigencia = self._compute_estado(publication_date, opening_date, fecha_prorroga=None)
+
             return LicitacionCreate(
                 title=titulo,
                 organization=organization,
@@ -402,6 +418,8 @@ class ComprasAppsMendozaScraper(BaseScraper):
                 fecha_scraping=datetime.utcnow(),
                 fuente="ComprasApps Mendoza",
                 metadata=metadata,
+                estado=estado_vigencia,
+                fecha_prorroga=None,
             )
         except Exception as e:
             logger.error(f"Error converting row to licitacion: {e}")

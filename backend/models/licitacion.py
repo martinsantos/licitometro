@@ -1,7 +1,7 @@
 from typing import Optional, List, Dict, Any
 from datetime import datetime
 from uuid import uuid4
-from pydantic import BaseModel, Field, HttpUrl
+from pydantic import BaseModel, Field, HttpUrl, model_validator
 
 # Workflow states
 WORKFLOW_STATES = ["descubierta", "evaluando", "preparando", "presentada", "descartada"]
@@ -18,7 +18,7 @@ class LicitacionBase(BaseModel):
     """Base model for licitacion data"""
     title: str = Field(..., description="Title of the licitación")
     organization: str = Field(..., description="Organization publishing the licitación")
-    publication_date: datetime = Field(..., description="Date when the licitación was published")
+    publication_date: Optional[datetime] = Field(None, description="Date when the licitación was published")
     opening_date: Optional[datetime] = Field(None, description="Date when the licitación will be opened (acto de apertura)")
     expiration_date: Optional[datetime] = Field(None, description="Deadline for the licitación")
 
@@ -115,6 +115,39 @@ class LicitacionBase(BaseModel):
     # Nodos (semantic search maps)
     nodos: Optional[List[str]] = Field(default=[], description="IDs of matched nodos")
 
+    # VIGENCIA MODEL: Estado and lifecycle management
+    estado: str = Field("vigente", description="Estado: vigente | vencida | prorrogada | archivada")
+    fecha_prorroga: Optional[datetime] = Field(None, description="Nueva fecha si extendida por circular")
+
+    @model_validator(mode='after')
+    def validate_dates_and_estado(self):
+        """
+        Validate date ranges and chronological order.
+
+        Rules:
+        1. opening_date >= publication_date (if both exist)
+        2. Year range: 2024 <= year <= 2027 (for both dates)
+        3. NEVER use datetime.utcnow() as fallback
+        """
+        from utils.dates import validate_date_range, validate_date_order
+
+        # Rule 1: Validate year ranges
+        for field_name, date_value in [
+            ('publication_date', self.publication_date),
+            ('opening_date', self.opening_date),
+            ('fecha_prorroga', self.fecha_prorroga),
+        ]:
+            is_valid, error_msg = validate_date_range(date_value, field_name)
+            if not is_valid:
+                raise ValueError(error_msg)
+
+        # Rule 2: Validate chronological order
+        is_valid, error_msg = validate_date_order(self.publication_date, self.opening_date)
+        if not is_valid:
+            raise ValueError(error_msg)
+
+        return self
+
 
 class LicitacionCreate(LicitacionBase):
     """Model for creating a new licitación"""
@@ -191,6 +224,9 @@ class LicitacionUpdate(BaseModel):
     public_slug: Optional[str] = None
     # Nodos
     nodos: Optional[List[str]] = None
+    # Vigencia
+    estado: Optional[str] = None
+    fecha_prorroga: Optional[datetime] = None
 
 
 class Licitacion(LicitacionBase):

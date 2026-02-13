@@ -60,42 +60,60 @@ class AysamScraper(BaseScraper):
             licitacion_number = details.get('n° de licitación') or details.get('licitación')
             description = details.get('objeto') or details.get('descripción') or details.get('alcance')
             
-            # Parse dates
-            publication_date = None
-            opening_date = None
-            
+            # Parse dates from details
+            pub_date_parsed = None
+            opening_date_parsed = None
+
             for key, value in details.items():
                 if 'fecha de' in key and 'apertura' in key:
-                    opening_date = parse_date_guess(value)
+                    opening_date_parsed = parse_date_guess(value)
                 elif 'publicación' in key or 'fecha de publicación' in key:
-                    publication_date = parse_date_guess(value)
-            
-            if not publication_date:
-                publication_date = datetime.utcnow()
-            
+                    pub_date_parsed = parse_date_guess(value)
+
             # Extract attached files
             attached_files = []
             for a in soup.find_all('a', href=True):
                 href = a.get('href', '')
                 text = a.get_text(strip=True)
-                
+
                 # Look for document links
                 if any(ext in href.lower() for ext in ['.pdf', '.doc', '.docx', '.xls', '.xlsx', '.zip']):
                     file_url = urljoin(url, href)
                     attached_files.append({
                         "name": text or file_url.split('/')[-1],
                         "url": file_url,
-                        "type": href.split('.')[-1].lower() if '.' in href else "unknown"
+                        "type": href.split('.')[-1].lower() if '.' in href else "unknown",
+                        "filename": file_url.split('/')[-1]
                     })
-            
-            # Compute content hash
+
+            # VIGENCIA MODEL: Resolve dates with multi-source fallback
+            publication_date = self._resolve_publication_date(
+                parsed_date=pub_date_parsed,
+                title=title,
+                description=description or "",
+                opening_date=opening_date_parsed,
+                attached_files=attached_files
+            )
+
+            opening_date = self._resolve_opening_date(
+                parsed_date=opening_date_parsed,
+                title=title,
+                description=description or "",
+                publication_date=publication_date,
+                attached_files=attached_files
+            )
+
+            # Compute content hash (handle None publication_date)
             content_hash = hashlib.md5(
-                f"{title.lower().strip()}|aysam|{publication_date.strftime('%Y%m%d')}".encode()
+                f"{title.lower().strip()}|aysam|{publication_date.strftime('%Y%m%d') if publication_date else 'unknown'}".encode()
             ).hexdigest()
-            
+
+            # Compute estado
+            estado = self._compute_estado(publication_date, opening_date, fecha_prorroga=None)
+
             # Build source_urls
             source_urls = {"aysam_detail": url}
-            
+
             lic = LicitacionCreate(
                 title=title,
                 organization="AYSAM - Aguas Mendocinas",
@@ -119,6 +137,8 @@ class AysamScraper(BaseScraper):
                 tipo_acceso="Portal Web",
                 fecha_scraping=datetime.utcnow(),
                 fuente="AYSAM",
+                estado=estado,
+                fecha_prorroga=None,
                 metadata={"aysam_details": details}
             )
             

@@ -144,14 +144,36 @@ class MpfMendozaScraper(BaseScraper):
                     "name": f"Resolución {number}/{year}.pdf",
                     "url": pdf_link,
                     "type": "pdf",
+                    "filename": f"resolucion_{number}_{year}.pdf"
                 })
+
+            # VIGENCIA MODEL: Resolve dates with multi-source fallback
+            publication_date = self._resolve_publication_date(
+                parsed_date=pub_date,
+                title=title,
+                description=f"Resolución {number}/{year}",
+                opening_date=None,
+                attached_files=attached_files
+            )
+
+            opening_date = self._resolve_opening_date(
+                parsed_date=None,
+                title=title,
+                description=f"Resolución {number}/{year}",
+                publication_date=publication_date,
+                attached_files=attached_files
+            )
+
+            # Compute estado
+            estado = self._compute_estado(publication_date, opening_date, fecha_prorroga=None)
 
             items.append(LicitacionCreate(
                 id_licitacion=id_lic,
                 title=title,
                 organization=self.org,
                 jurisdiccion="Mendoza",
-                publication_date=pub_date or datetime(year, 1, 1),
+                publication_date=publication_date,
+                opening_date=opening_date,
                 description=f"Resolución SAF Nro. {number}/{year} - {title}",
                 status="active",
                 source_url=source_url,
@@ -161,6 +183,8 @@ class MpfMendozaScraper(BaseScraper):
                 fecha_scraping=datetime.utcnow(),
                 content_hash=self._content_hash(title, number, year),
                 attached_files=attached_files,
+                estado=estado,
+                fecha_prorroga=None,
             ))
 
         logger.info(f"MPF {year}: {len(items)} procurement items extracted")

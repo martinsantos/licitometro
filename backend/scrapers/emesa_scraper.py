@@ -269,13 +269,35 @@ class EmesaScraper(BaseScraper):
         slug = re.sub(r"\W+", "-", title.lower())[:80]
         id_lic = f"emesa:{slug}"
 
-        # Parse date
-        fecha = None
+        # Parse date from item
+        fecha_parsed = None
         if item.get("fecha"):
-            fecha = parse_date_guess(item["fecha"])
+            fecha_parsed = parse_date_guess(item["fecha"])
 
-        # Content hash
-        content = f"{title}|{item.get('descripcion', '')}"
+        description = item.get("descripcion", "")
+
+        # VIGENCIA MODEL: Resolve dates with multi-source fallback
+        publication_date = self._resolve_publication_date(
+            parsed_date=fecha_parsed,
+            title=title,
+            description=description,
+            opening_date=None,
+            attached_files=[]
+        )
+
+        opening_date = self._resolve_opening_date(
+            parsed_date=None,
+            title=title,
+            description=description,
+            publication_date=publication_date,
+            attached_files=[]
+        )
+
+        # Compute estado
+        estado = self._compute_estado(publication_date, opening_date, fecha_prorroga=None)
+
+        # Content hash (handle None publication_date)
+        content = f"{title}|{description}|{publication_date.strftime('%Y%m%d') if publication_date else 'unknown'}"
         content_hash = hashlib.md5(content.encode()).hexdigest()
 
         url = item.get("url", "")
@@ -285,16 +307,18 @@ class EmesaScraper(BaseScraper):
         return LicitacionCreate(
             id_licitacion=id_lic,
             title=title,
-            description=item.get("descripcion", ""),
+            description=description,
             organization="EMESA - Empresa Mendocina de Energía",
-            publication_date=fecha or datetime.utcnow(),
-            opening_date=None,
+            publication_date=publication_date,
+            opening_date=opening_date,
             fuente="EMESA",
             source_url=url or self.base_url,
             status="active",
             tipo_procedimiento="Licitación",
             jurisdiccion="Mendoza",
             content_hash=content_hash,
+            estado=estado,
+            fecha_prorroga=None,
         )
 
     # -- BaseScraper abstract methods (stubs for Selenium-based scraper) --

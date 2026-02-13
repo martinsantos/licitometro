@@ -42,31 +42,28 @@ class ComprarGobArScraper(BaseScraper):
             organization_elem = soup.select_one(self.config.selectors.get("organization", "div.organismo"))
             organization = organization_elem.text.strip() if organization_elem else "Unknown"
             
-            # Extract dates
+            # Parse dates from HTML
             pub_date_elem = soup.select_one(self.config.selectors.get("publication_date", "div.fecha-publicacion"))
-            publication_date = None
+            pub_date_parsed = None
             if pub_date_elem:
                 pub_date_text = pub_date_elem.text.strip()
                 # Parse date from text like "Fecha de Publicación: 01/05/2023"
                 date_match = re.search(r'(\d{2}/\d{2}/\d{4})', pub_date_text)
                 if date_match:
                     try:
-                        publication_date = datetime.strptime(date_match.group(1), '%d/%m/%Y')
+                        pub_date_parsed = datetime.strptime(date_match.group(1), '%d/%m/%Y')
                     except ValueError:
-                        publication_date = datetime.utcnow()
-            
-            if not publication_date:
-                publication_date = datetime.utcnow()
-            
+                        pass
+
             # Opening date
             open_date_elem = soup.select_one(self.config.selectors.get("opening_date", "div.fecha-apertura"))
-            opening_date = None
+            opening_date_parsed = None
             if open_date_elem:
                 open_date_text = open_date_elem.text.strip()
                 date_match = re.search(r'(\d{2}/\d{2}/\d{4})', open_date_text)
                 if date_match:
                     try:
-                        opening_date = datetime.strptime(date_match.group(1), '%d/%m/%Y')
+                        opening_date_parsed = datetime.strptime(date_match.group(1), '%d/%m/%Y')
                     except ValueError:
                         pass
             
@@ -97,9 +94,30 @@ class ComprarGobArScraper(BaseScraper):
                     attached_files.append({
                         "name": file_name,
                         "url": file_url,
-                        "type": file_url.split('.')[-1].lower() if '.' in file_url else "unknown"
+                        "type": file_url.split('.')[-1].lower() if '.' in file_url else "unknown",
+                        "filename": file_url.split('/')[-1]
                     })
-            
+
+            # VIGENCIA MODEL: Resolve dates with multi-source fallback
+            publication_date = self._resolve_publication_date(
+                parsed_date=pub_date_parsed,
+                title=title,
+                description=description or "",
+                opening_date=opening_date_parsed,
+                attached_files=attached_files
+            )
+
+            opening_date = self._resolve_opening_date(
+                parsed_date=opening_date_parsed,
+                title=title,
+                description=description or "",
+                publication_date=publication_date,
+                attached_files=attached_files
+            )
+
+            # Compute estado
+            estado = self._compute_estado(publication_date, opening_date, fecha_prorroga=None)
+
             # Create the licitacion object
             licitacion_data = {
                 "title": title,
@@ -113,8 +131,10 @@ class ComprarGobArScraper(BaseScraper):
                 "source_url": url,
                 "status": "active",
                 "attached_files": attached_files,
+                "estado": estado,
+                "fecha_prorroga": None,
             }
-            
+
             return LicitacionCreate(**licitacion_data)
         
         except Exception as e:
