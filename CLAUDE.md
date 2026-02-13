@@ -198,6 +198,45 @@ Algunos ISPs argentinos (200.58.x.x) bloquean IPs de datacenter via IPv4 pero pe
 3. `docker-compose.prod.yml`: `enable_ipv6: true` + subnet IPv6 en la red
 Los 3 pasos son necesarios. Fuentes afectadas: COPIG, La Paz, San Carlos.
 
+### Taxonomía de Fechas: first_seen_at vs fecha_scraping vs publication_date
+**CRÍTICO**: El sistema maneja 5 campos de fecha con semántica DIFERENTE. Confundirlos causa bugs graves.
+
+| Campo | Significado | Cuándo cambia | Uso correcto |
+|-------|-------------|---------------|--------------|
+| `first_seen_at` | Primera vez que descubrimos el item | NUNCA (se setea solo en INSERT) | Badge "NUEVO", filtro "Nuevas de hoy" |
+| `fecha_scraping` | Última vez que scrapeamos | En CADA scrape (UPDATE) | DailyDigestStrip "Hoy/Ayer", actividad de indexación |
+| `publication_date` | Fecha oficial de publicación | NUNCA (dato de fuente) | Filtros de rango, sort default, year archival |
+| `opening_date` | Fecha de apertura de ofertas | NUNCA (dato de fuente) | Deadlines, urgencia |
+| `created_at` | Cuándo se insertó en BD | NUNCA (timestamp MongoDB) | Debug, auditoría |
+
+**Implementación correcta**:
+- **QuickPresetButton "Nuevas de hoy"**: Filtra por `nuevas_desde` (backend usa `first_seen_at >= date`)
+- **DailyDigestStrip "Hoy/Ayer"**: Cuenta por `fecha_scraping` (muestra actividad de scraping)
+- **Badge "NUEVO"**: Compara `first_seen_at > lastVisitTimestamp` (no `created_at` ni `fecha_scraping`)
+- **NovedadesStrip categorías**:
+  - Nuevas: `first_seen_at >= since`
+  - Reindexadas: `fecha_scraping >= since AND first_seen_at < since`
+  - Actualizadas: `updated_at >= since AND fecha_scraping < since`
+
+**Error común corregido (Feb 13, 2026)**:
+- ❌ ANTES: "Nuevas de hoy" filtraba por `fecha_scraping = hoy` → mostraba 5329 items (todas las scrapeadas)
+- ✅ AHORA: Filtra por `first_seen_at >= hoy` → muestra ~10-50 items (verdaderamente nuevas)
+
+**Parámetros de API**:
+- `fecha_desde` + `fecha_hasta` + `fecha_campo` → Filtro genérico de rango por campo elegido
+- `nuevas_desde` → Filtro específico por `first_seen_at >= date` (independiente de `fecha_campo`)
+- `year` → Fuerza `publication_date` dentro del año (no afecta otros filtros)
+
+**Frontend**: DateRangeFilter ofrece 6 opciones de fecha:
+1. `publication_date` - Publicación (fecha oficial del gobierno)
+2. `opening_date` - Apertura (deadline para ofertas)
+3. `expiration_date` - Vencimiento
+4. `first_seen_at` - Descubierta (1ra vez) ⭐ Para encontrar items "nuevos en el sistema"
+5. `fecha_scraping` - Indexada (última) ⭐ Para actividad de scraping
+6. `created_at` - Creada en BD (debug)
+
+**Backfill**: `backend/scripts/backfill_first_seen.py` setea `first_seen_at = created_at` para records existentes.
+
 ---
 
 ## Fuentes de Datos (24 activas, 3231 licitaciones)
