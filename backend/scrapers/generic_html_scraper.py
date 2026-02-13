@@ -91,6 +91,15 @@ class GenericHtmlScraper(BaseScraper):
                 pass
         return None, currency
 
+    def _extract_year_from_title(self, title: str) -> Optional[int]:
+        """Extract year from title like 'Licitación 13/2024' -> 2024"""
+        m = re.search(r'/(\d{4})', title)
+        if m:
+            year = int(m.group(1))
+            if 2020 <= year <= 2030:
+                return year
+        return None
+
     async def extract_licitacion_data(self, html: str, url: str) -> Optional[LicitacionCreate]:
         soup = BeautifulSoup(html, "html.parser")
 
@@ -101,6 +110,12 @@ class GenericHtmlScraper(BaseScraper):
         description = self._extract_text(soup, self._sel("description_selector", ".entry-content, .descripcion, .objeto, article"))
         pub_date = self._extract_date(soup, self._sel("date_selector", "time, .date, .fecha, .published"))
         opening_date = self._extract_date(soup, self._sel("opening_date_selector", ""))
+
+        # If no pub_date found, try to extract year from title (e.g., "13/2024" -> 2024)
+        if not pub_date:
+            year = self._extract_year_from_title(title)
+            if year:
+                pub_date = datetime(year, 1, 1)
 
         # Extract budget
         budget = None
