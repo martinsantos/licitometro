@@ -468,7 +468,7 @@ const FilterSidebar: React.FC<FilterSidebarProps> = ({
               </div>
               {(filters.fechaDesde || filters.fechaHasta) && (
                 <button
-                  onClick={() => onSetMany({ fechaDesde: '', fechaHasta: '' })}
+                  onClick={() => onSetMany({ fechaDesde: '', fechaHasta: '', nuevasDesde: '' })}
                   className="text-[10px] text-red-500 hover:text-red-700 font-bold"
                 >
                   Limpiar fechas

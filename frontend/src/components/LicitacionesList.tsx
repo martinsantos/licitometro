@@ -178,8 +178,25 @@ const LicitacionesList = ({ apiUrl }: LicitacionesListProps) => {
   }, [navigate]);
 
   const handleFilterChange = useCallback((key: keyof FilterState, value: string) => {
-    setFilter(key, value);
-  }, [setFilter]);
+    // Sincronizar fechas: si se cambia fechaDesde o fechaHasta y resultan iguales (un solo día),
+    // sincronizar con nuevasDesde
+    if (key === 'fechaDesde' || key === 'fechaHasta') {
+      const otherKey = key === 'fechaDesde' ? 'fechaHasta' : 'fechaDesde';
+      const otherValue = filters[otherKey];
+
+      // Si después de este cambio, fechaDesde === fechaHasta (un solo día), sincronizar con nuevasDesde
+      if (value && otherValue && value === otherValue) {
+        setMany({ [key]: value, nuevasDesde: value });
+      } else if (!value && !otherValue) {
+        // Si se limpian ambos, limpiar también nuevasDesde
+        setMany({ [key]: value, nuevasDesde: '' });
+      } else {
+        setFilter(key, value);
+      }
+    } else {
+      setFilter(key, value);
+    }
+  }, [setFilter, setMany, filters]);
 
   // SYNCHRONIZED: DailyDigest "Hoy" and "Nuevas de hoy" activate BOTH filters together
   const handleDaySelect = useCallback((dateStr: string | null) => {
@@ -219,7 +236,16 @@ const LicitacionesList = ({ apiUrl }: LicitacionesListProps) => {
   const handleLoadPreset = useCallback((presetFilters: Partial<FilterState>, sortBy?: string, sortOrder?: string) => {
     clearAll();
     setTimeout(() => {
-      if (Object.keys(presetFilters).length > 0) setMany(presetFilters);
+      if (Object.keys(presetFilters).length > 0) {
+        // Sincronizar filtros de fecha: si fechaDesde === fechaHasta (un solo día), sincronizar con nuevasDesde
+        const syncedFilters = { ...presetFilters };
+        if (syncedFilters.fechaDesde && syncedFilters.fechaHasta &&
+            syncedFilters.fechaDesde === syncedFilters.fechaHasta &&
+            !syncedFilters.nuevasDesde) {
+          syncedFilters.nuevasDesde = syncedFilters.fechaDesde;
+        }
+        setMany(syncedFilters);
+      }
       if (sortBy) prefs.handleSortChange(sortBy as any);
       if (sortOrder === 'asc' && prefs.sortOrder !== 'asc') prefs.toggleSortOrder();
       if (sortOrder === 'desc' && prefs.sortOrder !== 'desc') prefs.toggleSortOrder();

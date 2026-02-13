@@ -229,23 +229,33 @@ Los 3 pasos son necesarios. Fuentes afectadas: COPIG, La Paz, San Carlos.
 - ✅ AHORA: Filtra por `first_seen_at >= hoy` → muestra ~10-50 items (verdaderamente nuevas)
 
 ### Filtros de Fecha Sincronizados (Feb 13, 2026)
-**CRÍTICO**: Los filtros `nuevasDesde` (first_seen_at) y `fechaDesde/fechaHasta` (fecha_scraping) están **sincronizados**. Activar uno activa AMBOS; desactivar uno desactiva AMBOS.
+**CRÍTICO**: Los filtros `nuevasDesde` (first_seen_at) y `fechaDesde/fechaHasta` (fecha_scraping) están **sincronizados automáticamente** para días únicos. Activar uno activa AMBOS; desactivar uno desactiva AMBOS.
+
+**Lugares con sincronización automática**:
+1. **DailyDigestStrip**: "Hoy", "Ayer", y cualquier día del timeline expandible → `handleDaySelect()`
+2. **QuickPresetButton**: "Nuevas de hoy" → `handleToggleTodayFilter()`
+3. **PresetSelector**: Preset "Nuevas de hoy" + cualquier preset guardado con un solo día → `handleLoadPreset()`
+4. **Inputs manuales de fecha**: Cuando fechaDesde === fechaHasta en FilterSidebar → `handleFilterChange()`
+5. **Botón "Limpiar fechas"**: Limpia los tres filtros simultáneamente
 
 **Implementación en `LicitacionesList.tsx`**:
-- `handleToggleTodayFilter()`: Al activar "Nuevas de hoy", setea AMBOS (nuevasDesde Y fechaDesde/fechaHasta) con `setMany()`
-- `handleDaySelect()`: Al activar DailyDigest "Hoy", setea AMBOS (fechaDesde/fechaHasta Y nuevasDesde) con `setMany()`
-- `isTodayFilterActive`: Detecta si CUALQUIERA de los dos está activo (`nuevasDesde === hoy OR fechaDesde === hoy`)
+- `handleToggleTodayFilter()`: Setea TRES campos (nuevasDesde, fechaDesde, fechaHasta) con `setMany()`
+- `handleDaySelect()`: Setea TRES campos para cualquier día (Hoy, Ayer, otros)
+- `handleFilterChange()`: Detecta cambios manuales, sincroniza si fechaDesde === fechaHasta (día único)
+- `handleLoadPreset()`: Al cargar presets, si fechaDesde === fechaHasta, agrega nuevasDesde automáticamente
+- `isTodayFilterActive`: Detecta si CUALQUIERA está activo (`nuevasDesde === hoy OR fechaDesde === hoy`)
 
-**Por qué**: Para el usuario, "HOY" es un concepto único. Aunque técnicamente filtran campos diferentes (`first_seen_at` vs `fecha_scraping`), ambos botones deben actuar como indicadores del mismo estado.
+**Por qué**: Para el usuario, un día específico es un concepto único. Aunque técnicamente filtran campos diferentes (`first_seen_at` vs `fecha_scraping`), todos los botones de fecha deben actuar de forma coherente.
 
 **Resultado**: El backend aplica AMBOS filtros simultáneamente (AND condition):
-- `first_seen_at >= hoy` AND `fecha_scraping = hoy`
-- Esto muestra items verdaderamente nuevos (descubiertos HOY) que también fueron scrapeados HOY
+- `first_seen_at >= fecha` AND `fecha_scraping = fecha`
+- Ejemplo "Hoy": items descubiertos HOY que también fueron scrapeados HOY
+- Ejemplo "Ayer": items descubiertos AYER que también fueron scrapeados AYER
 
 **Indicadores visuales sincronizados**:
 - QuickPresetButton: Verde sólido cuando `nuevasDesde=hoy` O `fechaDesde=hoy`
-- DailyDigestStrip: Botón "Hoy" con bg-emerald-600 cuando `fechaDesde=hoy` (derivado de `selectedDate`)
-- ActiveFiltersChips: Muestra AMBOS chips cuando ambos filtros están activos
+- DailyDigestStrip: Botón activo (emerald/blue) cuando `fechaDesde=fecha`
+- ActiveFiltersChips: Muestra chips cuando los filtros están activos
 
 **Parámetros de API**:
 - `fecha_desde` + `fecha_hasta` + `fecha_campo` → Filtro genérico de rango por campo elegido
