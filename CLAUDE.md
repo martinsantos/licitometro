@@ -169,6 +169,12 @@ Rutas con prefijo fijo (`/stats/*`, `/search/*`) deben registrarse ANTES de ruta
 ### Busqueda frontend
 `LicitacionesList.tsx` envia parametro `q` a `GET /api/licitaciones/`. El endpoint DEBE tener param `q` o la busqueda se ignora silenciosamente.
 
+### Dropdown "Agrupar por" en Mobile
+**Ubicación**: Toolbar principal, visible solo en mobile (`lg:hidden`), entre ViewToggle y botón "Filtros".
+**Funcionalidad**: Permite cambiar `groupBy` (none, organization, fuente, status, jurisdiccion, procedimiento, category) sin abrir el MobileFilterDrawer.
+**Razón**: En mobile, tener que abrir el drawer y scrollear hasta "Agrupar por" es tedioso. El dropdown directo en toolbar mejora UX significativamente.
+**Implementación** (Feb 13, 2026): Select nativo con emojis para cada opción, bg-gray-100, text-xs, visible solo en `<lg` breakpoint.
+
 ### Pliego vs Presupuesto
 Algunas fuentes publican el **costo del pliego** (precio del documento de licitacion), NO el presupuesto oficial. El pliego es tipicamente 0.01%-0.5% del presupuesto real.
 
@@ -221,6 +227,20 @@ Los 3 pasos son necesarios. Fuentes afectadas: COPIG, La Paz, San Carlos.
 **Error común corregido (Feb 13, 2026)**:
 - ❌ ANTES: "Nuevas de hoy" filtraba por `fecha_scraping = hoy` → mostraba 5329 items (todas las scrapeadas)
 - ✅ AHORA: Filtra por `first_seen_at >= hoy` → muestra ~10-50 items (verdaderamente nuevas)
+
+### Filtros de Fecha Mutuamente Exclusivos (Feb 13, 2026)
+**CRÍTICO**: Los filtros `nuevasDesde` (first_seen_at) y `fechaDesde/fechaHasta` (fecha_scraping/fecha_campo) son **mutuamente exclusivos**. Activar uno LIMPIA el otro automáticamente para evitar confusión.
+
+**Implementación en `LicitacionesList.tsx`**:
+- `handleToggleTodayFilter()`: Al activar "Nuevas de hoy" (nuevasDesde), limpia fechaDesde/fechaHasta con `setMany()`
+- `handleDaySelect()`: Al activar DailyDigest day (fechaDesde/fechaHasta), limpia nuevasDesde con `setMany()`
+
+**Por qué**: Ambos filtros usan campos de fecha DIFERENTES (`first_seen_at` vs `fecha_scraping`). Permitir que estén activos simultáneamente causa resultados inesperados y UX confusa.
+
+**Indicadores visuales**:
+- QuickPresetButton: Verde sólido cuando activo, verde claro cuando inactivo
+- DailyDigestStrip: Botón "Hoy"/"Ayer" con bg-emerald-600 cuando seleccionado
+- ActiveFiltersChips: Muestra chip emerald "✨ Nuevas desde YYYY-MM-DD" o chip verde "YYYY-MM-DD a YYYY-MM-DD"
 
 **Parámetros de API**:
 - `fecha_desde` + `fecha_hasta` + `fecha_campo` → Filtro genérico de rango por campo elegido

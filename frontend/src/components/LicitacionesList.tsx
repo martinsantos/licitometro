@@ -181,9 +181,11 @@ const LicitacionesList = ({ apiUrl }: LicitacionesListProps) => {
     setFilter(key, value);
   }, [setFilter]);
 
+  // MUTUALLY EXCLUSIVE: DailyDigest date filter vs "Nuevas de hoy"
   const handleDaySelect = useCallback((dateStr: string | null) => {
     if (dateStr) {
-      setMany({ fechaDesde: dateStr, fechaHasta: dateStr });
+      // Activar fecha_scraping filter, LIMPIAR nuevasDesde filter
+      setMany({ fechaDesde: dateStr, fechaHasta: dateStr, nuevasDesde: '' });
     } else {
       setMany({ fechaDesde: '', fechaHasta: '' });
     }
@@ -197,14 +199,15 @@ const LicitacionesList = ({ apiUrl }: LicitacionesListProps) => {
     prefs.handleSortChange(newSort);
   }, [prefs.handleSortChange]);
 
-  // Toggle "Nuevas de hoy" filter WITHOUT clearing other filters
+  // MUTUALLY EXCLUSIVE: "Nuevas de hoy" vs DailyDigest date filter
   const handleToggleTodayFilter = useCallback((today: string | null) => {
     if (today) {
-      setFilter('nuevasDesde', today);
+      // Activar nuevasDesde filter, LIMPIAR fecha_scraping filters
+      setMany({ nuevasDesde: today, fechaDesde: '', fechaHasta: '' });
     } else {
       setFilter('nuevasDesde', '');
     }
-  }, [setFilter]);
+  }, [setMany, setFilter]);
 
   // Check if "Nuevas de hoy" filter is active
   const isTodayFilterActive = filters.nuevasDesde !== '';
@@ -324,6 +327,22 @@ const LicitacionesList = ({ apiUrl }: LicitacionesListProps) => {
                 viewMode={prefs.viewMode}
                 onViewModeChange={prefs.setViewMode}
               />
+
+              {/* GroupBy dropdown - Mobile only */}
+              <select
+                value={prefs.groupBy}
+                onChange={(e) => prefs.setGroupBy(e.target.value)}
+                className="lg:hidden px-2 py-1.5 bg-gray-100 rounded-lg font-bold text-xs text-gray-600 hover:bg-gray-200 transition-colors flex-shrink-0 border-0 outline-none cursor-pointer"
+                title="Agrupar por"
+              >
+                <option value="none">📋 Sin agrupar</option>
+                <option value="organization">🏢 Por Org</option>
+                <option value="fuente">📰 Por Fuente</option>
+                <option value="status">🔴 Por Estado</option>
+                <option value="jurisdiccion">🌎 Por Jurisd.</option>
+                <option value="procedimiento">📑 Por Tipo</option>
+                <option value="category">🏷️ Por Rubro</option>
+              </select>
 
               {/* Mobile filter button */}
               <button
