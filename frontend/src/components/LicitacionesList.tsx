@@ -129,9 +129,6 @@ const LicitacionesList = ({ apiUrl }: LicitacionesListProps) => {
     }
   }, [isInitialLoading]);
 
-  // New items count
-  const newItemsCount = useMemo(() => licitaciones.filter(prefs.isNewItem).length, [licitaciones, prefs.isNewItem]);
-
   // Group licitaciones
   const groupedLicitaciones = useMemo(() => {
     if (prefs.groupBy === 'none') return { 'all': licitaciones };
@@ -304,7 +301,6 @@ const LicitacionesList = ({ apiUrl }: LicitacionesListProps) => {
 
               <QuickPresetButton
                 onToggleTodayFilter={handleToggleTodayFilter}
-                newItemsCount={newItemsCount}
                 isActive={isTodayFilterActive}
               />
 
@@ -352,7 +348,6 @@ const LicitacionesList = ({ apiUrl }: LicitacionesListProps) => {
               onFilterChange={handleFilterChange}
               onClearAll={clearAll}
               totalItems={paginacion?.total_items ?? null}
-              newItemsCount={newItemsCount}
               hasActiveFilters={hasActiveFilters}
               nodoMap={nodoMap}
             />

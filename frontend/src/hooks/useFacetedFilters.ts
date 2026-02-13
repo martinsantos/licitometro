@@ -66,6 +66,7 @@ export function useFacetedFilters(apiUrl: string, filters: FilterState, fechaCam
         params.append('fecha_hasta', `${filters.yearWorkspace}-12-31`);
       }
       if (fechaCampo) params.append('fecha_campo', fechaCampo);
+      if (filters.nuevasDesde) params.append('nuevas_desde', filters.nuevasDesde);
 
       fetch(`${apiUrl}/api/licitaciones/facets?${params}`, { signal: controller.signal, credentials: 'include' })
         .then(r => r.ok ? r.json() : EMPTY_FACETS)

@@ -341,6 +341,7 @@ async def get_facets(
     fecha_desde: Optional[date] = None,
     fecha_hasta: Optional[date] = None,
     fecha_campo: str = Query("publication_date"),
+    nuevas_desde: Optional[date] = Query(None, description="Filter by first_seen_at >= date (truly new items)"),
     request: Request = None,
 ):
     """Return value counts for each filterable field, applying cross-filters.
@@ -371,6 +372,10 @@ async def get_facets(
         if fecha_desde: df["$gte"] = datetime.combine(fecha_desde, datetime.min.time())
         if fecha_hasta: df["$lte"] = datetime.combine(fecha_hasta, datetime.max.time())
         if df: base_match[fc] = df
+
+    # Filter by first_seen_at for "Nuevas de hoy" functionality
+    if nuevas_desde:
+        base_match["first_seen_at"] = {"$gte": datetime.combine(nuevas_desde, datetime.min.time())}
 
     # Text search adds $text match
     if q:
@@ -823,6 +828,46 @@ async def get_scraping_activity(request: Request, hours: int = 24):
         "re_indexed": total_re_indexed,
         "updated": total_updated,
         "by_source": by_source
+    }
+
+
+@router.get("/stats/truly-new-count")
+async def get_truly_new_count(
+    since_date: date = Query(..., description="Count items where first_seen_at >= this date"),
+    request: Request = None
+):
+    """Return count of items truly discovered since given date.
+
+    This endpoint provides accurate count for "Nuevas de hoy" badge,
+    independent of pagination and current filter state.
+    """
+    db = request.app.mongodb
+    collection = db.licitaciones
+
+    # Convert date to datetime for MongoDB comparison
+    since_datetime = datetime.combine(since_date, datetime.min.time())
+
+    # Count total items where first_seen_at >= since_date
+    count = await collection.count_documents({
+        "first_seen_at": {"$gte": since_datetime}
+    })
+
+    # Optional: breakdown by source for debugging
+    pipeline = [
+        {"$match": {"first_seen_at": {"$gte": since_datetime}}},
+        {"$group": {"_id": "$source", "count": {"$sum": 1}}},
+        {"$sort": {"count": -1}},
+        {"$limit": 10}
+    ]
+
+    by_source = []
+    async for doc in collection.aggregate(pipeline):
+        by_source.append({"source": doc["_id"], "count": doc["count"]})
+
+    return {
+        "total": count,
+        "since": since_date.isoformat(),
+        "top_sources": by_source
     }
 
 
