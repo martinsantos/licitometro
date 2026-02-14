@@ -61,6 +61,21 @@ const NodoCard: React.FC<NodoCardProps> = ({ nodo, onEdit, onDelete, onRematch }
         ))}
       </div>
 
+      {/* Categories */}
+      {nodo.categories && nodo.categories.length > 0 && (
+        <div className="mb-3">
+          <span className="text-[10px] font-black text-gray-400 uppercase">Categorias</span>
+          <div className="flex flex-wrap gap-1 mt-0.5">
+            {nodo.categories.slice(0, 5).map((cat, i) => (
+              <span key={i} className="px-1.5 py-0.5 bg-amber-50 text-amber-700 rounded text-[10px] font-bold">{cat}</span>
+            ))}
+            {nodo.categories.length > 5 && (
+              <span className="px-1.5 py-0.5 text-gray-400 text-[10px]">+{nodo.categories.length - 5}</span>
+            )}
+          </div>
+        </div>
+      )}
+
       <div className="flex items-center gap-1.5 mb-3 flex-wrap">
         {enabledActions.map((a, i) => (
           <span key={i} className="px-2 py-0.5 bg-blue-50 text-blue-600 rounded text-[10px] font-bold capitalize">
