@@ -1,0 +1,74 @@
+name: CI Checks
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+# Cancel in-progress CI runs for the same PR
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  lint-and-build:
+    name: Lint & Build Check
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+          cache: 'npm'
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install frontend dependencies
+        working-directory: frontend
+        run: npm ci
+
+      - name: Lint frontend (if script exists)
+        working-directory: frontend
+        run: |
+          if grep -q '"lint"' package.json; then
+            npm run lint
+          else
+            echo "⚠️  No lint script found, skipping..."
+          fi
+        continue-on-error: false
+
+      - name: Build frontend
+        working-directory: frontend
+        run: npm run build
+        env:
+          CI: true
+          REACT_APP_BACKEND_URL: ""
+
+      - name: Verify build artifacts
+        working-directory: frontend
+        run: |
+          if [ ! -d "build" ]; then
+            echo "❌ Build directory not found"
+            exit 1
+          fi
+          if [ ! -f "build/index.html" ]; then
+            echo "❌ index.html not found in build"
+            exit 1
+          fi
+          echo "✅ Build artifacts verified"
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Check Python syntax
+        working-directory: backend
+        run: |
+          python -m py_compile server.py
+          echo "✅ Python syntax check passed"
