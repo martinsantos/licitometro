@@ -67,7 +67,7 @@ const LicitacionesList = ({ apiUrl }: LicitacionesListProps) => {
         setFilter('fechaDesde', today);
       }
     }
-  }, [fechaCampo]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [fechaCampo, filters.fechaDesde, setFilter]);
 
   // Debounce the text search (700ms), other filters are immediate
   const debouncedBusqueda = useDebounce(filters.busqueda, 700);
