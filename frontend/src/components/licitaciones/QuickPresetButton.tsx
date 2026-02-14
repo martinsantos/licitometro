@@ -38,7 +38,8 @@ const QuickPresetButton: React.FC<QuickPresetButtonProps> = ({
     const fetchCount = async () => {
       setLoading(true);
       try {
-        const apiUrl = process.env.REACT_APP_API_URL || 'http://localhost:8000';
+        // Use empty string for relative paths in production (nginx proxies to backend)
+        const apiUrl = process.env.REACT_APP_API_URL || '';
         const response = await fetch(
           `${apiUrl}/api/licitaciones/stats/truly-new-count?since_date=${todayDate}`,
           { credentials: 'include' }
