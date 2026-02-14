@@ -42,6 +42,16 @@ jobs:
           mkdir -p ~/.ssh
           echo "$VPS_KNOWN_HOSTS" >> ~/.ssh/known_hosts
 
+      - name: Clean VPS repository
+        env:
+          VPS_HOST: ${{ secrets.VPS_HOST }}
+          VPS_USER: ${{ secrets.VPS_USER }}
+        run: |
+          echo "Cleaning VPS repository (discarding local changes)..."
+          ssh -o StrictHostKeyChecking=no "${VPS_USER}@${VPS_HOST}" \
+            "cd /opt/licitometro && git reset --hard HEAD && git clean -fd"
+          echo "✅ VPS repository cleaned"
+
       - name: Sync code to VPS
         env:
           VPS_HOST: ${{ secrets.VPS_HOST }}

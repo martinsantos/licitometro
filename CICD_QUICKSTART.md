@@ -130,10 +130,16 @@ Once tested successfully:
    ```
 
 2. **Start developing from phone:**
+
+   📱 **Lee la guía completa**: [`MOBILE_WORKFLOW.md`](MOBILE_WORKFLOW.md)
+
+   Resumen rápido:
    - Open Claude Code app
-   - Create feature branch
-   - Write code
-   - Push → PR → Preview → Merge → Production ✅
+   - Create feature branch: "Crea rama feature/mi-cambio"
+   - Write code: "Modifica archivo X y agrega Y"
+   - Commit & push: "Commit y push"
+   - Create PR from browser
+   - Preview → Verify → Merge → Production ✅
 
 ---
 
