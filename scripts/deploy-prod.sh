@@ -1,114 +1,131 @@
 #!/bin/bash
 set -e
 
-# Production deployment with blue-green strategy
-# This script runs ON THE VPS
-# Usage: ./deploy-prod.sh
+# Production Deployment Script with Auto-Backup
+# CRITICAL: This script NEVER uses "docker compose down" to prevent data loss
+# Strategy: Backup → Build → Restart → Healthcheck → Cleanup
 
-BASE_DIR="/opt/licitometro"
-COMPOSE_FILE="docker-compose.prod.yml"
-ENV_FILE=".env"
-
-cd "$BASE_DIR"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PROJECT_DIR="$(dirname "$SCRIPT_DIR")"
+COMPOSE_FILE="${PROJECT_DIR}/docker-compose.prod.yml"
+BACKUP_SCRIPT="${SCRIPT_DIR}/backup-mongodb.sh"
+MAX_HEALTH_RETRIES=30
+HEALTH_CHECK_INTERVAL=10
 
 echo "=========================================="
-echo "Production Deployment - Blue-Green"
+echo "Production Deployment - $(date)"
 echo "=========================================="
-echo "Date: $(date)"
-echo "Directory: $BASE_DIR"
 
-# Step 1: Build new images (WITH CACHE)
+# Step 1: Pre-deployment backup
 echo ""
-echo "[1/6] Building new images..."
-docker compose -f "$COMPOSE_FILE" build --quiet
-
-# Step 2: Tag current containers as "blue" (backup)
-echo ""
-echo "[2/6] Tagging current containers as 'blue'..."
-CURRENT_CONTAINERS=$(docker ps --filter "name=licitometro" --format "{{.Names}}" || echo "")
-
-if [ -n "$CURRENT_CONTAINERS" ]; then
-    for CONTAINER in $CURRENT_CONTAINERS; do
-        docker commit "$CONTAINER" "${CONTAINER}-blue" > /dev/null || true
-        echo "  ✓ Tagged $CONTAINER → ${CONTAINER}-blue"
-    done
+echo "Step 1/5: Creating pre-deployment backup..."
+if [ ! -f "$BACKUP_SCRIPT" ]; then
+    echo "⚠️  Warning: Backup script not found at $BACKUP_SCRIPT"
+    read -p "Continue without backup? (yes/no): " CONTINUE
+    if [ "$CONTINUE" != "yes" ]; then
+        echo "Deployment cancelled"
+        exit 1
+    fi
 else
-    echo "  ⚠️  No current containers found (first deploy?)"
+    BACKUP_FILE=$(bash "$BACKUP_SCRIPT")
+    if [ $? -eq 0 ]; then
+        echo "✅ Backup created: $BACKUP_FILE"
+    else
+        echo "❌ Backup failed"
+        read -p "Continue without backup? (yes/no): " CONTINUE
+        if [ "$CONTINUE" != "yes" ]; then
+            echo "Deployment cancelled"
+            exit 1
+        fi
+    fi
 fi
 
-# Step 3: Deploy new containers (green)
+# Step 2: Build new images (without stopping containers)
 echo ""
-echo "[3/6] Deploying new containers (green)..."
-docker compose -f "$COMPOSE_FILE" up -d --force-recreate
+echo "Step 2/5: Building new Docker images..."
+cd "$PROJECT_DIR"
+docker compose -f "$COMPOSE_FILE" build --no-cache
 
-# Step 4: Wait for health check
-echo ""
-echo "[4/6] Waiting for health check..."
-PROD_URL="https://licitometro.ar"
-MAX_ATTEMPTS=30
-ATTEMPT=0
-HEALTHY=false
-
-while [ $ATTEMPT -lt $MAX_ATTEMPTS ]; do
-    ATTEMPT=$((ATTEMPT + 1))
-    echo "  Attempt ${ATTEMPT}/${MAX_ATTEMPTS}..."
-
-    # Check backend health via nginx
-    if curl -f -s "${PROD_URL}/api/health" > /dev/null 2>&1; then
-        HEALTHY=true
-        break
-    fi
-
-    sleep 10
-done
-
-# Step 5: Rollback or confirm
-if [ "$HEALTHY" = false ]; then
-    echo ""
-    echo "[5/6] ❌ Health check FAILED - Rolling back..."
-
-    # Stop failed green containers
-    docker compose -f "$COMPOSE_FILE" down
-
-    # Restore blue containers if they exist
-    if [ -n "$CURRENT_CONTAINERS" ]; then
-        for CONTAINER in $CURRENT_CONTAINERS; do
-            if docker images | grep -q "${CONTAINER}-blue"; then
-                echo "  Restoring ${CONTAINER}-blue..."
-                # Note: This is simplified - full restore would require container recreation
-                # In practice, we'd use docker-compose with image tags
-            fi
-        done
-    fi
-
-    echo ""
-    echo "❌ Deployment FAILED and rolled back"
-    echo "Check logs: docker compose -f $COMPOSE_FILE logs"
+if [ $? -ne 0 ]; then
+    echo "❌ Docker build failed"
     exit 1
 fi
 
-echo ""
-echo "[5/6] ✅ Health check PASSED"
+echo "✅ Images built successfully"
 
-# Step 6: Cleanup old blue images
+# Step 3: Restart services (NEVER down, only restart)
 echo ""
-echo "[6/6] Cleaning up old blue images..."
-if [ -n "$CURRENT_CONTAINERS" ]; then
-    for CONTAINER in $CURRENT_CONTAINERS; do
-        docker rmi "${CONTAINER}-blue" 2>/dev/null || true
-    done
+echo "Step 3/5: Restarting services..."
+echo "Note: Using 'restart' instead of 'down' to preserve volumes"
+
+# Restart backend and nginx (MongoDB stays up - data safety)
+docker compose -f "$COMPOSE_FILE" restart backend nginx
+
+if [ $? -ne 0 ]; then
+    echo "❌ Service restart failed"
+    exit 1
 fi
 
-# Prune dangling images
-docker image prune -f > /dev/null
+echo "✅ Services restarted"
+
+# Step 4: Health check with retry
+echo ""
+echo "Step 4/5: Checking application health..."
+
+HEALTH_URL="http://localhost:8000/api/health"
+RETRY_COUNT=0
+
+while [ $RETRY_COUNT -lt $MAX_HEALTH_RETRIES ]; do
+    echo "Health check attempt $((RETRY_COUNT + 1))/$MAX_HEALTH_RETRIES..."
+
+    HEALTH_RESPONSE=$(curl -s -o /dev/null -w "%{http_code}" "$HEALTH_URL" 2>/dev/null || echo "000")
+
+    if [ "$HEALTH_RESPONSE" = "200" ]; then
+        echo "✅ Application is healthy"
+        break
+    fi
+
+    RETRY_COUNT=$((RETRY_COUNT + 1))
+
+    if [ $RETRY_COUNT -lt $MAX_HEALTH_RETRIES ]; then
+        echo "Health check failed (HTTP $HEALTH_RESPONSE), retrying in ${HEALTH_CHECK_INTERVAL}s..."
+        sleep $HEALTH_CHECK_INTERVAL
+    fi
+done
+
+if [ $RETRY_COUNT -eq $MAX_HEALTH_RETRIES ]; then
+    echo "❌ Health check failed after $MAX_HEALTH_RETRIES attempts"
+    echo ""
+    echo "=== ROLLBACK INSTRUCTIONS ==="
+    echo "1. Check logs: docker compose -f $COMPOSE_FILE logs --tail=100 backend"
+    echo "2. Restore backup: bash $SCRIPT_DIR/restore-mongodb.sh $BACKUP_FILE"
+    echo "3. Restart again: docker compose -f $COMPOSE_FILE restart backend"
+    exit 1
+fi
+
+# Step 5: Cleanup old images
+echo ""
+echo "Step 5/5: Cleaning up old Docker images..."
+docker image prune -f --filter "dangling=true"
+
+# Verify MongoDB data
+echo ""
+echo "Verifying database..."
+DOC_COUNT=$(docker exec licitometro-mongodb-1 \
+    mongosh licitaciones_db --quiet --eval 'db.licitaciones.countDocuments()' 2>/dev/null || echo "0")
+
+echo "Licitaciones in database: $DOC_COUNT"
+
+if [ "$DOC_COUNT" -gt "0" ]; then
+    echo "✅ Database verified"
+else
+    echo "⚠️  Warning: Database appears empty"
+fi
 
 echo ""
 echo "=========================================="
-echo "✅ Production deployed successfully!"
+echo "✅ Deployment completed successfully"
 echo "=========================================="
-echo "URL: $PROD_URL"
-echo "Containers:"
-docker compose -f "$COMPOSE_FILE" ps
+echo "Backup file: $BACKUP_FILE"
+echo "Time: $(date)"
 echo ""
-echo "To view logs: docker compose -f $COMPOSE_FILE logs -f"
-echo "To rollback: restore from backup or redeploy previous commit"

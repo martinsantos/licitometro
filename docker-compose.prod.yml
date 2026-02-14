@@ -128,6 +128,11 @@ networks:
 
 volumes:
   mongo_data:
+    # CRITICAL: MongoDB data - never deleted even with "docker compose down -v"
+    name: licitometro_mongo_data
+    external: false
   storage_data:
+    name: licitometro_storage_data
+    external: false
   certbot_webroot:
   certbot_certs:

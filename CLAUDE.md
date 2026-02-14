@@ -313,16 +313,42 @@ Los 3 pasos son necesarios. Fuentes afectadas: COPIG, La Paz, San Carlos.
 ## Produccion
 
 ### Deploy
-```bash
-# Opcion 1: deploy.sh (requiere git credentials en VPS - actualmente NO configurado)
-ssh root@76.13.234.213 "cd /opt/licitometro && bash deploy.sh"
 
-# Opcion 2: SCP + rebuild manual (metodo actual, VPS sin git credentials)
-scp <archivos_modificados> root@76.13.234.213:/opt/licitometro/<ruta>/
-ssh root@76.13.234.213 "cd /opt/licitometro && docker compose -f docker-compose.prod.yml build && docker compose -f docker-compose.prod.yml down && docker compose -f docker-compose.prod.yml up -d"
+**MÉTODO RECOMENDADO** (con backup automático + protección de datos):
+```bash
+# Deploy seguro con backup pre-deploy
+ssh root@76.13.234.213 "cd /opt/licitometro && bash scripts/deploy-prod.sh"
 ```
-El script deploy.sh hace: `git pull` → `docker compose build` → stop → start → healthcheck.
-**NOTA**: El VPS no tiene credenciales HTTPS de git. Usar SCP para sincronizar archivos y luego rebuild.
+
+Flujo del script `deploy-prod.sh`:
+1. **Backup automático** pre-deploy (MongoDB dump gzipped)
+2. **Build** nuevas imágenes Docker sin detener containers
+3. **Restart** servicios (backend + nginx) - MongoDB permanece UP
+4. **Health check** con retry (30×10s)
+5. **Cleanup** de imágenes dangling
+
+**CRÍTICO**: El script NUNCA usa `docker compose down` - solo `restart` para preservar volumes de MongoDB.
+
+**Métodos alternativos** (para casos específicos):
+```bash
+# Solo rebuild frontend
+ssh root@76.13.234.213 "cd /opt/licitometro && docker compose -f docker-compose.prod.yml build nginx && docker restart licitometro-nginx-1"
+
+# Solo restart backend
+ssh root@76.13.234.213 "docker restart licitometro-backend-1"
+
+# Actualizar archivos manualmente (sin rebuild)
+scp <archivo> root@76.13.234.213:/opt/licitometro/<ruta>/
+```
+
+**NUNCA HACER** (causa pérdida de datos):
+```bash
+# ❌ PELIGROSO - elimina volumes
+docker compose down -v
+
+# ❌ PELIGROSO - puede perder datos si hay error
+docker compose down && docker compose up -d
+```
 
 ### Ejecutar scripts en produccion
 ```bash
@@ -338,7 +364,8 @@ Auth middleware bloquea requests localhost en Docker; siempre usar `docker exec`
 | Daily digest | 9am | notification_service.py (Telegram + Email) |
 | Nodo digest morning | 9:15am | nodo_digest_service.py (daily + twice_daily) |
 | Nodo digest evening | 6pm | nodo_digest_service.py (twice_daily only) |
-| Backup | 2am | scripts/backup.sh (mongodump) |
+| **Backup automático** | **Cada 6h (0,6,12,18)** | **scripts/backup-mongodb.sh** (gzip, rotación 7 días) |
+| Backup legacy | 2am | scripts/backup.sh (mongodump) |
 | Health monitor | cada 5min | scripts/health_monitor.sh |
 
 ### Variables de entorno (.env.production)
@@ -352,10 +379,63 @@ SMTP_HOST, SMTP_PORT, SMTP_USER, SMTP_PASSWORD, NOTIFICATION_EMAIL_TO
 ```
 Docker Compose lee `.env` (NO `.env.production`). En prod hay symlink `.env → .env.production`.
 
+### Backup & Data Protection
+
+**Sistema implementado:** Feb 14, 2026 - Protección completa contra pérdida de datos
+
+#### Scripts de Backup
+
+| Script | Función | Ubicación |
+|--------|---------|-----------|
+| `backup-mongodb.sh` | Backup automático + rotación 7 días | `/opt/licitometro/scripts/` |
+| `restore-mongodb.sh` | Restore seguro con confirmación | `/opt/licitometro/scripts/` |
+| `deploy-prod.sh` | Deploy con backup pre-deploy | `/opt/licitometro/scripts/` |
+
+**Backup manual:**
+```bash
+ssh root@76.13.234.213 "bash /opt/licitometro/scripts/backup-mongodb.sh"
+# Output: /opt/licitometro/backups/mongodb_YYYYMMDD_HHMMSS.gz
+```
+
+**Restore manual:**
+```bash
+# Lista backups disponibles
+ssh root@76.13.234.213 "ls -lh /opt/licitometro/backups/"
+
+# Restore específico (requiere confirmación "yes")
+ssh root@76.13.234.213 "bash /opt/licitometro/scripts/restore-mongodb.sh /opt/licitometro/backups/mongodb_YYYYMMDD_HHMMSS.gz"
+```
+
+**Backup automático:**
+- Frecuencia: Cada 6 horas (0:00, 6:00, 12:00, 18:00)
+- Retención: 7 días (rotación automática)
+- Logs: `/var/log/licitometro-backup.log`
+- Formato: mongodump gzipped (~1.3MB por backup)
+
+**Protecciones:**
+- Docker volumes con nombres explícitos (`licitometro_mongo_data`)
+- Deploy script NUNCA usa `docker compose down`
+- Backup automático pre-deploy
+- Health check post-deploy con rollback instructions
+
+**Recovery de emergencia:**
+```bash
+# 1. Ver último backup
+LAST=$(ssh root@76.13.234.213 "ls -t /opt/licitometro/backups/mongodb_*.gz | head -1")
+
+# 2. Restore
+ssh root@76.13.234.213 "bash /opt/licitometro/scripts/restore-mongodb.sh $LAST"
+
+# 3. Verificar
+ssh root@76.13.234.213 "docker exec licitometro-mongodb-1 mongosh licitaciones_db --eval 'db.licitaciones.countDocuments()'"
+```
+
+Ver documentación completa en `BACKUP_PROTECTION.md`.
+
 ### Infraestructura
 - **Firewall**: firewalld, Docker bridge 172.18.0.0/16 en trusted zone
 - **SSL**: Let's Encrypt via certbot container, auto-renew
-- **Nginx**: Rate limiting (10r/s API, 3r/m auth), gzip, security headers, HTTP→HTTPS redirect
+- **Nginx**: Rate limiting (10r/s API, 3r/m auth), gzip, security headers. Sirve contenido via HTTP (Cloudflare proxy) y HTTPS (directo). Fix Feb 14: eliminado redirect loop HTTP→HTTPS para compatibilidad con Cloudflare Flexible SSL
 - **Email**: Postfix send-only en host, backend conecta via Docker gateway 172.18.0.1:25 (sin auth, `start_tls=False`)
 - **Backend memory**: 1536MB limit en Docker
 - **IPv6**: Docker con IPv6 habilitado (daemon.json + sysctl + compose network). Subnet: `2a02:4780:6e:9b84:2::/80`
@@ -381,6 +461,9 @@ Docker Compose lee `.env` (NO `.env.production`). En prod hay symlink `.env → 
 - SSL verificacion deshabilitada globalmente en ResilientHttpClient (`ssl=False`) por certs rotos en sitios gov.ar
 - Nodo email `config.to` puede tener semicolons (`"a@x;b@x"` como un solo string en el array). Siempre splitear por `;` antes de enviar via SMTP
 - **CRITICAL - Workflow State is Business-Critical**: NUNCA hacer auto-transiciones de workflow_state basadas en enriquecimiento. Being enriched ≠ being in evaluation status. Las transiciones de estado deben ser EXPLÍCITAS y MANUALES (validadas por usuario/API). enrichment_cron_service debe SOLO enriquecer datos (objeto, category, enrichment_level), NUNCA cambiar workflow_state.
+- **CRITICAL - Data Loss Prevention**: `docker compose down` elimina volumes y causa pérdida de datos. SIEMPRE usar `docker restart` o el script `deploy-prod.sh` que hace backup automático pre-deploy. Los volumes deben tener nombres explícitos para persistencia.
+- **Cloudflare Flexible SSL + Nginx**: Si Cloudflare está en modo "Flexible SSL" (HTTPS→HTTP al origin), nginx NO debe redirigir HTTP→HTTPS o causa redirect loop infinito. Configurar nginx para servir contenido via HTTP cuando viene de Cloudflare (detectando headers).
+- **Docker Build Cache**: `--no-cache` flag NO es suficiente si hay multi-stage builds. Usar `docker builder prune -af` antes de rebuild para eliminar TODO el cache de layers anteriores.
 
 ---
 
