@@ -1,8 +1,60 @@
-.github
-.env
+# Git
 .git
+.gitignore
+.gitattributes
+
+# CI/CD
+.github
+
+# Node
 node_modules
+npm-debug.log
+yarn-error.log
+
+# Python
 __pycache__
 *.pyc
 *.pyo
+*.pyd
+.Python
+*.so
+*.egg
+*.egg-info
+dist
+build
+.pytest_cache
+.coverage
+
+# Environment
+.env
+.env.*
+!.env.preview.template
+
+# Storage & Data
+storage
+*.sqlite
+*.db
+
+# Logs
+*.log
+logs
+
+# IDE
+.vscode
+.idea
+*.swp
+*.swo
+*~
+
+# OS
 .DS_Store
+Thumbs.db
+
+# Docs (not needed in image)
+docs
+*.md
+!README.md
+
+# Preview artifacts (generated dynamically)
+docker-compose.preview-*.yml
+.env.preview-*

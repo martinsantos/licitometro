@@ -1,0 +1,143 @@
+name: Production Deployment
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:  # Manual trigger
+
+# Only one production deployment at a time
+concurrency:
+  group: production
+  cancel-in-progress: false
+
+jobs:
+  deploy-production:
+    name: Deploy to Production
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    environment:
+      name: production
+      url: https://licitometro.ar
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Setup SSH
+        uses: webfactory/ssh-agent@v0.8.0
+        with:
+          ssh-private-key: ${{ secrets.VPS_SSH_KEY }}
+
+      - name: Add VPS to known hosts
+        env:
+          VPS_HOST: ${{ secrets.VPS_HOST }}
+        run: |
+          mkdir -p ~/.ssh
+          ssh-keyscan -H "$VPS_HOST" >> ~/.ssh/known_hosts
+
+      - name: Sync code to VPS
+        env:
+          VPS_HOST: ${{ secrets.VPS_HOST }}
+          VPS_USER: ${{ secrets.VPS_USER }}
+        run: |
+          echo "Syncing code to production VPS..."
+          rsync -avz --delete --checksum \
+            --exclude 'node_modules' \
+            --exclude '.git' \
+            --exclude 'storage' \
+            --exclude '__pycache__' \
+            --exclude '*.pyc' \
+            --exclude '.env.preview-*' \
+            --exclude 'docker-compose.preview-*.yml' \
+            --exclude 'docker-compose.caddy.yml' \
+            -e "ssh -o StrictHostKeyChecking=no" \
+            ./ "${VPS_USER}@${VPS_HOST}:/opt/licitometro/"
+
+      - name: Deploy to production
+        id: deploy
+        env:
+          VPS_HOST: ${{ secrets.VPS_HOST }}
+          VPS_USER: ${{ secrets.VPS_USER }}
+          COMMIT_SHA: ${{ github.sha }}
+        run: |
+          echo "Deploying to production..."
+          COMMIT_SHORT="${COMMIT_SHA:0:7}"
+          echo "Commit: ${COMMIT_SHORT}"
+
+          ssh -o StrictHostKeyChecking=no "${VPS_USER}@${VPS_HOST}" \
+            "cd /opt/licitometro && bash scripts/deploy-prod.sh"
+
+      - name: Verify production health
+        env:
+          PROD_URL: https://licitometro.ar
+        run: |
+          echo "Verifying production health..."
+
+          MAX_ATTEMPTS=10
+          ATTEMPT=0
+
+          while [ $ATTEMPT -lt $MAX_ATTEMPTS ]; do
+            ATTEMPT=$((ATTEMPT + 1))
+            echo "  Attempt ${ATTEMPT}/${MAX_ATTEMPTS}..."
+
+            if curl -f -s "${PROD_URL}/api/health" > /dev/null 2>&1; then
+              echo "✅ Production is healthy!"
+              exit 0
+            fi
+
+            sleep 10
+          done
+
+          echo "❌ Production health check failed"
+          exit 1
+
+      - name: Notify success
+        if: success()
+        env:
+          COMMIT_SHA: ${{ github.sha }}
+        run: |
+          COMMIT_SHORT="${COMMIT_SHA:0:7}"
+          echo "✅ Deployment successful!"
+          echo "Commit: ${COMMIT_SHORT}"
+
+      - name: Deployment failed - Create issue
+        if: failure()
+        uses: actions/github-script@v7
+        env:
+          COMMIT_SHA: ${{ github.sha }}
+          RUN_ID: ${{ github.run_id }}
+        with:
+          script: |
+            const commitSha = process.env.COMMIT_SHA;
+            const runId = process.env.RUN_ID;
+            const commitShort = commitSha.substring(0, 7);
+
+            const body = `## 🚨 Production Deployment Failed
+
+            **Commit:** \`${commitShort}\`
+            **Workflow:** [View logs](https://github.com/${context.repo.owner}/${context.repo.repo}/actions/runs/${runId})
+            **Time:** ${new Date().toISOString()}
+
+            ### Action Required
+            1. Review workflow logs for errors
+            2. Check VPS health and resources
+            3. Verify deployment rolled back successfully
+            4. Fix issues and re-deploy
+
+            ### Quick Checks
+            - [ ] VPS accessible via SSH
+            - [ ] Docker containers running
+            - [ ] Logs show errors
+            - [ ] Resources exhausted
+
+            <sub>Auto-generated issue by GitHub Actions</sub>`;
+
+            await github.rest.issues.create({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              title: `🚨 Production deployment failed (${commitShort})`,
+              body: body,
+              labels: ['deployment', 'critical', 'production']
+            });

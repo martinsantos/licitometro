@@ -1,0 +1,159 @@
+name: Preview Environment
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+    branches: [main]
+
+# Cancel in-progress runs for the same PR
+concurrency:
+  group: preview-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  deploy-preview:
+    name: Deploy Preview
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1  # Shallow clone for speed
+
+      - name: Setup SSH
+        uses: webfactory/ssh-agent@v0.8.0
+        with:
+          ssh-private-key: ${{ secrets.VPS_SSH_KEY }}
+
+      - name: Add VPS to known hosts
+        env:
+          VPS_HOST: ${{ secrets.VPS_HOST }}
+        run: |
+          mkdir -p ~/.ssh
+          ssh-keyscan -H "$VPS_HOST" >> ~/.ssh/known_hosts
+
+      - name: Sync code to VPS
+        env:
+          VPS_HOST: ${{ secrets.VPS_HOST }}
+          VPS_USER: ${{ secrets.VPS_USER }}
+        run: |
+          echo "Syncing code to VPS..."
+          rsync -avz --delete --checksum \
+            --exclude 'node_modules' \
+            --exclude '.git' \
+            --exclude 'storage' \
+            --exclude '__pycache__' \
+            --exclude '*.pyc' \
+            --exclude '.env.preview-*' \
+            --exclude 'docker-compose.preview-*.yml' \
+            -e "ssh -o StrictHostKeyChecking=no" \
+            ./ "${VPS_USER}@${VPS_HOST}:/opt/licitometro/"
+
+      - name: Deploy preview on VPS
+        id: deploy
+        env:
+          VPS_HOST: ${{ secrets.VPS_HOST }}
+          VPS_USER: ${{ secrets.VPS_USER }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: |
+          echo "Deploying preview for PR #${PR_NUMBER}..."
+          ssh -o StrictHostKeyChecking=no "${VPS_USER}@${VPS_HOST}" \
+            "cd /opt/licitometro && bash scripts/deploy-preview.sh ${PR_NUMBER}"
+
+      - name: Get preview URL
+        id: url
+        env:
+          VPS_HOST: ${{ secrets.VPS_HOST }}
+          VPS_USER: ${{ secrets.VPS_USER }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: |
+          PREVIEW_URL=$(ssh -o StrictHostKeyChecking=no "${VPS_USER}@${VPS_HOST}" \
+            "cat /opt/licitometro-previews/pr-${PR_NUMBER}/url.txt")
+          echo "url=${PREVIEW_URL}" >> $GITHUB_OUTPUT
+          echo "Preview URL: ${PREVIEW_URL}"
+
+      - name: Comment on PR
+        uses: actions/github-script@v7
+        env:
+          PREVIEW_URL: ${{ steps.url.outputs.url }}
+        with:
+          script: |
+            const prNumber = context.payload.pull_request.number;
+            const previewUrl = process.env.PREVIEW_URL;
+            const commitSha = context.payload.pull_request.head.sha.substring(0, 7);
+
+            const body = `## 🚀 Preview Deployed!
+
+            **Preview URL:** ${previewUrl}
+            **Commit:** \`${commitSha}\`
+
+            ---
+
+            ### Quick Links
+            - [View Preview](${previewUrl})
+            - [API Health](${previewUrl}/api/health)
+
+            ### Notes
+            - Preview auto-updates on new commits
+            - Preview auto-deletes when PR is closed
+            - Max 5 concurrent previews allowed
+
+            <sub>Deployed by GitHub Actions</sub>`;
+
+            // Find existing comment
+            const { data: comments } = await github.rest.issues.listComments({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: prNumber,
+            });
+
+            const botComment = comments.find(comment =>
+              comment.user.type === 'Bot' &&
+              comment.body.includes('Preview Deployed')
+            );
+
+            // Update or create comment
+            if (botComment) {
+              await github.rest.issues.updateComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                comment_id: botComment.id,
+                body: body
+              });
+            } else {
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: prNumber,
+                body: body
+              });
+            }
+
+      - name: Deployment failed
+        if: failure()
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const prNumber = context.payload.pull_request.number;
+
+            const body = `## ❌ Preview Deployment Failed
+
+            The preview environment could not be deployed.
+
+            **Possible causes:**
+            - Build errors in code
+            - VPS resource limits exceeded (max 5 previews)
+            - Health check timeout
+
+            Check the [workflow logs](https://github.com/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}) for details.
+
+            <sub>Failed at ${new Date().toISOString()}</sub>`;
+
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: prNumber,
+              body: body
+            });
