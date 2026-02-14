@@ -47,8 +47,8 @@ jobs:
         run: |
           echo "Cleaning VPS repository (discarding local changes)..."
           ssh -o StrictHostKeyChecking=no "${VPS_USER}@${VPS_HOST}" \
-            "cd /opt/licitometro && git reset --hard HEAD && git clean -fd"
-          echo "✅ VPS repository cleaned"
+            "cd /opt/licitometro && git reset --hard HEAD && git clean -fd -e .env -e .env.production"
+          echo "✅ VPS repository cleaned (preserved .env files)"
 
       - name: Sync code to VPS
         env:
