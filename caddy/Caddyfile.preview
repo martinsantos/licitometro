@@ -1,53 +1,96 @@
 # Caddy configuration for preview environments
-# Automatic HTTPS via Let's Encrypt for *.dev.licitometro.ar
-# Dynamic routing per PR number
+# HTTP only - SSL handled by Cloudflare proxy
+# Static routing per PR
 
 # Global options
 {
-	# Enable automatic HTTPS
-	email admin@licitometro.ar
+	# Disable automatic HTTPS (Cloudflare handles SSL)
+	auto_https off
 
-	# HTTP server for ACME challenges
-	servers {
-		protocols h1 h2
-	}
+	# Admin API off for security
+	admin off
 }
 
-# Wildcard matcher for all preview subdomains
-*.dev.licitometro.ar {
-	# Extract PR number from subdomain (pr-X.dev.licitometro.ar)
-	@preview_exists {
-		path *
-		expression {http.request.host} =~ "^pr-(\d+)\.dev\.licitometro\.ar$"
-	}
-
-	# Route to preview if exists
-	handle @preview_exists {
-		# Extract PR number via regex
-		vars pr_number {http.request.host.labels.3}
-
-		# Try to proxy to preview nginx (will fail if container doesn't exist)
-		reverse_proxy pr-{http.request.host.labels.3}-nginx:80 {
-			# Health check
-			health_uri /api/health
-			health_interval 30s
-			health_timeout 10s
-
-			# If backend is down, show custom error
-			@down {
-				status 502 503 504
-			}
-			handle_response @down {
-				respond "Preview environment is starting or not available. Please wait a few seconds and refresh." 503 {
-					close
-				}
-			}
+# Catchall for all preview subdomains - route to preview network
+http:// {
+	# Extract PR number from host header
+	@pr1 host pr-1.dev.licitometro.ar
+	handle @pr1 {
+		reverse_proxy pr-1-nginx:80 {
+			header_up Host {http.request.host}
+			header_up X-Real-IP {http.request.remote.host}
 		}
 	}
 
-	# Fallback: preview doesn't exist or invalid format
+	@pr2 host pr-2.dev.licitometro.ar
+	handle @pr2 {
+		reverse_proxy pr-2-nginx:80 {
+			header_up Host {http.request.host}
+			header_up X-Real-IP {http.request.remote.host}
+		}
+	}
+
+	@pr3 host pr-3.dev.licitometro.ar
+	handle @pr3 {
+		reverse_proxy pr-3-nginx:80 {
+			header_up Host {http.request.host}
+			header_up X-Real-IP {http.request.remote.host}
+		}
+	}
+
+	@pr4 host pr-4.dev.licitometro.ar
+	handle @pr4 {
+		reverse_proxy pr-4-nginx:80 {
+			header_up Host {http.request.host}
+			header_up X-Real-IP {http.request.remote.host}
+		}
+	}
+
+	@pr5 host pr-5.dev.licitometro.ar
+	handle @pr5 {
+		reverse_proxy pr-5-nginx:80 {
+			header_up Host {http.request.host}
+			header_up X-Real-IP {http.request.remote.host}
+		}
+	}
+
+	@pr10 host pr-10.dev.licitometro.ar
+	handle @pr10 {
+		reverse_proxy pr-10-nginx:80 {
+			header_up Host {http.request.host}
+			header_up X-Real-IP {http.request.remote.host}
+		}
+	}
+
+	@pr99 host pr-99.dev.licitometro.ar
+	handle @pr99 {
+		reverse_proxy pr-99-nginx:80 {
+			header_up Host {http.request.host}
+			header_up X-Real-IP {http.request.remote.host}
+		}
+	}
+
+	@pr100 host pr-100.dev.licitometro.ar
+	handle @pr100 {
+		reverse_proxy pr-100-nginx:80 {
+			header_up Host {http.request.host}
+			header_up X-Real-IP {http.request.remote.host}
+		}
+	}
+
+	@pr999 host pr-999.dev.licitometro.ar
+	handle @pr999 {
+		reverse_proxy pr-999-nginx:80 {
+			header_up Host {http.request.host}
+			header_up X-Real-IP {http.request.remote.host}
+		}
+	}
+
+	# Fallback for unknown previews
 	handle {
-		respond "Preview not found. Valid format: pr-<number>.dev.licitometro.ar (e.g., pr-1.dev.licitometro.ar)" 404
+		respond "Preview not found. Available: pr-1, pr-2, pr-3, pr-4, pr-5, pr-10, pr-99, pr-100, pr-999" 404 {
+			close
+		}
 	}
 
 	# Logging
@@ -64,21 +107,7 @@
 	header {
 		X-Content-Type-Options "nosniff"
 		X-Frame-Options "SAMEORIGIN"
-		X-XSS-Protection "1; mode=block"
 		Referrer-Policy "strict-origin-when-cross-origin"
-	}
-}
-
-# Base domain fallback
-dev.licitometro.ar {
-	respond "Please specify a preview number: pr-<number>.dev.licitometro.ar" 404
-
-	log {
-		output file /var/log/caddy/preview.log {
-			roll_size 10MB
-			roll_keep 5
-			roll_keep_for 7d
-		}
-		format json
+		-Server
 	}
 }
