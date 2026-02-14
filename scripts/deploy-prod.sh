@@ -72,13 +72,13 @@ echo "✅ Services restarted"
 echo ""
 echo "Step 4/5: Checking application health..."
 
-HEALTH_URL="http://localhost:8000/api/health"
 RETRY_COUNT=0
 
 while [ $RETRY_COUNT -lt $MAX_HEALTH_RETRIES ]; do
     echo "Health check attempt $((RETRY_COUNT + 1))/$MAX_HEALTH_RETRIES..."
 
-    HEALTH_RESPONSE=$(curl -s -o /dev/null -w "%{http_code}" "$HEALTH_URL" 2>/dev/null || echo "000")
+    # Check via Docker exec (backend is not exposed on host localhost)
+    HEALTH_RESPONSE=$(docker exec licitometro-backend-1 curl -s -o /dev/null -w "%{http_code}" "http://localhost:8000/api/health" 2>/dev/null || echo "000")
 
     if [ "$HEALTH_RESPONSE" = "200" ]; then
         echo "✅ Application is healthy"
