@@ -1,0 +1,98 @@
+name: Cleanup Preview
+
+on:
+  pull_request:
+    types: [closed]
+    branches: [main]
+
+# Permissions for commenting on PRs
+permissions:
+  contents: read
+  pull-requests: write
+  issues: write
+
+jobs:
+  cleanup-preview:
+    name: Cleanup Preview Environment
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - name: Setup SSH
+        uses: webfactory/ssh-agent@v0.8.0
+        with:
+          ssh-private-key: ${{ secrets.VPS_SSH_KEY }}
+
+      - name: Add VPS to known hosts
+        env:
+          VPS_HOST: ${{ secrets.VPS_HOST }}
+        run: |
+          mkdir -p ~/.ssh
+          ssh-keyscan -H "$VPS_HOST" >> ~/.ssh/known_hosts
+
+      - name: Cleanup preview on VPS
+        env:
+          VPS_HOST: ${{ secrets.VPS_HOST }}
+          VPS_USER: ${{ secrets.VPS_USER }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: |
+          echo "Cleaning up preview for PR #${PR_NUMBER}..."
+          ssh -o StrictHostKeyChecking=no "${VPS_USER}@${VPS_HOST}" \
+            "bash /opt/licitometro/scripts/cleanup-preview.sh ${PR_NUMBER}" || true
+
+      - name: Comment on PR
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const prNumber = context.payload.pull_request.number;
+            const mergedAt = context.payload.pull_request.merged_at;
+            const isMerged = context.payload.pull_request.merged;
+
+            const body = `## 🧹 Preview Cleaned Up
+
+            **Status:** ${isMerged ? '✅ Merged and cleaned' : '🗑️ Closed and cleaned'}
+            **PR #${prNumber}** preview environment has been removed.
+
+            ### Resources freed:
+            - Containers: \`pr-${prNumber}-nginx\`, \`pr-${prNumber}-backend\`, \`pr-${prNumber}-mongodb\`
+            - Volumes: \`mongo_data_pr_${prNumber}\`, \`storage_data_pr_${prNumber}\`
+            - Network: \`preview_pr_${prNumber}\`
+            - Nginx config: \`pr-${prNumber}.conf\`
+
+            ${isMerged ? '🚀 Changes are now in production at https://licitometro.ar' : ''}
+
+            <sub>Cleaned up by GitHub Actions</sub>`;
+
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: prNumber,
+              body: body
+            });
+
+      - name: Cleanup failed
+        if: failure()
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const prNumber = context.payload.pull_request.number;
+
+            const body = `## ⚠️ Preview Cleanup Failed
+
+            Automatic cleanup for PR #${prNumber} failed.
+
+            **Manual cleanup required:**
+            \`\`\`bash
+            ssh root@76.13.234.213 "bash /opt/licitometro/scripts/cleanup-preview.sh ${prNumber}"
+            \`\`\`
+
+            Check the [workflow logs](https://github.com/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}) for details.
+
+            <sub>Failed at ${new Date().toISOString()}</sub>`;
+
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: prNumber,
+              body: body
+            });
