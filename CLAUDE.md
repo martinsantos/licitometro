@@ -899,14 +899,61 @@ El proyecto usa GitHub Actions para CI/CD completamente automatizado:
    - Notificación de éxito/fallo
 3. **Deployment completo** en ~2-3 minutos
 
+### CI Checks - Prevención de Builds Rotos
+
+**Estado**: ✅ OPERATIVO desde Feb 14, 2026 (commit 615d0c1)
+
+**Workflow**: `.github/workflows/ci.yml` (ID: 234418427)
+
+**Propósito**: Detectar errores de build/lint ANTES de permitir merge.
+
+**Trigger**:
+- En CADA pull request a `main`
+- En CADA push a `main`
+
+**Pasos**:
+1. Checkout code (shallow clone, fetch-depth: 1)
+2. Setup Node.js 18 (con npm cache para speed)
+3. Install frontend dependencies (`npm ci`)
+4. Lint frontend (si existe script lint en package.json)
+5. **Build frontend** con `npm run build` ← DETECTA ERRORES
+6. Verify build artifacts (build/ directory + index.html)
+7. Check Python syntax (`python -m py_compile server.py`)
+
+**Duración**: ~1-2 minutos (vs 15 min del preview completo)
+
+**Costo**: ~40-60 min/mes = GRATIS (dentro del free tier de 2000 min/mes)
+
+**Branch Protection** (⏳ PENDIENTE configurar en GitHub):
+- Debe configurarse "Lint & Build Check" como required status check
+- Ver guía completa: `docs/BRANCH_PROTECTION_SETUP.md`
+- **Resultado esperado**: IMPOSIBLE mergear PRs si CI falla
+
+**Incidente que motivó esta feature** (Feb 14, 2026):
+- PR #22 se mergeó con código roto (invalid ESLint comment)
+- Preview deployment falló pero NO bloqueó el merge
+- Production deployment falló → 20 minutos de downtime
+- Hotfix aplicado en commit 2592150
+- **Lección**: Preview ≠ CI. Se necesita check rápido que BLOQUEE merge.
+
+**ESLint Configuration**:
+- ❌ NO se necesita `.eslintrc.json` custom
+- ✅ React-scripts 5.0.1 YA incluye toda la configuración ESLint
+- ✅ Incluye eslint-plugin-react-hooks por defecto
+- **Commit 1fcda34** intentó agregar .eslintrc.json → CAUSÓ CONFLICTO con ESLint 9
+- **Commit 615d0c1** removió .eslintrc.json → BUILD FUNCIONA ✅
+
 ### Archivos Clave
 
 | Archivo | Función |
 |---------|---------|
+| `.github/workflows/ci.yml` | **CI checks** - Detecta build errors ANTES de merge |
 | `.github/workflows/production.yml` | Workflow de producción (push a main) |
 | `.github/workflows/preview.yml` | Preview environments por PR |
+| `.github/workflows/cleanup.yml` | Cleanup de previews al cerrar PR |
 | `scripts/deploy-prod.sh` | Script de deploy seguro en VPS |
 | `scripts/backup-mongodb.sh` | Backup pre-deploy automático |
+| `docs/BRANCH_PROTECTION_SETUP.md` | **Guía setup branch protection** (CI como required check) |
 
 ### Estrategia VPS-First (Costo Cero)
 
