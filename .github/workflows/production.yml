@@ -5,6 +5,11 @@ on:
     branches: [main]
   workflow_dispatch:  # Manual trigger
 
+# Permissions for creating issues on failure
+permissions:
+  contents: read
+  issues: write
+
 # Only one production deployment at a time
 concurrency:
   group: production
