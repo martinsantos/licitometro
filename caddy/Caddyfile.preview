@@ -1,0 +1,62 @@
+# Caddy configuration for preview environments
+# HTTP only - SSL handled by Cloudflare proxy
+# Simple per-PR routing
+
+# Global options
+{
+    auto_https off
+}
+
+# Individual preview entries (add more as needed up to max 5 concurrent)
+pr-1.dev.licitometro.ar:8080 {
+    reverse_proxy pr-1-nginx:80
+}
+
+pr-2.dev.licitometro.ar:8080 {
+    reverse_proxy pr-2-nginx:80
+}
+
+pr-3.dev.licitometro.ar:8080 {
+    reverse_proxy pr-3-nginx:80
+}
+
+pr-4.dev.licitometro.ar:8080 {
+    reverse_proxy pr-4-nginx:80
+}
+
+pr-5.dev.licitometro.ar:8080 {
+    reverse_proxy pr-5-nginx:80
+}
+
+pr-10.dev.licitometro.ar:8080 {
+    reverse_proxy pr-10-nginx:80
+}
+
+pr-99.dev.licitometro.ar:8080 {
+    reverse_proxy pr-99-nginx:80
+}
+
+pr-100.dev.licitometro.ar:8080 {
+    reverse_proxy pr-100-nginx:80
+}
+
+pr-999.dev.licitometro.ar:8080 {
+    reverse_proxy pr-999-nginx:80
+}
+
+# Catch-all for base domain
+dev.licitometro.ar:8080 {
+    respond "Preview not specified. Use pr-<number>.dev.licitometro.ar" 404
+}
+
+# Log all requests
+*.dev.licitometro.ar:8080 {
+    log {
+        output file /var/log/caddy/preview.log {
+            roll_size 10MB
+            roll_keep 5
+        }
+        format json
+    }
+    respond "Preview not configured or not running. Valid PR numbers: 1-5, 10, 99, 100, 999" 404
+}

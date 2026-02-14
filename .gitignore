@@ -59,3 +59,13 @@ docs/boletin_mendoza_results.html
 # But track frontend's .env.production (just sets empty BACKEND_URL)
 !frontend/.env.production
 backups/
+
+# CI/CD - Preview environments (generated dynamically)
+.env.preview-*
+docker-compose.preview-*.yml
+# But track templates
+!.env.preview.template
+!docker-compose.preview.template.yml
+
+# Caddy (VPS-specific, not in repo)
+docker-compose.caddy.yml
