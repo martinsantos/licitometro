@@ -59,6 +59,16 @@ const LicitacionesList = ({ apiUrl }: LicitacionesListProps) => {
   // Derive fechaCampo from current sort field
   const fechaCampo = useMemo(() => deriveFechaCampo(prefs.sortBy), [prefs.sortBy]);
 
+  // When in apertura mode, enforce fechaDesde >= today
+  useEffect(() => {
+    if (fechaCampo === 'opening_date') {
+      const today = new Date().toISOString().slice(0, 10);
+      if (!filters.fechaDesde || filters.fechaDesde < today) {
+        setFilter('fechaDesde', today);
+      }
+    }
+  }, [fechaCampo]); // eslint-disable-line react-hooks/exhaustive-deps
+
   // Debounce the text search (700ms), other filters are immediate
   const debouncedBusqueda = useDebounce(filters.busqueda, 700);
   const debouncedFilters = useMemo<FilterState>(() => ({
@@ -178,6 +188,12 @@ const LicitacionesList = ({ apiUrl }: LicitacionesListProps) => {
   }, [navigate]);
 
   const handleFilterChange = useCallback((key: keyof FilterState, value: string) => {
+    // When in apertura mode, clamp fechaDesde to today minimum
+    if (key === 'fechaDesde' && fechaCampo === 'opening_date' && value) {
+      const today = new Date().toISOString().slice(0, 10);
+      if (value < today) value = today;
+    }
+
     // Sincronizar fechas: si se cambia fechaDesde o fechaHasta y resultan iguales (un solo día),
     // sincronizar con nuevasDesde
     if (key === 'fechaDesde' || key === 'fechaHasta') {
@@ -196,18 +212,23 @@ const LicitacionesList = ({ apiUrl }: LicitacionesListProps) => {
     } else {
       setFilter(key, value);
     }
-  }, [setFilter, setMany, filters]);
+  }, [setFilter, setMany, filters, fechaCampo]);
 
   // SYNCHRONIZED: DailyDigest "Hoy" and "Nuevas de hoy" activate BOTH filters together
   const handleDaySelect = useCallback((dateStr: string | null) => {
     if (dateStr) {
+      // When in apertura mode, clamp to today minimum
+      if (fechaCampo === 'opening_date') {
+        const today = new Date().toISOString().slice(0, 10);
+        if (dateStr < today) dateStr = today;
+      }
       // Activar AMBOS filtros simultáneamente (nuevasDesde Y fechaDesde/fechaHasta)
       setMany({ fechaDesde: dateStr, fechaHasta: dateStr, nuevasDesde: dateStr });
     } else {
       // Limpiar AMBOS filtros simultáneamente
       setMany({ fechaDesde: '', fechaHasta: '', nuevasDesde: '' });
     }
-  }, [setMany]);
+  }, [setMany, fechaCampo]);
 
   const handleSourceClick = useCallback((fuente: string) => {
     setFilter('fuenteFiltro', fuente);
@@ -215,7 +236,14 @@ const LicitacionesList = ({ apiUrl }: LicitacionesListProps) => {
 
   const handleSortChange = useCallback((newSort: typeof prefs.sortBy) => {
     prefs.handleSortChange(newSort);
-  }, [prefs.handleSortChange]);
+    // When switching to apertura view, enforce fechaDesde >= today
+    if (newSort === 'opening_date') {
+      const today = new Date().toISOString().slice(0, 10);
+      if (!filters.fechaDesde || filters.fechaDesde < today) {
+        setFilter('fechaDesde', today);
+      }
+    }
+  }, [prefs.handleSortChange, filters.fechaDesde, setFilter]);
 
   // SYNCHRONIZED: "Nuevas de hoy" and DailyDigest "Hoy" activate BOTH filters together
   const handleToggleTodayFilter = useCallback((today: string | null) => {

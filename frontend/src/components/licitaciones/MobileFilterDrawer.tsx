@@ -402,6 +402,7 @@ const MobileFilterDrawer: React.FC<MobileFilterDrawerProps> = ({
                       className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm outline-none focus:border-emerald-400"
                       value={filters.fechaDesde}
                       onChange={(e) => onFilterChange('fechaDesde', e.target.value)}
+                      min={fechaCampo === 'opening_date' ? new Date().toISOString().slice(0, 10) : undefined}
                     />
                   </div>
                   <div>

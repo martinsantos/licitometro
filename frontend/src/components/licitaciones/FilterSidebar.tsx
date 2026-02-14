@@ -454,6 +454,7 @@ const FilterSidebar: React.FC<FilterSidebarProps> = ({
                     className="w-full px-2 py-1.5 bg-gray-50 border border-gray-200 rounded-lg text-xs outline-none focus:border-emerald-400"
                     value={filters.fechaDesde}
                     onChange={(e) => onFilterChange('fechaDesde', e.target.value)}
+                    min={fechaCampo === 'opening_date' ? new Date().toISOString().slice(0, 10) : undefined}
                   />
                 </div>
                 <div>

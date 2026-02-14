@@ -199,6 +199,13 @@ async def get_licitaciones(
     if fecha_campo not in allowed_date_fields:
         fecha_campo = "publication_date"
 
+    # When filtering by opening_date, enforce fecha_desde >= today
+    # (aperturas view should never show past opening dates)
+    today = date.today()
+    if fecha_campo == "opening_date":
+        if not fecha_desde or fecha_desde < today:
+            fecha_desde = today
+
     if fecha_desde or fecha_hasta:
         date_filter = {}
         if fecha_desde:
