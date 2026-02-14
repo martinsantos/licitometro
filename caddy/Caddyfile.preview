@@ -1,62 +1,84 @@
 # Caddy configuration for preview environments
-# HTTP only - SSL handled by Cloudflare proxy
-# Simple per-PR routing
+# Automatic HTTPS via Let's Encrypt for *.dev.licitometro.ar
+# Dynamic routing per PR number
 
 # Global options
 {
-    auto_https off
+	# Enable automatic HTTPS
+	email admin@licitometro.ar
+
+	# HTTP server for ACME challenges
+	servers {
+		protocols h1 h2
+	}
 }
 
-# Individual preview entries (add more as needed up to max 5 concurrent)
-pr-1.dev.licitometro.ar:8080 {
-    reverse_proxy pr-1-nginx:80
+# Wildcard matcher for all preview subdomains
+*.dev.licitometro.ar {
+	# Extract PR number from subdomain (pr-X.dev.licitometro.ar)
+	@preview_exists {
+		path *
+		expression {http.request.host} =~ "^pr-(\d+)\.dev\.licitometro\.ar$"
+	}
+
+	# Route to preview if exists
+	handle @preview_exists {
+		# Extract PR number via regex
+		vars pr_number {http.request.host.labels.3}
+
+		# Try to proxy to preview nginx (will fail if container doesn't exist)
+		reverse_proxy pr-{http.request.host.labels.3}-nginx:80 {
+			# Health check
+			health_uri /api/health
+			health_interval 30s
+			health_timeout 10s
+
+			# If backend is down, show custom error
+			@down {
+				status 502 503 504
+			}
+			handle_response @down {
+				respond "Preview environment is starting or not available. Please wait a few seconds and refresh." 503 {
+					close
+				}
+			}
+		}
+	}
+
+	# Fallback: preview doesn't exist or invalid format
+	handle {
+		respond "Preview not found. Valid format: pr-<number>.dev.licitometro.ar (e.g., pr-1.dev.licitometro.ar)" 404
+	}
+
+	# Logging
+	log {
+		output file /var/log/caddy/preview.log {
+			roll_size 10MB
+			roll_keep 5
+			roll_keep_for 7d
+		}
+		format json
+	}
+
+	# Security headers
+	header {
+		X-Content-Type-Options "nosniff"
+		X-Frame-Options "SAMEORIGIN"
+		X-XSS-Protection "1; mode=block"
+		Referrer-Policy "strict-origin-when-cross-origin"
+	}
 }
 
-pr-2.dev.licitometro.ar:8080 {
-    reverse_proxy pr-2-nginx:80
-}
+# Base domain fallback
+dev.licitometro.ar {
+	respond "Please specify a preview number: pr-<number>.dev.licitometro.ar" 404
 
-pr-3.dev.licitometro.ar:8080 {
-    reverse_proxy pr-3-nginx:80
-}
-
-pr-4.dev.licitometro.ar:8080 {
-    reverse_proxy pr-4-nginx:80
-}
-
-pr-5.dev.licitometro.ar:8080 {
-    reverse_proxy pr-5-nginx:80
-}
-
-pr-10.dev.licitometro.ar:8080 {
-    reverse_proxy pr-10-nginx:80
-}
-
-pr-99.dev.licitometro.ar:8080 {
-    reverse_proxy pr-99-nginx:80
-}
-
-pr-100.dev.licitometro.ar:8080 {
-    reverse_proxy pr-100-nginx:80
-}
-
-pr-999.dev.licitometro.ar:8080 {
-    reverse_proxy pr-999-nginx:80
-}
-
-# Catch-all for base domain
-dev.licitometro.ar:8080 {
-    respond "Preview not specified. Use pr-<number>.dev.licitometro.ar" 404
-}
-
-# Log all requests
-*.dev.licitometro.ar:8080 {
-    log {
-        output file /var/log/caddy/preview.log {
-            roll_size 10MB
-            roll_keep 5
-        }
-        format json
-    }
-    respond "Preview not configured or not running. Valid PR numbers: 1-5, 10, 99, 100, 999" 404
+	log {
+		output file /var/log/caddy/preview.log {
+			roll_size 10MB
+			roll_keep 5
+			roll_keep_for 7d
+		}
+		format json
+	}
 }

@@ -35,10 +35,10 @@ jobs:
 
       - name: Add VPS to known hosts
         env:
-          VPS_HOST: ${{ secrets.VPS_HOST }}
+          VPS_KNOWN_HOSTS: ${{ secrets.VPS_KNOWN_HOSTS }}
         run: |
           mkdir -p ~/.ssh
-          ssh-keyscan -H "$VPS_HOST" >> ~/.ssh/known_hosts
+          echo "$VPS_KNOWN_HOSTS" >> ~/.ssh/known_hosts
 
       - name: Sync code to VPS
         env:
