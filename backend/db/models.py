@@ -192,6 +192,7 @@ def nodo_entity(nodo) -> dict:
         "description": nodo.get("description", ""),
         "color": nodo.get("color", "#3B82F6"),
         "keyword_groups": nodo.get("keyword_groups", []),
+        "categories": nodo.get("categories", []),
         "actions": nodo.get("actions", []),
         "active": nodo.get("active", True),
         "digest_frequency": nodo.get("digest_frequency", "daily"),

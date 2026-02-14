@@ -30,6 +30,7 @@ class NodoBase(BaseModel):
     description: str = Field("", description="Short description")
     color: str = Field("#3B82F6", description="Hex color for UI badges")
     keyword_groups: List[KeywordGroup] = Field(default=[], description="Keyword groups")
+    categories: List[str] = Field(default=[], description="Rubro/category names — licitaciones matching these categories auto-assign to this nodo")
     actions: List[NodoAction] = Field(default=[], description="Actions on match")
     active: bool = Field(True)
     digest_frequency: str = Field("daily", description="Digest frequency: none, daily, twice_daily")
@@ -47,6 +48,7 @@ class NodoUpdate(BaseModel):
     description: Optional[str] = None
     color: Optional[str] = None
     keyword_groups: Optional[List[KeywordGroup]] = None
+    categories: Optional[List[str]] = None
     actions: Optional[List[NodoAction]] = None
     active: Optional[bool] = None
     digest_frequency: Optional[str] = None

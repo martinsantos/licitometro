@@ -118,8 +118,13 @@ class NodoMatcher:
         objeto: str = "",
         description: str = "",
         organization: str = "",
+        category: str = "",
     ) -> List[str]:
-        """Return list of nodo IDs whose keywords match the licitacion text.
+        """Return list of nodo IDs whose keywords or categories match the licitacion.
+
+        A nodo matches if:
+        - ANY keyword pattern matches the combined text, OR
+        - the licitacion's category is in the nodo's categories list.
 
         Must call reload_nodos() or _ensure_loaded() before this.
         """
@@ -131,9 +136,18 @@ class NodoMatcher:
             _normalize_text(organization or ""),
         ]
         combined = " ".join(parts)
+        lic_category = (category or "").strip()
 
         matched_ids = []
         for nodo, patterns in self._cache:
+            # Check category match first (fast path)
+            nodo_categories = nodo.get("categories", []) or []
+            if lic_category and nodo_categories:
+                if lic_category in nodo_categories:
+                    matched_ids.append(str(nodo["_id"]))
+                    continue
+
+            # Then check keyword patterns
             for pattern in patterns:
                 if pattern.search(combined):
                     matched_ids.append(str(nodo["_id"]))
@@ -147,11 +161,12 @@ class NodoMatcher:
         objeto: str = "",
         description: str = "",
         organization: str = "",
+        category: str = "",
         notify: bool = False,
     ) -> List[str]:
         """Match + assign nodos to a licitacion via $addToSet. Returns matched nodo IDs."""
         await self._ensure_loaded()
-        matched_ids = self.match_licitacion(title, objeto, description, organization)
+        matched_ids = self.match_licitacion(title, objeto, description, organization, category)
 
         if not matched_ids:
             return []
@@ -200,6 +215,7 @@ class NodoMatcher:
             objeto=item_data.get("objeto", ""),
             description=item_data.get("description", ""),
             organization=item_data.get("organization", ""),
+            category=item_data.get("category", ""),
         )
         if matched_ids:
             existing = item_data.get("nodos", []) or []

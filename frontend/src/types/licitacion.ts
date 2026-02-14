@@ -55,6 +55,7 @@ export interface Nodo {
   description: string;
   color: string;
   keyword_groups: KeywordGroup[];
+  categories: string[];
   actions: NodoAction[];
   active: boolean;
   digest_frequency: 'none' | 'daily' | 'twice_daily';

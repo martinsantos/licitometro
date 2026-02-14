@@ -183,6 +183,7 @@ class EnrichmentCronService:
                             objeto=updates.get("objeto", doc.get("objeto", "")),
                             description=updates.get("description", doc.get("description", "")),
                             organization=doc.get("organization", ""),
+                            category=updates.get("category", doc.get("category", "")),
                         )
                     except Exception as nodo_err:
                         logger.warning(f"Nodo re-match failed for {doc.get('_id')}: {nodo_err}")

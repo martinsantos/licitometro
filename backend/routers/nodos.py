@@ -177,7 +177,7 @@ async def rematch_all_nodos(request: Request):
 
     cursor = db.licitaciones.find(
         {},
-        {"_id": 1, "title": 1, "objeto": 1, "description": 1, "organization": 1}
+        {"_id": 1, "title": 1, "objeto": 1, "description": 1, "organization": 1, "category": 1}
     )
     async for lic in cursor:
         total += 1
@@ -186,6 +186,7 @@ async def rematch_all_nodos(request: Request):
             objeto=lic.get("objeto", "") or "",
             description=lic.get("description", "") or "",
             organization=lic.get("organization", "") or "",
+            category=lic.get("category", "") or "",
         )
         if matched_ids:
             matched_total += 1
@@ -244,30 +245,39 @@ async def rematch_nodo(nodo_id: str, request: Request):
                 except Exception:
                     pass
 
-    if not patterns:
-        # No keywords — remove this nodo from all licitaciones
+    nodo_categories = nodo_doc.get("categories", []) or []
+
+    if not patterns and not nodo_categories:
+        # No keywords and no categories — remove this nodo from all licitaciones
         await db.licitaciones.update_many(
             {"nodos": nodo_id},
             {"$pull": {"nodos": nodo_id}}
         )
         await db.nodos.update_one({"_id": oid}, {"$set": {"matched_count": 0}})
-        return {"matched": 0, "message": "No keywords configured, cleared all assignments"}
+        return {"matched": 0, "message": "No keywords or categories configured, cleared all assignments"}
 
     matched = 0
     cursor = db.licitaciones.find(
         {},
-        {"_id": 1, "title": 1, "objeto": 1, "description": 1, "organization": 1}
+        {"_id": 1, "title": 1, "objeto": 1, "description": 1, "organization": 1, "category": 1}
     )
     async for lic in cursor:
-        parts = [
-            _normalize_text(lic.get("title", "") or ""),
-            _normalize_text(lic.get("objeto", "") or ""),
-            _normalize_text((lic.get("description", "") or "")[:2000]),
-            _normalize_text(lic.get("organization", "") or ""),
-        ]
-        combined = " ".join(parts)
+        lic_category = (lic.get("category", "") or "").strip()
 
-        hit = any(p.search(combined) for p in patterns)
+        # Check category match
+        hit = bool(lic_category and nodo_categories and lic_category in nodo_categories)
+
+        # Check keyword match if no category hit
+        if not hit and patterns:
+            parts = [
+                _normalize_text(lic.get("title", "") or ""),
+                _normalize_text(lic.get("objeto", "") or ""),
+                _normalize_text((lic.get("description", "") or "")[:2000]),
+                _normalize_text(lic.get("organization", "") or ""),
+            ]
+            combined = " ".join(parts)
+            hit = any(p.search(combined) for p in patterns)
+
         if hit:
             await db.licitaciones.update_one(
                 {"_id": lic["_id"]},

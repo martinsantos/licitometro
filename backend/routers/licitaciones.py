@@ -1296,8 +1296,9 @@ async def enrich_licitacion_universal(
                 objeto_val = updates.get("objeto", lic_dict.get("objeto", ""))
                 desc_val = updates.get("description", lic_dict.get("description", ""))
                 org_val = lic_dict.get("organization", "")
+                cat_val = updates.get("category", lic_dict.get("category", ""))
                 await matcher.assign_nodos_to_licitacion(
-                    licitacion_id, title_val, objeto_val, desc_val, org_val
+                    licitacion_id, title_val, objeto_val, desc_val, org_val, category=cat_val
                 )
         except Exception as nodo_err:
             logger.warning(f"Nodo re-matching after enrichment failed: {nodo_err}")
