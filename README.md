@@ -1,4 +1,30 @@
-LICITOMETRO 2.0 con Módulo RECON Integrado y ASTRO
+# Licitometro
+
+[![Preview Environment](https://github.com/martinsantos/licitometro/actions/workflows/preview.yml/badge.svg)](https://github.com/martinsantos/licitometro/actions/workflows/preview.yml)
+[![Production Deployment](https://github.com/martinsantos/licitometro/actions/workflows/production.yml/badge.svg)](https://github.com/martinsantos/licitometro/actions/workflows/production.yml)
+[![Cleanup Preview](https://github.com/martinsantos/licitometro/actions/workflows/cleanup.yml/badge.svg)](https://github.com/martinsantos/licitometro/actions/workflows/cleanup.yml)
+
+**Plataforma de monitoreo de licitaciones públicas de Mendoza, Argentina**
+
+🌐 **Producción:** [licitometro.ar](https://licitometro.ar)
+📚 **Documentación técnica:** Ver [`CLAUDE.md`](./CLAUDE.md) para arquitectura actual
+🔧 **CI/CD Guide:** Ver [`WORKING_WITH_BRANCHES.md`](./WORKING_WITH_BRANCHES.md) para desarrollo con branches
+
+---
+
+## Stack Actual
+
+- **Backend:** FastAPI + MongoDB (Motor async driver)
+- **Frontend:** React 18 + TypeScript
+- **Scraping:** 24+ fuentes gubernamentales (aiohttp + Selenium + pypdf)
+- **Deploy:** Docker Compose en VPS con preview automático por PR
+
+---
+
+## ARQUITECTURA LEGACY (DOCUMENTACIÓN DESACTUALIZADA)
+
+> ⚠️ **Nota:** La siguiente documentación describe una arquitectura legacy con ASTRO y microservicios que **no refleja la implementación actual**.
+> Para documentación actualizada, ver [`CLAUDE.md`](./CLAUDE.md)
 
 ---
 
@@ -166,3 +192,55 @@ LICITOMETRO 2.0 con Módulo RECON Integrado y ASTRO
   - **Estrategia Principal:** Cliente HTTP asíncrono (`aiohttp`) para velocidad y eficiencia en portales estándar.
   - **Estrategia Fallback (Browser):** Integración de **Playwright** para sitios con ofuscación por JavaScript (ej. DevExpress en COMPR.AR).
   - **Flujo:** El sistema intenta primero la extracción estática ligera. Si detecta redirecciones a vistas de proveedor o falta de datos, activa automáticamente una instancia de navegador headless para simular la navegación humana y extraer la URL pública real.
+
+---
+
+## 🚀 Desarrollo
+
+### Quick Start
+
+```bash
+# Crear branch para feature
+git checkout -b feature/mi-feature
+
+# Hacer cambios, commit, push
+git add .
+git commit -m "Add: Mi feature"
+git push -u origin feature/mi-feature
+
+# Crear PR en GitHub → Preview automático en ~2 min
+```
+
+### Workflows Automáticos
+
+- **Preview Deploy**: Auto-deploy en cada PR → `pr-X.dev.licitometro.ar`
+- **Production Deploy**: Auto-deploy en merge a main → `licitometro.ar`
+- **Cleanup**: Auto-cleanup al cerrar PR
+
+Ver guía completa: [`WORKING_WITH_BRANCHES.md`](./WORKING_WITH_BRANCHES.md)
+
+---
+
+## 📖 Documentación
+
+| Archivo | Descripción |
+|---------|-------------|
+| [`CLAUDE.md`](./CLAUDE.md) | 📘 Documentación técnica completa y actualizada |
+| [`WORKING_WITH_BRANCHES.md`](./WORKING_WITH_BRANCHES.md) | 🔧 Guía de desarrollo con branches |
+| [`CICD_IMPLEMENTATION_STATUS.md`](./CICD_IMPLEMENTATION_STATUS.md) | ✅ Estado CI/CD pipeline |
+| [`docs/CICD.md`](./docs/CICD.md) | 🏗️ Arquitectura CI/CD detallada |
+| [`VPS_SETUP_COMPLETE.md`](./VPS_SETUP_COMPLETE.md) | 🖥️ Configuración VPS |
+
+---
+
+## 📊 Status
+
+- **Licitaciones indexadas:** 3,231
+- **Fuentes activas:** 24 (provincial + municipal + entes)
+- **Uptime:** 99.9%
+- **Costo mensual:** $4.99 USD (VPS) + $0 (CI/CD)
+
+---
+
+**Desarrollado con ❤️ en Mendoza, Argentina**
+
