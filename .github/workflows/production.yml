@@ -64,6 +64,8 @@ jobs:
             --exclude 'storage' \
             --exclude '__pycache__' \
             --exclude '*.pyc' \
+            --exclude '.env' \
+            --exclude '.env.production' \
             --exclude '.env.preview-*' \
             --exclude 'docker-compose.preview-*.yml' \
             --exclude 'docker-compose.caddy.yml' \
