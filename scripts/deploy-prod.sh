@@ -53,13 +53,15 @@ fi
 
 echo "✅ Images built successfully"
 
-# Step 3: Restart services (NEVER down, only restart)
+# Step 3: Recreate services with new images (NEVER down, always preserve volumes)
 echo ""
-echo "Step 3/5: Restarting services..."
-echo "Note: Using 'restart' instead of 'down' to preserve volumes"
+echo "Step 3/5: Recreating services with new images..."
+echo "Note: Using 'up --force-recreate' to use new images while preserving volumes"
 
-# Restart backend and nginx (MongoDB stays up - data safety)
-docker compose -f "$COMPOSE_FILE" restart backend nginx
+# Recreate backend and nginx with new images (MongoDB stays up - data safety)
+# --force-recreate: Always recreate containers even if config hasn't changed
+# --no-deps: Don't recreate dependencies (MongoDB)
+docker compose -f "$COMPOSE_FILE" up -d --force-recreate --no-deps backend nginx
 
 if [ $? -ne 0 ]; then
     echo "❌ Service restart failed"
