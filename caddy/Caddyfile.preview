@@ -62,6 +62,86 @@ http:// {
 		}
 	}
 
+	@pr11 host pr-11.dev.licitometro.ar
+	handle @pr11 {
+		reverse_proxy pr-11-nginx:80 {
+			header_up Host {http.request.host}
+			header_up X-Real-IP {http.request.remote.host}
+		}
+	}
+
+	@pr12 host pr-12.dev.licitometro.ar
+	handle @pr12 {
+		reverse_proxy pr-12-nginx:80 {
+			header_up Host {http.request.host}
+			header_up X-Real-IP {http.request.remote.host}
+		}
+	}
+
+	@pr13 host pr-13.dev.licitometro.ar
+	handle @pr13 {
+		reverse_proxy pr-13-nginx:80 {
+			header_up Host {http.request.host}
+			header_up X-Real-IP {http.request.remote.host}
+		}
+	}
+
+	@pr14 host pr-14.dev.licitometro.ar
+	handle @pr14 {
+		reverse_proxy pr-14-nginx:80 {
+			header_up Host {http.request.host}
+			header_up X-Real-IP {http.request.remote.host}
+		}
+	}
+
+	@pr15 host pr-15.dev.licitometro.ar
+	handle @pr15 {
+		reverse_proxy pr-15-nginx:80 {
+			header_up Host {http.request.host}
+			header_up X-Real-IP {http.request.remote.host}
+		}
+	}
+
+	@pr16 host pr-16.dev.licitometro.ar
+	handle @pr16 {
+		reverse_proxy pr-16-nginx:80 {
+			header_up Host {http.request.host}
+			header_up X-Real-IP {http.request.remote.host}
+		}
+	}
+
+	@pr17 host pr-17.dev.licitometro.ar
+	handle @pr17 {
+		reverse_proxy pr-17-nginx:80 {
+			header_up Host {http.request.host}
+			header_up X-Real-IP {http.request.remote.host}
+		}
+	}
+
+	@pr18 host pr-18.dev.licitometro.ar
+	handle @pr18 {
+		reverse_proxy pr-18-nginx:80 {
+			header_up Host {http.request.host}
+			header_up X-Real-IP {http.request.remote.host}
+		}
+	}
+
+	@pr19 host pr-19.dev.licitometro.ar
+	handle @pr19 {
+		reverse_proxy pr-19-nginx:80 {
+			header_up Host {http.request.host}
+			header_up X-Real-IP {http.request.remote.host}
+		}
+	}
+
+	@pr20 host pr-20.dev.licitometro.ar
+	handle @pr20 {
+		reverse_proxy pr-20-nginx:80 {
+			header_up Host {http.request.host}
+			header_up X-Real-IP {http.request.remote.host}
+		}
+	}
+
 	@pr99 host pr-99.dev.licitometro.ar
 	handle @pr99 {
 		reverse_proxy pr-99-nginx:80 {
