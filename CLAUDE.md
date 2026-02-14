@@ -880,6 +880,128 @@ Los links en notificaciones de nodo incluyen `?token=xxx` (JWT con `sub: "reader
 
 ---
 
+## CI/CD - Deployment Automatizado
+
+**Estado**: ✅ OPERATIVO desde Feb 14, 2026
+
+### Flujo Automatizado
+
+El proyecto usa GitHub Actions para CI/CD completamente automatizado:
+
+1. **Push a main** → Trigger automático de workflow de producción
+2. **Workflow ejecuta**:
+   - Limpia repo VPS preservando `.env` files (`git clean -fd -e .env -e .env.production`)
+   - Sincroniza código vía rsync (excluye `.env`, `node_modules`, `storage`)
+   - SSH al VPS ejecuta `scripts/deploy-prod.sh`
+   - Build nuevas imágenes Docker en VPS (NO en GitHub Actions - costo cero)
+   - Recreate containers con `--force-recreate --no-deps`
+   - Health check con retry (30×10s)
+   - Notificación de éxito/fallo
+3. **Deployment completo** en ~2-3 minutos
+
+### Archivos Clave
+
+| Archivo | Función |
+|---------|---------|
+| `.github/workflows/production.yml` | Workflow de producción (push a main) |
+| `.github/workflows/preview.yml` | Preview environments por PR |
+| `scripts/deploy-prod.sh` | Script de deploy seguro en VPS |
+| `scripts/backup-mongodb.sh` | Backup pre-deploy automático |
+
+### Estrategia VPS-First (Costo Cero)
+
+**Por qué builds en VPS, NO en GitHub Actions:**
+- GitHub Actions cobra por minuto de compute
+- Docker build consume 5-10 min → ~$16/mes si se hace en Actions
+- **Solución**: rsync código + build en VPS = ~30-60 seg en Actions = GRATIS
+- Layer cache en VPS → builds subsecuentes ~30 segundos
+
+**Costo actual**: $0 USD/mes (~60-100 min/mes vs 2000 free tier)
+
+### Protección de Datos Crítica
+
+**NUNCA perder .env files:**
+```bash
+# Workflow YML - rsync excludes
+--exclude '.env'
+--exclude '.env.production'
+
+# VPS cleanup - git clean excludes
+git clean -fd -e .env -e .env.production
+```
+
+**Por qué es crítico:**
+- `.env` NO está en git (.gitignore)
+- rsync con `--delete` eliminaría .env si no se excluye
+- Sin .env → containers fallan con "Empty host" MongoDB error
+- Backup en `/opt/licitometro-previews/pr-1/.env` como fallback
+
+### Deploy Manual (Alternativa)
+
+Si CI/CD falla o se necesita deploy sin commit:
+
+```bash
+# Método 1: Trigger manual via GitHub UI
+gh workflow run production.yml
+
+# Método 2: Deploy directo SSH (bypass CI/CD)
+ssh root@76.13.234.213 "cd /opt/licitometro && bash scripts/deploy-prod.sh"
+
+# Método 3: Actualizar solo archivos específicos
+scp archivo.py root@76.13.234.213:/opt/licitometro/backend/
+ssh root@76.13.234.213 "docker restart licitometro-backend-1"
+```
+
+### Fixes Recientes (Feb 14, 2026)
+
+#### Fix 1: localhost:8000 Console Error
+- **Problema**: QuickPresetButton.tsx usaba `process.env.REACT_APP_API_URL || 'http://localhost:8000'`
+- **Síntoma**: Console error "Failed to load resource: net::ERR_CONNECTION_REFUSED localhost:8000"
+- **Fix**: Cambiar fallback a empty string `''` para usar relative paths
+- **Resultado**: Nginx proxies `/api/*` correctamente al backend
+- **Commit**: `cf94d6d` - FIX: Remove localhost:8000 hardcoded fallback
+
+#### Fix 2: .env Files Deleted on Deploy
+- **Problema**: rsync `--delete` eliminaba `.env` porque no existe en repo local
+- **Síntoma**: Containers fallan con "The MONGO_USER variable is not set"
+- **Fix**: Agregar `--exclude '.env'` y `--exclude '.env.production'` a rsync
+- **Resultado**: .env persiste a través de deployments
+- **Commit**: `af2a803` - CRITICAL FIX: Preserve .env files during rsync
+
+### Preview Environments (Por PR)
+
+**Estado**: Configurado pero NO usado activamente
+
+Cada PR puede crear preview en `pr-X.dev.licitometro.ar` pero:
+- Requiere Caddy wildcard SSL setup
+- Max 5 concurrent previews (limit de recursos VPS)
+- Auto-cleanup al cerrar PR
+
+**Para activar**: Descomentar preview workflow y configurar Caddy.
+
+### Troubleshooting
+
+**Deployment falla con "unhealthy":**
+```bash
+# Ver logs
+ssh root@76.13.234.213 "docker logs --tail=100 licitometro-backend-1"
+
+# Check .env existe
+ssh root@76.13.234.213 "ls -la /opt/licitometro/.env"
+
+# Restore .env desde backup
+ssh root@76.13.234.213 "cp /opt/licitometro-previews/pr-1/.env /opt/licitometro/.env"
+
+# Recreate containers
+ssh root@76.13.234.213 "cd /opt/licitometro && docker compose -f docker-compose.prod.yml up -d --force-recreate --no-deps backend nginx"
+```
+
+**GitHub Actions sin permisos:**
+- Verificar secrets: `VPS_SSH_KEY`, `VPS_HOST`, `VPS_USER`, `VPS_KNOWN_HOSTS`
+- Regenerar SSH key si expiró
+
+---
+
 When asked to design UI & frontend interface
 # Role
 You are superdesign, a senior frontend designer integrated into VS Code as part of the Super Design extension.
