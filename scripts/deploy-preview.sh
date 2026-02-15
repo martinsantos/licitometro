@@ -52,14 +52,21 @@ echo "Generating environment files..."
 cd "$PREVIEW_DIR"
 bash scripts/generate-preview-env.sh "$PR_NUMBER" .
 
+# Step 3.5: Ensure shared preview network exists
+echo "Ensuring preview-network exists..."
+docker network create preview-network 2>/dev/null || true
+
 # Step 4: Build images (WITH CACHE - fast!)
 echo "Building Docker images..."
 docker compose -f "docker-compose.preview-${PR_NUMBER}.yml" \
     --env-file ".env.preview-${PR_NUMBER}" \
     build --quiet
 
-# Step 5: Start containers
+# Step 5: Stop old containers if running, then start fresh
 echo "Starting containers..."
+docker compose -f "docker-compose.preview-${PR_NUMBER}.yml" \
+    --env-file ".env.preview-${PR_NUMBER}" \
+    down --remove-orphans 2>/dev/null || true
 docker compose -f "docker-compose.preview-${PR_NUMBER}.yml" \
     --env-file ".env.preview-${PR_NUMBER}" \
     up -d
@@ -109,8 +116,18 @@ done
 
 if [ "$HEALTHY" = false ]; then
     echo "❌ Health check failed after ${MAX_ATTEMPTS} attempts"
+    echo ""
+    echo "Container status:"
+    docker ps -a --filter "name=pr-${PR_NUMBER}" --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}" 2>/dev/null || true
+    echo ""
     echo "Logs from backend:"
-    docker logs "pr-${PR_NUMBER}-backend" --tail 50
+    docker logs "pr-${PR_NUMBER}-backend" --tail 80 2>&1 || echo "(no backend container found)"
+    echo ""
+    echo "Logs from nginx:"
+    docker logs "pr-${PR_NUMBER}-nginx" --tail 20 2>&1 || echo "(no nginx container found)"
+    echo ""
+    echo "Logs from mongodb:"
+    docker logs "pr-${PR_NUMBER}-mongodb" --tail 20 2>&1 || echo "(no mongodb container found)"
     exit 1
 fi
 
