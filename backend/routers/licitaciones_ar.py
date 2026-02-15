@@ -12,9 +12,9 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from db.repositories import LicitacionRepository
-from db.models import licitacion_entity, licitaciones_entity
+from db.models import scraper_config_entity
 from dependencies import get_licitacion_repository
+from db.repositories import LicitacionRepository
 
 logger = logging.getLogger("licitaciones_ar_router")
 
@@ -423,7 +423,6 @@ async def get_ar_sources(request: Request):
         {"scope": "ar_nacional"}
     ).to_list(length=100)
 
-    from db.models import scraper_config_entity
     return [scraper_config_entity(c) for c in configs]
 
 
@@ -446,7 +445,7 @@ async def trigger_all_ar_scrapers(request: Request):
     for config in configs:
         name = config.get("name", "")
         try:
-            await scheduler.trigger_scraper(name)
+            await scheduler.trigger_scraper_now(name)
             triggered.append(name)
         except Exception as e:
             errors.append({"name": name, "error": str(e)})
