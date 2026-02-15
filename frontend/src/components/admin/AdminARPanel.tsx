@@ -65,6 +65,24 @@ const AdminARPanel = () => {
     }
   };
 
+  const handleTriggerAll = async () => {
+    setActionLoading('trigger-all');
+    setDigestResult(null);
+    try {
+      const res = await axios.post(`${API_BASE}/trigger-all`);
+      const names = (res.data.triggered_names || []).join(', ');
+      setDigestResult(`${res.data.triggered} scrapers lanzados: ${names}`);
+      setTimeout(() => {
+        fetchSources();
+        fetchStats();
+      }, 5000);
+    } catch (err) {
+      setDigestResult('Error al lanzar scrapers');
+    } finally {
+      setActionLoading(null);
+    }
+  };
+
   const handleBatchNodos = async () => {
     setActionLoading('nodos');
     setNodoResult(null);
@@ -121,6 +139,20 @@ const AdminARPanel = () => {
       <div className="bg-sky-50 border border-sky-200 rounded-lg p-4">
         <h3 className="text-sm font-bold text-sky-900 mb-3">Acciones Manuales</h3>
         <div className="flex flex-wrap gap-3">
+          <button
+            onClick={handleTriggerAll}
+            disabled={actionLoading === 'trigger-all'}
+            className="px-4 py-2 bg-sky-600 text-white rounded-lg text-sm font-medium hover:bg-sky-700 disabled:opacity-50 flex items-center gap-2"
+          >
+            {actionLoading === 'trigger-all' ? (
+              <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white" />
+            ) : (
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+              </svg>
+            )}
+            Scrapear Todas las Fuentes AR
+          </button>
           <button
             onClick={handleBatchNodos}
             disabled={actionLoading === 'nodos'}

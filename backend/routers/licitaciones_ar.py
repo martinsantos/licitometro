@@ -32,27 +32,26 @@ def _ar_base_filters() -> Dict[str, Any]:
     return {"tags": TAG_LIC_AR}
 
 
-@router.get("/", response_model=Dict[str, Any])
-async def get_licitaciones_ar(
-    page: int = Query(1, ge=1),
-    size: int = Query(15, ge=1, le=100),
-    q: Optional[str] = Query(None, min_length=1),
+def _build_ar_filters(
+    q: Optional[str] = None,
     status: Optional[str] = None,
     organization: Optional[str] = None,
     category: Optional[str] = None,
     fuente: Optional[str] = None,
     jurisdiccion: Optional[str] = None,
     estado: Optional[str] = None,
+    workflow_state: Optional[str] = None,
+    tipo_procedimiento: Optional[str] = None,
+    nodo: Optional[str] = None,
     budget_min: Optional[float] = None,
     budget_max: Optional[float] = None,
     fecha_desde: Optional[date] = None,
     fecha_hasta: Optional[date] = None,
-    fecha_campo: str = Query("publication_date"),
-    sort_by: str = Query("publication_date"),
-    sort_order: str = Query("desc"),
-    repo: LicitacionRepository = Depends(get_licitacion_repository),
-):
-    """List LIC_AR tagged licitaciones with pagination and filters."""
+    fecha_campo: str = "publication_date",
+    nuevas_desde: Optional[date] = None,
+    year: Optional[int] = None,
+) -> Dict[str, Any]:
+    """Build MongoDB filter dict from query params, always scoped to LIC_AR."""
     filters = _ar_base_filters()
 
     if status:
@@ -67,6 +66,12 @@ async def get_licitaciones_ar(
         filters["jurisdiccion"] = jurisdiccion
     if estado:
         filters["estado"] = estado
+    if workflow_state:
+        filters["workflow_state"] = workflow_state
+    if tipo_procedimiento:
+        filters["tipo_procedimiento"] = tipo_procedimiento
+    if nodo:
+        filters["nodos"] = nodo
 
     if budget_min is not None or budget_max is not None:
         bf = {}
@@ -76,19 +81,78 @@ async def get_licitaciones_ar(
             bf["$lte"] = budget_max
         filters["budget"] = bf
 
+    # Year filter (always on publication_date)
+    if year:
+        filters.setdefault("publication_date", {})
+        if isinstance(filters["publication_date"], dict):
+            filters["publication_date"]["$gte"] = datetime(year, 1, 1)
+            filters["publication_date"]["$lte"] = datetime(year, 12, 31, 23, 59, 59)
+        else:
+            filters["publication_date"] = {
+                "$gte": datetime(year, 1, 1),
+                "$lte": datetime(year, 12, 31, 23, 59, 59),
+            }
+
+    # Date range filter
     allowed_date_fields = [
         "publication_date", "opening_date", "created_at",
-        "fecha_scraping", "first_seen_at",
+        "fecha_scraping", "first_seen_at", "expiration_date",
     ]
     fc = fecha_campo if fecha_campo in allowed_date_fields else "publication_date"
     if fecha_desde or fecha_hasta:
-        df = {}
+        df = filters.get(fc, {}) if isinstance(filters.get(fc), dict) else {}
         if fecha_desde:
             df["$gte"] = datetime.combine(fecha_desde, datetime.min.time())
         if fecha_hasta:
             df["$lte"] = datetime.combine(fecha_hasta, datetime.max.time())
         if df:
             filters[fc] = df
+
+    # nuevas_desde filter (first_seen_at >= date)
+    if nuevas_desde:
+        existing = filters.get("first_seen_at", {})
+        if not isinstance(existing, dict):
+            existing = {}
+        existing["$gte"] = datetime.combine(nuevas_desde, datetime.min.time())
+        filters["first_seen_at"] = existing
+
+    return filters
+
+
+@router.get("/", response_model=Dict[str, Any])
+async def get_licitaciones_ar(
+    page: int = Query(1, ge=1),
+    size: int = Query(15, ge=1, le=100),
+    q: Optional[str] = Query(None, min_length=1),
+    status: Optional[str] = None,
+    organization: Optional[str] = None,
+    category: Optional[str] = None,
+    fuente: Optional[str] = None,
+    jurisdiccion: Optional[str] = None,
+    estado: Optional[str] = None,
+    workflow_state: Optional[str] = None,
+    tipo_procedimiento: Optional[str] = None,
+    nodo: Optional[str] = None,
+    budget_min: Optional[float] = None,
+    budget_max: Optional[float] = None,
+    fecha_desde: Optional[date] = None,
+    fecha_hasta: Optional[date] = None,
+    fecha_campo: str = Query("publication_date"),
+    nuevas_desde: Optional[date] = None,
+    year: Optional[int] = None,
+    sort_by: str = Query("publication_date"),
+    sort_order: str = Query("desc"),
+    repo: LicitacionRepository = Depends(get_licitacion_repository),
+):
+    """List LIC_AR tagged licitaciones with pagination and filters."""
+    filters = _build_ar_filters(
+        q=q, status=status, organization=organization, category=category,
+        fuente=fuente, jurisdiccion=jurisdiccion, estado=estado,
+        workflow_state=workflow_state, tipo_procedimiento=tipo_procedimiento,
+        nodo=nodo, budget_min=budget_min, budget_max=budget_max,
+        fecha_desde=fecha_desde, fecha_hasta=fecha_hasta, fecha_campo=fecha_campo,
+        nuevas_desde=nuevas_desde, year=year,
+    )
 
     skip = (page - 1) * size
     order_val = 1 if sort_order == "asc" else -1
@@ -136,8 +200,12 @@ async def get_ar_stats(request: Request):
     by_fuente = {doc["_id"]: doc["count"] async for doc in col.aggregate(pipeline)}
 
     # By jurisdiccion
-    pipeline[1] = {"$group": {"_id": "$jurisdiccion", "count": {"$sum": 1}}}
-    by_jurisdiccion = {doc["_id"]: doc["count"] async for doc in col.aggregate(pipeline)}
+    pipeline_jur = [
+        {"$match": base},
+        {"$group": {"_id": "$jurisdiccion", "count": {"$sum": 1}}},
+        {"$sort": {"count": -1}},
+    ]
+    by_jurisdiccion = {doc["_id"]: doc["count"] async for doc in col.aggregate(pipeline_jur)}
 
     # By estado
     pipeline_estado = [
@@ -159,16 +227,48 @@ async def get_ar_stats(request: Request):
 
 
 @router.get("/facets")
-async def get_ar_facets(request: Request):
-    """Facet counts for AR items."""
+async def get_ar_facets(
+    request: Request,
+    q: Optional[str] = None,
+    status: Optional[str] = None,
+    organization: Optional[str] = None,
+    category: Optional[str] = None,
+    fuente: Optional[str] = None,
+    jurisdiccion: Optional[str] = None,
+    estado: Optional[str] = None,
+    workflow_state: Optional[str] = None,
+    tipo_procedimiento: Optional[str] = None,
+    nodo: Optional[str] = None,
+    budget_min: Optional[float] = None,
+    budget_max: Optional[float] = None,
+    fecha_desde: Optional[date] = None,
+    fecha_hasta: Optional[date] = None,
+    fecha_campo: str = Query("publication_date"),
+    nuevas_desde: Optional[date] = None,
+    year: Optional[int] = None,
+):
+    """Facet counts for AR items with cross-filtering."""
     db = request.app.mongodb
     col = db.licitaciones
-    base = _ar_base_filters()
+
+    base_filters = _build_ar_filters(
+        q=q, status=status, organization=organization, category=category,
+        fuente=fuente, jurisdiccion=jurisdiccion, estado=estado,
+        workflow_state=workflow_state, tipo_procedimiento=tipo_procedimiento,
+        nodo=nodo, budget_min=budget_min, budget_max=budget_max,
+        fecha_desde=fecha_desde, fecha_hasta=fecha_hasta, fecha_campo=fecha_campo,
+        nuevas_desde=nuevas_desde, year=year,
+    )
 
     facets = {}
-    for field in ["fuente", "jurisdiccion", "category", "estado", "organization"]:
+    facet_fields = [
+        "fuente", "status", "category", "workflow_state",
+        "jurisdiccion", "tipo_procedimiento", "organization", "estado",
+    ]
+
+    for field in facet_fields:
         pipeline = [
-            {"$match": base},
+            {"$match": base_filters},
             {"$group": {"_id": f"${field}", "count": {"$sum": 1}}},
             {"$sort": {"count": -1}},
             {"$limit": 50},
@@ -178,6 +278,20 @@ async def get_ar_facets(request: Request):
             async for doc in col.aggregate(pipeline)
             if doc["_id"]
         ]
+
+    # Nodos facet (requires $unwind since nodos is an array)
+    nodos_pipeline = [
+        {"$match": {**base_filters, "nodos": {"$exists": True, "$ne": []}}},
+        {"$unwind": "$nodos"},
+        {"$group": {"_id": "$nodos", "count": {"$sum": 1}}},
+        {"$sort": {"count": -1}},
+        {"$limit": 20},
+    ]
+    facets["nodos"] = [
+        {"value": doc["_id"], "count": doc["count"]}
+        async for doc in col.aggregate(nodos_pipeline)
+        if doc["_id"]
+    ]
 
     return facets
 
@@ -193,7 +307,6 @@ async def assign_nodos_to_ar_item(
 
     doc = await col.find_one({"_id": licitacion_id})
     if not doc:
-        # Try by id_licitacion
         doc = await col.find_one({"id_licitacion": licitacion_id})
     if not doc:
         raise HTTPException(404, "Licitacion not found")
@@ -207,7 +320,7 @@ async def assign_nodos_to_ar_item(
 
     item_data = dict(doc)
     item_data.pop("_id", None)
-    matched = await matcher.assign_nodos_to_item_data(item_data)
+    await matcher.assign_nodos_to_item_data(item_data)
 
     if item_data.get("nodos"):
         await col.update_one(
@@ -278,21 +391,19 @@ async def send_ar_digest(
     if not items:
         return {"sent": False, "message": f"No new AR items in the last {hours} hours", "count": 0}
 
-    # Send via notification service
     try:
         from services.notification_service import get_notification_service
         ns = get_notification_service(db)
 
-        # Build summary
-        summary_lines = [f"📋 *Licitaciones AR - {len(items)} nuevas* (últimas {hours}h)\n"]
+        summary_lines = [f"*Licitaciones AR - {len(items)} nuevas* (ultimas {hours}h)\n"]
         for item in items[:20]:
-            title = item.get("objeto") or item.get("title", "Sin título")
+            title = item.get("objeto") or item.get("title", "Sin titulo")
             org = item.get("organization", "")
             fuente = item.get("fuente", "")
-            summary_lines.append(f"• {title[:80]} ({org}) [{fuente}]")
+            summary_lines.append(f"- {title[:80]} ({org}) [{fuente}]")
 
         if len(items) > 20:
-            summary_lines.append(f"\n... y {len(items) - 20} más")
+            summary_lines.append(f"\n... y {len(items) - 20} mas")
 
         message = "\n".join(summary_lines)
         await ns.send_telegram(message)
@@ -314,3 +425,34 @@ async def get_ar_sources(request: Request):
 
     from db.models import scraper_config_entity
     return [scraper_config_entity(c) for c in configs]
+
+
+@router.post("/trigger-all")
+async def trigger_all_ar_scrapers(request: Request):
+    """Trigger all active AR scrapers sequentially."""
+    db = request.app.mongodb
+    configs = await db.scraper_configs.find(
+        {"scope": "ar_nacional", "active": True}
+    ).to_list(length=100)
+
+    if not configs:
+        return {"triggered": 0, "message": "No active AR sources found"}
+
+    from services.scheduler_service import get_scheduler_service
+    scheduler = get_scheduler_service(db)
+
+    triggered = []
+    errors = []
+    for config in configs:
+        name = config.get("name", "")
+        try:
+            await scheduler.trigger_scraper(name)
+            triggered.append(name)
+        except Exception as e:
+            errors.append({"name": name, "error": str(e)})
+
+    return {
+        "triggered": len(triggered),
+        "triggered_names": triggered,
+        "errors": errors,
+    }
