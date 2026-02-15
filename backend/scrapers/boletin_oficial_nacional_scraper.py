@@ -138,6 +138,9 @@ class BoletinOficialNacionalScraper(BaseScraper):
             )
             estado = self._compute_estado(publication_date, None)
 
+            from utils.object_extractor import extract_objeto
+            objeto = extract_objeto(title, text[:500] if text else "", "Contratación Pública")
+
             return LicitacionCreate(
                 id_licitacion=f"bo-nac-{id_suffix}",
                 title=title[:500],
@@ -150,6 +153,7 @@ class BoletinOficialNacionalScraper(BaseScraper):
                 jurisdiccion="Nacional",
                 tipo_procedimiento="Contratación Pública",
                 estado=estado,
+                objeto=objeto,
                 fecha_prorroga=None,
                 status="active",
             )
@@ -191,6 +195,9 @@ class BoletinOficialNacionalScraper(BaseScraper):
             )
             estado = self._compute_estado(publication_date, None)
 
+            from utils.object_extractor import extract_objeto
+            objeto = extract_objeto(title, text[:500] if text else "", "Contratación Pública")
+
             return LicitacionCreate(
                 id_licitacion=f"bo-nac-det-{id_suffix}",
                 title=title[:500],
@@ -203,6 +210,7 @@ class BoletinOficialNacionalScraper(BaseScraper):
                 jurisdiccion="Nacional",
                 tipo_procedimiento="Contratación Pública",
                 estado=estado,
+                objeto=objeto,
                 fecha_prorroga=None,
                 status="active",
             )

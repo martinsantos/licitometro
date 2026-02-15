@@ -139,6 +139,9 @@ class BidScraper(BaseScraper):
             )
             estado = self._compute_estado(publication_date, opening_date)
 
+            from utils.object_extractor import extract_objeto
+            objeto = extract_objeto(title, description[:500] if description else "", proc_type)
+
             return LicitacionCreate(
                 id_licitacion=f"bid-{record_id}",
                 title=title[:500],
@@ -153,6 +156,7 @@ class BidScraper(BaseScraper):
                 jurisdiccion="Internacional",
                 tipo_procedimiento=proc_type,
                 estado=estado,
+                objeto=objeto,
                 fecha_prorroga=None,
                 status="active",
                 metadata={

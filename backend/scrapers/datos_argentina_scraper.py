@@ -193,6 +193,9 @@ class DatosArgentinaScraper(BaseScraper):
             )
             estado = self._compute_estado(publication_date, opening_date_resolved)
 
+            from utils.object_extractor import extract_objeto
+            objeto = extract_objeto(title, description[:500] if description else "", tipo_proc)
+
             return LicitacionCreate(
                 id_licitacion=id_licitacion,
                 title=title,
@@ -208,6 +211,7 @@ class DatosArgentinaScraper(BaseScraper):
                 tipo_procedimiento=tipo_proc,
                 expedient_number=expediente,
                 estado=estado,
+                objeto=objeto,
                 fecha_prorroga=None,
                 status="active",
                 metadata={"ckan_dataset": self.dataset_id, "ckan_resource": resource_name},

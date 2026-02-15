@@ -143,6 +143,9 @@ class SantaFeScraper(BaseScraper):
             )
             estado = self._compute_estado(publication_date, opening_date)
 
+            from utils.object_extractor import extract_objeto
+            objeto = extract_objeto(title, description[:500] if description else "", "Licitación Pública")
+
             return LicitacionCreate(
                 id_licitacion=f"santafe-{id_suffix}",
                 title=title[:500],
@@ -155,6 +158,7 @@ class SantaFeScraper(BaseScraper):
                 jurisdiccion="Santa Fe",
                 tipo_procedimiento="Licitación Pública",
                 estado=estado,
+                objeto=objeto,
                 fecha_prorroga=None,
                 status="active",
             )
@@ -184,15 +188,26 @@ class SantaFeScraper(BaseScraper):
 
             id_suffix = re.sub(r"[^a-zA-Z0-9]", "", href[-40:]) if href else str(hash(title))[:12]
 
+            # Resolve dates instead of hardcoding estado
+            publication_date = self._resolve_publication_date(
+                parsed_date=None, title=title, description=text[:500],
+            )
+            estado = self._compute_estado(publication_date, None)
+
+            from utils.object_extractor import extract_objeto
+            objeto = extract_objeto(title, text[:500] if text else "", "Licitación Pública")
+
             return LicitacionCreate(
                 id_licitacion=f"santafe-html-{id_suffix}",
                 title=title[:500],
                 organization="Gobierno de Santa Fe",
+                publication_date=publication_date,
                 source_url=href or self.cartelera_url,
                 fuente=self.config.name,
                 jurisdiccion="Santa Fe",
                 tipo_procedimiento="Licitación Pública",
-                estado="vigente",
+                estado=estado,
+                objeto=objeto,
                 fecha_prorroga=None,
                 status="active",
             )
