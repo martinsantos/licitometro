@@ -4,7 +4,7 @@ Isolated section with manual nodo/notification control.
 """
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from typing import Dict, List, Optional, Any
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 import logging
 import re
 import sys
@@ -270,13 +270,13 @@ async def send_ar_digest(
     db = request.app.mongodb
     col = db.licitaciones
 
-    since = datetime.utcnow() - __import__("datetime").timedelta(hours=hours)
+    since = datetime.utcnow() - timedelta(hours=hours)
     query = {**_ar_base_filters(), "first_seen_at": {"$gte": since}}
 
     items = await col.find(query).sort("first_seen_at", -1).limit(50).to_list(length=50)
 
     if not items:
-        return {"sent": False, "message": "No new AR items in the last {hours} hours", "count": 0}
+        return {"sent": False, "message": f"No new AR items in the last {hours} hours", "count": 0}
 
     # Send via notification service
     try:
