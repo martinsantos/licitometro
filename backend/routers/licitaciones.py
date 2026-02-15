@@ -669,7 +669,7 @@ async def get_daily_counts(
     start_date = datetime.combine(date.today() - timedelta(days=days - 1), datetime.min.time())
 
     pipeline = [
-        {"$match": {fecha_campo: {"$gte": start_date}}},
+        {"$match": {fecha_campo: {"$gte": start_date}, "tags": {"$ne": "LIC_AR"}}},
         {"$group": {
             "_id": {"$dateToString": {"format": "%Y-%m-%d", "date": f"${fecha_campo}"}},
             "count": {"$sum": 1}
@@ -833,9 +833,12 @@ async def get_scraping_activity(request: Request, hours: int = 24):
 
     since = datetime.utcnow() - timedelta(hours=hours)
 
+    # Exclude AR items from main stats
+    exclude_ar = {"tags": {"$ne": "LIC_AR"}}
+
     # Count truly new items (first_seen_at >= since)
     truly_new_pipeline = [
-        {"$match": {"first_seen_at": {"$gte": since}}},
+        {"$match": {"first_seen_at": {"$gte": since}, **exclude_ar}},
         {"$group": {
             "_id": "$fuente",
             "count": {"$sum": 1}
@@ -848,6 +851,7 @@ async def get_scraping_activity(request: Request, hours: int = 24):
     # Count re-indexed items (fecha_scraping >= since AND first_seen_at < since)
     re_indexed_pipeline = [
         {"$match": {
+            **exclude_ar,
             "fecha_scraping": {"$gte": since},
             "$or": [
                 {"first_seen_at": {"$lt": since}},
@@ -866,6 +870,7 @@ async def get_scraping_activity(request: Request, hours: int = 24):
     # Count updated items (updated_at >= since AND created_at < since AND fecha_scraping < since)
     updated_pipeline = [
         {"$match": {
+            **exclude_ar,
             "updated_at": {"$gte": since},
             "created_at": {"$lt": since},
             "$or": [
@@ -921,14 +926,16 @@ async def get_truly_new_count(
     # Convert date to datetime for MongoDB comparison
     since_datetime = datetime.combine(since_date, datetime.min.time())
 
-    # Count total items where first_seen_at >= since_date
+    # Count total items where first_seen_at >= since_date (exclude AR)
+    exclude_ar = {"tags": {"$ne": "LIC_AR"}}
     count = await collection.count_documents({
-        "first_seen_at": {"$gte": since_datetime}
+        "first_seen_at": {"$gte": since_datetime},
+        **exclude_ar,
     })
 
     # Optional: breakdown by source for debugging
     pipeline = [
-        {"$match": {"first_seen_at": {"$gte": since_datetime}}},
+        {"$match": {"first_seen_at": {"$gte": since_datetime}, **exclude_ar}},
         {"$group": {"_id": "$fuente", "count": {"$sum": 1}}},
         {"$sort": {"count": -1}},
         {"$limit": 10}

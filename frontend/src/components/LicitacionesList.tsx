@@ -36,9 +36,10 @@ const deriveFechaCampo = (sortBy: string): string =>
 interface LicitacionesListProps {
   apiUrl: string;
   apiPath?: string; // defaults to '/api/licitaciones'
+  defaultYear?: string; // override initial yearWorkspace (e.g., 'all' for AR page)
 }
 
-const LicitacionesList = ({ apiUrl, apiPath = '/api/licitaciones' }: LicitacionesListProps) => {
+const LicitacionesList = ({ apiUrl, apiPath = '/api/licitaciones', defaultYear }: LicitacionesListProps) => {
   const navigate = useNavigate();
   const listTopRef = useRef<HTMLDivElement>(null);
   const hasRestoredScroll = useRef(false);
@@ -54,6 +55,17 @@ const LicitacionesList = ({ apiUrl, apiPath = '/api/licitaciones' }: Licitacione
 
   // Hooks
   const { filters, setFilter, setMany, clearAll, hasActiveFilters, activeFilterCount } = useLicitacionFilters();
+
+  // Override yearWorkspace on mount when defaultYear is provided (e.g., AR page uses 'all')
+  const hasAppliedDefaultYear = useRef(false);
+  useEffect(() => {
+    if (defaultYear && !hasAppliedDefaultYear.current) {
+      hasAppliedDefaultYear.current = true;
+      if (filters.yearWorkspace !== defaultYear) {
+        setFilter('yearWorkspace', defaultYear);
+      }
+    }
+  }, [defaultYear, filters.yearWorkspace, setFilter]);
   const prefs = useLicitacionPreferences();
   const filterOptions = useFilterOptions(apiUrl);
 
@@ -311,11 +323,12 @@ const LicitacionesList = ({ apiUrl, apiPath = '/api/licitaciones' }: Licitacione
       <div className="flex flex-col gap-1.5">
         <DailyDigestStrip
           apiUrl={apiUrl}
+          apiPath={apiPath}
           onDaySelect={handleDaySelect}
           selectedDate={filters.fechaDesde && filters.fechaDesde === filters.fechaHasta ? filters.fechaDesde : null}
           fechaCampo={fechaCampo}
         />
-        <NovedadesStrip apiUrl={apiUrl} onSourceClick={handleSourceClick} />
+        <NovedadesStrip apiUrl={apiUrl} apiPath={apiPath} onSourceClick={handleSourceClick} />
       </div>
 
       {/* Layout principal: sidebar + contenido */}
@@ -364,6 +377,8 @@ const LicitacionesList = ({ apiUrl, apiPath = '/api/licitaciones' }: Licitacione
               <QuickPresetButton
                 onToggleTodayFilter={handleToggleTodayFilter}
                 isActive={isTodayFilterActive}
+                apiUrl={apiUrl}
+                apiPath={apiPath}
               />
 
               <PresetSelector

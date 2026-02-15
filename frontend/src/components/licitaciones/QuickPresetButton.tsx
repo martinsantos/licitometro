@@ -3,56 +3,44 @@ import React, { useCallback, useState, useEffect } from 'react';
 interface QuickPresetButtonProps {
   onToggleTodayFilter: (today: string | null) => void;
   isActive: boolean;
+  apiUrl?: string;
+  apiPath?: string;
 }
 
 /**
  * "Nuevas de hoy" quick-access button
  *
  * Fetches accurate count from backend API (/stats/truly-new-count)
- * Badge shows same count before AND after clicking (unlike old implementation)
- * Auto-refreshes every 60 seconds to stay current
- *
- * Toggles a filter for today's date (nuevas_desde = today)
- * WITHOUT clearing other active filters.
- *
- * When active: shows green/bold state, can be clicked to toggle off
- * When inactive: shows normal state, clicking enables the filter
- *
- * This allows users to:
- * - Click "Nuevas de hoy" to see only today's items
- * - Add additional filters (rubros, nodos, etc.) without losing "Nuevas de hoy"
- * - Change sort order while maintaining the date filter
- * - Click again to remove the date filter and return to browsing all items
+ * Uses apiPath prop so it works correctly for both main and AR pages.
  */
 const QuickPresetButton: React.FC<QuickPresetButtonProps> = ({
   onToggleTodayFilter,
-  isActive
+  isActive,
+  apiUrl: apiUrlProp,
+  apiPath = '/api/licitaciones',
 }) => {
   const [count, setCount] = useState<number | null>(null);
   const [loading, setLoading] = useState(false);
 
-  const todayDate = new Date().toISOString().slice(0, 10); // "2026-02-13"
+  const todayDate = new Date().toISOString().slice(0, 10);
+  const baseUrl = apiUrlProp ?? process.env.REACT_APP_API_URL ?? '';
 
   // Fetch real count from stats endpoint
   useEffect(() => {
     const fetchCount = async () => {
       setLoading(true);
       try {
-        // Use empty string for relative paths in production (nginx proxies to backend)
-        const apiUrl = process.env.REACT_APP_API_URL || '';
         const response = await fetch(
-          `${apiUrl}/api/licitaciones/stats/truly-new-count?since_date=${todayDate}`,
+          `${baseUrl}${apiPath}/stats/truly-new-count?since_date=${todayDate}`,
           { credentials: 'include' }
         );
         if (response.ok) {
           const data = await response.json();
           setCount(data.total || 0);
         } else {
-          console.error('Failed to fetch new items count:', response.status);
           setCount(0);
         }
-      } catch (error) {
-        console.error('Failed to fetch new items count:', error);
+      } catch {
         setCount(0);
       } finally {
         setLoading(false);
@@ -64,7 +52,7 @@ const QuickPresetButton: React.FC<QuickPresetButtonProps> = ({
     // Refresh count every 60 seconds while on page
     const interval = setInterval(fetchCount, 60000);
     return () => clearInterval(interval);
-  }, [todayDate]);
+  }, [todayDate, baseUrl, apiPath]);
 
   const handleClick = useCallback(() => {
     onToggleTodayFilter(isActive ? null : todayDate);

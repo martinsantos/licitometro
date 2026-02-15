@@ -4,12 +4,13 @@ import { es } from 'date-fns/locale';
 
 interface DailyDigestStripProps {
   apiUrl: string;
+  apiPath?: string;
   onDaySelect: (date: string | null) => void;
   selectedDate: string | null;
   fechaCampo: string;
 }
 
-const DailyDigestStrip = ({ apiUrl, onDaySelect, selectedDate, fechaCampo }: DailyDigestStripProps) => {
+const DailyDigestStrip = ({ apiUrl, apiPath = '/api/licitaciones', onDaySelect, selectedDate, fechaCampo }: DailyDigestStripProps) => {
   const [counts, setCounts] = useState<Record<string, number>>({});
   const [loading, setLoading] = useState(true);
   const [expanded, setExpanded] = useState(false);
@@ -17,7 +18,7 @@ const DailyDigestStrip = ({ apiUrl, onDaySelect, selectedDate, fechaCampo }: Dai
   useEffect(() => {
     const fetchCounts = async () => {
       try {
-        const res = await fetch(`${apiUrl}/api/licitaciones/stats/daily-counts?days=14&fecha_campo=${fechaCampo}`, { credentials: 'include' });
+        const res = await fetch(`${apiUrl}${apiPath}/stats/daily-counts?days=14&fecha_campo=${fechaCampo}`, { credentials: 'include' });
         if (res.ok) {
           const data = await res.json();
           setCounts(data.counts || {});
@@ -29,7 +30,7 @@ const DailyDigestStrip = ({ apiUrl, onDaySelect, selectedDate, fechaCampo }: Dai
       }
     };
     fetchCounts();
-  }, [apiUrl, fechaCampo]);
+  }, [apiUrl, apiPath, fechaCampo]);
 
   const days = Array.from({ length: 14 }, (_, i) => {
     const d = subDays(new Date(), i);

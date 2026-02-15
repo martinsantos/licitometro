@@ -66,7 +66,7 @@ const LicitacionesARPage = () => {
       )}
 
       {/* Full listing with all filters — reuses main component with AR API path */}
-      <LicitacionesList apiUrl={BACKEND_URL} apiPath="/api/licitaciones-ar" />
+      <LicitacionesList apiUrl={BACKEND_URL} apiPath="/api/licitaciones-ar" defaultYear="all" />
     </div>
   );
 };
