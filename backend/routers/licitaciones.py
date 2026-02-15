@@ -65,7 +65,7 @@ async def get_licitaciones(
     fecha_campo: str = Query("publication_date", description="Date field to filter on"),
     nuevas_desde: Optional[date] = Query(None, description="Filter by first_seen_at >= date (truly new items)"),
     year: Optional[str] = Query(None, description="Filter by publication year (e.g., '2026' or 'all')"),
-    only_national: Optional[bool] = Query(False, description="Only show comprar.gob.ar sources (Argentina nacional)"),
+    only_national: Optional[bool] = Query(False, description="Only show Argentina nacional sources (~11 sources)"),
     fuente_exclude: Optional[List[str]] = Query(None, description="Exclude these sources"),
     sort_by: str = Query("publication_date", description="Field to sort by"),
     sort_order: str = Query("desc", description="Sort order: asc or desc"),
@@ -125,7 +125,7 @@ async def get_licitaciones(
 
         # National/source exclusion filters
         if only_national:
-            extra_filters["fuente"] = {"$regex": "comprar.gob.ar", "$options": "i"}
+            extra_filters["jurisdiccion"] = "Argentina"
         if fuente_exclude:
             extra_filters["fuente"] = {"$nin": fuente_exclude}
 
@@ -197,7 +197,7 @@ async def get_licitaciones(
 
     # National/source exclusion filters (applied to both search and non-search paths)
     if only_national:
-        filters["fuente"] = {"$regex": "comprar.gob.ar", "$options": "i"}
+        filters["jurisdiccion"] = "Argentina"
     if fuente_exclude:
         filters["fuente"] = {"$nin": fuente_exclude}
 
@@ -428,7 +428,7 @@ async def get_facets(
     fecha_hasta: Optional[date] = None,
     fecha_campo: str = Query("publication_date"),
     nuevas_desde: Optional[date] = Query(None, description="Filter by first_seen_at >= date (truly new items)"),
-    only_national: Optional[bool] = Query(False, description="Only comprar.gob.ar sources"),
+    only_national: Optional[bool] = Query(False, description="Only Argentina nacional sources (~11 sources)"),
     fuente_exclude: Optional[List[str]] = Query(None, description="Exclude these sources"),
     request: Request = None,
 ):
@@ -469,7 +469,7 @@ async def get_facets(
 
     # National/source exclusion filters
     if only_national:
-        base_match["fuente"] = {"$regex": "comprar.gob.ar", "$options": "i"}
+        base_match["jurisdiccion"] = "Argentina"
     if fuente_exclude:
         base_match["fuente"] = {"$nin": fuente_exclude}
 
@@ -674,7 +674,7 @@ async def remove_favorite(licitacion_id: str, request: Request):
 async def get_daily_counts(
     days: int = Query(14, ge=1, le=30),
     fecha_campo: str = Query("publication_date"),
-    only_national: Optional[bool] = Query(False, description="Only comprar.gob.ar sources"),
+    only_national: Optional[bool] = Query(False, description="Only Argentina nacional sources (~11 sources)"),
     jurisdiccion: Optional[str] = Query(None, description="Filter by jurisdiccion"),
     request: Request = None,
 ):
@@ -695,7 +695,7 @@ async def get_daily_counts(
     # Build match stage with jurisdiction/source filtering
     match_stage = {fecha_campo: {"$gte": start_date}, "tags": {"$ne": "LIC_AR"}}
     if only_national:
-        match_stage["fuente"] = {"$regex": "comprar.gob.ar", "$options": "i"}
+        match_stage["jurisdiccion"] = "Argentina"
     elif jurisdiccion:
         match_stage["jurisdiccion"] = jurisdiccion
 
@@ -720,7 +720,7 @@ async def get_daily_counts(
 
 @router.get("/stats/data-quality")
 async def get_data_quality_stats(
-    only_national: Optional[bool] = Query(False, description="Only comprar.gob.ar sources"),
+    only_national: Optional[bool] = Query(False, description="Only Argentina nacional sources (~11 sources)"),
     jurisdiccion: Optional[str] = Query(None, description="Filter by jurisdiccion"),
     request: Request = None
 ):
@@ -731,7 +731,7 @@ async def get_data_quality_stats(
     # Build match filter for jurisdiction/source
     base_match = {}
     if only_national:
-        base_match["fuente"] = {"$regex": "comprar.gob.ar", "$options": "i"}
+        base_match["jurisdiccion"] = "Argentina"
     elif jurisdiccion:
         base_match["jurisdiccion"] = jurisdiccion
 

@@ -74,15 +74,20 @@ async def main():
     print(f"✅ Total Mendoza tagged: {total_mendoza}")
     print()
 
-    # Tag national sources (comprar.gob.ar)
+    # Tag national sources (EVERYTHING not in Mendoza list = Argentina)
+    # This captures ALL ~11 national sources, not just comprar.gob.ar
     print("🇦🇷 Tagging Argentina nacional sources...")
     print("-" * 60)
+    print("   Strategy: All sources NOT in Mendoza list → Argentina")
     result = await collection.update_many(
-        {"fuente": {"$regex": "comprar.gob.ar", "$options": "i"}, "jurisdiccion": {"$in": [None, ""]}},
+        {
+            "fuente": {"$nin": MENDOZA_SOURCES},  # NOT in Mendoza sources list
+            "jurisdiccion": {"$in": [None, ""]}    # Missing jurisdiccion tag
+        },
         {"$set": {"jurisdiccion": "Argentina"}}
     )
     total_argentina = result.modified_count
-    print(f"  ✓ Comprar.Gob.Ar → {total_argentina} tagged")
+    print(f"  ✓ All non-Mendoza sources → {total_argentina} tagged as Argentina")
     print()
 
     # Count remaining untagged
