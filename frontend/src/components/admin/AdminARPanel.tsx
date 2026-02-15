@@ -83,6 +83,21 @@ const AdminARPanel = () => {
     }
   };
 
+  const handleSeedSources = async () => {
+    setActionLoading('seed');
+    setDigestResult(null);
+    try {
+      const res = await axios.post(`${API_BASE}/seed-sources`);
+      setDigestResult(`Fuentes creadas: ${res.data.created}, actualizadas: ${res.data.updated} (total: ${res.data.total})`);
+      await fetchSources();
+      await fetchStats();
+    } catch (err) {
+      setDigestResult('Error al crear fuentes AR');
+    } finally {
+      setActionLoading(null);
+    }
+  };
+
   const handleBatchNodos = async () => {
     setActionLoading('nodos');
     setNodoResult(null);
@@ -252,8 +267,15 @@ const AdminARPanel = () => {
               ))}
               {sources.length === 0 && (
                 <tr>
-                  <td colSpan={5} className="px-4 py-8 text-center text-gray-400">
-                    No hay fuentes AR configuradas. Ejecuta <code>seed_ar_sources.py</code> para crearlas.
+                  <td colSpan={5} className="px-4 py-8 text-center">
+                    <p className="text-gray-400 mb-3">No hay fuentes AR configuradas.</p>
+                    <button
+                      onClick={handleSeedSources}
+                      disabled={actionLoading === 'seed'}
+                      className="px-4 py-2 bg-sky-600 text-white rounded-lg text-sm font-medium hover:bg-sky-700 disabled:opacity-50"
+                    >
+                      {actionLoading === 'seed' ? 'Creando fuentes...' : 'Crear 10 Fuentes AR'}
+                    </button>
                   </td>
                 </tr>
               )}
