@@ -8,9 +8,17 @@ interface DailyDigestStripProps {
   onDaySelect: (date: string | null) => void;
   selectedDate: string | null;
   fechaCampo: string;
+  jurisdiccionMode?: 'all' | 'mendoza' | 'nacional';  // Filter stats by jurisdiction
 }
 
-const DailyDigestStrip = ({ apiUrl, apiPath = '/api/licitaciones', onDaySelect, selectedDate, fechaCampo }: DailyDigestStripProps) => {
+const DailyDigestStrip = ({
+  apiUrl,
+  apiPath = '/api/licitaciones',
+  onDaySelect,
+  selectedDate,
+  fechaCampo,
+  jurisdiccionMode = 'all'
+}: DailyDigestStripProps) => {
   const [counts, setCounts] = useState<Record<string, number>>({});
   const [loading, setLoading] = useState(true);
   const [expanded, setExpanded] = useState(false);
@@ -18,7 +26,16 @@ const DailyDigestStrip = ({ apiUrl, apiPath = '/api/licitaciones', onDaySelect, 
   useEffect(() => {
     const fetchCounts = async () => {
       try {
-        const res = await fetch(`${apiUrl}${apiPath}/stats/daily-counts?days=14&fecha_campo=${fechaCampo}`, { credentials: 'include' });
+        // Build URL with jurisdiction filtering
+        let url = `${apiUrl}${apiPath}/stats/daily-counts?days=14&fecha_campo=${fechaCampo}`;
+        if (jurisdiccionMode === 'nacional') {
+          url += '&only_national=true';
+        } else if (jurisdiccionMode === 'mendoza') {
+          url += '&jurisdiccion=Mendoza';
+        }
+        // If 'all', no additional filtering
+
+        const res = await fetch(url, { credentials: 'include' });
         if (res.ok) {
           const data = await res.json();
           setCounts(data.counts || {});
@@ -30,7 +47,7 @@ const DailyDigestStrip = ({ apiUrl, apiPath = '/api/licitaciones', onDaySelect, 
       }
     };
     fetchCounts();
-  }, [apiUrl, apiPath, fechaCampo]);
+  }, [apiUrl, apiPath, fechaCampo, jurisdiccionMode]);
 
   const days = Array.from({ length: 14 }, (_, i) => {
     const d = subDays(new Date(), i);

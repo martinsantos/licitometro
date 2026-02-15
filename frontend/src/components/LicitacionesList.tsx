@@ -342,6 +342,7 @@ const LicitacionesList = ({
           onDaySelect={handleDaySelect}
           selectedDate={filters.fechaDesde && filters.fechaDesde === filters.fechaHasta ? filters.fechaDesde : null}
           fechaCampo={fechaCampo}
+          jurisdiccionMode={filters.jurisdiccionMode}
         />
         <NovedadesStrip apiUrl={apiUrl} apiPath={apiPath} onSourceClick={handleSourceClick} />
       </div>
