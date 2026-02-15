@@ -1,0 +1,129 @@
+name: PR Guard - Block Failed PRs
+
+on:
+  workflow_run:
+    workflows: ["CI Checks"]
+    types: [completed]
+
+permissions:
+  pull-requests: write
+  contents: read
+  checks: read
+
+jobs:
+  guard:
+    name: Guard PR from Merge
+    runs-on: ubuntu-latest
+    if: github.event.workflow_run.event == 'pull_request'
+
+    steps:
+      - name: Get PR number
+        id: pr
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const pullRequests = await github.rest.pulls.list({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              state: 'open',
+              head: `${context.repo.owner}:${context.payload.workflow_run.head_branch}`
+            });
+
+            if (pullRequests.data.length > 0) {
+              const prNumber = pullRequests.data[0].number;
+              core.setOutput('number', prNumber);
+              core.setOutput('found', 'true');
+            } else {
+              core.setOutput('found', 'false');
+            }
+
+      - name: Block PR if CI failed
+        if: steps.pr.outputs.found == 'true' && github.event.workflow_run.conclusion == 'failure'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const prNumber = ${{ steps.pr.outputs.number }};
+
+            // Add blocking label
+            await github.rest.issues.addLabels({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: prNumber,
+              labels: ['⛔ DO NOT MERGE - Build Failed']
+            });
+
+            // Comment with critical error
+            const comment = `## ⛔ CRITICAL: Build Failed - DO NOT MERGE
+
+            **The CI checks have failed for this PR.**
+
+            ❌ **Build Status**: FAILED
+            🔗 **Workflow Run**: [View logs](${context.payload.workflow_run.html_url})
+
+            ### ⚠️ WARNING
+
+            **DO NOT merge this PR until the build is fixed.**
+
+            Merging broken code will:
+            - Break production deployment
+            - Cause downtime
+            - Require emergency hotfix
+
+            ### ✅ To fix:
+
+            1. Check the [CI logs](${context.payload.workflow_run.html_url}) for errors
+            2. Fix the build errors locally
+            3. Push the fix to this branch
+            4. Wait for CI to pass (green checkmark)
+            5. Only then merge the PR
+
+            ---
+
+            🤖 This is an automated check. Once CI passes, this label will be removed automatically.`;
+
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: prNumber,
+              body: comment
+            });
+
+      - name: Unblock PR if CI passed
+        if: steps.pr.outputs.found == 'true' && github.event.workflow_run.conclusion == 'success'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const prNumber = ${{ steps.pr.outputs.number }};
+
+            // Remove blocking label
+            try {
+              await github.rest.issues.removeLabel({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: prNumber,
+                name: '⛔ DO NOT MERGE - Build Failed'
+              });
+            } catch (error) {
+              // Label might not exist, ignore
+            }
+
+            // Comment success
+            const comment = `## ✅ Build Passed - Ready to Merge
+
+            **The CI checks have passed!**
+
+            ✅ **Build Status**: SUCCESS
+            🔗 **Workflow Run**: [View logs](${context.payload.workflow_run.html_url})
+
+            This PR is now safe to merge. 🎉
+
+            ---
+
+            🤖 Automated check completed successfully.`;
+
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: prNumber,
+              body: comment
+            });

@@ -1,0 +1,173 @@
+name: Main Guard - Auto Revert Broken Builds
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: write
+  issues: write
+
+jobs:
+  verify-and-revert:
+    name: Verify Build or Revert
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check if should skip
+        id: should_skip
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const message = context.payload.head_commit.message;
+            const skip = message.includes('[skip-guard]') || message.startsWith('Revert');
+            core.setOutput('skip', skip.toString());
+
+      - name: Checkout code
+        if: steps.should_skip.outputs.skip != 'true'
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Setup Node.js
+        if: steps.should_skip.outputs.skip != 'true'
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+          cache: 'npm'
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install frontend dependencies
+        if: steps.should_skip.outputs.skip != 'true'
+        working-directory: frontend
+        run: npm ci
+
+      - name: Build frontend
+        if: steps.should_skip.outputs.skip != 'true'
+        id: build
+        working-directory: frontend
+        continue-on-error: true
+        run: npm run build
+        env:
+          CI: true
+          REACT_APP_BACKEND_URL: ""
+
+      - name: Check Python syntax
+        if: steps.should_skip.outputs.skip != 'true'
+        id: python
+        continue-on-error: true
+        working-directory: backend
+        run: python -m py_compile server.py
+
+      - name: Auto-revert if build failed
+        if: |
+          steps.should_skip.outputs.skip != 'true' &&
+          (steps.build.outcome == 'failure' || steps.python.outcome == 'failure')
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const commitSha = context.sha;
+            const commitMessage = context.payload.head_commit.message;
+            const commitAuthor = context.payload.head_commit.author.name;
+            const commitEmail = context.payload.head_commit.author.email;
+            const firstLine = commitMessage.split('\n')[0].substring(0, 60);
+
+            console.log('❌ Build failed! Creating revert commit...');
+
+            const revertMessage = `Revert "${firstLine}"
+
+            This reverts commit ${commitSha}.
+
+            Reason: Build verification failed on main branch.
+            - Frontend build: ${{ steps.build.outcome }}
+            - Python syntax: ${{ steps.python.outcome }}
+
+            ⚠️ AUTOMATIC REVERT by Main Guard
+
+            Author of reverted commit: ${commitAuthor}
+            Please fix the build errors and try again.
+            Check the CI logs: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}
+
+            [skip-guard]`;
+
+            const { data: commit } = await github.rest.git.getCommit({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              commit_sha: commitSha
+            });
+
+            const parentSha = commit.parents[0].sha;
+            const { data: parentCommit } = await github.rest.git.getCommit({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              commit_sha: parentSha
+            });
+
+            const { data: newCommit } = await github.rest.git.createCommit({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              message: revertMessage,
+              tree: parentCommit.tree.sha,
+              parents: [commitSha]
+            });
+
+            await github.rest.git.updateRef({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              ref: 'heads/main',
+              sha: newCommit.sha,
+              force: false
+            });
+
+            console.log(`✅ Reverted ${commitSha.substring(0, 7)} with ${newCommit.sha.substring(0, 7)}`);
+
+            const issueBody = `## 🚨 Automatic Revert: Build Failed on Main
+
+            **A commit was automatically reverted because it broke the build.**
+
+            ### Reverted Commit
+            - **SHA**: \`${commitSha.substring(0, 7)}\`
+            - **Message**: ${firstLine}
+            - **Author**: ${commitAuthor} <${commitEmail}>
+            - **Revert SHA**: \`${newCommit.sha.substring(0, 7)}\`
+
+            ### Build Errors
+            - Frontend build: **${{ steps.build.outcome }}**
+            - Python syntax: **${{ steps.python.outcome }}**
+
+            ### Action Required
+
+            Please:
+            1. Check the [build logs](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }})
+            2. Fix the errors locally
+            3. Test with \`CI=true npm run build\` before pushing
+            4. Create a new PR with the fix
+
+            ### Prevention
+
+            To prevent this in the future:
+            - Always test locally before pushing
+            - Wait for CI checks to pass on PRs
+            - Look for the ⛔ DO NOT MERGE label
+
+            ---
+
+            🤖 Automated by Main Guard • [View workflow](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }})`;
+
+            await github.rest.issues.create({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              title: `🚨 Auto-revert: ${firstLine}`,
+              body: issueBody,
+              labels: ['auto-revert', 'build-failure', 'urgent']
+            });
+
+            core.setFailed('Build failed on main - commit was auto-reverted');
+
+      - name: Notify success
+        if: |
+          steps.should_skip.outputs.skip != 'true' &&
+          steps.build.outcome == 'success' &&
+          steps.python.outcome == 'success'
+        run: echo "✅ Build verification passed on main branch"

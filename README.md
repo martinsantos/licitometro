@@ -1,8 +1,8 @@
 # Licitometro
 
-[![Preview Environment](https://github.com/martinsantos/licitometro/actions/workflows/preview.yml/badge.svg)](https://github.com/martinsantos/licitometro/actions/workflows/preview.yml)
+[![CI Checks](https://github.com/martinsantos/licitometro/actions/workflows/ci.yml/badge.svg)](https://github.com/martinsantos/licitometro/actions/workflows/ci.yml)
+[![Main Guard](https://github.com/martinsantos/licitometro/actions/workflows/main-guard.yml/badge.svg)](https://github.com/martinsantos/licitometro/actions/workflows/main-guard.yml)
 [![Production Deployment](https://github.com/martinsantos/licitometro/actions/workflows/production.yml/badge.svg)](https://github.com/martinsantos/licitometro/actions/workflows/production.yml)
-[![Cleanup Preview](https://github.com/martinsantos/licitometro/actions/workflows/cleanup.yml/badge.svg)](https://github.com/martinsantos/licitometro/actions/workflows/cleanup.yml)
 
 **Plataforma de monitoreo de licitaciones públicas de Mendoza, Argentina**
 
