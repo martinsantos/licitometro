@@ -80,6 +80,14 @@ async def login(body: LoginRequest, request: Request):
 @router.get("/check")
 async def check_auth(request: Request):
     """Check if the current session is authenticated. Returns role and email."""
+    # If DISABLE_AUTH is active, middleware already set user_role/user_email
+    if hasattr(request.state, "user_role") and request.state.user_role:
+        return {
+            "authenticated": True,
+            "role": request.state.user_role,
+            "email": getattr(request.state, "user_email", ""),
+        }
+
     token = request.cookies.get("access_token")
     if not token:
         return JSONResponse(status_code=401, content={"authenticated": False})
