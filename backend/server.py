@@ -64,7 +64,15 @@ async def auth_middleware(request: Request, call_next):
     """Require authentication for all API routes except exempt ones.
     Non-GET requests require admin role.
     GET requests to licitaciones are public (no auth required).
+
+    Can be disabled entirely with DISABLE_AUTH=true env var (for previews/testing).
     """
+    # Disable auth completely if DISABLE_AUTH is set (previews/testing)
+    if os.environ.get("DISABLE_AUTH", "").lower() == "true":
+        request.state.user_role = "admin"
+        request.state.user_email = "preview@licitometro.ar"
+        return await call_next(request)
+
     path = request.url.path
 
     # Skip auth for non-API routes, exempt paths, and public API
