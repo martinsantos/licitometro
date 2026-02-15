@@ -1,4 +1,5 @@
 import React, { useCallback } from 'react';
+import { Link } from 'react-router-dom';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
 import WorkflowBadge from '../WorkflowBadge';
@@ -186,8 +187,14 @@ const LicitacionCard: React.FC<LicitacionCardProps> = ({
               )}
 
               {/* Descriptive title = main heading */}
-              <h3 className="text-base font-black text-gray-900 group-hover:text-blue-700 leading-tight mb-1.5 line-clamp-2">
-                {searchQuery ? highlightMatches(lic.objeto || lic.title, searchQuery) : (lic.objeto || lic.title)}
+              <h3 className="text-base font-black text-gray-900 leading-tight mb-1.5 line-clamp-2">
+                <Link
+                  to={`/licitacion/${lic.id}`}
+                  className="hover:text-blue-700 transition-colors"
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  {searchQuery ? highlightMatches(lic.objeto || lic.title, searchQuery) : (lic.objeto || lic.title)}
+                </Link>
               </h3>
 
               {/* Organization + meta */}
