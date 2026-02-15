@@ -54,8 +54,9 @@ const SortDropdown: React.FC<SortDropdownProps> = ({ sortBy, sortOrder, onSortCh
           </svg>
         </button>
 
+        {/* Desktop dropdown */}
         {open && (
-          <div className="absolute right-0 top-full mt-1 bg-white border border-gray-200 rounded-xl shadow-lg z-40 w-44 py-1">
+          <div className="hidden sm:block absolute right-0 top-full mt-1 bg-white border border-gray-200 rounded-xl shadow-lg z-40 w-44 py-1">
             <div className="px-3 py-1 text-[10px] font-bold text-gray-400 uppercase">Ordenar por</div>
             {SORT_OPTIONS.map((opt) => (
               <button
@@ -75,6 +76,48 @@ const SortDropdown: React.FC<SortDropdownProps> = ({ sortBy, sortOrder, onSortCh
                 <span className={sortBy !== opt.value ? 'ml-5.5' : ''}>{opt.label}</span>
               </button>
             ))}
+          </div>
+        )}
+
+        {/* Mobile bottom sheet */}
+        {open && (
+          <div className="sm:hidden fixed inset-0 bg-black/50 z-50 flex items-end" onClick={() => setOpen(false)}>
+            <div className="bg-white rounded-t-2xl w-full max-h-[70vh] overflow-auto" onClick={(e) => e.stopPropagation()}>
+              {/* Header */}
+              <div className="sticky top-0 bg-white border-b border-gray-200 px-4 py-3 flex items-center justify-between">
+                <h3 className="text-base font-bold text-gray-900">Ordenar por</h3>
+                <button
+                  onClick={() => setOpen(false)}
+                  className="p-1 hover:bg-gray-100 rounded-lg transition-colors"
+                >
+                  <svg className="w-5 h-5 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              </div>
+
+              {/* Options */}
+              <div className="p-2">
+                {SORT_OPTIONS.map((opt) => (
+                  <button
+                    key={opt.value}
+                    className={`w-full px-4 py-3 text-left rounded-xl flex items-center gap-3 transition-colors ${
+                      sortBy === opt.value
+                        ? 'bg-emerald-50 text-emerald-700 font-bold'
+                        : 'text-gray-700 hover:bg-gray-50'
+                    }`}
+                    onClick={() => { onSortChange(opt.value); setOpen(false); }}
+                  >
+                    {sortBy === opt.value && (
+                      <svg className="w-5 h-5 text-emerald-500 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M5 13l4 4L19 7" />
+                      </svg>
+                    )}
+                    <span className={`text-base ${sortBy !== opt.value ? 'ml-8' : ''}`}>{opt.label}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
           </div>
         )}
       </div>
