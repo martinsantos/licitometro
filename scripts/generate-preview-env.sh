@@ -38,7 +38,7 @@ if [ ! -f ".env.preview.template" ]; then
 fi
 
 ENV_FILE="${OUTPUT_DIR}/.env.preview-${PR_NUMBER}"
-sed "s/PR_NUMBER/${PR_NUMBER}/g" .env.preview.template > "$ENV_FILE"
+sed -e "s/PR_NUMBER/${PR_NUMBER}/g" -e "s/PR_PORT/${PR_PORT}/g" .env.preview.template > "$ENV_FILE"
 echo "✓ Created $ENV_FILE"
 
 # Generate docker-compose file
@@ -64,7 +64,6 @@ done
 
 if [ -n "$PROD_ENV" ]; then
     JWT_SECRET=$(grep "^JWT_SECRET_KEY=" "$PROD_ENV" | cut -d'=' -f2-)
-    AUTH_HASH=$(grep "^AUTH_PASSWORD_HASH=" "$PROD_ENV" | cut -d'=' -f2-)
 
     if [ -n "$JWT_SECRET" ]; then
         sed -i.bak "s|JWT_SECRET_KEY=CHANGE_ME_random_64_hex|JWT_SECRET_KEY=${JWT_SECRET}|" "$ENV_FILE"
@@ -72,19 +71,10 @@ if [ -n "$PROD_ENV" ]; then
         echo "✓ Copied JWT_SECRET_KEY from production"
     fi
 
-    if [ -n "$AUTH_HASH" ]; then
-        # Remove DISABLE_AUTH since we have real credentials
-        sed -i.bak "/^DISABLE_AUTH=true/d" "$ENV_FILE"
-        rm "${ENV_FILE}.bak"
-        sed -i.bak "s|AUTH_PASSWORD_HASH=CHANGE_ME_bcrypt_hash|AUTH_PASSWORD_HASH=${AUTH_HASH}|" "$ENV_FILE"
-        rm "${ENV_FILE}.bak"
-        echo "✓ Copied AUTH_PASSWORD_HASH from production (auth enabled)"
-    else
-        echo "⚠ AUTH_PASSWORD_HASH not found — DISABLE_AUTH=true remains active"
-    fi
+    # Always keep DISABLE_AUTH=true for previews — no login friction for testing
+    echo "✓ DISABLE_AUTH=true kept active (preview mode, no login required)"
 else
-    echo "⚠ No production .env found, enabling DISABLE_AUTH for preview"
-    echo "DISABLE_AUTH=true" >> "$ENV_FILE"
+    echo "⚠ No production .env found, DISABLE_AUTH=true already active"
 fi
 
 echo ""
