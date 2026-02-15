@@ -226,6 +226,146 @@ async def get_ar_stats(request: Request):
     }
 
 
+@router.get("/stats/daily-counts")
+async def get_ar_daily_counts(
+    days: int = Query(14, ge=1, le=30),
+    fecha_campo: str = Query("publication_date"),
+    request: Request = None,
+):
+    """Daily counts for AR items only."""
+    allowed_date_fields = [
+        "publication_date", "opening_date", "expiration_date",
+        "created_at", "fecha_scraping", "first_seen_at",
+    ]
+    if fecha_campo not in allowed_date_fields:
+        fecha_campo = "publication_date"
+
+    db = request.app.mongodb
+    col = db.licitaciones
+    base = _ar_base_filters()
+
+    start_date = datetime.combine(date.today() - timedelta(days=days - 1), datetime.min.time())
+
+    pipeline = [
+        {"$match": {**base, fecha_campo: {"$gte": start_date}}},
+        {"$group": {
+            "_id": {"$dateToString": {"format": "%Y-%m-%d", "date": f"${fecha_campo}"}},
+            "count": {"$sum": 1},
+        }},
+        {"$sort": {"_id": 1}},
+    ]
+
+    results = await col.aggregate(pipeline).to_list(length=days + 1)
+    counts = {r["_id"]: r["count"] for r in results}
+
+    return {"days": days, "fecha_campo": fecha_campo, "counts": counts}
+
+
+@router.get("/stats/scraping-activity")
+async def get_ar_scraping_activity(request: Request, hours: int = 24):
+    """Scraping activity for AR items only."""
+    db = request.app.mongodb
+    col = db.licitaciones
+    base = _ar_base_filters()
+
+    since = datetime.utcnow() - timedelta(hours=hours)
+
+    # Truly new
+    truly_new_pipeline = [
+        {"$match": {**base, "first_seen_at": {"$gte": since}}},
+        {"$group": {"_id": "$fuente", "count": {"$sum": 1}}},
+    ]
+    truly_new_results = await col.aggregate(truly_new_pipeline).to_list(100)
+    truly_new_by_source = {r["_id"]: r["count"] for r in truly_new_results}
+    total_truly_new = sum(truly_new_by_source.values())
+
+    # Re-indexed
+    re_indexed_pipeline = [
+        {"$match": {
+            **base,
+            "fecha_scraping": {"$gte": since},
+            "$or": [
+                {"first_seen_at": {"$lt": since}},
+                {"first_seen_at": {"$exists": False}},
+            ],
+        }},
+        {"$group": {"_id": "$fuente", "count": {"$sum": 1}}},
+    ]
+    re_indexed_results = await col.aggregate(re_indexed_pipeline).to_list(100)
+    re_indexed_by_source = {r["_id"]: r["count"] for r in re_indexed_results}
+    total_re_indexed = sum(re_indexed_by_source.values())
+
+    # Updated
+    updated_pipeline = [
+        {"$match": {
+            **base,
+            "updated_at": {"$gte": since},
+            "created_at": {"$lt": since},
+            "$or": [
+                {"fecha_scraping": {"$lt": since}},
+                {"fecha_scraping": {"$exists": False}},
+            ],
+        }},
+        {"$group": {"_id": "$fuente", "count": {"$sum": 1}}},
+    ]
+    updated_results = await col.aggregate(updated_pipeline).to_list(100)
+    updated_by_source = {r["_id"]: r["count"] for r in updated_results}
+    total_updated = sum(updated_by_source.values())
+
+    # Combine by source
+    all_sources = set(truly_new_by_source) | set(re_indexed_by_source) | set(updated_by_source)
+    by_source = sorted(
+        [
+            {
+                "fuente": s or "Desconocida",
+                "truly_new": truly_new_by_source.get(s, 0),
+                "re_indexed": re_indexed_by_source.get(s, 0),
+                "updated": updated_by_source.get(s, 0),
+            }
+            for s in all_sources
+        ],
+        key=lambda x: x["truly_new"] + x["re_indexed"] + x["updated"],
+        reverse=True,
+    )
+
+    return {
+        "hours": hours,
+        "truly_new": total_truly_new,
+        "re_indexed": total_re_indexed,
+        "updated": total_updated,
+        "by_source": by_source,
+    }
+
+
+@router.get("/stats/truly-new-count")
+async def get_ar_truly_new_count(
+    since_date: date = Query(..., description="Count AR items where first_seen_at >= this date"),
+    request: Request = None,
+):
+    """Count of truly new AR items since given date."""
+    db = request.app.mongodb
+    col = db.licitaciones
+    base = _ar_base_filters()
+
+    since_datetime = datetime.combine(since_date, datetime.min.time())
+
+    count = await col.count_documents({**base, "first_seen_at": {"$gte": since_datetime}})
+
+    pipeline = [
+        {"$match": {**base, "first_seen_at": {"$gte": since_datetime}}},
+        {"$group": {"_id": "$fuente", "count": {"$sum": 1}}},
+        {"$sort": {"count": -1}},
+        {"$limit": 10},
+    ]
+    by_source = [
+        {"fuente": doc["_id"], "count": doc["count"]}
+        async for doc in col.aggregate(pipeline)
+        if doc["_id"]
+    ]
+
+    return {"total": count, "since": since_date.isoformat(), "by_source": by_source}
+
+
 @router.get("/facets")
 async def get_ar_facets(
     request: Request,

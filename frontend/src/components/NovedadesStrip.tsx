@@ -17,10 +17,11 @@ interface ScrapingActivity {
 
 interface NovedadesStripProps {
   apiUrl: string;
+  apiPath?: string;
   onSourceClick?: (fuente: string) => void;
 }
 
-const NovedadesStrip: React.FC<NovedadesStripProps> = ({ apiUrl, onSourceClick }) => {
+const NovedadesStrip: React.FC<NovedadesStripProps> = ({ apiUrl, apiPath = '/api/licitaciones', onSourceClick }) => {
   const [activity, setActivity] = useState<ScrapingActivity | null>(null);
   const [hours, setHours] = useState(24);
   const [expanded, setExpanded] = useState(false);
@@ -30,7 +31,7 @@ const NovedadesStrip: React.FC<NovedadesStripProps> = ({ apiUrl, onSourceClick }
     const fetchActivity = async () => {
       setLoading(true);
       try {
-        const res = await fetch(`${apiUrl}/api/licitaciones/stats/scraping-activity?hours=${hours}`, { credentials: 'include' });
+        const res = await fetch(`${apiUrl}${apiPath}/stats/scraping-activity?hours=${hours}`, { credentials: 'include' });
         if (res.ok) {
           const data = await res.json();
           setActivity(data);
@@ -42,7 +43,7 @@ const NovedadesStrip: React.FC<NovedadesStripProps> = ({ apiUrl, onSourceClick }
       }
     };
     fetchActivity();
-  }, [apiUrl, hours]);
+  }, [apiUrl, apiPath, hours]);
 
   const hasActivity = !loading && activity && (activity.truly_new > 0 || activity.re_indexed > 0 || activity.updated > 0);
   const totalActivity = activity ? activity.truly_new + activity.re_indexed + activity.updated : 0;
