@@ -167,6 +167,9 @@ class PbacBuenosAiresScraper(BaseScraper):
             )
             estado = self._compute_estado(publication_date, opening_date_resolved)
 
+            from utils.object_extractor import extract_objeto
+            objeto = extract_objeto(title, "", "Compra Electrónica")
+
             return LicitacionCreate(
                 id_licitacion=f"pbac-ba-{id_suffix}",
                 title=title,
@@ -181,6 +184,7 @@ class PbacBuenosAiresScraper(BaseScraper):
                 jurisdiccion="Buenos Aires",
                 tipo_procedimiento="Compra Electrónica",
                 estado=estado,
+                objeto=objeto,
                 fecha_prorroga=None,
                 status="active",
             )

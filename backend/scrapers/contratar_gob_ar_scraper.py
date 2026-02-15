@@ -157,6 +157,13 @@ class ContratarGobArScraper(BaseScraper):
             )
             estado = self._compute_estado(publication_date, opening_date_resolved)
 
+            from utils.object_extractor import extract_objeto
+            description_text = ""
+            desc_cell = cells[1] if len(cells) > 1 else None
+            if desc_cell:
+                description_text = desc_cell.get_text(strip=True)[:500]
+            objeto = extract_objeto(title, description_text, "Obra Pública")
+
             return LicitacionCreate(
                 id_licitacion=f"contratar-{id_suffix}",
                 title=title[:500],
@@ -170,6 +177,7 @@ class ContratarGobArScraper(BaseScraper):
                 jurisdiccion="Nacional",
                 tipo_procedimiento="Obra Pública",
                 estado=estado,
+                objeto=objeto,
                 fecha_prorroga=None,
                 status="active",
             )

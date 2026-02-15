@@ -131,6 +131,9 @@ class BancoMundialScraper(BaseScraper):
             )
             estado = self._compute_estado(publication_date, opening_date)
 
+            from utils.object_extractor import extract_objeto
+            objeto = extract_objeto(title, description[:500] if description else "", notice_type)
+
             return LicitacionCreate(
                 id_licitacion=f"wb-{notice_id}",
                 title=title[:500],
@@ -143,6 +146,7 @@ class BancoMundialScraper(BaseScraper):
                 jurisdiccion="Internacional",
                 tipo_procedimiento=notice_type,
                 estado=estado,
+                objeto=objeto,
                 fecha_prorroga=None,
                 status="active",
                 metadata={

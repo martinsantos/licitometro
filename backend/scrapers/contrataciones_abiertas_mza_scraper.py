@@ -137,6 +137,9 @@ class ContratacionesAbiertasMzaScraper(BaseScraper):
             )
             estado = self._compute_estado(publication_date, opening_date)
 
+            from utils.object_extractor import extract_objeto
+            objeto = extract_objeto(title, description[:500] if description else "", proc_method_detail or proc_method)
+
             return LicitacionCreate(
                 id_licitacion=id_licitacion,
                 title=title[:500],
@@ -151,6 +154,7 @@ class ContratacionesAbiertasMzaScraper(BaseScraper):
                 jurisdiccion="Mendoza",
                 tipo_procedimiento=proc_method_detail or proc_method,
                 estado=estado,
+                objeto=objeto,
                 fecha_prorroga=None,
                 status="active",
                 metadata={
