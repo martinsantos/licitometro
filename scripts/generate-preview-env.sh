@@ -52,9 +52,19 @@ sed -e "s/PR_NUMBER/${PR_NUMBER}/g" -e "s/PR_PORT/${PR_PORT}/g" docker-compose.p
 echo "✓ Created $COMPOSE_FILE"
 
 # Copy production secrets if available (JWT_SECRET, AUTH_PASSWORD_HASH)
-if [ -f ".env.production" ]; then
-    JWT_SECRET=$(grep "^JWT_SECRET_KEY=" .env.production | cut -d'=' -f2-)
-    AUTH_HASH=$(grep "^AUTH_PASSWORD_HASH=" .env.production | cut -d'=' -f2-)
+# Look in current dir, parent dir, and main production dir
+PROD_ENV=""
+for candidate in ".env.production" "../.env.production" "/opt/licitometro/.env.production" "/opt/licitometro/.env"; do
+    if [ -f "$candidate" ]; then
+        PROD_ENV="$candidate"
+        echo "  Found production env: $candidate"
+        break
+    fi
+done
+
+if [ -n "$PROD_ENV" ]; then
+    JWT_SECRET=$(grep "^JWT_SECRET_KEY=" "$PROD_ENV" | cut -d'=' -f2-)
+    AUTH_HASH=$(grep "^AUTH_PASSWORD_HASH=" "$PROD_ENV" | cut -d'=' -f2-)
 
     if [ -n "$JWT_SECRET" ]; then
         sed -i.bak "s|JWT_SECRET_KEY=CHANGE_ME_random_64_hex|JWT_SECRET_KEY=${JWT_SECRET}|" "$ENV_FILE"
@@ -63,10 +73,18 @@ if [ -f ".env.production" ]; then
     fi
 
     if [ -n "$AUTH_HASH" ]; then
+        # Remove DISABLE_AUTH since we have real credentials
+        sed -i.bak "/^DISABLE_AUTH=true/d" "$ENV_FILE"
+        rm "${ENV_FILE}.bak"
         sed -i.bak "s|AUTH_PASSWORD_HASH=CHANGE_ME_bcrypt_hash|AUTH_PASSWORD_HASH=${AUTH_HASH}|" "$ENV_FILE"
         rm "${ENV_FILE}.bak"
-        echo "✓ Copied AUTH_PASSWORD_HASH from production"
+        echo "✓ Copied AUTH_PASSWORD_HASH from production (auth enabled)"
+    else
+        echo "⚠ AUTH_PASSWORD_HASH not found — DISABLE_AUTH=true remains active"
     fi
+else
+    echo "⚠ No production .env found, enabling DISABLE_AUTH for preview"
+    echo "DISABLE_AUTH=true" >> "$ENV_FILE"
 fi
 
 echo ""
