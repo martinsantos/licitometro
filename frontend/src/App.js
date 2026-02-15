@@ -18,6 +18,7 @@ import AdminPage from "./pages/AdminPage";
 import ScraperFormPage from "./pages/ScraperFormPage";
 import OfferTemplatesPage from "./pages/OfferTemplatesPage";
 import NodosPage from "./pages/NodosPage";
+import LicitacionesARPage from "./pages/LicitacionesARPage";
 import LoginPage from "./pages/LoginPage";
 import PublicLicitacionPage from "./pages/PublicLicitacionPage";
 import PublicListPage from "./pages/PublicListPage";
@@ -44,6 +45,7 @@ const AuthenticatedApp = ({ userRole }) => (
         <Route path="/admin/licitacion/:id" element={userRole === 'admin' ? <LicitacionDetailPage userRole={userRole} /> : <Navigate to="/licitaciones" />} />
         <Route path="/admin/scraper/:id" element={userRole === 'admin' ? <ScraperFormPage /> : <Navigate to="/licitaciones" />} />
         <Route path="/templates" element={userRole === 'admin' ? <OfferTemplatesPage /> : <Navigate to="/licitaciones" />} />
+        <Route path="/licitaciones-ar" element={<LicitacionesARPage />} />
         <Route path="/nodos" element={userRole === 'admin' ? <NodosPage /> : <Navigate to="/licitaciones" />} />
       </Routes>
     </main>

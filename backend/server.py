@@ -14,7 +14,7 @@ import uvicorn
 sys.path.insert(0, str(Path(__file__).parent))
 
 # Import routers directly (not as relative imports)
-from routers import licitaciones, scraper_configs, comprar, scheduler, workflow, offer_templates, auth, public, nodos
+from routers import licitaciones, licitaciones_ar, scraper_configs, comprar, scheduler, workflow, offer_templates, auth, public, nodos
 from services.auth_service import verify_token
 
 # Load environment variables
@@ -79,8 +79,8 @@ async def auth_middleware(request: Request, call_next):
     if not path.startswith("/api") or path in AUTH_EXEMPT_PATHS or path.startswith("/api/public/"):
         return await call_next(request)
 
-    # Allow public GET access to licitaciones endpoints
-    if request.method == "GET" and path.startswith("/api/licitaciones"):
+    # Allow public GET access to licitaciones endpoints (both main and AR)
+    if request.method == "GET" and (path.startswith("/api/licitaciones") or path.startswith("/api/licitaciones-ar")):
         return await call_next(request)
 
     token = request.cookies.get("access_token")
@@ -113,6 +113,7 @@ database = client[DB_NAME]
 # Include routers
 app.include_router(auth.router)
 app.include_router(licitaciones.router)
+app.include_router(licitaciones_ar.router)
 app.include_router(scraper_configs.router)
 app.include_router(comprar.router)
 app.include_router(scheduler.router)

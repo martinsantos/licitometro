@@ -41,6 +41,16 @@ from .mpf_mendoza_scraper import MpfMendozaScraper
 # Generic HTML scraper for config-driven sites
 from .generic_html_scraper import GenericHtmlScraper
 
+# === NATIONAL / AR SCRAPERS ===
+from .datos_argentina_scraper import DatosArgentinaScraper
+from .banco_mundial_scraper import BancoMundialScraper
+from .bid_scraper import BidScraper
+from .contrataciones_abiertas_mza_scraper import ContratacionesAbiertasMzaScraper
+from .santa_fe_scraper import SantaFeScraper
+from .contratar_gob_ar_scraper import ContratarGobArScraper
+from .boletin_oficial_nacional_scraper import BoletinOficialNacionalScraper
+from .pbac_buenos_aires_scraper import PbacBuenosAiresScraper
+
 logger = logging.getLogger("scraper_factory")
 
 
@@ -126,9 +136,49 @@ def create_scraper(config: ScraperConfig) -> Optional[BaseScraper]:
     if "mendoza.gov.ar" in config_url_lower:
         return MendozaCompraScraper(config)
 
-    # === OTRAS PROVINCIAS ===
+    # === NACIONAL / AR SOURCES ===
 
-    # Comprar.gob.ar (nacional)
+    # Datos Argentina CKAN API
+    if "datos.gob.ar" in config_url_lower or "datos_argentina" in config_name_lower:
+        logger.info(f"Using DatosArgentinaScraper for {config.name}")
+        return DatosArgentinaScraper(config)
+
+    # Contrataciones Abiertas Mendoza (OCDS API)
+    if "datosabiertos-compras.mendoza" in config_url_lower or "contrataciones_abiertas" in config_name_lower:
+        logger.info(f"Using ContratacionesAbiertasMzaScraper for {config.name}")
+        return ContratacionesAbiertasMzaScraper(config)
+
+    # World Bank Procurement API
+    if "worldbank.org" in config_url_lower or "banco_mundial" in config_name_lower:
+        logger.info(f"Using BancoMundialScraper for {config.name}")
+        return BancoMundialScraper(config)
+
+    # BID/IDB Procurement DataStore
+    if "data.iadb.org" in config_url_lower or "bid_procurement" in config_name_lower:
+        logger.info(f"Using BidScraper for {config.name}")
+        return BidScraper(config)
+
+    # Santa Fe Province
+    if "santafe.gov.ar" in config_url_lower or "santa_fe" in config_name_lower:
+        logger.info(f"Using SantaFeScraper for {config.name}")
+        return SantaFeScraper(config)
+
+    # CONTRAT.AR (national public works)
+    if "contratar.gob.ar" in config_url_lower or "contratar" in config_name_lower:
+        logger.info(f"Using ContratarGobArScraper for {config.name}")
+        return ContratarGobArScraper(config)
+
+    # Boletín Oficial Nacional (3ra sección)
+    if "boletinoficial.gob.ar" in config_url_lower or "boletin_oficial_nacional" in config_name_lower:
+        logger.info(f"Using BoletinOficialNacionalScraper for {config.name}")
+        return BoletinOficialNacionalScraper(config)
+
+    # PBAC Buenos Aires
+    if "pbac.cgp.gba.gov.ar" in config_url_lower or "pbac" in config_name_lower:
+        logger.info(f"Using PbacBuenosAiresScraper for {config.name}")
+        return PbacBuenosAiresScraper(config)
+
+    # Comprar.gob.ar (nacional - legacy)
     if "comprar.gob.ar" in config_url_lower and "comprar" in config_name_lower:
         return ComprarGobArScraper(config)
 

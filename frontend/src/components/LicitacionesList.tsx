@@ -35,9 +35,10 @@ const deriveFechaCampo = (sortBy: string): string =>
 
 interface LicitacionesListProps {
   apiUrl: string;
+  apiPath?: string; // defaults to '/api/licitaciones'
 }
 
-const LicitacionesList = ({ apiUrl }: LicitacionesListProps) => {
+const LicitacionesList = ({ apiUrl, apiPath = '/api/licitaciones' }: LicitacionesListProps) => {
   const navigate = useNavigate();
   const listTopRef = useRef<HTMLDivElement>(null);
   const hasRestoredScroll = useRef(false);
@@ -76,13 +77,14 @@ const LicitacionesList = ({ apiUrl }: LicitacionesListProps) => {
     busqueda: debouncedBusqueda,
   }), [filters, debouncedBusqueda]);
 
-  const facets = useFacetedFilters(apiUrl, debouncedFilters, fechaCampo);
+  const facets = useFacetedFilters(apiUrl, debouncedFilters, fechaCampo, apiPath);
   const { nodoMap } = useNodos();
 
   const pageSize = 25;
 
   const { licitaciones, paginacion, isInitialLoading, isFetching, error, autoFilters } = useLicitacionData({
     apiUrl,
+    apiPath,
     filters: debouncedFilters,
     sortBy: prefs.sortBy,
     sortOrder: prefs.sortOrder,

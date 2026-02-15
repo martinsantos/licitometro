@@ -109,6 +109,8 @@ async def get_licitaciones(
 
         # Build additional filters
         extra_filters = {}
+        # Exclude LIC_AR items from main feed (they have their own section)
+        extra_filters["tags"] = {"$ne": "LIC_AR"}
         if status: extra_filters["status"] = status
         if organization: extra_filters["organization"] = {"$regex": re.escape(organization), "$options": "i"}
         if category: extra_filters["category"] = category
@@ -162,6 +164,8 @@ async def get_licitaciones(
 
     # Build filter query
     filters = {}
+    # Exclude LIC_AR items from main feed (they have their own section)
+    filters["tags"] = {"$ne": "LIC_AR"}
     if status:
         filters["status"] = status
     if organization:
@@ -290,6 +294,7 @@ async def get_vigentes(
     today = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
 
     filters = {
+        "tags": {"$ne": "LIC_AR"},
         "estado": {"$in": ["vigente", "prorrogada"]},
         "publication_date": {
             "$gte": datetime(2024, 1, 1),
@@ -418,6 +423,8 @@ async def get_facets(
 
     # Build base match from all explicit filters
     base_match: Dict[str, Any] = {}
+    # Exclude LIC_AR items from main feed facets
+    base_match["tags"] = {"$ne": "LIC_AR"}
     if status: base_match["status"] = status
     if organization: base_match["organization"] = {"$regex": re.escape(organization), "$options": "i"}
     if category: base_match["category"] = category

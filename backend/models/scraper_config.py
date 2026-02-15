@@ -40,8 +40,12 @@ class ScraperConfigBase(BaseModel):
         description="Type of source (website, api, file, etc.)"
     )
     document_extraction: Optional[Dict[str, Any]] = Field(
-        None, 
+        None,
         description="Configuration for document extraction"
+    )
+    scope: Optional[str] = Field(
+        None,
+        description="Scope: None=default (Mendoza), ar_nacional=national Argentine sources"
     )
 
 
@@ -64,6 +68,7 @@ class ScraperConfigUpdate(BaseModel):
     max_items: Optional[int] = None
     source_type: Optional[str] = None
     document_extraction: Optional[Dict[str, Any]] = None
+    scope: Optional[str] = None
 
 
 class ScraperConfig(ScraperConfigBase):

@@ -110,6 +110,8 @@ def licitacion_entity(licitacion) -> dict:
         "public_slug": licitacion.get("public_slug"),
         # Nodos
         "nodos": licitacion.get("nodos", []),
+        # Tags
+        "tags": licitacion.get("tags", []),
         # Vigencia
         "estado": licitacion.get("estado", "vigente"),
         "fecha_prorroga": licitacion.get("fecha_prorroga"),
@@ -139,6 +141,7 @@ def scraper_config_entity(config) -> dict:
         "max_items": config.get("max_items"),
         "source_type": config.get("source_type", "website"),
         "document_extraction": config.get("document_extraction"),
+        "scope": config.get("scope"),
         "last_run": config.get("last_run"),
         "runs_count": config.get("runs_count", 0),
         "created_at": config.get("created_at", datetime.utcnow()),

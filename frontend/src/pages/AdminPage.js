@@ -7,6 +7,7 @@ import AdminFuentes from '../components/AdminFuentes';
 import AdminLogs from '../components/AdminLogs';
 import DataQualityDashboard from '../components/DataQualityDashboard';
 import StorageQuotaPanel from '../components/StorageQuotaPanel';
+import AdminARPanel from '../components/admin/AdminARPanel';
 
 const API_URL = '';
 
@@ -18,6 +19,7 @@ const TABS = [
   { key: 'storage', label: 'Almacenamiento' },
   { key: 'scrapers', label: 'Scrapers' },
   { key: 'licitaciones', label: 'Licitaciones' },
+  { key: 'licitaciones-ar', label: 'Lic. AR' },
 ];
 
 const AdminPage = () => {
@@ -122,6 +124,20 @@ const AdminPage = () => {
                 </Link>
               </div>
               <LicitacionAdmin />
+            </div>
+          )}
+
+          {activeTab === 'licitaciones-ar' && (
+            <div>
+              <div className="flex justify-between items-center mb-6">
+                <h2 className="text-base sm:text-lg lg:text-xl font-semibold">
+                  Licitaciones AR
+                  <span className="ml-2 px-2 py-0.5 bg-sky-100 text-sky-800 text-xs font-bold rounded-full">
+                    LIC AR
+                  </span>
+                </h2>
+              </div>
+              <AdminARPanel />
             </div>
           )}
         </div>

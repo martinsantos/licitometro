@@ -13,6 +13,9 @@ const Header = ({ userRole }) => {
   const navLinks = [
     { path: '/', label: 'Inicio' },
     { path: '/licitaciones', label: 'Licitaciones' },
+    { path: '/licitaciones-ar', label: 'Lic. AR', icon: (
+      <span className="px-1 py-0.5 bg-sky-500 text-white text-[8px] font-bold rounded leading-none">AR</span>
+    )},
     { path: '/favoritos', label: 'Favoritos', icon: (
       <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
         <path d="M5 5a2 2 0 012-2h10a2 2 0 012 2v16l-7-3.5L5 21V5z" />

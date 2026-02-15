@@ -3,6 +3,7 @@ import type { Licitacion, Paginacion, FilterState, SortField, SortOrder, AutoFil
 
 interface UseLicitacionDataArgs {
   apiUrl: string;
+  apiPath?: string; // defaults to '/api/licitaciones'
   filters: FilterState;
   sortBy: SortField;
   sortOrder: SortOrder;
@@ -21,7 +22,7 @@ interface UseLicitacionDataResult {
 }
 
 export function useLicitacionData({
-  apiUrl, filters, sortBy, sortOrder, pagina, pageSize = 15, fechaCampo,
+  apiUrl, apiPath = '/api/licitaciones', filters, sortBy, sortOrder, pagina, pageSize = 15, fechaCampo,
 }: UseLicitacionDataArgs): UseLicitacionDataResult {
   const [licitaciones, setLicitaciones] = useState<Licitacion[]>([]);
   const [paginacion, setPaginacion] = useState<Paginacion | null>(null);
@@ -72,7 +73,7 @@ export function useLicitacionData({
       if (filters.nuevasDesde) params.append('nuevas_desde', filters.nuevasDesde);
       if (fechaCampo) params.append('fecha_campo', fechaCampo);
 
-      const response = await fetch(`${apiUrl}/api/licitaciones/?${params.toString()}`, {
+      const response = await fetch(`${apiUrl}${apiPath}/?${params.toString()}`, {
         signal: controller.signal,
         credentials: 'include',
       });
@@ -101,7 +102,7 @@ export function useLicitacionData({
         setIsFetching(false);
       }
     }
-  }, [apiUrl, pagina, pageSize, sortBy, sortOrder, filters, fechaCampo]);
+  }, [apiUrl, apiPath, pagina, pageSize, sortBy, sortOrder, filters, fechaCampo]);
 
   useEffect(() => {
     fetchData();
