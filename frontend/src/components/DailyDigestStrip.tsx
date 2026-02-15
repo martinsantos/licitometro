@@ -124,10 +124,15 @@ const DailyDigestStrip = ({ apiUrl, onDaySelect, selectedDate, fechaCampo }: Dai
       {/* Expandable day strip */}
       <div
         className="transition-all duration-300 overflow-hidden"
-        style={{ maxHeight: expanded ? '120px' : '0px', opacity: expanded ? 1 : 0 }}
+        style={{ maxHeight: expanded ? '140px' : '0px', opacity: expanded ? 1 : 0 }}
       >
-        <div className="px-3 pb-3 pt-1 border-t border-gray-50">
-          <div className="flex gap-1 overflow-x-auto pb-1 scrollbar-thin">
+        <div className="px-3 pb-3 pt-2 border-t border-gray-50">
+          {/* Mobile hint: scroll indicator */}
+          <div className="flex items-center justify-between mb-1">
+            <span className="text-[10px] text-gray-500 font-medium">Últimos 14 días</span>
+            <span className="text-[9px] text-gray-400">← Deslizar →</span>
+          </div>
+          <div className="flex gap-1.5 sm:gap-1 overflow-x-auto pb-1 scrollbar-thin">
             {days.map((dateStr) => {
               const count = counts[dateStr] || 0;
               const isToday = dateStr === today;
@@ -139,7 +144,7 @@ const DailyDigestStrip = ({ apiUrl, onDaySelect, selectedDate, fechaCampo }: Dai
                 <button
                   key={dateStr}
                   onClick={() => onDaySelect(isSelected ? null : dateStr)}
-                  className={`flex flex-col items-center justify-end min-w-[2.5rem] p-1 rounded-lg transition-all ${
+                  className={`flex flex-col items-center justify-end min-w-[3.5rem] sm:min-w-[2.5rem] p-1.5 sm:p-1 rounded-lg transition-all ${
                     isSelected
                       ? 'bg-emerald-100 ring-2 ring-emerald-500'
                       : isToday
@@ -149,14 +154,14 @@ const DailyDigestStrip = ({ apiUrl, onDaySelect, selectedDate, fechaCampo }: Dai
                   title={`${format(d, 'EEEE d MMMM', { locale: es })}: ${count} licitaciones`}
                 >
                   {count > 0 && (
-                    <span className={`text-[9px] font-black mb-0.5 ${
+                    <span className={`text-[10px] sm:text-[9px] font-black mb-0.5 ${
                       isSelected ? 'text-emerald-700' : isToday ? 'text-blue-700' : 'text-gray-600'
                     }`}>
                       {count}
                     </span>
                   )}
                   <div
-                    className={`w-5 rounded-t transition-all ${
+                    className={`w-6 sm:w-5 rounded-t transition-all ${
                       isSelected
                         ? 'bg-emerald-500'
                         : isToday
@@ -167,12 +172,12 @@ const DailyDigestStrip = ({ apiUrl, onDaySelect, selectedDate, fechaCampo }: Dai
                     }`}
                     style={{ height: `${barHeight}px` }}
                   />
-                  <span className={`text-[9px] mt-0.5 ${
+                  <span className={`text-[10px] sm:text-[9px] mt-0.5 ${
                     isToday ? 'font-black text-blue-700' : 'font-medium text-gray-500'
                   }`}>
                     {isToday ? 'HOY' : format(d, 'd', { locale: es })}
                   </span>
-                  <span className="text-[7px] text-gray-400 uppercase">
+                  <span className="text-[8px] sm:text-[7px] text-gray-400 uppercase">
                     {format(d, 'EEE', { locale: es })}
                   </span>
                 </button>
