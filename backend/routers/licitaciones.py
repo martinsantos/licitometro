@@ -65,6 +65,8 @@ async def get_licitaciones(
     fecha_campo: str = Query("publication_date", description="Date field to filter on"),
     nuevas_desde: Optional[date] = Query(None, description="Filter by first_seen_at >= date (truly new items)"),
     year: Optional[str] = Query(None, description="Filter by publication year (e.g., '2026' or 'all')"),
+    only_national: Optional[bool] = Query(False, description="Only show comprar.gob.ar sources (Argentina nacional)"),
+    fuente_exclude: Optional[List[str]] = Query(None, description="Exclude these sources"),
     sort_by: str = Query("publication_date", description="Field to sort by"),
     sort_order: str = Query("desc", description="Sort order: asc or desc"),
     repo: LicitacionRepository = Depends(get_licitacion_repository)
@@ -120,6 +122,12 @@ async def get_licitaciones(
         if tipo_procedimiento: extra_filters["tipo_procedimiento"] = tipo_procedimiento
         if nodo: extra_filters["nodos"] = nodo
         if estado: extra_filters["estado"] = estado
+
+        # National/source exclusion filters
+        if only_national:
+            extra_filters["fuente"] = {"$regex": "comprar.gob.ar", "$options": "i"}
+        if fuente_exclude:
+            extra_filters["fuente"] = {"$nin": fuente_exclude}
 
         # Budget range
         if budget_min is not None or budget_max is not None:
@@ -186,6 +194,12 @@ async def get_licitaciones(
         filters["nodos"] = nodo
     if estado:
         filters["estado"] = estado
+
+    # National/source exclusion filters (applied to both search and non-search paths)
+    if only_national:
+        filters["fuente"] = {"$regex": "comprar.gob.ar", "$options": "i"}
+    if fuente_exclude:
+        filters["fuente"] = {"$nin": fuente_exclude}
 
     # Budget range filter
     if budget_min is not None or budget_max is not None:
@@ -414,6 +428,8 @@ async def get_facets(
     fecha_hasta: Optional[date] = None,
     fecha_campo: str = Query("publication_date"),
     nuevas_desde: Optional[date] = Query(None, description="Filter by first_seen_at >= date (truly new items)"),
+    only_national: Optional[bool] = Query(False, description="Only comprar.gob.ar sources"),
+    fuente_exclude: Optional[List[str]] = Query(None, description="Exclude these sources"),
     request: Request = None,
 ):
     """Return value counts for each filterable field, applying cross-filters.
@@ -450,6 +466,12 @@ async def get_facets(
     # Filter by first_seen_at for "Nuevas de hoy" functionality
     if nuevas_desde:
         base_match["first_seen_at"] = {"$gte": datetime.combine(nuevas_desde, datetime.min.time())}
+
+    # National/source exclusion filters
+    if only_national:
+        base_match["fuente"] = {"$regex": "comprar.gob.ar", "$options": "i"}
+    if fuente_exclude:
+        base_match["fuente"] = {"$nin": fuente_exclude}
 
     # Text search adds $text match
     if q:
@@ -652,6 +674,8 @@ async def remove_favorite(licitacion_id: str, request: Request):
 async def get_daily_counts(
     days: int = Query(14, ge=1, le=30),
     fecha_campo: str = Query("publication_date"),
+    only_national: Optional[bool] = Query(False, description="Only comprar.gob.ar sources"),
+    jurisdiccion: Optional[str] = Query(None, description="Filter by jurisdiccion"),
     request: Request = None,
 ):
     """Get count of licitaciones per day for the last N days"""
@@ -668,8 +692,15 @@ async def get_daily_counts(
 
     start_date = datetime.combine(date.today() - timedelta(days=days - 1), datetime.min.time())
 
+    # Build match stage with jurisdiction/source filtering
+    match_stage = {fecha_campo: {"$gte": start_date}, "tags": {"$ne": "LIC_AR"}}
+    if only_national:
+        match_stage["fuente"] = {"$regex": "comprar.gob.ar", "$options": "i"}
+    elif jurisdiccion:
+        match_stage["jurisdiccion"] = jurisdiccion
+
     pipeline = [
-        {"$match": {fecha_campo: {"$gte": start_date}, "tags": {"$ne": "LIC_AR"}}},
+        {"$match": match_stage},
         {"$group": {
             "_id": {"$dateToString": {"format": "%Y-%m-%d", "date": f"${fecha_campo}"}},
             "count": {"$sum": 1}
@@ -688,14 +719,28 @@ async def get_daily_counts(
 
 
 @router.get("/stats/data-quality")
-async def get_data_quality_stats(request: Request):
+async def get_data_quality_stats(
+    only_national: Optional[bool] = Query(False, description="Only comprar.gob.ar sources"),
+    jurisdiccion: Optional[str] = Query(None, description="Filter by jurisdiccion"),
+    request: Request = None
+):
     """Get data quality statistics: completeness by source, opening_date coverage, duplicates"""
     db = request.app.mongodb
     collection = db.licitaciones
 
+    # Build match filter for jurisdiction/source
+    base_match = {}
+    if only_national:
+        base_match["fuente"] = {"$regex": "comprar.gob.ar", "$options": "i"}
+    elif jurisdiccion:
+        base_match["jurisdiccion"] = jurisdiccion
+
     # Records by source
-    by_source = await collection.aggregate([
-        {"$group": {
+    pipeline_stages = []
+    if base_match:
+        pipeline_stages.append({"$match": base_match})
+
+    pipeline_stages.append({"$group": {
             "_id": "$fuente",
             "total": {"$sum": 1},
             "with_opening_date": {
@@ -718,7 +763,9 @@ async def get_data_quality_stats(request: Request):
             },
         }},
         {"$sort": {"total": -1}}
-    ]).to_list(length=50)
+    ])
+
+    by_source = await collection.aggregate(pipeline_stages).to_list(length=50)
 
     total = sum(r["total"] for r in by_source)
     total_with_opening = sum(r["with_opening_date"] for r in by_source)
