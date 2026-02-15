@@ -115,6 +115,9 @@ class LicitacionBase(BaseModel):
     # Nodos (semantic search maps)
     nodos: Optional[List[str]] = Field(default=[], description="IDs of matched nodos")
 
+    # Tags (e.g., LIC_AR for national Argentine sources)
+    tags: Optional[List[str]] = Field(default=[], description="Tags for categorization (e.g., LIC_AR)")
+
     # VIGENCIA MODEL: Estado and lifecycle management
     estado: str = Field("vigente", description="Estado: vigente | vencida | prorrogada | archivada")
     fecha_prorroga: Optional[datetime] = Field(None, description="Nueva fecha si extendida por circular")
@@ -224,6 +227,8 @@ class LicitacionUpdate(BaseModel):
     public_slug: Optional[str] = None
     # Nodos
     nodos: Optional[List[str]] = None
+    # Tags
+    tags: Optional[List[str]] = None
     # Vigencia
     estado: Optional[str] = None
     fecha_prorroga: Optional[datetime] = None

@@ -342,13 +342,22 @@ class SchedulerService:
                                 item_data[url_field] = str(item_data[url_field])
                         item_data["updated_at"] = datetime.utcnow()
 
-                        # Match nodos before insert/update
-                        try:
-                            from services.nodo_matcher import get_nodo_matcher
-                            nodo_matcher = get_nodo_matcher(self.db)
-                            await nodo_matcher.assign_nodos_to_item_data(item_data)
-                        except Exception as nodo_err:
-                            log(f"Nodo matching failed for {item.id_licitacion}: {nodo_err}", "warning")
+                        # AR scope: add LIC_AR tag and skip auto nodo matching
+                        is_ar_scope = getattr(config, 'scope', None) == "ar_nacional"
+                        if is_ar_scope:
+                            tags = item_data.get("tags") or []
+                            if "LIC_AR" not in tags:
+                                tags.append("LIC_AR")
+                            item_data["tags"] = tags
+
+                        # Match nodos before insert/update (skip for AR scope - manual only)
+                        if not is_ar_scope:
+                            try:
+                                from services.nodo_matcher import get_nodo_matcher
+                                nodo_matcher = get_nodo_matcher(self.db)
+                                await nodo_matcher.assign_nodos_to_item_data(item_data)
+                            except Exception as nodo_err:
+                                log(f"Nodo matching failed for {item.id_licitacion}: {nodo_err}", "warning")
 
                         if existing:
                             # Update
@@ -448,8 +457,9 @@ class SchedulerService:
             
             log(f"Scraper '{scraper_name}' completed. Found: {items_found}, Saved: {items_saved}, Updated: {items_updated}")
 
-            # Notify about new licitaciones
-            if items_saved > 0:
+            # Notify about new licitaciones (skip for AR scope - manual only)
+            is_ar_scope = getattr(config, 'scope', None) == "ar_nacional"
+            if items_saved > 0 and not is_ar_scope:
                 try:
                     from services.notification_service import get_notification_service
                     ns = get_notification_service(self.db)

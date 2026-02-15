@@ -130,8 +130,13 @@ const LicitacionCard: React.FC<LicitacionCardProps> = ({
           <div className="flex flex-col lg:flex-row gap-3 lg:gap-4">
             <div className="flex-1 min-w-0">
               {/* Badges */}
-              {(isNew || isCritical || isUrgent) && (
+              {(isNew || isCritical || isUrgent || lic.tags?.includes('LIC_AR')) && (
                 <div className="flex items-center gap-2 mb-2">
+                  {lic.tags?.includes('LIC_AR') && (
+                    <span className="px-2 py-0.5 bg-sky-100 text-sky-700 rounded text-[10px] font-black uppercase tracking-wide">
+                      LIC AR
+                    </span>
+                  )}
                   {isNew && (
                     <span className="px-2 py-0.5 bg-green-100 text-green-700 rounded text-[10px] font-black uppercase tracking-wide animate-pulse">
                       NUEVO
