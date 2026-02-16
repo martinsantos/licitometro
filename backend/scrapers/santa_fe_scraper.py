@@ -144,7 +144,7 @@ class SantaFeScraper(BaseScraper):
             estado = self._compute_estado(publication_date, opening_date)
 
             from utils.object_extractor import extract_objeto
-            objeto = extract_objeto(title, description[:500] if description else "", "Licitación Pública")
+            objeto = extract_objeto(title, description[:500] if description else "", None)
 
             return LicitacionCreate(
                 id_licitacion=f"santafe-{id_suffix}",
@@ -195,7 +195,7 @@ class SantaFeScraper(BaseScraper):
             estado = self._compute_estado(publication_date, None)
 
             from utils.object_extractor import extract_objeto
-            objeto = extract_objeto(title, text[:500] if text else "", "Licitación Pública")
+            objeto = extract_objeto(title, text[:500] if text else "", None)
 
             return LicitacionCreate(
                 id_licitacion=f"santafe-html-{id_suffix}",

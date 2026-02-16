@@ -138,7 +138,7 @@ class ContratacionesAbiertasMzaScraper(BaseScraper):
             estado = self._compute_estado(publication_date, opening_date)
 
             from utils.object_extractor import extract_objeto
-            objeto = extract_objeto(title, description[:500] if description else "", proc_method_detail or proc_method)
+            objeto = extract_objeto(title, description[:500] if description else "", None)
 
             return LicitacionCreate(
                 id_licitacion=id_licitacion,

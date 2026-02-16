@@ -162,7 +162,7 @@ class ContratarGobArScraper(BaseScraper):
             desc_cell = cells[1] if len(cells) > 1 else None
             if desc_cell:
                 description_text = desc_cell.get_text(strip=True)[:500]
-            objeto = extract_objeto(title, description_text, "Obra Pública")
+            objeto = extract_objeto(title, description_text, None)
 
             return LicitacionCreate(
                 id_licitacion=f"contratar-{id_suffix}",

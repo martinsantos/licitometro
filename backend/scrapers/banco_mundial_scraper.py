@@ -42,7 +42,7 @@ class BancoMundialScraper(BaseScraper):
         max_items = self.config.max_items or 100
 
         # Fields to request
-        fields = "id,project_name,notice_type,notice_text,borrower,country,submission_date,notice_date,project_id,bid_description"
+        fields = "id,project_name,notice_type,notice_text,noticetitle,borrower,project_ctry_name,submission_date,noticedate,project_id,bid_description,submission_deadline_date"
 
         offset = 0
         rows = 50
@@ -67,7 +67,7 @@ class BancoMundialScraper(BaseScraper):
                 logger.error("Invalid JSON from World Bank API")
                 break
 
-            total = data.get("total", 0)
+            total = int(data.get("total", 0))
             # API v2 returns procnotices as a LIST, not a dict
             notices = data.get("procnotices", [])
             if not notices or not isinstance(notices, list):
@@ -139,7 +139,7 @@ class BancoMundialScraper(BaseScraper):
             estado = self._compute_estado(publication_date, opening_date)
 
             from utils.object_extractor import extract_objeto
-            objeto = extract_objeto(title, description[:500] if description else "", notice_type)
+            objeto = extract_objeto(title, description[:500] if description else "", None)
 
             return LicitacionCreate(
                 id_licitacion=f"wb-{notice_id}",
