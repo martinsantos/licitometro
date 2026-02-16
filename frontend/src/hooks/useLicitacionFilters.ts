@@ -72,8 +72,12 @@ function filterReducer(state: FilterState, action: FilterAction): FilterState {
   }
 }
 
-export function useLicitacionFilters() {
-  const [filters, dispatch] = useReducer(filterReducer, undefined, loadFiltersFromSession);
+export function useLicitacionFilters(overrides?: Partial<FilterState>) {
+  const [filters, dispatch] = useReducer(
+    filterReducer,
+    undefined,
+    () => ({ ...loadFiltersFromSession(), ...overrides })
+  );
 
   // Persist to sessionStorage on every change
   useEffect(() => {

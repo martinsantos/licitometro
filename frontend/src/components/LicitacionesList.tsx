@@ -62,7 +62,9 @@ const LicitacionesList = ({
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
 
   // Hooks
-  const { filters, setFilter, setMany, clearAll, hasActiveFilters, activeFilterCount } = useLicitacionFilters();
+  const { filters, setFilter, setMany, clearAll, hasActiveFilters, activeFilterCount } = useLicitacionFilters(
+    defaultJurisdiccionMode ? { jurisdiccionMode: defaultJurisdiccionMode } : undefined
+  );
 
   // Override yearWorkspace on mount when defaultYear is provided (e.g., AR page uses 'all')
   const hasAppliedDefaultYear = useRef(false);
