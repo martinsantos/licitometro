@@ -48,10 +48,11 @@ class BancoMundialScraper(BaseScraper):
         rows = 50
 
         while len(items) < max_items:
+            # Use qterm=Argentina (countrycode_exact doesn't filter correctly in v2 API)
             url = (
                 f"{API_BASE}?format=json"
                 f"&fl={fields}"
-                f"&countrycode_exact=AR"
+                f"&qterm=Argentina"
                 f"&rows={rows}&os={offset}"
                 f"&srt=notice_date&order=desc"
             )
@@ -66,14 +67,18 @@ class BancoMundialScraper(BaseScraper):
                 logger.error("Invalid JSON from World Bank API")
                 break
 
-            notices = data.get("procnotices", {})
             total = data.get("total", 0)
-
-            if not notices:
+            # API v2 returns procnotices as a LIST, not a dict
+            notices = data.get("procnotices", [])
+            if not notices or not isinstance(notices, list):
                 break
 
-            for key, notice in notices.items():
-                if key in ("total",):
+            for notice in notices:
+                if not isinstance(notice, dict):
+                    continue
+                # Double-check country since qterm is a text search
+                country = (notice.get("project_ctry_name") or "").lower()
+                if "argentin" not in country:
                     continue
                 lic = self._notice_to_licitacion(notice)
                 if lic:
@@ -93,10 +98,12 @@ class BancoMundialScraper(BaseScraper):
         try:
             notice_id = notice.get("id", "")
             title = (
-                notice.get("bid_description")
+                notice.get("noticetitle")
+                or notice.get("bid_description")
                 or notice.get("notice_text", "")[:200]
                 or notice.get("project_name", "")
-            ).strip()
+            )
+            title = str(title).strip() if title else ""
             if not title:
                 return None
 
@@ -104,8 +111,8 @@ class BancoMundialScraper(BaseScraper):
             project_name = notice.get("project_name", "")
             project_id = notice.get("project_id", "")
 
-            # Dates
-            pub_date = self._parse_wb_date(notice.get("notice_date"))
+            # Dates - API v2 uses 'noticedate' not 'notice_date'
+            pub_date = self._parse_wb_date(notice.get("noticedate") or notice.get("notice_date"))
             submission_date = self._parse_wb_date(notice.get("submission_date"))
 
             description = notice.get("notice_text", "")

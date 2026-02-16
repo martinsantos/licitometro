@@ -74,7 +74,8 @@ class BidScraper(BaseScraper):
 
             for record in records:
                 # Filter: only Argentina-related records
-                country = str(record.get("Country", "")).lower()
+                # API uses lowercase field names: countryname, not Country
+                country = str(record.get("countryname") or record.get("Country") or "").lower()
                 if "argentin" not in country:
                     continue
 
@@ -95,25 +96,30 @@ class BidScraper(BaseScraper):
     def _record_to_licitacion(self, record: Dict[str, Any]) -> Optional[LicitacionCreate]:
         """Convert a BID DataStore record to LicitacionCreate."""
         try:
-            record_id = record.get("_id", "")
+            # IADB API uses lowercase field names (noticeid, noticetitle, etc.)
+            record_id = record.get("noticeid") or record.get("_id", "")
             title = (
-                record.get("Procurement Description")
-                or record.get("Description")
+                record.get("noticetitle")
+                or record.get("process_desc")
+                or record.get("process_nm")
+                or record.get("Procurement Description")
+                or record.get("projectname")
                 or record.get("Project Name")
                 or ""
-            ).strip()
+            )
+            title = str(title).strip() if title else ""
             if not title:
                 return None
 
             organization = record.get("Executing Agency", "BID / Argentina")
-            project = record.get("Project Name", "")
-            project_number = record.get("Project Number", "")
+            project = record.get("projectname") or record.get("Project Name", "")
+            project_number = record.get("projectnumber") or record.get("Project Number", "")
 
-            # Dates
+            # Dates - API uses publicationdate (with nanoseconds), deadline
             pub_date = self._parse_bid_date(
-                record.get("Publication Date") or record.get("Approval Date")
+                record.get("publicationdate") or record.get("Publication Date") or record.get("Approval Date")
             )
-            deadline = self._parse_bid_date(record.get("Deadline"))
+            deadline = self._parse_bid_date(record.get("deadline") or record.get("Deadline"))
 
             # Budget
             budget = None
@@ -124,10 +130,14 @@ class BidScraper(BaseScraper):
                 except (ValueError, TypeError):
                     pass
 
-            proc_type = record.get("Procurement Type", "No especificado")
+            proc_type = record.get("prcrmnt_mthd_engl_nm") or record.get("category_nm") or record.get("type") or record.get("Procurement Type", "No especificado")
+            sector = record.get("sector") or record.get("sectorenglnm") or ""
             description = f"Proyecto BID: {project}\nNúmero: {project_number}" if project else ""
+            if sector:
+                description += f"\nSector: {sector}"
 
-            source_url = f"https://data.iadb.org/dataset/project-procurement-bidding-notices-and-notification-of-contract-awards"
+            # Use documenturl if available, otherwise generic dataset URL
+            source_url = record.get("documenturl") or record.get("proyecturl") or "https://data.iadb.org/dataset/project-procurement-bidding-notices-and-notification-of-contract-awards"
 
             publication_date = self._resolve_publication_date(
                 parsed_date=pub_date, title=title,
@@ -169,13 +179,19 @@ class BidScraper(BaseScraper):
             return None
 
     def _parse_bid_date(self, raw: Any) -> Optional[datetime]:
-        """Parse date from BID records."""
+        """Parse date from BID records.
+
+        Handles formats like: 2025-07-03 08:00:00.000000000, ISO, US dates
+        """
         if not raw:
             return None
         raw_str = str(raw).strip()
-        for fmt in ("%Y-%m-%dT%H:%M:%S", "%Y-%m-%d", "%m/%d/%Y", "%d/%m/%Y"):
+        # Truncate nanoseconds (2025-07-03 08:00:00.000000000 → 2025-07-03 08:00:00)
+        if "." in raw_str:
+            raw_str = raw_str.split(".")[0]
+        for fmt in ("%Y-%m-%d %H:%M:%S", "%Y-%m-%dT%H:%M:%S", "%Y-%m-%dT%H:%M:%SZ", "%Y-%m-%d", "%m/%d/%Y", "%d/%m/%Y"):
             try:
-                return datetime.strptime(raw_str[:len(fmt) + 5], fmt)
+                return datetime.strptime(raw_str, fmt)
             except (ValueError, IndexError):
                 continue
         return None
