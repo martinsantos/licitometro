@@ -1573,7 +1573,7 @@ async def get_rubros_list(
         # Filter classifier rubros to only those present in Argentina items
         classifier = get_category_classifier()
         all_rubros = classifier.get_all_rubros()
-        filtered_rubros = [r for r in all_rubros if r.get("key") in argentina_categories]
+        filtered_rubros = [r for r in all_rubros if r.get("nombre") in argentina_categories]
 
         return {
             "rubros": filtered_rubros,
