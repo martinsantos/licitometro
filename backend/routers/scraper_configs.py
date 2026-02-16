@@ -1,9 +1,10 @@
 from fastapi import APIRouter, Depends, HTTPException, Query, BackgroundTasks
-from typing import List, Dict, Optional
+from typing import List, Dict, Optional, Any
 from uuid import UUID
 import asyncio
 import logging
 import sys
+import json
 from pathlib import Path
 
 # Add parent directory to path so we can import modules
@@ -159,8 +160,80 @@ async def run_scraper_config(
     config = await scraper_repo.get_by_id(config_id)
     if not config:
         raise HTTPException(status_code=404, detail="Scraper config not found")
-    
+
     # Run the scraper in the background
     background_tasks.add_task(run_scraper, config_id, scraper_repo, licitacion_repo)
-    
+
     return {"message": f"Scraper {config.name} started"}
+
+
+@router.post("/batch", response_model=Dict[str, Any])
+async def import_batch_configs(
+    configs: List[ScraperConfigCreate],
+    skip_duplicates: bool = Query(True, description="Skip if name exists"),
+    repo: ScraperConfigRepository = Depends(get_scraper_config_repository)
+):
+    """
+    Batch import scraper configs with duplicate detection.
+
+    Returns:
+        - added: List of successfully added configs
+        - skipped: List of configs skipped (duplicates)
+        - errors: List of configs that failed with error messages
+    """
+    results = {
+        "added": [],
+        "skipped": [],
+        "errors": []
+    }
+
+    for config in configs:
+        try:
+            # Check if exists by name
+            existing = await repo.get_by_name(config.name)
+
+            if existing:
+                if skip_duplicates:
+                    results["skipped"].append({"name": config.name})
+                    continue
+                else:
+                    # Update existing
+                    existing_id = existing["id"] if isinstance(existing, dict) else existing.id
+                    update_data = ScraperConfigUpdate(**config.model_dump(exclude_unset=True))
+                    await repo.update(str(existing_id), update_data)
+                    results["updated"] = results.get("updated", [])
+                    results["updated"].append({"name": config.name})
+            else:
+                # Create new
+                created = await repo.create(config)
+                created_name = created["name"] if isinstance(created, dict) else created.name
+                results["added"].append({"name": created_name})
+
+        except Exception as e:
+            logger.error(f"Error importing config {config.name}: {e}")
+            results["errors"].append({"name": config.name, "error": str(e)})
+
+    return results
+
+
+@router.get("/templates/{template_name}")
+async def get_template(template_name: str):
+    """
+    Return pre-defined source templates (argentina_nacional, mendoza, etc.).
+
+    Templates are static JSON files in backend/data/ directory.
+    """
+    template_path = Path(__file__).parent.parent / "data" / f"{template_name}_sources.json"
+
+    if not template_path.exists():
+        raise HTTPException(status_code=404, detail=f"Template '{template_name}' not found")
+
+    try:
+        with open(template_path) as f:
+            return json.load(f)
+    except json.JSONDecodeError as e:
+        logger.error(f"Error parsing template {template_name}: {e}")
+        raise HTTPException(status_code=500, detail=f"Template '{template_name}' is malformed")
+    except Exception as e:
+        logger.error(f"Error loading template {template_name}: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to load template '{template_name}'")

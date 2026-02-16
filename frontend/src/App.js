@@ -11,6 +11,7 @@ import ScrollToTop from "./components/ScrollToTop";
 // Pages
 import HomePage from "./pages/HomePage";
 import LicitacionesPage from "./pages/LicitacionesPage";
+import LicitacionesArgentinaPage from "./pages/LicitacionesArgentinaPage";
 import LicitacionDetailPage from "./pages/LicitacionDetailPage";
 import FavoritosPage from "./pages/FavoritosPage";
 import StatsPage from "./pages/StatsPage";
@@ -35,6 +36,7 @@ const AuthenticatedApp = ({ userRole }) => (
     <main className="flex-grow">
       <Routes>
         <Route path="/" element={<HomePage />} />
+        <Route path="/licitaciones-ar" element={<LicitacionesArgentinaPage apiUrl={BACKEND_URL} />} />
         <Route path="/licitaciones" element={<LicitacionesPage apiUrl={BACKEND_URL} />} />
         <Route path="/licitaciones/:id" element={<LicitacionDetailPage userRole={userRole} />} />
         <Route path="/licitacion/:id" element={<LicitacionDetailPage userRole={userRole} />} />
