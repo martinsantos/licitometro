@@ -753,7 +753,7 @@ class BoletinOficialMendozaScraper(BaseScraper):
                 licitacion_number=norma or None,
                 description=description,
                 status="active",
-                source_url=boletin_link or self.config.url,
+                source_url=boletin_link or str(self.config.url),
                 fuente="Boletin Oficial Mendoza",
                 tipo_procedimiento="Boletin Oficial - Norma",
                 tipo_acceso="Boletin Oficial",

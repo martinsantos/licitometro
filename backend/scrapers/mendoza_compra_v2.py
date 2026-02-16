@@ -145,6 +145,19 @@ class MendozaCompraScraperV2(BaseScraper):
             open_raw = value_by_label(["Fecha y hora acto de apertura", "Fecha de Apertura"])
             opening_date_parsed = parse_date_guess(open_raw) if open_raw else None
 
+            # Extract attached files BEFORE date resolution (needed for fallback date extraction)
+            attached_files = []
+            for a in soup.find_all('a', href=True):
+                href = a.get('href')
+                if not href:
+                    continue
+                if any(ext in href.lower() for ext in [".pdf", ".doc", ".docx", ".xls", ".xlsx"]):
+                    attached_files.append({
+                        "name": a.get_text(' ', strip=True) or href.split('/')[-1],
+                        "url": urljoin(url, href),
+                        "type": href.split('.')[-1].lower() if '.' in href else "unknown"
+                    })
+
             # VIGENCIA MODEL: Resolve dates with multi-source fallback
             publication_date = self._resolve_publication_date(
                 parsed_date=pub_date_parsed,
@@ -161,18 +174,6 @@ class MendozaCompraScraperV2(BaseScraper):
                 publication_date=publication_date,
                 attached_files=attached_files
             )
-
-            attached_files = []
-            for a in soup.find_all('a', href=True):
-                href = a.get('href')
-                if not href:
-                    continue
-                if any(ext in href.lower() for ext in [".pdf", ".doc", ".docx", ".xls", ".xlsx"]):
-                    attached_files.append({
-                        "name": a.get_text(' ', strip=True) or href.split('/')[-1],
-                        "url": urljoin(url, href),
-                        "type": href.split('.')[-1].lower() if '.' in href else "unknown"
-                    })
             
             source_url = url
             if licitacion_number:
