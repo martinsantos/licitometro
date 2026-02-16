@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import type { FilterOptions } from '../types/licitacion';
 
+// FORCE REBUILD: Fix jurisdiction filtering for Argentina page
 export function useFilterOptions(apiUrl: string, jurisdiccionMode?: string): FilterOptions & { loading: boolean } {
   const [fuenteOptions, setFuenteOptions] = useState<string[]>([]);
   const [statusOptions, setStatusOptions] = useState<string[]>([]);
