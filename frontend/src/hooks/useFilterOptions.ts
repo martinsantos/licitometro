@@ -48,7 +48,7 @@ export function useFilterOptions(apiUrl: string, jurisdiccionMode?: string): Fil
     };
     loadFilterOptions();
     return () => { cancelled = true; };
-  }, [apiUrl]);
+  }, [apiUrl, jurisdiccionMode]);
 
   return { fuenteOptions, statusOptions, categoryOptions, loading };
 }
