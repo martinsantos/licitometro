@@ -47,7 +47,6 @@ const AuthenticatedApp = ({ userRole }) => (
         <Route path="/admin/licitacion/:id" element={userRole === 'admin' ? <LicitacionDetailPage userRole={userRole} /> : <Navigate to="/licitaciones" />} />
         <Route path="/admin/scraper/:id" element={userRole === 'admin' ? <ScraperFormPage /> : <Navigate to="/licitaciones" />} />
         <Route path="/templates" element={userRole === 'admin' ? <OfferTemplatesPage /> : <Navigate to="/licitaciones" />} />
-        <Route path="/licitaciones-ar" element={<LicitacionesARPage />} />
         <Route path="/nodos" element={userRole === 'admin' ? <NodosPage /> : <Navigate to="/licitaciones" />} />
       </Routes>
     </main>

@@ -53,6 +53,7 @@ export interface Nodo {
   id: string;
   name: string;
   slug: string;
+  scope: 'global' | 'mendoza' | 'argentina';
   description: string;
   color: string;
   keyword_groups: KeywordGroup[];

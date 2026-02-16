@@ -50,12 +50,18 @@ const HomePage = () => {
             <h1 className="text-4xl md:text-5xl font-bold mb-4">
               LICITOMETRO
             </h1>
-            <p className="text-xl mb-8">
+            <p className="text-xl mb-4">
               Sistema de análisis y monitoreo de licitaciones públicas
             </p>
-            <div className="flex justify-center">
-              <Link to="/licitaciones" className="bg-yellow-500 hover:bg-yellow-600 text-blue-900 font-bold py-3 px-6 rounded-lg text-lg transition duration-300">
-                Ver Licitaciones
+            <p className="text-lg text-blue-200 mb-8">
+              Mendoza y Argentina en un solo lugar
+            </p>
+            <div className="flex flex-col sm:flex-row gap-4 justify-center items-center">
+              <Link to="/licitaciones" className="bg-purple-600 hover:bg-purple-700 text-white font-bold py-3 px-8 rounded-lg text-lg transition duration-300 shadow-lg">
+                🏔️ Licitaciones Mendoza
+              </Link>
+              <Link to="/licitaciones-ar" className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-8 rounded-lg text-lg transition duration-300 shadow-lg">
+                🇦🇷 Licitaciones Argentina
               </Link>
             </div>
           </div>
