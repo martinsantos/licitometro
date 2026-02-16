@@ -68,6 +68,13 @@ export function useFacetedFilters(apiUrl: string, filters: FilterState, fechaCam
       if (fechaCampo) params.append('fecha_campo', fechaCampo);
       if (filters.nuevasDesde) params.append('nuevas_desde', filters.nuevasDesde);
 
+      // Apply jurisdiction filtering to facets
+      if (filters.jurisdiccionMode === 'nacional') {
+        params.append('only_national', 'true');
+      } else if (filters.jurisdiccionMode === 'mendoza') {
+        params.append('fuente_exclude', 'Comprar.Gob.Ar');
+      }
+
       fetch(`${apiUrl}${apiPath}/facets?${params}`, { signal: controller.signal, credentials: 'include' })
         .then(r => r.ok ? r.json() : EMPTY_FACETS)
         .then(data => {

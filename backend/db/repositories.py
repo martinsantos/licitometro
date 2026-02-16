@@ -242,8 +242,8 @@ class LicitacionRepository:
         query = filters or {}
         return await self.collection.count_documents(query)
 
-    async def get_distinct(self, field_name: str) -> List[str]:
-        """Get distinct values for a given field"""
+    async def get_distinct(self, field_name: str, only_national: bool = False) -> List[str]:
+        """Get distinct values for a given field, optionally filtered by jurisdiction"""
         # Ensure the field exists and is safe to query for distinct values
         # This is a basic check; more robust validation might be needed
         # depending on the data model and security requirements.
@@ -251,7 +251,15 @@ class LicitacionRepository:
              # Or LicitacionCreate.model_fields depending on what fields are filterable
             raise ValueError(f"Field '{field_name}' is not a valid field for distinct query.")
 
-        values = await self.collection.distinct(field_name)
+        # Build filter query
+        match_filter = {}
+        if only_national:
+            match_filter["jurisdiccion"] = "Argentina"
+        else:
+            # Exclude Argentina LIC_AR items when showing Mendoza sources
+            match_filter["tags"] = {"$ne": "LIC_AR"}
+
+        values = await self.collection.distinct(field_name, match_filter)
         # Filter out None or empty string values if necessary
         return [value for value in values if value]
 

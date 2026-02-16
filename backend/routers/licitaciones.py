@@ -1534,6 +1534,7 @@ async def get_estado_history(
 @router.get("/distinct/{field_name}", response_model=List[str])
 async def get_distinct_values(
     field_name: str,
+    only_national: Optional[bool] = Query(False, description="Only show Argentina nacional sources"),
     repo: LicitacionRepository = Depends(get_licitacion_repository)
 ):
     """Get distinct values for a given field"""
@@ -1542,20 +1543,48 @@ async def get_distinct_values(
     if field_name not in allowed_fields:
         raise HTTPException(status_code=400, detail=f"Filtering by field '{field_name}' is not allowed.")
 
-    distinct_values = await repo.get_distinct(field_name)
+    distinct_values = await repo.get_distinct(field_name, only_national=only_national)
     return distinct_values
 
 
 @router.get("/rubros/list")
-async def get_rubros_list():
+async def get_rubros_list(
+    only_national: Optional[bool] = Query(False, description="Only show Argentina nacional sources"),
+    request: Request = None
+):
     """Get list of all COMPR.AR rubros (categories) for filtering"""
     from services.category_classifier import get_category_classifier
 
-    classifier = get_category_classifier()
-    return {
-        "rubros": classifier.get_all_rubros(),
-        "total": len(classifier.rubros)
-    }
+    # If only_national is set, filter rubros to only those with Argentina items
+    if only_national:
+        db = request.app.mongodb
+        collection = db.licitaciones
+
+        # Get distinct categories from Argentina items only
+        pipeline = [
+            {"$match": {"jurisdiccion": "Argentina"}},
+            {"$group": {"_id": "$category"}},
+            {"$match": {"_id": {"$ne": None}}},
+            {"$sort": {"_id": 1}}
+        ]
+        result = await collection.aggregate(pipeline).to_list(length=100)
+        argentina_categories = [doc["_id"] for doc in result]
+
+        # Filter classifier rubros to only those present in Argentina items
+        classifier = get_category_classifier()
+        all_rubros = classifier.get_all_rubros()
+        filtered_rubros = [r for r in all_rubros if r.get("key") in argentina_categories]
+
+        return {
+            "rubros": filtered_rubros,
+            "total": len(filtered_rubros)
+        }
+    else:
+        classifier = get_category_classifier()
+        return {
+            "rubros": classifier.get_all_rubros(),
+            "total": len(classifier.rubros)
+        }
 
 
 @router.post("/{licitacion_id}/classify")

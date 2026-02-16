@@ -77,16 +77,14 @@ const LicitacionesList = ({
     }
   }, [defaultYear, filters.yearWorkspace, setFilter]);
   const prefs = useLicitacionPreferences();
-  const filterOptions = useFilterOptions(apiUrl);
+  const filterOptions = useFilterOptions(apiUrl, filters.jurisdiccionMode);
 
   // Derive fechaCampo from current sort field
   const fechaCampo = useMemo(() => deriveFechaCampo(prefs.sortBy), [prefs.sortBy]);
 
   // CRITICAL: Force jurisdiction mode if provided (e.g., LicitacionesArgentinaPage forces 'nacional')
   useEffect(() => {
-    console.log('[LicitacionesList] defaultJurisdiccionMode:', defaultJurisdiccionMode, 'current:', filters.jurisdiccionMode);
     if (defaultJurisdiccionMode && filters.jurisdiccionMode !== defaultJurisdiccionMode) {
-      console.log('[LicitacionesList] FORCING jurisdiccionMode to:', defaultJurisdiccionMode);
       setFilter('jurisdiccionMode', defaultJurisdiccionMode);
     }
   }, [defaultJurisdiccionMode, filters.jurisdiccionMode, setFilter]);

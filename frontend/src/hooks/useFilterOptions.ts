@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import type { FilterOptions } from '../types/licitacion';
 
-export function useFilterOptions(apiUrl: string): FilterOptions & { loading: boolean } {
+export function useFilterOptions(apiUrl: string, jurisdiccionMode?: string): FilterOptions & { loading: boolean } {
   const [fuenteOptions, setFuenteOptions] = useState<string[]>([]);
   const [statusOptions, setStatusOptions] = useState<string[]>([]);
   const [categoryOptions, setCategoryOptions] = useState<{ id: string; nombre: string }[]>([]);
@@ -11,10 +11,21 @@ export function useFilterOptions(apiUrl: string): FilterOptions & { loading: boo
     let cancelled = false;
     const loadFilterOptions = async () => {
       try {
+        // Build URL with only_national parameter based on jurisdiccionMode
+        const buildUrl = (path: string) => {
+          const url = new URL(`${apiUrl}${path}`, window.location.origin);
+          if (jurisdiccionMode === 'nacional') {
+            url.searchParams.append('only_national', 'true');
+          } else if (jurisdiccionMode === 'mendoza') {
+            url.searchParams.append('fuente_exclude', 'Comprar.Gob.Ar');
+          }
+          return url.toString();
+        };
+
         const [fuenteRes, statusRes, rubrosRes] = await Promise.all([
-          fetch(`${apiUrl}/api/licitaciones/distinct/fuente`, { credentials: 'include' }),
-          fetch(`${apiUrl}/api/licitaciones/distinct/status`, { credentials: 'include' }),
-          fetch(`${apiUrl}/api/licitaciones/rubros/list`, { credentials: 'include' }),
+          fetch(buildUrl('/api/licitaciones/distinct/fuente'), { credentials: 'include' }),
+          fetch(buildUrl('/api/licitaciones/distinct/status'), { credentials: 'include' }),
+          fetch(buildUrl('/api/licitaciones/rubros/list'), { credentials: 'include' }),
         ]);
         if (cancelled) return;
         if (fuenteRes.ok) {
