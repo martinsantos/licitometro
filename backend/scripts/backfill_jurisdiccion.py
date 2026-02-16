@@ -24,7 +24,8 @@ MENDOZA_SOURCES = [
     "Malargue", "Irrigacion", "Rivadavia", "Guaymallen",
     "Ciudad de Mendoza", "EPRE Mendoza", "AYSAM", "UNCuyo",
     "Las Heras", "EMESA", "Vialidad Mendoza", "Lujan de Cuyo", "Tupungato",
-    "Junín", "COMPR.AR Mendoza"  # Added Junín and COMPR.AR Mendoza
+    "Junín", "Municipalidad de Junín",  # Both variants
+    "COMPR.AR Mendoza"  # Mendoza-specific COMPR.AR
 ]
 
 async def main():

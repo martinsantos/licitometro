@@ -293,6 +293,8 @@ async def get_licitaciones(
 async def get_vigentes(
     page: int = Query(1, ge=1),
     size: int = Query(15, ge=1, le=100),
+    jurisdiccion: Optional[str] = Query(None, description="Filter by jurisdiction"),
+    only_national: Optional[bool] = Query(False, description="Only show Argentina nacional sources"),
     repo: LicitacionRepository = Depends(get_licitacion_repository)
 ):
     """
@@ -319,6 +321,12 @@ async def get_vigentes(
             {"opening_date": None}  # Missing opening_date
         ]
     }
+
+    # Add jurisdiccion filtering
+    if only_national:
+        filters["jurisdiccion"] = "Argentina"
+    elif jurisdiccion:
+        filters["jurisdiccion"] = jurisdiccion
 
     skip = (page - 1) * size
 
@@ -1171,7 +1179,11 @@ async def get_storage_stats(request: Request):
 
 
 @router.get("/stats/estado-distribution")
-async def get_estado_distribution(request: Request):
+async def get_estado_distribution(
+    request: Request,
+    jurisdiccion: Optional[str] = Query(None, description="Filter by jurisdiction"),
+    only_national: Optional[bool] = Query(False, description="Only show Argentina nacional sources")
+):
     """
     Return counts by estado + year.
 
@@ -1193,8 +1205,16 @@ async def get_estado_distribution(request: Request):
     """
     db = request.app.mongodb
 
+    # Build base match filter
+    base_match = {}
+    if only_national:
+        base_match["jurisdiccion"] = "Argentina"
+    elif jurisdiccion:
+        base_match["jurisdiccion"] = jurisdiccion
+
     # Count by estado
     estado_pipeline = [
+        {"$match": base_match} if base_match else {"$match": {}},
         {"$group": {"_id": "$estado", "count": {"$sum": 1}}},
         {"$sort": {"_id": 1}}
     ]
@@ -1202,8 +1222,9 @@ async def get_estado_distribution(request: Request):
     by_estado = {doc["_id"]: doc["count"] for doc in estado_result}
 
     # Count by publication year
+    year_match = {**base_match, "publication_date": {"$exists": True, "$ne": None}}
     year_pipeline = [
-        {"$match": {"publication_date": {"$exists": True, "$ne": None}}},
+        {"$match": year_match},
         {"$group": {"_id": {"$year": "$publication_date"}, "count": {"$sum": 1}}},
         {"$sort": {"_id": 1}}
     ]
@@ -1212,13 +1233,15 @@ async def get_estado_distribution(request: Request):
 
     # Count vigentes hoy (vigente + prorrogada, with future or missing opening_date)
     today = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
-    vigentes_count = await db.licitaciones.count_documents({
+    vigentes_filter = {
+        **base_match,
         "estado": {"$in": ["vigente", "prorrogada"]},
         "$or": [
             {"opening_date": {"$gte": today}},
             {"opening_date": None}
         ]
-    })
+    }
+    vigentes_count = await db.licitaciones.count_documents(vigentes_filter)
 
     return {
         "by_estado": by_estado,

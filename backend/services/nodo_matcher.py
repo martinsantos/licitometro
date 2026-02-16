@@ -164,20 +164,48 @@ class NodoMatcher:
         category: str = "",
         notify: bool = False,
     ) -> List[str]:
-        """Match + assign nodos to a licitacion via $addToSet. Returns matched nodo IDs."""
+        """Match + assign nodos to a licitacion via $addToSet. Returns matched nodo IDs.
+
+        Respects nodo scope: only matches nodos with scope='global' or scope matching
+        the licitacion's jurisdiccion field.
+        """
         await self._ensure_loaded()
-        matched_ids = self.match_licitacion(title, objeto, description, organization, category)
 
-        if not matched_ids:
-            return []
-
-        # Convert lic_id for query
+        # Fetch licitacion to get jurisdiccion for scope filtering
         query_id = lic_id
         if isinstance(lic_id, str):
             try:
                 query_id = ObjectId(lic_id)
             except Exception:
                 pass
+
+        licitacion = await self.db.licitaciones.find_one({"_id": query_id})
+        if not licitacion:
+            logger.warning(f"Licitacion {lic_id} not found, cannot assign nodos")
+            return []
+
+        jurisdiccion = licitacion.get('jurisdiccion', 'Mendoza')
+
+        # Filter nodos by scope BEFORE matching
+        # Global nodos match everything, jurisdiction-specific nodos only match their jurisdiction
+        scope_filtered_cache = [
+            (nodo, patterns)
+            for nodo, patterns in self._cache
+            if nodo.get('scope', 'global') == 'global' or
+               nodo.get('scope', 'global').lower() == jurisdiccion.lower()
+        ]
+
+        # Temporarily swap cache for scope-filtered matching
+        original_cache = self._cache
+        self._cache = scope_filtered_cache
+
+        try:
+            matched_ids = self.match_licitacion(title, objeto, description, organization, category)
+        finally:
+            self._cache = original_cache  # Restore full cache
+
+        if not matched_ids:
+            return []
 
         # $addToSet each nodo ID (never removes existing assignments)
         await self.db.licitaciones.update_one(
@@ -208,15 +236,39 @@ class NodoMatcher:
 
         Used in scheduler_service before inserting into MongoDB.
         Does NOT update matched_count (done in bulk later or via backfill).
+
+        Respects nodo scope: only matches nodos with scope='global' or scope matching
+        the item's jurisdiccion field.
         """
         await self._ensure_loaded()
-        matched_ids = self.match_licitacion(
-            title=item_data.get("title", ""),
-            objeto=item_data.get("objeto", ""),
-            description=item_data.get("description", ""),
-            organization=item_data.get("organization", ""),
-            category=item_data.get("category", ""),
-        )
+
+        # Get jurisdiccion from item_data for scope filtering
+        jurisdiccion = item_data.get('jurisdiccion', 'Mendoza')
+
+        # Filter nodos by scope BEFORE matching
+        # Global nodos match everything, jurisdiction-specific nodos only match their jurisdiction
+        scope_filtered_cache = [
+            (nodo, patterns)
+            for nodo, patterns in self._cache
+            if nodo.get('scope', 'global') == 'global' or
+               nodo.get('scope', 'global').lower() == jurisdiccion.lower()
+        ]
+
+        # Temporarily swap cache for scope-filtered matching
+        original_cache = self._cache
+        self._cache = scope_filtered_cache
+
+        try:
+            matched_ids = self.match_licitacion(
+                title=item_data.get("title", ""),
+                objeto=item_data.get("objeto", ""),
+                description=item_data.get("description", ""),
+                organization=item_data.get("organization", ""),
+                category=item_data.get("category", ""),
+            )
+        finally:
+            self._cache = original_cache  # Restore full cache
+
         if matched_ids:
             existing = item_data.get("nodos", []) or []
             merged = list(set(existing + matched_ids))

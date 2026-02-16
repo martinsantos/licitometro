@@ -7,7 +7,7 @@ and configurable actions (email, telegram, tag) that fire when a match occurs.
 
 from typing import Optional, List, Dict, Any
 from datetime import datetime
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 
 class KeywordGroup(BaseModel):
@@ -27,6 +27,7 @@ class NodoBase(BaseModel):
     """Base fields for a nodo."""
     name: str = Field(..., description="Display name")
     slug: str = Field("", description="URL-safe slug (auto-generated if empty)")
+    scope: str = Field("global", description="Scope: global|mendoza|argentina - determines which licitaciones can match")
     description: str = Field("", description="Short description")
     color: str = Field("#3B82F6", description="Hex color for UI badges")
     keyword_groups: List[KeywordGroup] = Field(default=[], description="Keyword groups")
@@ -34,6 +35,15 @@ class NodoBase(BaseModel):
     actions: List[NodoAction] = Field(default=[], description="Actions on match")
     active: bool = Field(True)
     digest_frequency: str = Field("daily", description="Digest frequency: none, daily, twice_daily")
+
+    @field_validator('scope')
+    @classmethod
+    def validate_scope(cls, v: str) -> str:
+        """Validate scope field - must be global, mendoza, or argentina."""
+        allowed = {'global', 'mendoza', 'argentina'}
+        if v not in allowed:
+            raise ValueError(f"scope must be one of {allowed}, got '{v}'")
+        return v
 
 
 class NodoCreate(NodoBase):
@@ -45,6 +55,7 @@ class NodoUpdate(BaseModel):
     """Model for updating a nodo. All fields optional."""
     name: Optional[str] = None
     slug: Optional[str] = None
+    scope: Optional[str] = None
     description: Optional[str] = None
     color: Optional[str] = None
     keyword_groups: Optional[List[KeywordGroup]] = None

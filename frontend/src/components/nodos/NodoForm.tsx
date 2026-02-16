@@ -20,6 +20,7 @@ const NodoForm: React.FC<NodoFormProps> = ({ nodo, onSave, onCancel }) => {
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
   const [color, setColor] = useState('#3B82F6');
+  const [scope, setScope] = useState<'global' | 'mendoza' | 'argentina'>('global');
   const [active, setActive] = useState(true);
   const [keywordGroups, setKeywordGroups] = useState<{ name: string; keywords: string }[]>([
     { name: '', keywords: '' },
@@ -45,6 +46,7 @@ const NodoForm: React.FC<NodoFormProps> = ({ nodo, onSave, onCancel }) => {
       setName(nodo.name);
       setDescription(nodo.description);
       setColor(nodo.color);
+      setScope(nodo.scope || 'global');
       setActive(nodo.active);
       setDigestFrequency(nodo.digest_frequency || 'daily');
       setSelectedCategories(nodo.categories || []);
@@ -78,6 +80,7 @@ const NodoForm: React.FC<NodoFormProps> = ({ nodo, onSave, onCancel }) => {
       name,
       description,
       color,
+      scope,
       active,
       digest_frequency: digestFrequency,
       categories: selectedCategories,
@@ -176,6 +179,23 @@ const NodoForm: React.FC<NodoFormProps> = ({ nodo, onSave, onCancel }) => {
                 ))}
               </div>
             </div>
+          </div>
+
+          {/* Scope selector */}
+          <div>
+            <label className="text-xs font-bold text-gray-500 block mb-2">Ámbito de Aplicación</label>
+            <select
+              value={scope}
+              onChange={(e) => setScope(e.target.value as 'global' | 'mendoza' | 'argentina')}
+              className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:border-emerald-400 outline-none"
+            >
+              <option value="global">🌎 Global (Mendoza + Argentina)</option>
+              <option value="mendoza">🏔️ Solo Mendoza</option>
+              <option value="argentina">🇦🇷 Solo Argentina Nacional</option>
+            </select>
+            <p className="mt-1.5 text-xs text-gray-500">
+              Los nodos globales matchean en ambas jurisdicciones. Los específicos solo en su ámbito.
+            </p>
           </div>
 
           {/* Description */}
