@@ -12,14 +12,17 @@ import LicitacionesList from '../components/LicitacionesList';
  */
 export default function LicitacionesArgentinaPage() {
   const apiUrl = process.env.REACT_APP_API_URL || '';
-  // Force rebuild: Feb 16 2026 12:10 UTC
+
+  // CRITICAL: This page MUST show ONLY Argentina nacional sources
+  // Force jurisdiccionMode='nacional' which sends only_national=true to API
+  // Force defaultYear='all' to prevent filtering out items without publication_date
 
   return (
     <LicitacionesList
       apiUrl={apiUrl}
       defaultJurisdiccionMode="nacional"
       defaultYear="all"
-      pageTitle="Licitaciones Argentina"
+      pageTitle="Licitaciones Argentina 🇦🇷"
     />
   );
 }
