@@ -12,6 +12,7 @@ import LicitacionesList from '../components/LicitacionesList';
  */
 export default function LicitacionesArgentinaPage() {
   const apiUrl = process.env.REACT_APP_API_URL || '';
+  // Force rebuild: Feb 16 2026 12:10 UTC
 
   return (
     <LicitacionesList
