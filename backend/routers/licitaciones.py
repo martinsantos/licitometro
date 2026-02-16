@@ -740,7 +740,8 @@ async def get_data_quality_stats(
     if base_match:
         pipeline_stages.append({"$match": base_match})
 
-    pipeline_stages.append({"$group": {
+    pipeline_stages.extend([
+        {"$group": {
             "_id": "$fuente",
             "total": {"$sum": 1},
             "with_opening_date": {
