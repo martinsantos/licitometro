@@ -10,8 +10,11 @@ import LicitacionesList from '../components/LicitacionesList';
  * Used for the /licitaciones-ar route.
  */
 export default function LicitacionesArgentinaPage() {
+  const apiUrl = process.env.REACT_APP_API_URL || '';
+
   return (
     <LicitacionesList
+      apiUrl={apiUrl}
       defaultJurisdiccionMode="nacional"
       pageTitle="Licitaciones Argentina"
     />
