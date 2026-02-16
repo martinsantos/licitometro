@@ -84,7 +84,9 @@ const LicitacionesList = ({
 
   // CRITICAL: Force jurisdiction mode if provided (e.g., LicitacionesArgentinaPage forces 'nacional')
   useEffect(() => {
+    console.log('[LicitacionesList] defaultJurisdiccionMode:', defaultJurisdiccionMode, 'current:', filters.jurisdiccionMode);
     if (defaultJurisdiccionMode && filters.jurisdiccionMode !== defaultJurisdiccionMode) {
+      console.log('[LicitacionesList] FORCING jurisdiccionMode to:', defaultJurisdiccionMode);
       setFilter('jurisdiccionMode', defaultJurisdiccionMode);
     }
   }, [defaultJurisdiccionMode, filters.jurisdiccionMode, setFilter]);
