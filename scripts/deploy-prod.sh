@@ -124,12 +124,6 @@ else
     echo "⚠️  Warning: Database appears empty"
 fi
 
-# Run Argentina sources migration (idempotent - safe to run multiple times)
-echo ""
-echo "Running Argentina nacional sources migration..."
-docker exec -w /app -e PYTHONPATH=/app licitometro-backend-1 \
-    python3 scripts/migrate_import_argentina_sources.py || true
-
 echo ""
 echo "=========================================="
 echo "✅ Deployment completed successfully"

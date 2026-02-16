@@ -37,17 +37,9 @@ interface LicitacionesListProps {
   apiUrl: string;
   apiPath?: string; // defaults to '/api/licitaciones'
   defaultYear?: string; // override initial yearWorkspace (e.g., 'all' for AR page)
-  defaultJurisdiccionMode?: 'all' | 'mendoza' | 'nacional';  // Force jurisdiction mode
-  pageTitle?: string;  // Custom page title (e.g., "Licitaciones Argentina")
 }
 
-const LicitacionesList = ({
-  apiUrl,
-  apiPath = '/api/licitaciones',
-  defaultYear,
-  defaultJurisdiccionMode,
-  pageTitle
-}: LicitacionesListProps) => {
+const LicitacionesList = ({ apiUrl, apiPath = '/api/licitaciones', defaultYear }: LicitacionesListProps) => {
   const navigate = useNavigate();
   const listTopRef = useRef<HTMLDivElement>(null);
   const hasRestoredScroll = useRef(false);
@@ -79,13 +71,6 @@ const LicitacionesList = ({
 
   // Derive fechaCampo from current sort field
   const fechaCampo = useMemo(() => deriveFechaCampo(prefs.sortBy), [prefs.sortBy]);
-
-  // CRITICAL: Force jurisdiction mode if provided (e.g., LicitacionesArgentinaPage forces 'nacional')
-  useEffect(() => {
-    if (defaultJurisdiccionMode && filters.jurisdiccionMode !== defaultJurisdiccionMode) {
-      setFilter('jurisdiccionMode', defaultJurisdiccionMode);
-    }
-  }, [defaultJurisdiccionMode, filters.jurisdiccionMode, setFilter]);
 
   // When in apertura mode, enforce fechaDesde >= today
   useEffect(() => {
@@ -342,7 +327,6 @@ const LicitacionesList = ({
           onDaySelect={handleDaySelect}
           selectedDate={filters.fechaDesde && filters.fechaDesde === filters.fechaHasta ? filters.fechaDesde : null}
           fechaCampo={fechaCampo}
-          jurisdiccionMode={filters.jurisdiccionMode}
         />
         <NovedadesStrip apiUrl={apiUrl} apiPath={apiPath} onSourceClick={handleSourceClick} />
       </div>

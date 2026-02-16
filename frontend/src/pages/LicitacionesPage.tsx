@@ -43,12 +43,7 @@ const LicitacionesPage = ({ apiUrl }: { apiUrl: string }) => {
         </div>
       )}
 
-      <LicitacionesList
-        apiUrl={apiUrl}
-        defaultJurisdiccionMode="mendoza"
-        pageTitle="Licitaciones Mendoza"
-        key={refreshList ? 'refresh' : 'initial'}
-      />
+      <LicitacionesList apiUrl={apiUrl} key={refreshList ? 'refresh' : 'initial'} />
     </div>
   );
 };

@@ -73,15 +73,6 @@ export function useLicitacionData({
       if (filters.nuevasDesde) params.append('nuevas_desde', filters.nuevasDesde);
       if (fechaCampo) params.append('fecha_campo', fechaCampo);
 
-      // Jurisdiction mode filtering
-      if (filters.jurisdiccionMode === 'nacional') {
-        params.append('only_national', 'true');
-      } else if (filters.jurisdiccionMode === 'mendoza') {
-        // Exclude comprar.gob.ar sources (show only Mendoza)
-        params.append('fuente_exclude', 'Comprar.Gob.Ar');
-      }
-      // If 'all', no additional filtering
-
       const response = await fetch(`${apiUrl}${apiPath}/?${params.toString()}`, {
         signal: controller.signal,
         credentials: 'include',
