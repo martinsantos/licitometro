@@ -62,7 +62,9 @@ const LicitacionesList = ({
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
 
   // Hooks
-  const { filters, setFilter, setMany, clearAll, hasActiveFilters, activeFilterCount } = useLicitacionFilters();
+  const { filters, setFilter, setMany, clearAll, hasActiveFilters, activeFilterCount } = useLicitacionFilters(
+    defaultJurisdiccionMode ? { jurisdiccionMode: defaultJurisdiccionMode } : undefined
+  );
 
   // Override yearWorkspace on mount when defaultYear is provided (e.g., AR page uses 'all')
   const hasAppliedDefaultYear = useRef(false);
@@ -79,13 +81,6 @@ const LicitacionesList = ({
 
   // Derive fechaCampo from current sort field
   const fechaCampo = useMemo(() => deriveFechaCampo(prefs.sortBy), [prefs.sortBy]);
-
-  // CRITICAL: Force jurisdiction mode if provided (e.g., LicitacionesArgentinaPage forces 'nacional')
-  useEffect(() => {
-    if (defaultJurisdiccionMode && filters.jurisdiccionMode !== defaultJurisdiccionMode) {
-      setFilter('jurisdiccionMode', defaultJurisdiccionMode);
-    }
-  }, [defaultJurisdiccionMode, filters.jurisdiccionMode, setFilter]);
 
   // When in apertura mode, enforce fechaDesde >= today
   useEffect(() => {
