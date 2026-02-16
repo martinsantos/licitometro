@@ -8,12 +8,14 @@ import AdminLogs from '../components/AdminLogs';
 import DataQualityDashboard from '../components/DataQualityDashboard';
 import StorageQuotaPanel from '../components/StorageQuotaPanel';
 import AdminARPanel from '../components/admin/AdminARPanel';
+import AdminImportSources from '../components/AdminImportSources';
 
 const API_URL = '';
 
 const TABS = [
   { key: 'monitor', label: 'Monitoreo' },
   { key: 'fuentes', label: 'Fuentes de Datos' },
+  { key: 'import', label: 'Importar Fuentes' },
   { key: 'logs', label: 'Logs' },
   { key: 'quality', label: 'Calidad de Datos' },
   { key: 'storage', label: 'Almacenamiento' },
@@ -67,6 +69,12 @@ const AdminPage = () => {
                 <h2 className="text-base sm:text-lg lg:text-xl font-semibold">Fuentes de Datos</h2>
               </div>
               <AdminFuentes apiUrl={API_URL} />
+            </div>
+          )}
+
+          {activeTab === 'import' && (
+            <div>
+              <AdminImportSources apiUrl={API_URL} />
             </div>
           )}
 

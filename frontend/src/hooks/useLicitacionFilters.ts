@@ -31,6 +31,7 @@ const initialFilters: FilterState = {
   fechaHasta: '',
   nuevasDesde: '',
   yearWorkspace: getDefaultYear(),
+  jurisdiccionMode: 'all',  // Default: show all sources (Mendoza + Argentina)
 };
 
 function loadFiltersFromSession(): FilterState {

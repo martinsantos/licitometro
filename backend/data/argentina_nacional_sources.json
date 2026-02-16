@@ -1,0 +1,196 @@
+[
+  {
+    "name": "COMPR.AR",
+    "url": "https://comprar.gob.ar/BuscarAvanzado.aspx",
+    "active": true,
+    "schedule": "0 8,12,18 * * *",
+    "description": "Portal de Compras Públicas de la República Argentina - bienes y servicios",
+    "selectors": {
+      "scraper_type": "comprar_gob_ar",
+      "jurisdiccion": "Argentina"
+    },
+    "metadata": {
+      "alcance": "Nacional",
+      "tipo_fuente": "portal oficial"
+    }
+  },
+  {
+    "name": "CONTRAT.AR",
+    "url": "https://contratar.gob.ar/",
+    "active": false,
+    "schedule": "0 9,15 * * *",
+    "description": "Portal Electrónico de Contratación de Obra Pública",
+    "selectors": {
+      "scraper_type": "generic_html",
+      "jurisdiccion": "Argentina"
+    },
+    "metadata": {
+      "alcance": "Nacional",
+      "tipo_fuente": "portal oficial",
+      "notas": "Requiere autenticación para pliegos. Scraping limitado a consultas públicas."
+    }
+  },
+  {
+    "name": "Boletín Oficial Argentina",
+    "url": "https://www.boletinoficial.gob.ar/seccion/tercera",
+    "active": true,
+    "schedule": "0 10 * * *",
+    "description": "Tercera Sección - Contrataciones del Boletín Oficial",
+    "selectors": {
+      "scraper_type": "generic_html",
+      "jurisdiccion": "Argentina",
+      "item_selector": "div.aviso-contratacion",
+      "title_selector": "h3.titulo",
+      "date_selector": "span.fecha"
+    },
+    "metadata": {
+      "alcance": "Nacional",
+      "tipo_fuente": "boletín oficial",
+      "frecuencia_actualizacion": "Diaria"
+    }
+  },
+  {
+    "name": "Datos Argentina API",
+    "url": "https://datos.gob.ar/dataset?tags=Contrataciones",
+    "active": true,
+    "schedule": "0 7 * * 1",
+    "description": "API CKAN - catálogo de datos abiertos de contrataciones",
+    "selectors": {
+      "scraper_type": "ckan_api",
+      "jurisdiccion": "Argentina",
+      "api_endpoint": "http://datos.gob.ar/api/3/action/package_show",
+      "datastore_endpoint": "http://datos.gob.ar/api/3/action/datastore_search"
+    },
+    "metadata": {
+      "alcance": "Nacional",
+      "tipo_fuente": "API",
+      "formatos": ["JSON", "CSV"]
+    }
+  },
+  {
+    "name": "Oficina Nacional de Contrataciones",
+    "url": "https://www.argentina.gob.ar/oficina-nacional-de-contrataciones/portal-de-contrataciones-y-concesiones-de-obra-publica",
+    "active": false,
+    "schedule": "0 11 * * *",
+    "description": "Portal de Contrataciones y Concesiones de Obra Pública (ONC)",
+    "selectors": {
+      "scraper_type": "generic_html",
+      "jurisdiccion": "Argentina"
+    },
+    "metadata": {
+      "alcance": "Nacional",
+      "tipo_fuente": "portal oficial",
+      "notas": "Portal de entrada que redirige a CONTRAT.AR y recursos complementarios"
+    }
+  },
+  {
+    "name": "Ministerio de Economía - Transparencia",
+    "url": "https://www.argentina.gob.ar/economia/transparencia/compras",
+    "active": false,
+    "schedule": "0 14 * * 2",
+    "description": "Compras y contrataciones del Ministerio de Economía",
+    "selectors": {
+      "scraper_type": "generic_html",
+      "jurisdiccion": "Argentina"
+    },
+    "metadata": {
+      "alcance": "Ministerial",
+      "tipo_fuente": "portal oficial",
+      "notas": "Redirige a COMPR.AR filtrado por SAF del ministerio"
+    }
+  },
+  {
+    "name": "Ministerio de Defensa - Transparencia",
+    "url": "https://www.argentina.gob.ar/defensa/transparencia/compras",
+    "active": false,
+    "schedule": "0 14 * * 3",
+    "description": "Compras y contrataciones del Ministerio de Defensa",
+    "selectors": {
+      "scraper_type": "generic_html",
+      "jurisdiccion": "Argentina"
+    },
+    "metadata": {
+      "alcance": "Ministerial",
+      "tipo_fuente": "portal oficial",
+      "notas": "Redirige a COMPR.AR filtrado por organismos de Defensa"
+    }
+  },
+  {
+    "name": "Obras Públicas - Gestor de Contrataciones",
+    "url": "https://licitaciones.obraspublicas.gob.ar/Visor",
+    "active": false,
+    "schedule": "0 13 * * 4",
+    "description": "Visor del Sistema de Gestión de Obras - financiamiento internacional",
+    "selectors": {
+      "scraper_type": "generic_html",
+      "jurisdiccion": "Argentina"
+    },
+    "metadata": {
+      "alcance": "Ministerial",
+      "tipo_fuente": "portal oficial",
+      "notas": "Visor para obras con financiamiento internacional (Banco Mundial, BID)"
+    }
+  },
+  {
+    "name": "Banco Mundial - Procurement",
+    "url": "https://search.worldbank.org/api/v2/procnotices",
+    "active": false,
+    "schedule": "0 6 * * 0",
+    "description": "API de avisos de compras en proyectos del Banco Mundial (Argentina)",
+    "selectors": {
+      "scraper_type": "api_json",
+      "jurisdiccion": "Argentina",
+      "api_endpoint": "https://search.worldbank.org/api/v2/procnotices",
+      "filter_params": {
+        "countrycode_exact": "Argentina"
+      }
+    },
+    "metadata": {
+      "alcance": "Internacional",
+      "tipo_fuente": "API",
+      "formatos": ["JSON", "XML"],
+      "notas": "Solo licitaciones de proyectos financiados por Banco Mundial en Argentina"
+    }
+  },
+  {
+    "name": "BID - Procurement",
+    "url": "https://data.iadb.org/api/action/datastore_search?resource_id=856aabfd-2c6a-48fb-a8b8-19f3ff443618",
+    "active": false,
+    "schedule": "0 6 * * 0",
+    "description": "API CKAN de avisos de compras del BID (Argentina)",
+    "selectors": {
+      "scraper_type": "ckan_api",
+      "jurisdiccion": "Argentina",
+      "api_endpoint": "https://data.iadb.org/api/action/datastore_search",
+      "resource_id": "856aabfd-2c6a-48fb-a8b8-19f3ff443618",
+      "filter_params": {
+        "country": "Argentina"
+      }
+    },
+    "metadata": {
+      "alcance": "Internacional",
+      "tipo_fuente": "API",
+      "formatos": ["JSON", "CSV", "XML"],
+      "notas": "Solo licitaciones de proyectos financiados por BID en Argentina"
+    }
+  },
+  {
+    "name": "Datos Argentina - Sistema Contrataciones Electrónicas",
+    "url": "https://datos.gob.ar/dataset/jgm-sistema-contrataciones-electronicas",
+    "active": false,
+    "schedule": "0 7 * * 6",
+    "description": "Dataset CKAN histórico de COMPR.AR (actualización semestral)",
+    "selectors": {
+      "scraper_type": "ckan_api",
+      "jurisdiccion": "Argentina",
+      "api_endpoint": "http://datos.gob.ar/api/3/action/package_show",
+      "dataset_id": "jgm-sistema-contrataciones-electronicas"
+    },
+    "metadata": {
+      "alcance": "Nacional",
+      "tipo_fuente": "API",
+      "frecuencia_actualizacion": "Semestral",
+      "notas": "Última actualización: 10/06/2021. Dataset histórico, no refleja datos recientes."
+    }
+  }
+]
