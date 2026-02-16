@@ -5,6 +5,7 @@ interface QuickPresetButtonProps {
   isActive: boolean;
   apiUrl?: string;
   apiPath?: string;
+  jurisdiccionMode?: 'all' | 'mendoza' | 'nacional';
 }
 
 /**
@@ -18,6 +19,7 @@ const QuickPresetButton: React.FC<QuickPresetButtonProps> = ({
   isActive,
   apiUrl: apiUrlProp,
   apiPath = '/api/licitaciones',
+  jurisdiccionMode = 'all',
 }) => {
   const [count, setCount] = useState<number | null>(null);
   const [loading, setLoading] = useState(false);
@@ -30,10 +32,13 @@ const QuickPresetButton: React.FC<QuickPresetButtonProps> = ({
     const fetchCount = async () => {
       setLoading(true);
       try {
-        const response = await fetch(
-          `${baseUrl}${apiPath}/stats/truly-new-count?since_date=${todayDate}`,
-          { credentials: 'include' }
-        );
+        let url = `${baseUrl}${apiPath}/stats/truly-new-count?since_date=${todayDate}`;
+        if (jurisdiccionMode === 'nacional') {
+          url += '&only_national=true';
+        } else if (jurisdiccionMode === 'mendoza') {
+          url += '&fuente_exclude=Comprar.Gob.Ar';
+        }
+        const response = await fetch(url, { credentials: 'include' });
         if (response.ok) {
           const data = await response.json();
           setCount(data.total || 0);
@@ -52,7 +57,7 @@ const QuickPresetButton: React.FC<QuickPresetButtonProps> = ({
     // Refresh count every 60 seconds while on page
     const interval = setInterval(fetchCount, 60000);
     return () => clearInterval(interval);
-  }, [todayDate, baseUrl, apiPath]);
+  }, [todayDate, baseUrl, apiPath, jurisdiccionMode]);
 
   const handleClick = useCallback(() => {
     onToggleTodayFilter(isActive ? null : todayDate);

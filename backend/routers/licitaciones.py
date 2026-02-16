@@ -705,11 +705,13 @@ async def get_daily_counts(
     start_date = datetime.combine(date.today() - timedelta(days=days - 1), datetime.min.time())
 
     # Build match stage with jurisdiction/source filtering
-    match_stage = {fecha_campo: {"$gte": start_date}, "tags": {"$ne": "LIC_AR"}}
+    match_stage: dict = {fecha_campo: {"$gte": start_date}}
     if only_national:
         match_stage["jurisdiccion"] = "Argentina"
-    elif jurisdiccion:
-        match_stage["jurisdiccion"] = jurisdiccion
+    else:
+        match_stage["tags"] = {"$ne": "LIC_AR"}
+        if jurisdiccion:
+            match_stage["jurisdiccion"] = jurisdiccion
 
     pipeline = [
         {"$match": match_stage},
@@ -884,7 +886,12 @@ async def get_recent_activity(
 
 
 @router.get("/stats/scraping-activity")
-async def get_scraping_activity(request: Request, hours: int = 24):
+async def get_scraping_activity(
+    request: Request,
+    hours: int = 24,
+    only_national: Optional[bool] = Query(False, description="Only Argentina nacional sources"),
+    fuente_exclude: Optional[List[str]] = Query(None, description="Exclude these sources"),
+):
     """Get categorized scraping activity: truly new, re-indexed, and updated items"""
     from datetime import timedelta
 
@@ -893,12 +900,18 @@ async def get_scraping_activity(request: Request, hours: int = 24):
 
     since = datetime.utcnow() - timedelta(hours=hours)
 
-    # Exclude AR items from main stats
-    exclude_ar = {"tags": {"$ne": "LIC_AR"}}
+    # Build jurisdiction filter
+    jurisdiction_filter: dict = {}
+    if only_national:
+        jurisdiction_filter["jurisdiccion"] = "Argentina"
+    else:
+        jurisdiction_filter["tags"] = {"$ne": "LIC_AR"}
+    if fuente_exclude:
+        jurisdiction_filter["fuente"] = {"$nin": fuente_exclude}
 
     # Count truly new items (first_seen_at >= since)
     truly_new_pipeline = [
-        {"$match": {"first_seen_at": {"$gte": since}, **exclude_ar}},
+        {"$match": {"first_seen_at": {"$gte": since}, **jurisdiction_filter}},
         {"$group": {
             "_id": "$fuente",
             "count": {"$sum": 1}
@@ -911,7 +924,7 @@ async def get_scraping_activity(request: Request, hours: int = 24):
     # Count re-indexed items (fecha_scraping >= since AND first_seen_at < since)
     re_indexed_pipeline = [
         {"$match": {
-            **exclude_ar,
+            **jurisdiction_filter,
             "fecha_scraping": {"$gte": since},
             "$or": [
                 {"first_seen_at": {"$lt": since}},
@@ -930,7 +943,7 @@ async def get_scraping_activity(request: Request, hours: int = 24):
     # Count updated items (updated_at >= since AND created_at < since AND fecha_scraping < since)
     updated_pipeline = [
         {"$match": {
-            **exclude_ar,
+            **jurisdiction_filter,
             "updated_at": {"$gte": since},
             "created_at": {"$lt": since},
             "$or": [
@@ -973,6 +986,8 @@ async def get_scraping_activity(request: Request, hours: int = 24):
 @router.get("/stats/truly-new-count")
 async def get_truly_new_count(
     since_date: date = Query(..., description="Count items where first_seen_at >= this date"),
+    only_national: Optional[bool] = Query(False, description="Only Argentina nacional sources"),
+    fuente_exclude: Optional[List[str]] = Query(None, description="Exclude these sources"),
     request: Request = None
 ):
     """Return count of items truly discovered since given date.
@@ -986,16 +1001,23 @@ async def get_truly_new_count(
     # Convert date to datetime for MongoDB comparison
     since_datetime = datetime.combine(since_date, datetime.min.time())
 
-    # Count total items where first_seen_at >= since_date (exclude AR)
-    exclude_ar = {"tags": {"$ne": "LIC_AR"}}
+    # Build jurisdiction filter
+    jf: dict = {}
+    if only_national:
+        jf["jurisdiccion"] = "Argentina"
+    else:
+        jf["tags"] = {"$ne": "LIC_AR"}
+    if fuente_exclude:
+        jf["fuente"] = {"$nin": fuente_exclude}
+
     count = await collection.count_documents({
         "first_seen_at": {"$gte": since_datetime},
-        **exclude_ar,
+        **jf,
     })
 
     # Optional: breakdown by source for debugging
     pipeline = [
-        {"$match": {"first_seen_at": {"$gte": since_datetime}, **exclude_ar}},
+        {"$match": {"first_seen_at": {"$gte": since_datetime}, **jf}},
         {"$group": {"_id": "$fuente", "count": {"$sum": 1}}},
         {"$sort": {"count": -1}},
         {"$limit": 10}

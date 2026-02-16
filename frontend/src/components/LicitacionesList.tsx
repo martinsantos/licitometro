@@ -346,7 +346,7 @@ const LicitacionesList = ({
           fechaCampo={fechaCampo}
           jurisdiccionMode={filters.jurisdiccionMode}
         />
-        <NovedadesStrip apiUrl={apiUrl} apiPath={apiPath} onSourceClick={handleSourceClick} />
+        <NovedadesStrip apiUrl={apiUrl} apiPath={apiPath} onSourceClick={handleSourceClick} jurisdiccionMode={filters.jurisdiccionMode} />
       </div>
 
       {/* Layout principal: sidebar + contenido */}
@@ -397,6 +397,7 @@ const LicitacionesList = ({
                 isActive={isTodayFilterActive}
                 apiUrl={apiUrl}
                 apiPath={apiPath}
+                jurisdiccionMode={filters.jurisdiccionMode}
               />
 
               <PresetSelector
