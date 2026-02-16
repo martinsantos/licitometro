@@ -374,7 +374,7 @@ class BaseScraper(ABC):
 
         try:
             licitaciones = []
-            current_url = self.config.url
+            current_url = str(self.config.url)
             page_count = 0
 
             while current_url:
