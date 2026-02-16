@@ -174,8 +174,10 @@ async def get_licitaciones(
 
     # Build filter query
     filters = {}
-    # Exclude LIC_AR items from main feed (they have their own section)
-    filters["tags"] = {"$ne": "LIC_AR"}
+    # Exclude LIC_AR items ONLY when not requesting national sources
+    # (Argentina page needs LIC_AR tagged items, Mendoza page excludes them)
+    if not only_national:
+        filters["tags"] = {"$ne": "LIC_AR"}
     if status:
         filters["status"] = status
     if organization:
