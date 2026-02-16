@@ -8,6 +8,7 @@ import LicitacionesList from '../components/LicitacionesList';
  * It filters OUT all Mendoza provincial sources by forcing jurisdiccionMode='nacional'.
  *
  * Used for the /licitaciones-ar route.
+ * Updated: Feb 16, 2026 - Fixed defaultYear prop
  */
 export default function LicitacionesArgentinaPage() {
   const apiUrl = process.env.REACT_APP_API_URL || '';
