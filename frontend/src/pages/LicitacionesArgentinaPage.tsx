@@ -1,5 +1,5 @@
 import React from 'react';
-import LicitacionesList from './LicitacionesList';
+import LicitacionesList from '../components/LicitacionesList';
 
 /**
  * Licitaciones Argentina (LIC.AR) - National procurement only
