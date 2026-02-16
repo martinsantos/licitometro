@@ -29,6 +29,7 @@ export default function LicitacionesArgentinaPage({ apiUrl }: { apiUrl: string }
       <LicitacionesList
         apiUrl={apiUrl}
         defaultJurisdiccionMode="nacional"
+        defaultYear="all"  {/* CRITICAL: Show ALL years, not just 2026 - prevents filtering out items without publication_date */}
         pageTitle="Licitaciones Argentina"
       />
     </div>
