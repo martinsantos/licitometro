@@ -42,7 +42,9 @@ echo ""
 echo "Checking MongoDB status..."
 if ! docker ps --filter "name=licitometro-mongodb-1" --filter "status=running" | grep -q mongodb; then
     echo "⚠️  MongoDB is not running, starting it now..."
-    docker compose -f "$COMPOSE_FILE" up -d mongodb
+    # --force-recreate handles stuck/corrupted container task state (AlreadyExists error)
+    # Data is safe: named volumes persist regardless of container recreation
+    docker compose -f "$COMPOSE_FILE" up -d --force-recreate mongodb
     echo "Waiting for MongoDB to be healthy..."
     sleep 15
 fi
