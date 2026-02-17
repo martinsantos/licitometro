@@ -6,7 +6,7 @@ import WorkflowBadge from '../components/WorkflowBadge';
 import OfferChecklist from '../components/OfferChecklist';
 import { useNodos } from '../hooks/useNodos';
 
-const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
+const BACKEND_URL = process.env.REACT_APP_BACKEND_URL || '';
 const API = `${BACKEND_URL}/api`;
 
 const ENRICHMENT_LABELS = {

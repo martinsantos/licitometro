@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import LicitacionesList from '../components/LicitacionesList';
 import LicitacionForm from '../components/LicitacionForm';
 
-const LicitacionesPage = ({ apiUrl = 'http://localhost:8000' }) => {
+const LicitacionesPage = ({ apiUrl = '' }) => {
   const [showForm, setShowForm] = useState(false);
   const [refreshList, setRefreshList] = useState(false);
 

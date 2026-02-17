@@ -2,9 +2,6 @@ import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import axios from 'axios';
 
-const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
-const API = `${BACKEND_URL}/api`;
-
 const ScraperList = () => {
   const [scrapers, setScrapers] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -14,7 +11,7 @@ const ScraperList = () => {
   const fetchScrapers = async () => {
     setLoading(true);
     try {
-    const response = await axios.get(`${API}/scraper-configs/`);
+    const response = await axios.get('/api/scraper-configs/');
       setScrapers(response.data);
       setLoading(false);
     } catch (error) {
@@ -36,7 +33,7 @@ const ScraperList = () => {
       });
       
       // Use the correct scheduler endpoint
-      await axios.post(`${BACKEND_URL}/api/scheduler/trigger/${encodeURIComponent(scraperName)}`);
+      await axios.post(`/api/scheduler/trigger/${encodeURIComponent(scraperName)}`);
       
       // We don't need to wait for the scraper to finish since it runs in the background
       // Just show a success message
