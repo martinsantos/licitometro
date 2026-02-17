@@ -18,11 +18,13 @@ export default function LicitacionesArgentinaPage() {
   // Force defaultYear='all' to prevent filtering out items without publication_date
 
   return (
-    <LicitacionesList
-      apiUrl={apiUrl}
-      defaultJurisdiccionMode="nacional"
-      defaultYear="all"
-      pageTitle="Licitaciones Argentina 🇦🇷"
-    />
+    <div className="max-w-7xl mx-auto pt-3 md:pt-4 pb-4 px-3 md:px-6 lg:px-10">
+      <LicitacionesList
+        apiUrl={apiUrl}
+        defaultJurisdiccionMode="nacional"
+        defaultYear="all"
+        pageTitle="Licitaciones Argentina 🇦🇷"
+      />
+    </div>
   );
 }
