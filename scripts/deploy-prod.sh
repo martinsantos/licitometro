@@ -37,11 +37,24 @@ else
     fi
 fi
 
+# Step 1.5: Ensure MongoDB is running (it must stay up at all times)
+echo ""
+echo "Checking MongoDB status..."
+if ! docker ps --filter "name=licitometro-mongodb-1" --filter "status=running" | grep -q mongodb; then
+    echo "⚠️  MongoDB is not running, starting it now..."
+    docker compose -f "$COMPOSE_FILE" up -d mongodb
+    echo "Waiting for MongoDB to be healthy..."
+    sleep 15
+fi
+echo "✅ MongoDB is running"
+
 # Step 2: Build new images (without stopping containers)
+# NOTE: Do NOT use --no-cache here - layer cache makes builds 10x faster
+# Use 'docker builder prune -af' manually if you need a full cache flush
 echo ""
 echo "Step 2/5: Building new Docker images..."
 cd "$PROJECT_DIR"
-docker compose -f "$COMPOSE_FILE" build --no-cache
+docker compose -f "$COMPOSE_FILE" build
 
 if [ $? -ne 0 ]; then
     echo "❌ Docker build failed"
