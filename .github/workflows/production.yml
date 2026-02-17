@@ -2,7 +2,7 @@ name: Production Deployment
 
 on:
   push:
-    branches: [main]
+    branches: [main, master]
   workflow_dispatch:  # Manual trigger
 
 # Permissions for creating issues on failure
@@ -41,16 +41,6 @@ jobs:
         run: |
           mkdir -p ~/.ssh
           echo "$VPS_KNOWN_HOSTS" >> ~/.ssh/known_hosts
-
-      - name: Clean VPS repository
-        env:
-          VPS_HOST: ${{ secrets.VPS_HOST }}
-          VPS_USER: ${{ secrets.VPS_USER }}
-        run: |
-          echo "Cleaning VPS repository (discarding local changes)..."
-          ssh -o StrictHostKeyChecking=no "${VPS_USER}@${VPS_HOST}" \
-            "cd /opt/licitometro && git reset --hard HEAD && git clean -fd -e .env -e .env.production"
-          echo "✅ VPS repository cleaned (preserved .env files)"
 
       - name: Sync code to VPS
         env:
