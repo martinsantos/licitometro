@@ -25,16 +25,20 @@ const AdminARPanel = () => {
   const [sources, setSources] = useState<ARSource[]>([]);
   const [stats, setStats] = useState<ARStats | null>(null);
   const [loading, setLoading] = useState(true);
+  const [fetchError, setFetchError] = useState<string | null>(null);
   const [actionLoading, setActionLoading] = useState<string | null>(null);
   const [digestResult, setDigestResult] = useState<string | null>(null);
   const [nodoResult, setNodoResult] = useState<string | null>(null);
 
   const fetchSources = useCallback(async () => {
     try {
+      setFetchError(null);
       const res = await axios.get(`${API_BASE}/sources`);
       setSources(res.data || []);
-    } catch (err) {
-      console.error('Error fetching AR sources:', err);
+    } catch (err: any) {
+      const msg = err.response?.data?.detail || err.message || 'Error desconocido';
+      setFetchError(`Error al cargar fuentes AR: ${msg}`);
+      setSources([]);
     }
   }, []);
 
@@ -139,6 +143,18 @@ const AdminARPanel = () => {
 
   return (
     <div className="space-y-6">
+      {/* Fetch error banner */}
+      {fetchError && (
+        <div className="bg-red-50 border-l-4 border-red-400 p-3 text-sm text-red-700 flex justify-between items-center">
+          <span>{fetchError}</span>
+          <button
+            onClick={() => { setFetchError(null); fetchSources(); }}
+            className="ml-2 text-red-600 hover:text-red-800 font-medium text-xs underline"
+          >
+            Reintentar
+          </button>
+        </div>
+      )}
       {/* Stats */}
       {stats && (
         <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
@@ -207,9 +223,26 @@ const AdminARPanel = () => {
 
       {/* Sources Table */}
       <div>
-        <h3 className="text-sm font-bold text-gray-900 mb-3">
-          Fuentes AR ({sources.length})
-        </h3>
+        <div className="flex items-center justify-between mb-3">
+          <h3 className="text-sm font-bold text-gray-900">
+            Fuentes AR ({sources.length})
+          </h3>
+          <div className="flex gap-2">
+            <button
+              onClick={fetchSources}
+              className="px-3 py-1 bg-gray-100 text-gray-700 rounded text-xs hover:bg-gray-200"
+            >
+              Refrescar
+            </button>
+            <button
+              onClick={handleSeedSources}
+              disabled={actionLoading === 'seed'}
+              className="px-3 py-1 bg-sky-100 text-sky-700 rounded text-xs hover:bg-sky-200 disabled:opacity-50"
+            >
+              {actionLoading === 'seed' ? '...' : 'Sincronizar fuentes'}
+            </button>
+          </div>
+        </div>
         <div className="bg-white rounded-lg border overflow-hidden">
           <table className="w-full text-sm">
             <thead className="bg-gray-50">
@@ -274,7 +307,7 @@ const AdminARPanel = () => {
                       disabled={actionLoading === 'seed'}
                       className="px-4 py-2 bg-sky-600 text-white rounded-lg text-sm font-medium hover:bg-sky-700 disabled:opacity-50"
                     >
-                      {actionLoading === 'seed' ? 'Creando fuentes...' : 'Crear 10 Fuentes AR'}
+                      {actionLoading === 'seed' ? 'Creando fuentes...' : 'Crear/Actualizar 11 Fuentes AR'}
                     </button>
                   </td>
                 </tr>

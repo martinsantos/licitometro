@@ -155,30 +155,38 @@ async def startup_db_client():
     except Exception as e:
         logger.error(f"Failed to seed admin user: {e}")
 
-    # Auto-seed AR national sources if none exist
+    # Auto-seed AR national sources (always upsert so missing scope field gets patched)
     try:
-        ar_count = await database.scraper_configs.count_documents({"scope": "ar_nacional"})
-        if ar_count == 0:
-            from datetime import datetime as dt_seed
-            AR_SOURCES = [
-                {"name": "datos_argentina_contrataciones", "url": "https://datos.gob.ar/dataset?tags=Contrataciones", "active": True, "schedule": "0 8,14 * * 1-5", "selectors": {"dataset_id": "jgm-sistema-contrataciones-electronicas", "scraper_type": "datos_argentina"}, "source_type": "api", "max_items": 200, "wait_time": 1.0, "scope": "ar_nacional"},
-                {"name": "datos_argentina_contratar", "url": "https://datos.gob.ar/dataset/jgm-procesos-contratacion-obra-publica-gestionados-plataforma-contratar", "active": True, "schedule": "0 9 * * 1-5", "selectors": {"dataset_id": "jgm-procesos-contratacion-obra-publica-gestionados-plataforma-contratar", "scraper_type": "datos_argentina"}, "source_type": "api", "max_items": 200, "wait_time": 1.0, "scope": "ar_nacional"},
-                {"name": "contrataciones_abiertas_mendoza_ocds", "url": "https://datosabiertos-compras.mendoza.gov.ar/datosabiertos/", "active": True, "schedule": "0 10 * * 1-5", "selectors": {"scraper_type": "contrataciones_abiertas_mza"}, "source_type": "api", "max_items": 200, "wait_time": 1.0, "scope": "ar_nacional"},
-                {"name": "banco_mundial_argentina", "url": "https://search.worldbank.org/api/v2/procnotices", "active": True, "schedule": "0 7 * * 1-5", "selectors": {"scraper_type": "banco_mundial"}, "source_type": "api", "max_items": 100, "wait_time": 2.0, "scope": "ar_nacional"},
-                {"name": "bid_procurement_argentina", "url": "https://data.iadb.org/dataset/project-procurement-bidding-notices-and-notification-of-contract-awards", "active": True, "schedule": "0 7 * * 1-5", "selectors": {"resource_id": "856aabfd-2c6a-48fb-a8b8-19f3ff443618", "scraper_type": "bid"}, "source_type": "api", "max_items": 100, "wait_time": 2.0, "scope": "ar_nacional"},
-                {"name": "santa_fe_compras", "url": "https://www.santafe.gov.ar/index.php/guia/portal_compras", "active": True, "schedule": "0 8,14 * * 1-5", "selectors": {"rss_url": "https://www.santafe.gov.ar/index.php/guia/portal_compras?pagina=rss", "cartelera_url": "https://www.santafe.gov.ar/index.php/guia/portal_compras", "scraper_type": "santa_fe"}, "source_type": "website", "max_items": 100, "wait_time": 2.0, "scope": "ar_nacional"},
-                {"name": "comprar_gob_ar_nacional", "url": "https://comprar.gob.ar/BuscarAvanzado.aspx", "active": True, "schedule": "0 8,12,18 * * 1-5", "selectors": {"title": "h1.titulo", "organization": "div.organismo", "publication_date": "div.fecha-publicacion", "opening_date": "div.fecha-apertura", "links": "table.items a.ver-detalle"}, "source_type": "website", "max_items": 100, "wait_time": 2.0, "scope": "ar_nacional"},
-                {"name": "contratar_gob_ar", "url": "https://contratar.gob.ar/", "active": True, "schedule": "0 9,15 * * 1-5", "selectors": {"scraper_type": "contratar"}, "source_type": "website", "max_items": 100, "wait_time": 3.0, "scope": "ar_nacional"},
-                {"name": "boletin_oficial_nacional", "url": "https://www.boletinoficial.gob.ar/seccion/tercera", "active": True, "schedule": "0 8,13 * * 1-5", "selectors": {"section_url": "https://www.boletinoficial.gob.ar/seccion/tercera", "scraper_type": "boletin_oficial_nacional"}, "source_type": "website", "max_items": 50, "wait_time": 3.0, "scope": "ar_nacional"},
-                {"name": "pbac_buenos_aires", "url": "https://pbac.cgp.gba.gov.ar/", "active": True, "schedule": "0 8,14 * * 1-5", "selectors": {"scraper_type": "pbac"}, "source_type": "website", "max_items": 100, "wait_time": 3.0, "scope": "ar_nacional"},
-            ]
-            now = dt_seed.utcnow()
-            for src in AR_SOURCES:
+        from datetime import datetime as dt_seed
+        AR_SOURCES = [
+            {"name": "datos_argentina_contrataciones", "url": "https://datos.gob.ar/dataset?tags=Contrataciones", "active": True, "schedule": "0 8,14 * * 1-5", "selectors": {"dataset_id": "jgm-sistema-contrataciones-electronicas", "scraper_type": "datos_argentina"}, "source_type": "api", "max_items": 200, "wait_time": 1.0, "scope": "ar_nacional"},
+            {"name": "datos_argentina_contratar", "url": "https://datos.gob.ar/dataset/jgm-procesos-contratacion-obra-publica-gestionados-plataforma-contratar", "active": True, "schedule": "0 9 * * 1-5", "selectors": {"dataset_id": "jgm-procesos-contratacion-obra-publica-gestionados-plataforma-contratar", "scraper_type": "datos_argentina"}, "source_type": "api", "max_items": 200, "wait_time": 1.0, "scope": "ar_nacional"},
+            {"name": "contrataciones_abiertas_mendoza_ocds", "url": "https://datosabiertos-compras.mendoza.gov.ar/datosabiertos/", "active": True, "schedule": "0 10 * * 1-5", "selectors": {"scraper_type": "contrataciones_abiertas_mza"}, "source_type": "api", "max_items": 200, "wait_time": 1.0, "scope": "ar_nacional"},
+            {"name": "banco_mundial_argentina", "url": "https://search.worldbank.org/api/v2/procnotices", "active": True, "schedule": "0 7 * * 1-5", "selectors": {"scraper_type": "banco_mundial"}, "source_type": "api", "max_items": 100, "wait_time": 2.0, "scope": "ar_nacional"},
+            {"name": "bid_procurement_argentina", "url": "https://data.iadb.org/dataset/project-procurement-bidding-notices-and-notification-of-contract-awards", "active": True, "schedule": "0 7 * * 1-5", "selectors": {"resource_id": "856aabfd-2c6a-48fb-a8b8-19f3ff443618", "scraper_type": "bid"}, "source_type": "api", "max_items": 100, "wait_time": 2.0, "scope": "ar_nacional"},
+            {"name": "santa_fe_compras", "url": "https://www.santafe.gov.ar/index.php/guia/portal_compras", "active": True, "schedule": "0 8,14 * * 1-5", "selectors": {"rss_url": "https://www.santafe.gov.ar/index.php/guia/portal_compras?pagina=rss", "cartelera_url": "https://www.santafe.gov.ar/index.php/guia/portal_compras", "scraper_type": "santa_fe"}, "source_type": "website", "max_items": 100, "wait_time": 2.0, "scope": "ar_nacional"},
+            {"name": "comprar_gob_ar_nacional", "url": "https://comprar.gob.ar/BuscarAvanzado.aspx", "active": True, "schedule": "0 8,12,18 * * 1-5", "selectors": {"title": "h1.titulo", "organization": "div.organismo", "publication_date": "div.fecha-publicacion", "opening_date": "div.fecha-apertura", "links": "table.items a.ver-detalle"}, "source_type": "website", "max_items": 100, "wait_time": 2.0, "scope": "ar_nacional"},
+            {"name": "contratar_gob_ar", "url": "https://contratar.gob.ar/", "active": True, "schedule": "0 9,15 * * 1-5", "selectors": {"scraper_type": "contratar"}, "source_type": "website", "max_items": 100, "wait_time": 3.0, "scope": "ar_nacional"},
+            {"name": "boletin_oficial_nacional", "url": "https://www.boletinoficial.gob.ar/seccion/tercera", "active": True, "schedule": "0 8,13 * * 1-5", "selectors": {"section_url": "https://www.boletinoficial.gob.ar/seccion/tercera", "scraper_type": "boletin_oficial_nacional"}, "source_type": "website", "max_items": 50, "wait_time": 3.0, "scope": "ar_nacional"},
+            {"name": "pbac_buenos_aires", "url": "https://pbac.cgp.gba.gov.ar/", "active": True, "schedule": "0 8,14 * * 1-5", "selectors": {"scraper_type": "pbac"}, "source_type": "website", "max_items": 100, "wait_time": 3.0, "scope": "ar_nacional"},
+            {"name": "gcba_bac_compras", "url": "https://buenosaires.gob.ar/jefaturadegabinete/compras-y-contrataciones", "active": False, "schedule": "0 9,15 * * 1-5", "selectors": {"scraper_type": "generic_html", "links": "a[href*='licitacion'], a[href*='contratacion']", "title": "h1, h2.titulo", "organization": "div.organismo, div.reparticion"}, "source_type": "website", "max_items": 100, "wait_time": 3.0, "scope": "ar_nacional"},
+        ]
+        now = dt_seed.utcnow()
+        created_count = 0
+        updated_count = 0
+        for src in AR_SOURCES:
+            existing = await database.scraper_configs.find_one({"name": src["name"]})
+            if existing:
+                await database.scraper_configs.update_one(
+                    {"name": src["name"]},
+                    {"$set": {**src, "updated_at": now}},
+                )
+                updated_count += 1
+            else:
                 src.update({"created_at": now, "updated_at": now, "runs_count": 0, "last_run": None, "headers": {}, "cookies": {}})
-            await database.scraper_configs.insert_many(AR_SOURCES)
-            logger.info(f"Auto-seeded {len(AR_SOURCES)} AR national scraper configs")
-        else:
-            logger.info(f"AR scraper configs already exist ({ar_count}), skipping auto-seed")
+                await database.scraper_configs.insert_one(src)
+                created_count += 1
+        logger.info(f"AR scraper configs: {created_count} created, {updated_count} patched (scope field ensured)")
     except Exception as e:
         logger.error(f"Failed to auto-seed AR sources: {e}")
 

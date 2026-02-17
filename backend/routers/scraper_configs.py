@@ -41,10 +41,11 @@ async def get_scraper_configs(
     skip: int = Query(0, ge=0),
     limit: int = Query(100, ge=1, le=1000),
     active_only: bool = False,
+    exclude_scope: Optional[str] = Query(None, description="Exclude configs with this scope value (e.g. 'ar_nacional')"),
     repo: ScraperConfigRepository = Depends(get_scraper_config_repository)
 ):
     """Get all scraper configurations"""
-    return await repo.get_all(skip=skip, limit=limit, active_only=active_only)
+    return await repo.get_all(skip=skip, limit=limit, active_only=active_only, exclude_scope=exclude_scope)
 
 @router.get("/{config_id}", response_model=ScraperConfig)
 async def get_scraper_config(
