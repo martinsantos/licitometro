@@ -255,11 +255,15 @@ const LicitacionesList = ({
       }
       // Activar AMBOS filtros simultáneamente (nuevasDesde Y fechaDesde/fechaHasta)
       setMany({ fechaDesde: dateStr, fechaHasta: dateStr, nuevasDesde: dateStr });
+      // CRITICAL: Switch sort to fecha_scraping so the date filter matches indexing dates
+      if (prefs.sortBy !== 'fecha_scraping') {
+        prefs.handleSortChange('fecha_scraping');
+      }
     } else {
       // Limpiar AMBOS filtros simultáneamente
       setMany({ fechaDesde: '', fechaHasta: '', nuevasDesde: '' });
     }
-  }, [setMany, fechaCampo]);
+  }, [setMany, fechaCampo, prefs.sortBy, prefs.handleSortChange]);
 
   const handleSourceClick = useCallback((fuente: string) => {
     setFilter('fuenteFiltro', fuente);
@@ -281,11 +285,16 @@ const LicitacionesList = ({
     if (today) {
       // Activar AMBOS filtros simultáneamente (nuevasDesde Y fechaDesde/fechaHasta)
       setMany({ nuevasDesde: today, fechaDesde: today, fechaHasta: today });
+      // CRITICAL: Switch sort to fecha_scraping so fechaDesde/fechaHasta filter correctly
+      // (publication_date rarely matches "today" — fecha_scraping always does for scraped items)
+      if (prefs.sortBy !== 'fecha_scraping') {
+        prefs.handleSortChange('fecha_scraping');
+      }
     } else {
       // Limpiar AMBOS filtros simultáneamente
       setMany({ nuevasDesde: '', fechaDesde: '', fechaHasta: '' });
     }
-  }, [setMany]);
+  }, [setMany, prefs.sortBy, prefs.handleSortChange]);
 
   // Check if "Nuevas de hoy" filter is active (either nuevasDesde OR fechaDesde for "today")
   const todayDate = new Date().toISOString().slice(0, 10);
