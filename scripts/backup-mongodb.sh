@@ -10,6 +10,15 @@ BACKUP_FILE="${BACKUP_DIR}/mongodb_${TIMESTAMP}.gz"
 CONTAINER_NAME="${MONGO_CONTAINER:-licitometro-mongodb-1}"
 RETENTION_DAYS=7
 
+# Load credentials from .env if not already set
+if [ -z "$MONGO_USER" ] || [ -z "$MONGO_PASSWORD" ]; then
+    ENV_FILE="/opt/licitometro/.env"
+    if [ -f "$ENV_FILE" ]; then
+        # shellcheck disable=SC1090
+        set -a; source "$ENV_FILE"; set +a
+    fi
+fi
+
 # Create backup directory if it doesn't exist
 mkdir -p "$BACKUP_DIR"
 
@@ -23,10 +32,12 @@ if ! docker ps | grep -q "$CONTAINER_NAME"; then
     exit 1
 fi
 
-# Create backup
+# Create backup (mongodump --gzip already compresses; pipe directly to file)
 echo "Creating backup: $BACKUP_FILE"
 docker exec "$CONTAINER_NAME" \
-    mongodump --archive --gzip | gzip > "$BACKUP_FILE"
+    mongodump --archive --gzip \
+    --username "${MONGO_USER}" --password "${MONGO_PASSWORD}" \
+    --authenticationDatabase admin > "$BACKUP_FILE"
 
 # Verify backup was created
 if [ ! -f "$BACKUP_FILE" ]; then

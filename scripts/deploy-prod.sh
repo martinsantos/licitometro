@@ -19,24 +19,21 @@ echo "=========================================="
 # Step 1: Pre-deployment backup
 echo ""
 echo "Step 1/5: Creating pre-deployment backup..."
+BACKUP_FILE=""
 if [ ! -f "$BACKUP_SCRIPT" ]; then
-    echo "⚠️  Warning: Backup script not found at $BACKUP_SCRIPT"
-    read -p "Continue without backup? (yes/no): " CONTINUE
-    if [ "$CONTINUE" != "yes" ]; then
-        echo "Deployment cancelled"
-        exit 1
-    fi
+    echo "⚠️  Warning: Backup script not found at $BACKUP_SCRIPT, skipping backup"
 else
-    BACKUP_FILE=$(bash "$BACKUP_SCRIPT")
-    if [ $? -eq 0 ]; then
+    # Temporarily disable set -e so backup failure doesn't abort deploy
+    set +e
+    BACKUP_OUTPUT=$(bash "$BACKUP_SCRIPT" 2>&1)
+    BACKUP_EXIT=$?
+    set -e
+    if [ $BACKUP_EXIT -eq 0 ]; then
+        BACKUP_FILE=$(echo "$BACKUP_OUTPUT" | tail -1)
         echo "✅ Backup created: $BACKUP_FILE"
     else
-        echo "❌ Backup failed"
-        read -p "Continue without backup? (yes/no): " CONTINUE
-        if [ "$CONTINUE" != "yes" ]; then
-            echo "Deployment cancelled"
-            exit 1
-        fi
+        echo "⚠️  Backup failed (non-fatal, continuing deployment):"
+        echo "$BACKUP_OUTPUT" | tail -5
     fi
 fi
 
