@@ -82,57 +82,45 @@ const DailyDigestStrip = ({
       {/* Compact summary bar - always visible */}
       <button
         onClick={() => setExpanded(!expanded)}
-        className="w-full px-3 py-2 flex items-center justify-between hover:bg-gray-50 transition-colors"
+        className="w-full px-2.5 py-1.5 flex items-center justify-between hover:bg-gray-50 transition-colors"
       >
         <div className="flex items-center gap-1.5 sm:gap-3 text-xs font-bold min-w-0 overflow-x-auto scrollbar-hide">
-          <span className="text-gray-400 uppercase tracking-wide flex-shrink-0 hidden sm:inline">Actividad</span>
+          <span className="text-gray-400 uppercase tracking-wide flex-shrink-0 text-[10px] sm:text-xs">Indexadas</span>
           <button
             onClick={(e) => { e.stopPropagation(); onDaySelect(selectedDate === today ? null : today); }}
-            className={`px-2 py-1 rounded transition-all flex-shrink-0 flex items-center gap-1 ${
+            className={`px-2 py-0.5 rounded transition-all flex-shrink-0 text-xs ${
               selectedDate === today
                 ? 'bg-emerald-600 text-white'
                 : 'bg-emerald-50 text-emerald-700 hover:bg-emerald-100'
             }`}
-            title="Items scrapeados/actualizados hoy (incluye items viejos re-indexados). Diferente de 'Nuevas de hoy' que muestra solo items descubiertos hoy."
+            title="Items scrapeados/actualizados hoy"
           >
-            <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-            </svg>
-            <div className="flex flex-col items-start leading-tight">
-              <span className="text-[9px] opacity-70 uppercase">Indexadas</span>
-              <span className="text-xs font-bold">Hoy {todayCount}</span>
-            </div>
+            Hoy {todayCount}
           </button>
           <button
             onClick={(e) => { e.stopPropagation(); onDaySelect(selectedDate === yesterday ? null : yesterday); }}
-            className={`px-2 py-1 rounded transition-all flex-shrink-0 flex items-center gap-1 ${
+            className={`px-2 py-0.5 rounded transition-all flex-shrink-0 text-xs ${
               selectedDate === yesterday
                 ? 'bg-blue-600 text-white'
                 : 'bg-blue-50 text-blue-700 hover:bg-blue-100'
             }`}
-            title="Items scrapeados/actualizados ayer (incluye items viejos re-indexados)"
+            title="Items scrapeados/actualizados ayer"
           >
-            <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-            </svg>
-            <div className="flex flex-col items-start leading-tight">
-              <span className="text-[9px] opacity-70 uppercase">Indexadas</span>
-              <span className="text-xs font-bold">Ayer {yesterdayCount}</span>
-            </div>
+            Ayer {yesterdayCount}
           </button>
-          <span className="text-gray-400 flex-shrink-0">Sem {weekTotal}</span>
-          <span className="text-gray-400 flex-shrink-0 hidden sm:inline">Mes {monthTotal}</span>
+          <span className="text-gray-400 flex-shrink-0 text-[11px]">Sem {weekTotal}</span>
+          <span className="text-gray-400 flex-shrink-0 text-[11px] hidden sm:inline">Mes {monthTotal}</span>
           {selectedDate && (
             <button
               onClick={(e) => { e.stopPropagation(); onDaySelect(null); }}
-              className="px-2 py-0.5 bg-red-50 text-red-600 rounded hover:bg-red-100 flex-shrink-0"
+              className="px-1.5 py-0.5 bg-red-50 text-red-600 rounded hover:bg-red-100 flex-shrink-0 text-[11px]"
             >
               &times;
             </button>
           )}
         </div>
         <svg
-          className={`w-4 h-4 text-gray-400 transition-transform flex-shrink-0 ${expanded ? 'rotate-180' : ''}`}
+          className={`w-3.5 h-3.5 text-gray-400 transition-transform flex-shrink-0 ml-1 ${expanded ? 'rotate-180' : ''}`}
           fill="none" stroke="currentColor" viewBox="0 0 24 24"
         >
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7" />
