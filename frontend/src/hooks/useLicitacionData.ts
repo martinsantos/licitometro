@@ -71,7 +71,11 @@ export function useLicitacionData({
       if (filters.fechaDesde) params.append('fecha_desde', filters.fechaDesde);
       if (filters.fechaHasta) params.append('fecha_hasta', filters.fechaHasta);
       if (filters.nuevasDesde) params.append('nuevas_desde', filters.nuevasDesde);
-      if (fechaCampo) params.append('fecha_campo', fechaCampo);
+      // CRITICAL: When nuevasDesde is active (synchronized "Nuevas de hoy" filter),
+      // fechaDesde/fechaHasta must filter on fecha_scraping regardless of sort mode.
+      // publication_date rarely matches "today" — items are discovered today but published on other dates.
+      const effectiveFechaCampo = filters.nuevasDesde ? 'fecha_scraping' : fechaCampo;
+      if (effectiveFechaCampo) params.append('fecha_campo', effectiveFechaCampo);
 
       // Jurisdiction mode filtering
       if (filters.jurisdiccionMode === 'nacional') {

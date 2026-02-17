@@ -89,18 +89,7 @@ const LicitacionesList = ({
     }
   }, [defaultJurisdiccionMode, filters.jurisdiccionMode, setFilter]);
 
-  // When switching TO apertura mode, clear any existing date filters
-  // that would cause confusing results (e.g., "Nuevas de hoy" filter on opening_date)
-  const prevFechaCampoRef = useRef(fechaCampo);
-  useEffect(() => {
-    if (fechaCampo !== prevFechaCampoRef.current) {
-      // Sort mode changed — clear date range filters to avoid cross-field confusion
-      if (filters.fechaDesde || filters.fechaHasta) {
-        setMany({ fechaDesde: '', fechaHasta: '', nuevasDesde: '' });
-      }
-      prevFechaCampoRef.current = fechaCampo;
-    }
-  }, [fechaCampo, filters.fechaDesde, filters.fechaHasta, setMany]);
+
 
   // Debounce the text search (700ms), other filters are immediate
   const debouncedBusqueda = useDebounce(filters.busqueda, 700);
@@ -248,15 +237,11 @@ const LicitacionesList = ({
     if (dateStr) {
       // Activar AMBOS filtros simultáneamente (nuevasDesde Y fechaDesde/fechaHasta)
       setMany({ fechaDesde: dateStr, fechaHasta: dateStr, nuevasDesde: dateStr });
-      // CRITICAL: Switch sort to fecha_scraping so the date filter matches indexing dates
-      if (prefs.sortBy !== 'fecha_scraping') {
-        prefs.handleSortChange('fecha_scraping');
-      }
     } else {
       // Limpiar AMBOS filtros simultáneamente
       setMany({ fechaDesde: '', fechaHasta: '', nuevasDesde: '' });
     }
-  }, [setMany, fechaCampo, prefs.sortBy, prefs.handleSortChange]);
+  }, [setMany]);
 
   const handleSourceClick = useCallback((fuente: string) => {
     setFilter('fuenteFiltro', fuente);
@@ -271,16 +256,11 @@ const LicitacionesList = ({
     if (today) {
       // Activar AMBOS filtros simultáneamente (nuevasDesde Y fechaDesde/fechaHasta)
       setMany({ nuevasDesde: today, fechaDesde: today, fechaHasta: today });
-      // CRITICAL: Switch sort to fecha_scraping so fechaDesde/fechaHasta filter correctly
-      // (publication_date rarely matches "today" — fecha_scraping always does for scraped items)
-      if (prefs.sortBy !== 'fecha_scraping') {
-        prefs.handleSortChange('fecha_scraping');
-      }
     } else {
       // Limpiar AMBOS filtros simultáneamente
       setMany({ nuevasDesde: '', fechaDesde: '', fechaHasta: '' });
     }
-  }, [setMany, prefs.sortBy, prefs.handleSortChange]);
+  }, [setMany]);
 
   // Check if "Nuevas de hoy" filter is active (either nuevasDesde OR fechaDesde for "today")
   const todayDate = new Date().toISOString().slice(0, 10);

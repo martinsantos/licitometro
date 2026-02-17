@@ -65,7 +65,9 @@ export function useFacetedFilters(apiUrl: string, filters: FilterState, fechaCam
       } else if (filters.yearWorkspace && filters.yearWorkspace !== 'all') {
         params.append('fecha_hasta', `${filters.yearWorkspace}-12-31`);
       }
-      if (fechaCampo) params.append('fecha_campo', fechaCampo);
+      // When nuevasDesde is active, force fecha_campo=fecha_scraping (synchronized filter)
+      const effectiveFechaCampo = filters.nuevasDesde ? 'fecha_scraping' : fechaCampo;
+      if (effectiveFechaCampo) params.append('fecha_campo', effectiveFechaCampo);
       if (filters.nuevasDesde) params.append('nuevas_desde', filters.nuevasDesde);
 
       // Apply jurisdiction filtering to facets
