@@ -76,6 +76,25 @@ function AppRouter({ authState, setAuthState }) {
     );
   }
 
+  // Backend unreachable - show error with retry
+  if (authState === 'error') {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gray-50">
+        <div className="max-w-md w-full mx-4 bg-white rounded-lg shadow-lg p-8 text-center">
+          <div className="text-red-500 text-5xl mb-4">⚠</div>
+          <h2 className="text-xl font-bold text-gray-900 mb-2">Servicio no disponible</h2>
+          <p className="text-gray-500 mb-6">No se pudo conectar con el servidor. Verifique que el servicio backend esté funcionando.</p>
+          <button
+            onClick={() => { setAuthState(null); window.location.reload(); }}
+            className="px-6 py-2 bg-emerald-600 text-white rounded-lg font-semibold hover:bg-emerald-700"
+          >
+            Reintentar
+          </button>
+        </div>
+      </div>
+    );
+  }
+
   // Not authenticated - show login
   if (authState === false) {
     return (
@@ -120,8 +139,14 @@ function App() {
     try {
       const res = await axios.get("/api/auth/check");
       setAuthState({ role: res.data.role, email: res.data.email });
-    } catch {
-      setAuthState(false);
+    } catch (err) {
+      if (err.response && err.response.status === 401) {
+        setAuthState(false); // Not authenticated - show login
+      } else {
+        // Backend unreachable or server error
+        console.error("Backend connection error:", err.message);
+        setAuthState('error');
+      }
     }
   };
 

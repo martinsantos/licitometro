@@ -20,7 +20,15 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLogin }) => {
       const res = await axios.post("/api/auth/login", { email, password }, { withCredentials: true });
       onLogin(res.data.role, res.data.email);
     } catch (err: any) {
-      setError(err.response?.data?.detail || "Error de autenticación");
+      if (err.response) {
+        // Server responded with error
+        setError(err.response.data?.detail || "Email o contraseña incorrectos");
+      } else if (err.request) {
+        // No response received - backend unreachable
+        setError("No se pudo conectar con el servidor. Verifique que el servicio esté funcionando.");
+      } else {
+        setError("Error inesperado. Intente nuevamente.");
+      }
     } finally {
       setLoading(false);
     }

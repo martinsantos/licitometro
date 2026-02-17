@@ -47,6 +47,15 @@ def _get_db(request: Request):
     return request.app.mongodb
 
 
+def _is_https(request: Request) -> bool:
+    """Detect if the original request was over HTTPS (handles Cloudflare/proxy)."""
+    if request.headers.get("x-forwarded-proto") == "https":
+        return True
+    if request.url.scheme == "https":
+        return True
+    return False
+
+
 @router.post("/login")
 async def login(body: LoginRequest, request: Request):
     """Authenticate with email and password."""
@@ -70,7 +79,7 @@ async def login(body: LoginRequest, request: Request):
         value=token,
         httponly=True,
         samesite="lax",
-        secure=True,
+        secure=_is_https(request),
         max_age=86400,  # 24 hours
         path="/",
     )
@@ -106,7 +115,7 @@ async def check_auth(request: Request):
 
 
 @router.post("/token-login")
-async def token_login(body: TokenLoginRequest):
+async def token_login(body: TokenLoginRequest, request: Request):
     """Exchange a public access token for a session cookie."""
     token_data = verify_token(body.token)
     if not token_data["valid"]:
@@ -123,7 +132,7 @@ async def token_login(body: TokenLoginRequest):
         value=token,
         httponly=True,
         samesite="lax",
-        secure=True,
+        secure=_is_https(request),
         max_age=86400,
         path="/",
     )
