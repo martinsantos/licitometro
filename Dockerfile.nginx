@@ -1,22 +1,7 @@
-# Stage 1: Build frontend
-FROM node:20-alpine AS builder
+# Production Dockerfile - frontend is pre-built by GitHub Actions CI
+# The frontend/build/ directory is rsynced from CI to VPS before this runs.
+# This keeps Docker build time on the VPS under 30 seconds (no Node/yarn needed).
 
-WORKDIR /app
-
-# Copy package files
-COPY frontend/package.json frontend/yarn.lock ./
-
-# Install dependencies
-RUN yarn install --frozen-lockfile
-
-# Copy frontend source
-COPY frontend/ .
-
-# Build with empty backend URL (nginx proxies /api)
-ENV REACT_APP_BACKEND_URL=
-RUN yarn build
-
-# Stage 2: Serve with nginx
 FROM nginx:1.25-alpine
 
 # Remove default nginx config
@@ -34,8 +19,8 @@ COPY nginx/nginx.conf /etc/nginx/templates/nginx-ssl.conf
 COPY nginx/entrypoint.sh /entrypoint.sh
 RUN chmod +x /entrypoint.sh
 
-# Copy built frontend
-COPY --from=builder /app/build /usr/share/nginx/html
+# Copy pre-built frontend (built by GitHub Actions, rsynced to VPS)
+COPY frontend/build /usr/share/nginx/html
 
 # Create certbot webroot directory
 RUN mkdir -p /var/www/certbot
