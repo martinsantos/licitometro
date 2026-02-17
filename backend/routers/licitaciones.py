@@ -127,7 +127,7 @@ async def get_licitaciones(
 
         # National/source exclusion filters
         if only_national:
-            extra_filters["jurisdiccion"] = "Argentina"
+            extra_filters["tags"] = "LIC_AR"
         if fuente_exclude:
             extra_filters["fuente"] = {"$nin": fuente_exclude}
 
@@ -201,7 +201,7 @@ async def get_licitaciones(
 
     # National/source exclusion filters (applied to both search and non-search paths)
     if only_national:
-        filters["jurisdiccion"] = "Argentina"
+        filters["tags"] = "LIC_AR"
     if fuente_exclude:
         filters["fuente"] = {"$nin": fuente_exclude}
 
@@ -328,7 +328,7 @@ async def get_vigentes(
 
     # Add jurisdiccion filtering
     if only_national:
-        filters["jurisdiccion"] = "Argentina"
+        filters["tags"] = "LIC_AR"
     elif jurisdiccion:
         filters["jurisdiccion"] = jurisdiccion
 
@@ -481,7 +481,7 @@ async def get_facets(
 
     # National/source exclusion filters
     if only_national:
-        base_match["jurisdiccion"] = "Argentina"
+        base_match["tags"] = "LIC_AR"
     if fuente_exclude:
         base_match["fuente"] = {"$nin": fuente_exclude}
 
@@ -707,7 +707,7 @@ async def get_daily_counts(
     # Build match stage with jurisdiction/source filtering
     match_stage: dict = {fecha_campo: {"$gte": start_date}}
     if only_national:
-        match_stage["jurisdiccion"] = "Argentina"
+        match_stage["tags"] = "LIC_AR"
     else:
         match_stage["tags"] = {"$ne": "LIC_AR"}
         if jurisdiccion:
@@ -745,7 +745,7 @@ async def get_data_quality_stats(
     # Build match filter for jurisdiction/source
     base_match = {}
     if only_national:
-        base_match["jurisdiccion"] = "Argentina"
+        base_match["tags"] = "LIC_AR"
     elif jurisdiccion:
         base_match["jurisdiccion"] = jurisdiccion
 
@@ -903,7 +903,7 @@ async def get_scraping_activity(
     # Build jurisdiction filter
     jurisdiction_filter: dict = {}
     if only_national:
-        jurisdiction_filter["jurisdiccion"] = "Argentina"
+        jurisdiction_filter["tags"] = "LIC_AR"
     else:
         jurisdiction_filter["tags"] = {"$ne": "LIC_AR"}
     if fuente_exclude:
@@ -1004,7 +1004,7 @@ async def get_truly_new_count(
     # Build jurisdiction filter
     jf: dict = {}
     if only_national:
-        jf["jurisdiccion"] = "Argentina"
+        jf["tags"] = "LIC_AR"
     else:
         jf["tags"] = {"$ne": "LIC_AR"}
     if fuente_exclude:
@@ -1234,7 +1234,7 @@ async def get_estado_distribution(
     # Build base match filter
     base_match = {}
     if only_national:
-        base_match["jurisdiccion"] = "Argentina"
+        base_match["tags"] = "LIC_AR"
     elif jurisdiccion:
         base_match["jurisdiccion"] = jurisdiccion
 
@@ -1584,7 +1584,7 @@ async def get_rubros_list(
 
         # Get distinct categories from Argentina items only
         pipeline = [
-            {"$match": {"jurisdiccion": "Argentina"}},
+            {"$match": {"tags": "LIC_AR"}},
             {"$group": {"_id": "$category"}},
             {"$match": {"_id": {"$ne": None}}},
             {"$sort": {"_id": 1}}
