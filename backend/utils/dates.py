@@ -147,7 +147,7 @@ def extract_year_from_text(
         source_hint: Optional source name for source-specific patterns
 
     Returns:
-        Year between 2020-2027, or None if not found/invalid
+        Year between 2024-2027, or None if not found/invalid
     """
     if not text or not isinstance(text, str):
         return None
@@ -186,13 +186,13 @@ def extract_year_from_text(
             if match:
                 year_str = match.group(1)
                 year = _normalize_year(year_str)
-                if year and 2020 <= year <= 2027:
+                if year and 2024 <= year <= 2027:
                     _date_logger.debug(f"extract_year: found {year} via source pattern '{pattern}' in '{text[:50]}'")
                     return year
 
     # Fallback to generic 4-digit patterns
     four_digit_patterns = [
-        r'\b(202[0-7])\b',  # 2020-2027 as word boundary
+        r'\b(202[4-7])\b',  # 2024-2027 as word boundary
         r'/(\d{4})',         # /2024
         r'-(\d{4})',         # -2024
         r'\((\d{4})\)',      # (2024)
@@ -202,7 +202,7 @@ def extract_year_from_text(
         match = _re.search(pattern, text)
         if match:
             year = int(match.group(1))
-            if 2020 <= year <= 2027:
+            if 2024 <= year <= 2027:
                 _date_logger.debug(f"extract_year: found {year} via 4-digit pattern in '{text[:50]}'")
                 return year
 
@@ -217,7 +217,7 @@ def extract_year_from_text(
         if match:
             year_str = match.group(1)
             year = _normalize_year(year_str)
-            if year and 2020 <= year <= 2027:
+            if year and 2024 <= year <= 2027:
                 _date_logger.debug(f"extract_year: found {year} via 2-digit pattern in '{text[:50]}'")
                 return year
 
@@ -230,10 +230,10 @@ def _normalize_year(year_str: str) -> Optional[int]:
     Normalize 2-digit or 4-digit year string to 4-digit int.
 
     Rules:
-    - 20-27 → 2020-2027 (historical items become archivada via _compute_estado)
+    - 24-27 → 2024-2027 (valid range; 24=2024 is archivada via _compute_estado)
     - 28-99 → REJECT (impossible future)
-    - 00-19 → REJECT (too old)
-    - 2020-2027 → keep
+    - 00-23 → REJECT (too old)
+    - 2024-2027 → keep
     - Other 4-digit → REJECT
 
     Returns:
@@ -249,16 +249,16 @@ def _normalize_year(year_str: str) -> Optional[int]:
 
     # 4-digit year
     if year_int >= 1000:
-        if 2020 <= year_int <= 2027:
+        if 2024 <= year_int <= 2027:
             return year_int
         else:
             return None  # Out of range
 
     # 2-digit year
-    if 20 <= year_int <= 27:
-        return 2000 + year_int  # 20 → 2020, 24 → 2024
+    if 24 <= year_int <= 27:
+        return 2000 + year_int  # 24 → 2024, 27 → 2027
     else:
-        return None  # REJECT 28+, 00-19
+        return None  # REJECT 28+, 00-23
 
 
 def extract_date_from_text(text: str, context: str = "") -> Optional[datetime]:
@@ -325,8 +325,8 @@ def extract_date_from_text(text: str, context: str = "") -> Optional[datetime]:
 
 def validate_date_range(dt: Optional[datetime], field_name: str) -> tuple[bool, Optional[str]]:
     """
-    Validate date is within acceptable range [2020-2027].
-    Historical items (< 2025) are classified as "archivada" by _compute_estado().
+    Validate date is within acceptable range [2024-2027].
+    Items with publication_date < 2025-01-01 are classified as "archivada" by _compute_estado().
 
     Args:
         dt: Date to validate (can be None)
@@ -338,8 +338,8 @@ def validate_date_range(dt: Optional[datetime], field_name: str) -> tuple[bool, 
     if not dt:
         return True, None  # None is allowed
 
-    if not (2020 <= dt.year <= 2027):
-        return False, f"{field_name} year {dt.year} out of range [2020-2027]"
+    if not (2024 <= dt.year <= 2027):
+        return False, f"{field_name} year {dt.year} out of range [2024-2027]"
 
     return True, None
 

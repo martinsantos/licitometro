@@ -129,7 +129,7 @@ class LicitacionBase(BaseModel):
 
         Rules:
         1. opening_date >= publication_date (if both exist)
-        2. Year range: 2020 <= year <= 2027 (items < 2025 become archivada via _compute_estado)
+        2. Year range: 2024 <= year <= 2027 (items published < 2025-01-01 become archivada)
         3. NEVER use datetime.utcnow() as fallback
         """
         from utils.dates import validate_date_range, validate_date_order

@@ -10,6 +10,7 @@ interface ScraperConfig {
   source_type: string;
   last_run: string | null;
   runs_count: number;
+  scope?: string | null;
 }
 
 interface SourceHealth {
@@ -80,7 +81,7 @@ const AdminFuentes = ({ apiUrl }: { apiUrl: string }) => {
     try {
       setLoading(true);
       const [configsRes, healthRes] = await Promise.all([
-        axios.get('/api/scraper-configs/'),
+        axios.get('/api/scraper-configs/?exclude_scope=ar_nacional'),
         axios.get('/api/scheduler/source-health').catch(() => ({ data: { sources: [] } })),
       ]);
       setConfigs(configsRes.data);
@@ -209,7 +210,7 @@ const AdminFuentes = ({ apiUrl }: { apiUrl: string }) => {
       )}
 
       <div className="flex justify-between items-center mb-4">
-        <p className="text-sm text-gray-500">{configs.length} fuentes configuradas</p>
+        <p className="text-sm text-gray-500">{configs.length} fuentes Mendoza configuradas</p>
         <button
           onClick={fetchData}
           className="bg-gray-100 text-gray-700 px-3 py-1.5 rounded text-sm hover:bg-gray-200"

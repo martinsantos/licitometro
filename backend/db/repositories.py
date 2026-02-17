@@ -301,11 +301,13 @@ class ScraperConfigRepository:
         await self.collection.insert_one(config_dict)
         return scraper_config_entity(config_dict)
     
-    async def get_all(self, skip: int = 0, limit: int = 100, active_only: bool = False) -> List[ScraperConfig]:
+    async def get_all(self, skip: int = 0, limit: int = 100, active_only: bool = False, exclude_scope: Optional[str] = None) -> List[ScraperConfig]:
         """Get all scraper configurations"""
         query = {"active": True} if active_only else {}
+        if exclude_scope:
+            query["scope"] = {"$ne": exclude_scope}
         cursor = self.collection.find(query).skip(skip).limit(limit)
-        
+
         configs = await cursor.to_list(length=limit)
         return scraper_configs_entity(configs)
     

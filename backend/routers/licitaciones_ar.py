@@ -585,6 +585,7 @@ async def seed_ar_sources(request: Request):
         {"name": "contratar_gob_ar", "url": "https://contratar.gob.ar/", "active": True, "schedule": "0 9,15 * * 1-5", "selectors": {"scraper_type": "contratar"}, "source_type": "website", "max_items": 100, "wait_time": 3.0, "scope": "ar_nacional"},
         {"name": "boletin_oficial_nacional", "url": "https://www.boletinoficial.gob.ar/seccion/tercera", "active": True, "schedule": "0 8,13 * * 1-5", "selectors": {"section_url": "https://www.boletinoficial.gob.ar/seccion/tercera", "scraper_type": "boletin_oficial_nacional"}, "source_type": "website", "max_items": 50, "wait_time": 3.0, "scope": "ar_nacional"},
         {"name": "pbac_buenos_aires", "url": "https://pbac.cgp.gba.gov.ar/", "active": True, "schedule": "0 8,14 * * 1-5", "selectors": {"scraper_type": "pbac"}, "source_type": "website", "max_items": 100, "wait_time": 3.0, "scope": "ar_nacional"},
+        {"name": "gcba_bac_compras", "url": "https://buenosaires.gob.ar/jefaturadegabinete/compras-y-contrataciones", "active": False, "schedule": "0 9,15 * * 1-5", "selectors": {"scraper_type": "generic_html", "links": "a[href*='licitacion'], a[href*='contratacion']", "title": "h1, h2.titulo", "organization": "div.organismo, div.reparticion"}, "source_type": "website", "max_items": 100, "wait_time": 3.0, "scope": "ar_nacional"},
     ]
 
     created = 0
@@ -609,7 +610,7 @@ async def seed_ar_sources(request: Request):
             await collection.insert_one(source)
             created += 1
 
-    return {"created": created, "updated": updated, "total": len(AR_SOURCES)}
+    return {"created": created, "updated": updated, "total": len(AR_SOURCES), "sources": [s["name"] for s in AR_SOURCES]}
 
 
 @router.post("/trigger-all")
