@@ -618,7 +618,13 @@ class BoletinOficialMendozaScraper(BaseScraper):
                 if response.status < 200 or response.status >= 300:
                     logger.error(f"Advance search failed {response.status} for keyword={keyword}")
                     return None
-                return await response.text()
+                # Read raw bytes and decode manually (servers may lie about charset)
+                raw = await response.read()
+                encoding = response.charset or "utf-8"
+                try:
+                    return raw.decode(encoding)
+                except (UnicodeDecodeError, LookupError):
+                    return raw.decode("latin-1", errors="replace")
         except Exception as exc:
             logger.error(f"Advance search error: {exc}")
             return None

@@ -5,8 +5,8 @@ Runs every 30 minutes via APScheduler. Two passes:
 1. Non-ComprasApps items with source_url: HTTP fetch + full enrichment pipeline
 2. ComprasApps items: title-only enrichment (no HTTP needed)
 
-After enrichment, transitions workflow_state from descubierta → evaluando,
-which unlocks the auto_update_service (8am cron) for ongoing monitoring.
+CRITICAL: This service ONLY updates data fields (objeto, category, enrichment_level).
+It NEVER changes workflow_state. Workflow transitions must be explicit and manual.
 """
 
 import asyncio
