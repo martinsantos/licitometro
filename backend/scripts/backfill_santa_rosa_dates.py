@@ -48,7 +48,7 @@ async def main():
             continue
 
         year = int(m.group(1))
-        if year < 2020 or year > 2030:
+        if year < 2024 or year > 2027:
             print(f"  SKIP (year out of range): {title} ({year})")
             skipped_count += 1
             continue
