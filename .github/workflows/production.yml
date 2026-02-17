@@ -59,7 +59,7 @@ jobs:
             --exclude '.env.preview-*' \
             --exclude 'docker-compose.preview-*.yml' \
             --exclude 'docker-compose.caddy.yml' \
-            -e "ssh -o StrictHostKeyChecking=no" \
+            -e "ssh -o StrictHostKeyChecking=no -o ServerAliveInterval=30 -o ServerAliveCountMax=20" \
             ./ "${VPS_USER}@${VPS_HOST}:/opt/licitometro/"
 
       - name: Deploy to production
@@ -73,7 +73,10 @@ jobs:
           COMMIT_SHORT="${COMMIT_SHA:0:7}"
           echo "Commit: ${COMMIT_SHORT}"
 
-          ssh -o StrictHostKeyChecking=no "${VPS_USER}@${VPS_HOST}" \
+          ssh -o StrictHostKeyChecking=no \
+            -o ServerAliveInterval=30 \
+            -o ServerAliveCountMax=20 \
+            "${VPS_USER}@${VPS_HOST}" \
             "cd /opt/licitometro && bash scripts/deploy-prod.sh"
 
       - name: Verify production health
