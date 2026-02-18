@@ -9,7 +9,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_DIR="$(dirname "$SCRIPT_DIR")"
 COMPOSE_FILE="${PROJECT_DIR}/docker-compose.prod.yml"
 BACKUP_SCRIPT="${SCRIPT_DIR}/backup-mongodb.sh"
-MAX_HEALTH_RETRIES=30
+MAX_HEALTH_RETRIES=54
 HEALTH_CHECK_INTERVAL=10
 
 echo "=========================================="
@@ -108,6 +108,17 @@ if [ $RETRY_COUNT -eq $MAX_HEALTH_RETRIES ]; then
     echo "3. Restart again: docker compose -f $COMPOSE_FILE restart backend"
     exit 1
 fi
+
+# Ensure nginx is up after backend is healthy
+echo ""
+echo "Ensuring nginx is running..."
+NGINX_STATUS=$(docker inspect --format='{{.State.Status}}' licitometro-nginx-1 2>/dev/null || echo "missing")
+if [ "$NGINX_STATUS" != "running" ]; then
+    echo "⚠️  Nginx not running (status: $NGINX_STATUS), starting it..."
+    docker compose -f "$COMPOSE_FILE" up -d --no-deps nginx
+    sleep 10
+fi
+echo "✅ Nginx is running"
 
 # Step 5: Cleanup old images
 echo ""

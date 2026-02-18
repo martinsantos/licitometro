@@ -76,14 +76,18 @@ services:
   nginx:
     # Official image - no custom Dockerfile, no Docker build, no apk/apt installs.
     # Configs and frontend are injected via bind mounts at runtime.
-    image: nginx:1.25-alpine@sha256:516475cc129da42866742567714ddc681e5eed7b9ee0b9e9c015e464b4221a00
+    image: nginx:1.25-alpine
     restart: always
     ports:
       - "80:80"
       - "443:443"
     depends_on:
       backend:
-        condition: service_healthy
+        # service_started (not service_healthy): nginx arranges immediately when
+        # backend container starts, not after it passes healthchecks (2-4 min).
+        # While backend loads, nginx serves the React SPA from static files
+        # and returns 502 only for /api/ routes. Much faster site availability.
+        condition: service_started
     volumes:
       - ./frontend/build:/usr/share/nginx/html:ro
       - ./nginx/nginx.conf:/etc/nginx/templates/nginx-ssl.conf:ro
@@ -100,10 +104,13 @@ services:
         limits:
           memory: 128M
     healthcheck:
-      test: ["CMD-SHELL", "wget -qO /dev/null http://localhost/api/health 2>&1 || exit 1"]
+      # Check nginx itself (static SPA), NOT the backend API.
+      # This way nginx is healthy even while backend is still warming up.
+      test: ["CMD-SHELL", "wget -qO /dev/null http://localhost/ 2>&1 || exit 1"]
+      start_period: 30s
       interval: 30s
       timeout: 5s
-      retries: 3
+      retries: 5
     logging:
       driver: "json-file"
       options:
