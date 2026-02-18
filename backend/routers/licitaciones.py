@@ -74,6 +74,24 @@ async def get_licitaciones(
     """Get all licitaciones with pagination, filtering and sorting.
     When q is provided, runs smart parsing first then hybrid search."""
 
+    try:
+        return await _get_licitaciones_impl(
+            page, size, q, status, organization, location, category, fuente,
+            workflow_state, jurisdiccion, tipo_procedimiento, nodo, estado,
+            budget_min, budget_max, fecha_desde, fecha_hasta, fecha_campo,
+            nuevas_desde, year, only_national, fuente_exclude, sort_by, sort_order, repo
+        )
+    except Exception as e:
+        logger.error(f"GET /api/licitaciones/ failed: {type(e).__name__}: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Error interno: {type(e).__name__}: {str(e)[:200]}")
+
+
+async def _get_licitaciones_impl(
+    page, size, q, status, organization, location, category, fuente,
+    workflow_state, jurisdiccion, tipo_procedimiento, nodo, estado,
+    budget_min, budget_max, fecha_desde, fecha_hasta, fecha_campo,
+    nuevas_desde, year, only_national, fuente_exclude, sort_by, sort_order, repo
+):
     auto_filters = {}
 
     # If there's a search query, run smart parsing then hybrid search
@@ -446,7 +464,11 @@ async def get_facets(
 ):
     """Return value counts for each filterable field, applying cross-filters.
     Each facet applies ALL filters except its own field."""
-    db = request.app.mongodb
+    try:
+        db = request.app.mongodb
+    except AttributeError:
+        logger.error("request.app.mongodb not available - DB not initialized")
+        return {"fuente": [], "status": [], "category": [], "workflow_state": [], "jurisdiccion": [], "tipo_procedimiento": [], "organization": [], "nodos": []}
     collection = db.licitaciones
 
     # Build base match from all explicit filters

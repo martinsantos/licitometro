@@ -32,12 +32,13 @@ def str_to_mongo_id(id_str: str):
     return id_str
 
 def licitacion_entity(licitacion) -> dict:
-    """Convert MongoDB document to dict"""
+    """Convert MongoDB document to dict.
+    Uses .get() for all fields to prevent KeyError on incomplete documents."""
     return {
         "id": str(licitacion["_id"]),
-        "title": licitacion["title"],
-        "organization": licitacion["organization"],
-        "publication_date": licitacion["publication_date"],
+        "title": licitacion.get("title", "Sin título"),
+        "organization": licitacion.get("organization", "Sin organización"),
+        "publication_date": licitacion.get("publication_date"),
         "opening_date": licitacion.get("opening_date"),
         "expiration_date": licitacion.get("expiration_date"),
         # Cronograma fields
