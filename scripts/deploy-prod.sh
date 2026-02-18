@@ -42,20 +42,20 @@ if ! docker ps --filter "name=licitometro-mongodb-1" --filter "status=running" |
 fi
 echo "✅ MongoDB is running"
 
-# Step 2: Build new images (without stopping containers)
-# NOTE: Do NOT use --no-cache here - layer cache makes builds 10x faster
-# Use 'docker builder prune -af' manually if you need a full cache flush
+# Step 2: Build backend image only.
+# nginx now uses the official nginx:1.25-alpine image (no custom build).
+# Configs and frontend are injected via bind mounts - no Docker build needed.
 echo ""
-echo "Step 2/5: Building new Docker images..."
+echo "Step 2/5: Building backend Docker image..."
 cd "$PROJECT_DIR"
-docker compose -f "$COMPOSE_FILE" build
+docker compose -f "$COMPOSE_FILE" build backend
 
 if [ $? -ne 0 ]; then
-    echo "❌ Docker build failed"
+    echo "❌ Backend Docker build failed"
     exit 1
 fi
 
-echo "✅ Images built successfully"
+echo "✅ Backend image built successfully"
 
 # Step 3: Recreate services with new images (NEVER down, always preserve volumes)
 echo ""

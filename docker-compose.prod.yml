@@ -73,9 +73,9 @@ services:
         max-file: "5"
 
   nginx:
-    build:
-      context: .
-      dockerfile: Dockerfile.nginx
+    # Official image - no custom Dockerfile, no Docker build, no apk/apt installs.
+    # Configs and frontend are injected via bind mounts at runtime.
+    image: nginx:1.25-alpine@sha256:516475cc129da42866742567714ddc681e5eed7b9ee0b9e9c015e464b4221a00
     restart: always
     ports:
       - "80:80"
@@ -85,8 +85,13 @@ services:
         condition: service_healthy
     volumes:
       - ./frontend/build:/usr/share/nginx/html:ro
+      - ./nginx/nginx.conf:/etc/nginx/templates/nginx-ssl.conf:ro
+      - ./nginx/nginx-initial.conf:/etc/nginx/templates/nginx-initial.conf:ro
+      - ./nginx/entrypoint.sh:/entrypoint.sh:ro
       - certbot_webroot:/var/www/certbot:ro
       - certbot_certs:/etc/letsencrypt:ro
+    entrypoint: ["/bin/sh", "/entrypoint.sh"]
+    command: ["nginx", "-g", "daemon off;"]
     networks:
       - internal
     deploy:
@@ -94,7 +99,7 @@ services:
         limits:
           memory: 128M
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:80/api/health"]
+      test: ["CMD-SHELL", "wget -qO /dev/null http://localhost/api/health 2>&1 || exit 1"]
       interval: 30s
       timeout: 5s
       retries: 3
