@@ -103,7 +103,7 @@ const LicitacionesList = ({
 
   const pageSize = 25;
 
-  const { licitaciones, paginacion, isInitialLoading, isFetching, error, autoFilters } = useLicitacionData({
+  const { licitaciones, paginacion, isInitialLoading, isFetching, error, autoFilters, retry } = useLicitacionData({
     apiUrl,
     apiPath,
     filters: debouncedFilters,
@@ -302,9 +302,21 @@ const LicitacionesList = ({
       <div className="flex flex-col items-center justify-center p-12 bg-red-50 rounded-xl border border-red-100 text-center">
         <h3 className="text-lg font-black text-red-900 mb-2">Error al cargar datos</h3>
         <p className="text-red-600 font-medium mb-4 text-sm">{error}</p>
-        <button onClick={() => window.location.reload()} className="px-4 py-2 bg-red-600 text-white rounded-lg font-bold text-sm hover:bg-red-700 transition-all">
-          Reintentar
-        </button>
+        <div className="flex gap-3">
+          <button
+            onClick={retry}
+            disabled={isFetching}
+            className="px-4 py-2 bg-red-600 text-white rounded-lg font-bold text-sm hover:bg-red-700 transition-all disabled:opacity-50"
+          >
+            {isFetching ? 'Reintentando...' : 'Reintentar'}
+          </button>
+          <button
+            onClick={() => { clearAll(); retry(); }}
+            className="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg font-bold text-sm hover:bg-gray-300 transition-all"
+          >
+            Limpiar filtros y reintentar
+          </button>
+        </div>
       </div>
     );
   }
