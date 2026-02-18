@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import axios from 'axios';
 import { WORKFLOW_CONFIG } from './WorkflowBadge';
 
-const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
+const BACKEND_URL = process.env.REACT_APP_BACKEND_URL || '';
 const API = `${BACKEND_URL}/api`;
 
 const WORKFLOW_STEPS = ['descubierta', 'evaluando', 'preparando', 'presentada'];

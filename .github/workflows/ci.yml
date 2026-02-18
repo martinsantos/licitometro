@@ -2,9 +2,9 @@ name: CI Checks
 
 on:
   pull_request:
-    branches: [main]
+    branches: [main, master]
   push:
-    branches: [main]
+    branches: [main, master]
 
 # Cancel in-progress CI runs for the same PR
 concurrency:

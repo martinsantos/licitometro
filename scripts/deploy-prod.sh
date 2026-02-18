@@ -16,42 +16,46 @@ echo "=========================================="
 echo "Production Deployment - $(date)"
 echo "=========================================="
 
-# Step 1: Pre-deployment backup
+# Step 1: Pre-deployment backup (non-blocking - runs in background via nohup)
 echo ""
-echo "Step 1/5: Creating pre-deployment backup..."
+echo "Step 1/5: Creating pre-deployment backup (background)..."
+BACKUP_FILE=""
 if [ ! -f "$BACKUP_SCRIPT" ]; then
-    echo "⚠️  Warning: Backup script not found at $BACKUP_SCRIPT"
-    read -p "Continue without backup? (yes/no): " CONTINUE
-    if [ "$CONTINUE" != "yes" ]; then
-        echo "Deployment cancelled"
-        exit 1
-    fi
+    echo "⚠️  Warning: Backup script not found at $BACKUP_SCRIPT, skipping backup"
 else
-    BACKUP_FILE=$(bash "$BACKUP_SCRIPT")
-    if [ $? -eq 0 ]; then
-        echo "✅ Backup created: $BACKUP_FILE"
-    else
-        echo "❌ Backup failed"
-        read -p "Continue without backup? (yes/no): " CONTINUE
-        if [ "$CONTINUE" != "yes" ]; then
-            echo "Deployment cancelled"
-            exit 1
-        fi
-    fi
+    BACKUP_LOG="/tmp/licitometro_backup_$$.log"
+    nohup bash "$BACKUP_SCRIPT" > "$BACKUP_LOG" 2>&1 &
+    BACKUP_PID=$!
+    echo "✅ Backup started in background (PID=$BACKUP_PID, log=$BACKUP_LOG)"
 fi
 
-# Step 2: Build new images (without stopping containers)
+# Step 1.5: Ensure MongoDB is running (it must stay up at all times)
 echo ""
-echo "Step 2/5: Building new Docker images..."
+echo "Checking MongoDB status..."
+if ! docker ps --filter "name=licitometro-mongodb-1" --filter "status=running" | grep -q mongodb; then
+    echo "⚠️  MongoDB is not running, starting it now..."
+    # --force-recreate handles stuck/corrupted container task state (AlreadyExists error)
+    # Data is safe: named volumes persist regardless of container recreation
+    docker compose -f "$COMPOSE_FILE" up -d --force-recreate mongodb
+    echo "Waiting for MongoDB to be healthy..."
+    sleep 15
+fi
+echo "✅ MongoDB is running"
+
+# Step 2: Build backend image only.
+# nginx now uses the official nginx:1.25-alpine image (no custom build).
+# Configs and frontend are injected via bind mounts - no Docker build needed.
+echo ""
+echo "Step 2/5: Building backend Docker image..."
 cd "$PROJECT_DIR"
-docker compose -f "$COMPOSE_FILE" build --no-cache
+docker compose -f "$COMPOSE_FILE" build backend
 
 if [ $? -ne 0 ]; then
-    echo "❌ Docker build failed"
+    echo "❌ Backend Docker build failed"
     exit 1
 fi
 
-echo "✅ Images built successfully"
+echo "✅ Backend image built successfully"
 
 # Step 3: Recreate services with new images (NEVER down, always preserve volumes)
 echo ""

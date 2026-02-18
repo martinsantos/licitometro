@@ -25,7 +25,7 @@ import PublicLicitacionPage from "./pages/PublicLicitacionPage";
 import PublicListPage from "./pages/PublicListPage";
 
 // Set up global backend URL
-const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
+const BACKEND_URL = process.env.REACT_APP_BACKEND_URL || '';
 axios.defaults.baseURL = BACKEND_URL;
 axios.defaults.withCredentials = true;
 
