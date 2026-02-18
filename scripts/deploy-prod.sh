@@ -16,25 +16,17 @@ echo "=========================================="
 echo "Production Deployment - $(date)"
 echo "=========================================="
 
-# Step 1: Pre-deployment backup
+# Step 1: Pre-deployment backup (non-blocking - runs in background via nohup)
 echo ""
-echo "Step 1/5: Creating pre-deployment backup..."
+echo "Step 1/5: Creating pre-deployment backup (background)..."
 BACKUP_FILE=""
 if [ ! -f "$BACKUP_SCRIPT" ]; then
     echo "⚠️  Warning: Backup script not found at $BACKUP_SCRIPT, skipping backup"
 else
-    # Temporarily disable set -e so backup failure doesn't abort deploy
-    set +e
-    BACKUP_OUTPUT=$(bash "$BACKUP_SCRIPT" 2>&1)
-    BACKUP_EXIT=$?
-    set -e
-    if [ $BACKUP_EXIT -eq 0 ]; then
-        BACKUP_FILE=$(echo "$BACKUP_OUTPUT" | tail -1)
-        echo "✅ Backup created: $BACKUP_FILE"
-    else
-        echo "⚠️  Backup failed (non-fatal, continuing deployment):"
-        echo "$BACKUP_OUTPUT" | tail -5
-    fi
+    BACKUP_LOG="/tmp/licitometro_backup_$$.log"
+    nohup bash "$BACKUP_SCRIPT" > "$BACKUP_LOG" 2>&1 &
+    BACKUP_PID=$!
+    echo "✅ Backup started in background (PID=$BACKUP_PID, log=$BACKUP_LOG)"
 fi
 
 # Step 1.5: Ensure MongoDB is running (it must stay up at all times)

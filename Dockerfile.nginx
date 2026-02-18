@@ -1,6 +1,6 @@
-# Production Dockerfile - frontend is pre-built by GitHub Actions CI
-# The frontend/build/ directory is rsynced from CI to VPS before this runs.
-# This keeps Docker build time on the VPS under 30 seconds (no Node/yarn needed).
+# Nginx Dockerfile - frontend/build is provided via bind mount in docker-compose.prod.yml
+# This image only contains nginx configs + entrypoint. No frontend build happens here.
+# Result: Docker build time ~5-10 seconds (all CACHED after first run).
 
 FROM nginx:1.25-alpine
 
@@ -15,12 +15,12 @@ COPY nginx/nginx-initial.conf /etc/nginx/templates/nginx-initial.conf
 COPY nginx/nginx.conf /etc/nginx/templates/nginx-ssl.conf
 
 # Start with initial HTTP-only config; switch to SSL after certbot
-# If certs exist, use SSL config; otherwise use initial
 COPY nginx/entrypoint.sh /entrypoint.sh
 RUN chmod +x /entrypoint.sh
 
-# Copy pre-built frontend (built by GitHub Actions, rsynced to VPS)
-COPY frontend/build /usr/share/nginx/html
+# frontend/build is mounted at runtime via docker-compose volume:
+#   ./frontend/build:/usr/share/nginx/html:ro
+# rsync in production.yml keeps it up to date on every deploy.
 
 # Create certbot webroot directory
 RUN mkdir -p /var/www/certbot
