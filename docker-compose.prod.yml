@@ -16,7 +16,11 @@ services:
         limits:
           memory: 512M
     healthcheck:
-      test: ["CMD", "mongosh", "-u", "${MONGO_USER}", "-p", "${MONGO_PASSWORD}", "--authenticationDatabase", "admin", "--eval", "db.runCommand('ping').ok"]
+      # CMD form does NOT expand shell variables - "${MONGO_USER}" would be passed
+      # literally as the username. Use unauthenticated ping instead: MongoDB allows
+      # the 'ping' command without credentials even when auth is enabled.
+      test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping').ok", "--quiet"]
+      start_period: 30s
       interval: 10s
       timeout: 5s
       retries: 5
