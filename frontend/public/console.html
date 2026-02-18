@@ -1,0 +1,156 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Licitometro Console</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, system-ui, sans-serif; background: #0f172a; color: #e2e8f0; padding: 12px; font-size: 14px; }
+  h1 { font-size: 18px; margin-bottom: 8px; color: #38bdf8; }
+  .status { padding: 8px 12px; border-radius: 8px; margin-bottom: 12px; font-weight: 700; font-size: 16px; }
+  .status.ok { background: #065f46; color: #6ee7b7; }
+  .status.fail { background: #7f1d1d; color: #fca5a5; }
+  .status.loading { background: #1e3a5f; color: #93c5fd; }
+  .card { background: #1e293b; border-radius: 8px; padding: 12px; margin-bottom: 8px; }
+  .card h2 { font-size: 13px; color: #94a3b8; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 6px; }
+  .check { display: flex; justify-content: space-between; padding: 4px 0; border-bottom: 1px solid #334155; font-size: 13px; }
+  .check:last-child { border-bottom: none; }
+  .check .label { color: #cbd5e1; }
+  .check .val { font-weight: 600; max-width: 60%; text-align: right; word-break: break-all; }
+  .check .val.ok { color: #4ade80; }
+  .check .val.fail { color: #f87171; }
+  .error-box { background: #450a0a; border: 1px solid #7f1d1d; border-radius: 8px; padding: 10px; margin-bottom: 8px; font-family: monospace; font-size: 11px; white-space: pre-wrap; word-break: break-all; color: #fca5a5; max-height: 200px; overflow-y: auto; }
+  .btn { display: inline-block; padding: 10px 20px; border-radius: 8px; border: none; font-weight: 700; font-size: 14px; cursor: pointer; margin-right: 8px; margin-bottom: 8px; }
+  .btn-primary { background: #2563eb; color: white; }
+  .btn-secondary { background: #334155; color: #e2e8f0; }
+  .btn:active { opacity: 0.7; }
+  .endpoints { margin-top: 8px; }
+  .ep-result { background: #0f172a; border-radius: 6px; padding: 8px; margin-top: 6px; font-family: monospace; font-size: 11px; max-height: 300px; overflow-y: auto; white-space: pre-wrap; word-break: break-all; }
+  .ep-status { display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: 12px; font-weight: 700; margin-left: 8px; }
+  .ep-status.s2xx { background: #065f46; color: #6ee7b7; }
+  .ep-status.s4xx { background: #78350f; color: #fcd34d; }
+  .ep-status.s5xx { background: #7f1d1d; color: #fca5a5; }
+  .timestamp { font-size: 11px; color: #64748b; margin-bottom: 12px; }
+</style>
+</head>
+<body>
+
+<h1>Licitometro Server Console</h1>
+<div class="timestamp" id="ts">Cargando...</div>
+<div class="status loading" id="main-status">Ejecutando diagnosticos...</div>
+
+<div class="card">
+  <h2>Diagnostico del servidor</h2>
+  <div id="checks"></div>
+</div>
+
+<div id="errors-section" style="display:none">
+  <div class="card">
+    <h2>Errores</h2>
+    <div id="errors"></div>
+  </div>
+</div>
+
+<div class="card">
+  <h2>Test de endpoints</h2>
+  <button class="btn btn-primary" onclick="testEndpoint('/api/licitaciones/?page=1&size=1')">GET /licitaciones</button>
+  <button class="btn btn-secondary" onclick="testEndpoint('/api/licitaciones/facets')">GET /facets</button>
+  <button class="btn btn-secondary" onclick="testEndpoint('/api/health')">GET /health</button>
+  <button class="btn btn-secondary" onclick="testEndpoint('/api/licitaciones/stats/daily-counts?days=1')">GET /stats</button>
+  <div class="endpoints" id="ep-results"></div>
+</div>
+
+<div style="margin-top: 12px">
+  <button class="btn btn-primary" onclick="runDiagnostics()">Re-ejecutar diagnostico</button>
+</div>
+
+<script>
+async function runDiagnostics() {
+  const statusEl = document.getElementById('main-status');
+  const checksEl = document.getElementById('checks');
+  const errorsEl = document.getElementById('errors');
+  const errorsSec = document.getElementById('errors-section');
+  const tsEl = document.getElementById('ts');
+
+  statusEl.className = 'status loading';
+  statusEl.textContent = 'Ejecutando diagnosticos...';
+  checksEl.innerHTML = '';
+  errorsEl.innerHTML = '';
+
+  try {
+    const r = await fetch('/api/public/diagnostics', { credentials: 'include' });
+    const data = await r.json();
+
+    tsEl.textContent = 'Ultima ejecucion: ' + new Date().toLocaleString('es-AR');
+
+    if (data.status === 'HEALTHY') {
+      statusEl.className = 'status ok';
+      statusEl.textContent = 'HEALTHY - Servidor funcionando';
+    } else {
+      statusEl.className = 'status fail';
+      statusEl.textContent = 'UNHEALTHY - ' + data.errors.length + ' error(es)';
+    }
+
+    // Render checks
+    const checks = data.checks || {};
+    let html = '';
+    for (const [key, val] of Object.entries(checks)) {
+      let display = val;
+      let cls = 'ok';
+      if (typeof val === 'object') {
+        display = JSON.stringify(val, null, 1);
+      }
+      if (typeof display === 'string' && display.startsWith('FAIL')) {
+        cls = 'fail';
+      }
+      html += '<div class="check"><span class="label">' + key + '</span><span class="val ' + cls + '">' + display + '</span></div>';
+    }
+    checksEl.innerHTML = html;
+
+    // Render errors
+    if (data.errors && data.errors.length > 0) {
+      errorsSec.style.display = 'block';
+      errorsEl.innerHTML = data.errors.map(e => '<div class="error-box">' + e + '</div>').join('');
+    } else {
+      errorsSec.style.display = 'none';
+    }
+  } catch (e) {
+    statusEl.className = 'status fail';
+    statusEl.textContent = 'ERROR - No se pudo conectar: ' + e.message;
+    tsEl.textContent = new Date().toLocaleString('es-AR');
+  }
+}
+
+async function testEndpoint(url) {
+  const container = document.getElementById('ep-results');
+  const div = document.createElement('div');
+  div.innerHTML = '<b>' + url + '</b> <span class="ep-status" style="background:#1e3a5f;color:#93c5fd">...</span>';
+  container.prepend(div);
+
+  try {
+    const start = Date.now();
+    const r = await fetch(url, { credentials: 'include' });
+    const ms = Date.now() - start;
+    const text = await r.text();
+
+    let statusCls = 's2xx';
+    if (r.status >= 400 && r.status < 500) statusCls = 's4xx';
+    if (r.status >= 500) statusCls = 's5xx';
+
+    let body = text;
+    try { body = JSON.stringify(JSON.parse(text), null, 2); } catch(e) {}
+    // Truncate for mobile
+    if (body.length > 2000) body = body.substring(0, 2000) + '\n... (truncated)';
+
+    div.innerHTML = '<b>' + url + '</b> <span class="ep-status ' + statusCls + '">' + r.status + ' (' + ms + 'ms)</span><div class="ep-result">' + body.replace(/</g, '&lt;') + '</div>';
+  } catch (e) {
+    div.innerHTML = '<b>' + url + '</b> <span class="ep-status s5xx">NETWORK ERROR</span><div class="ep-result">' + e.message + '</div>';
+  }
+}
+
+// Run on load
+runDiagnostics();
+</script>
+</body>
+</html>
