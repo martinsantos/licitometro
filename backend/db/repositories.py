@@ -138,6 +138,62 @@ class LicitacionRepository:
 
         return licitaciones_entity(licitaciones)
     
+    async def get_all_with_count(self, skip: int = 0, limit: int = 100, filters: Dict = None,
+                                  sort_by: str = "publication_date", sort_order: int = pymongo.DESCENDING,
+                                  nulls_last: bool = False) -> tuple:
+        """Get items AND total count in a SINGLE $facet aggregation.
+
+        Returns (items: List[Licitacion], total_count: int).
+        Replaces the two-query pattern of get_all() + count() with one round-trip.
+        """
+        query = filters or {}
+
+        if sort_by not in Licitacion.model_fields and sort_by != "_id":
+            sort_by = "publication_date"
+
+        if nulls_last:
+            if sort_by == "budget":
+                pre_sort_stages: list = [
+                    {"$addFields": {
+                        "_has_sort_field": {"$cond": [{"$ifNull": ["$budget", False]}, 0, 1]},
+                        "_currency_order": {"$cond": [{"$eq": ["$currency", "USD"]}, 0, 1]},
+                    }},
+                    {"$sort": {"_has_sort_field": 1, "_currency_order": 1, "budget": sort_order}},
+                ]
+                project_exclude: Dict = {"_has_sort_field": 0, "_currency_order": 0}
+            else:
+                pre_sort_stages = [
+                    {"$addFields": {
+                        "_has_sort_field": {"$cond": [{"$ifNull": [f"${sort_by}", False]}, 0, 1]}
+                    }},
+                    {"$sort": {"_has_sort_field": 1, sort_by: sort_order}},
+                ]
+                project_exclude = {"_has_sort_field": 0}
+        else:
+            pre_sort_stages = [{"$sort": {sort_by: sort_order}}]
+            project_exclude = {}
+
+        items_branch: list = [{"$skip": skip}, {"$limit": limit}]
+        if project_exclude:
+            items_branch.append({"$project": project_exclude})
+
+        pipeline = [
+            {"$match": query},
+            *pre_sort_stages,
+            {"$facet": {
+                "total": [{"$count": "count"}],
+                "items": items_branch,
+            }}
+        ]
+
+        result = await self.collection.aggregate(pipeline).to_list(length=1)
+        if result:
+            items_raw = result[0].get("items", [])
+            total_list = result[0].get("total") or []
+            total_count = total_list[0].get("count", 0) if total_list else 0
+            return licitaciones_entity(items_raw), total_count
+        return [], 0
+
     async def get_by_id(self, id) -> Optional[Licitacion]:
         """Get a licitacion by id"""
         query_id = id

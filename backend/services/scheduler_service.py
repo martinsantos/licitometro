@@ -374,16 +374,9 @@ class SchedulerService:
                             )
                             items_updated += 1
                         else:
-                            # Insert - set both created_at AND first_seen_at
-                            now = datetime.utcnow()
-                            item_data["created_at"] = now
-                            item_data["first_seen_at"] = now
-                            await licitaciones_collection.insert_one(item_data)
-                            items_saved += 1
-
-                            # Inline lightweight enrichment (CPU only, no HTTP)
+                            # Inline lightweight enrichment (CPU only, no HTTP) — BEFORE insert
+                            # to avoid a second update_one round-trip to MongoDB
                             try:
-                                _inline_updates = {}
                                 if not item_data.get("objeto"):
                                     from utils.object_extractor import extract_objeto
                                     obj = extract_objeto(
@@ -392,25 +385,27 @@ class SchedulerService:
                                         metadata=item_data.get("metadata"),
                                     )
                                     if obj:
-                                        _inline_updates["objeto"] = obj
+                                        item_data["objeto"] = obj
                                 if not item_data.get("category"):
                                     from services.category_classifier import get_category_classifier
                                     classifier = get_category_classifier()
                                     _title = item_data.get("title", "")
-                                    _objeto = _inline_updates.get("objeto", item_data.get("objeto", ""))
+                                    _objeto = item_data.get("objeto", "")
                                     cat = classifier.classify(title=_title, objeto=_objeto)
                                     if not cat:
                                         _desc = (item_data.get("description", "") or "")[:500]
                                         cat = classifier.classify(title=_title, objeto=_objeto, description=_desc)
                                     if cat:
-                                        _inline_updates["category"] = cat
-                                if _inline_updates:
-                                    await licitaciones_collection.update_one(
-                                        {"id_licitacion": item.id_licitacion},
-                                        {"$set": _inline_updates}
-                                    )
+                                        item_data["category"] = cat
                             except Exception as inline_err:
                                 log(f"Inline enrichment failed for {item.id_licitacion}: {inline_err}", "warning")
+
+                            # Insert - set both created_at AND first_seen_at
+                            now = datetime.utcnow()
+                            item_data["created_at"] = now
+                            item_data["first_seen_at"] = now
+                            await licitaciones_collection.insert_one(item_data)
+                            items_saved += 1
 
                         # Count URLs with PLIEGO
                         if item.metadata and item.metadata.get("comprar_pliego_url"):

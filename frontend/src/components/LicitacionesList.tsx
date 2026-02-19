@@ -121,7 +121,8 @@ const LicitacionesList = ({
   const prevFiltersRef = useRef(debouncedFilters);
   const prevSortRef = useRef({ sortBy: prefs.sortBy, sortOrder: prefs.sortOrder });
   useEffect(() => {
-    const filtersChanged = JSON.stringify(prevFiltersRef.current) !== JSON.stringify(debouncedFilters);
+    // debouncedFilters is a memoized object — reference comparison is O(1) vs JSON.stringify O(n)
+    const filtersChanged = prevFiltersRef.current !== debouncedFilters;
     const sortChanged = prevSortRef.current.sortBy !== prefs.sortBy || prevSortRef.current.sortOrder !== prefs.sortOrder;
     if (filtersChanged || sortChanged) {
       setPagina(1);

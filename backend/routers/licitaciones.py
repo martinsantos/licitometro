@@ -171,11 +171,12 @@ async def _get_licitaciones_impl(
                                        extra_filters=extra_filters)
             total_items = await repo.search_count(search_text, extra_filters=extra_filters)
         else:
-            # Smart query consumed all text into filters — no text search needed
-            items = await repo.get_all(skip=skip, limit=size, filters=extra_filters,
-                                        sort_by=sort_by, sort_order=order_val,
-                                        nulls_last=sort_by in ["opening_date", "fecha_scraping", "budget"])
-            total_items = await repo.count(filters=extra_filters)
+            # Smart query consumed all text into filters — single $facet aggregation (count + items)
+            items, total_items = await repo.get_all_with_count(
+                skip=skip, limit=size, filters=extra_filters,
+                sort_by=sort_by, sort_order=order_val,
+                nulls_last=sort_by in ["opening_date", "fecha_scraping", "budget"]
+            )
 
         response = {
             "items": items,
@@ -356,8 +357,8 @@ async def get_vigentes(
 
     skip = (page - 1) * size
 
-    # Sort by opening_date ASC (nearest deadline first), nulls last
-    items = await repo.get_all(
+    # Sort by opening_date ASC (nearest deadline first), nulls last — single $facet aggregation
+    items, total_items = await repo.get_all_with_count(
         skip=skip,
         limit=size,
         filters=filters,
@@ -365,7 +366,6 @@ async def get_vigentes(
         sort_order=1,  # ASC
         nulls_last=True
     )
-    total_items = await repo.count(filters=filters)
 
     return {
         "items": items,
