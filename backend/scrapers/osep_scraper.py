@@ -142,7 +142,8 @@ class OsepScraper(BaseScraper):
         links = []
         base_url = str(self.config.url)
         
-        link_elems = soup.select(self.config.selectors.get("links", "a"))
+        selectors_config = self.config.selectors or {}
+        link_elems = soup.select(selectors_config.get("links", "a"))
         
         for link_elem in link_elems:
             href = link_elem.get('href')
@@ -259,7 +260,7 @@ class OsepScraper(BaseScraper):
                 logger.error("No list URLs configured for OSEP")
                 return []
             
-            api_base = self.config.selectors.get("api_base_url") or os.getenv("API_BASE_URL", "http://localhost:8001")
+            api_base = (self.config.selectors or {}).get("api_base_url") or os.getenv("API_BASE_URL", "http://localhost:8001")
             
             for list_url in list_urls:
                 logger.info(f"Processing OSEP list: {list_url}")

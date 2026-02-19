@@ -148,7 +148,7 @@ class GenericHtmlScraper(BaseScraper):
         """Parse Argentine budget: $1.234.567,89 -> (1234567.89, 'ARS')"""
         currency = "USD" if re.search(r"USD|U\$S", text, re.I) else "ARS"
         m = re.search(
-            r"(?:presupuesto|monto|importe|valor)\s*(?:oficial|estimado)?[:\s]*\$?\s*([\d]+(?:\.[\d]{3})*(?:,[\d]{1,2})?)",
+            r"(?:presupuesto|monto|importe|valor)\s*(?:oficial|estimado)?[:\s]*\$?\s*([0-9]{1,3}(?:[.,][0-9]{3})*(?:[.,][0-9]{1,2})?)",
             text, re.IGNORECASE
         )
         if m:

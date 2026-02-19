@@ -293,6 +293,16 @@ class SchedulerService:
             # Initialize dedup service for content-hash checking
             dedup_svc = DeduplicationService(self.db)
 
+            # Pre-load nodo matcher once (singleton with compiled regex cache)
+            is_ar_scope_global = getattr(config, 'scope', None) == "ar_nacional"
+            nodo_matcher = None
+            if not is_ar_scope_global:
+                try:
+                    from services.nodo_matcher import get_nodo_matcher
+                    nodo_matcher = get_nodo_matcher(self.db)
+                except Exception as _nm_err:
+                    log(f"Failed to load nodo_matcher: {_nm_err}", "warning")
+
             # Save items to database
             if items:
                 licitaciones_collection = self.db.licitaciones
@@ -343,18 +353,15 @@ class SchedulerService:
                         item_data["updated_at"] = datetime.utcnow()
 
                         # AR scope: add LIC_AR tag and skip auto nodo matching
-                        is_ar_scope = getattr(config, 'scope', None) == "ar_nacional"
-                        if is_ar_scope:
+                        if is_ar_scope_global:
                             tags = item_data.get("tags") or []
                             if "LIC_AR" not in tags:
                                 tags.append("LIC_AR")
                             item_data["tags"] = tags
 
                         # Match nodos before insert/update (skip for AR scope - manual only)
-                        if not is_ar_scope:
+                        if nodo_matcher is not None:
                             try:
-                                from services.nodo_matcher import get_nodo_matcher
-                                nodo_matcher = get_nodo_matcher(self.db)
                                 await nodo_matcher.assign_nodos_to_item_data(item_data)
                             except Exception as nodo_err:
                                 log(f"Nodo matching failed for {item.id_licitacion}: {nodo_err}", "warning")

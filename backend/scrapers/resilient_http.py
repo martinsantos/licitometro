@@ -95,9 +95,9 @@ class ResilientHttpClient:
         return random.choice(USER_AGENTS)
 
     def _backoff_delay(self, attempt: int) -> float:
-        delay = min(self.base_delay * (2 ** attempt), self.max_delay)
-        jitter = delay * random.uniform(0.5, 1.5)
-        return jitter
+        base = self.base_delay * (2 ** attempt)
+        jitter_factor = random.uniform(0.5, 1.5)
+        return min(base * jitter_factor, self.max_delay)
 
     async def _ensure_session(self):
         if self._session is None or self._session.closed:

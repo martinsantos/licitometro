@@ -77,12 +77,16 @@ export function useFacetedFilters(apiUrl: string, filters: FilterState, fechaCam
         params.append('fuente_exclude', 'Comprar.Gob.Ar');
       }
 
+      // Cancel after 10s if server is slow (avoids UI blocking on unresponsive endpoint)
+      const timeoutId = setTimeout(() => controller.abort(), 10000);
+
       fetch(`${apiUrl}${apiPath}/facets?${params}`, { signal: controller.signal, credentials: 'include' })
         .then(r => r.ok ? r.json() : EMPTY_FACETS)
         .then(data => {
+          clearTimeout(timeoutId);
           if (!controller.signal.aborted) setFacets(data);
         })
-        .catch(() => {});
+        .catch(() => { clearTimeout(timeoutId); });
     }, 300);
 
     return () => {

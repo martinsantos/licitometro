@@ -65,6 +65,9 @@ const LicitacionesList = ({
   const { filters, setFilter, setMany, clearAll, hasActiveFilters, activeFilterCount } = useLicitacionFilters(
     defaultJurisdiccionMode ? { jurisdiccionMode: defaultJurisdiccionMode } : undefined
   );
+  // Keep a mutable ref to latest filters so handleFilterChange doesn't need filters in its deps
+  const filtersRef = useRef(filters);
+  filtersRef.current = filters;
 
   // Override yearWorkspace on mount when defaultYear is provided (e.g., AR page uses 'all')
   const hasAppliedDefaultYear = useRef(false);
@@ -216,7 +219,7 @@ const LicitacionesList = ({
     // sincronizar con nuevasDesde
     if (key === 'fechaDesde' || key === 'fechaHasta') {
       const otherKey = key === 'fechaDesde' ? 'fechaHasta' : 'fechaDesde';
-      const otherValue = filters[otherKey];
+      const otherValue = filtersRef.current[otherKey];
 
       // Si después de este cambio, fechaDesde === fechaHasta (un solo día), sincronizar con nuevasDesde
       if (value && otherValue && value === otherValue) {
@@ -230,7 +233,7 @@ const LicitacionesList = ({
     } else {
       setFilter(key, value);
     }
-  }, [setFilter, setMany, filters, fechaCampo]);
+  }, [setFilter, setMany]);
 
   // SYNCHRONIZED: DailyDigest "Hoy" and "Nuevas de hoy" activate BOTH filters together
   const handleDaySelect = useCallback((dateStr: string | null) => {
@@ -263,7 +266,7 @@ const LicitacionesList = ({
   }, [setMany]);
 
   // Check if "Nuevas de hoy" filter is active (either nuevasDesde OR fechaDesde for "today")
-  const todayDate = new Date().toISOString().slice(0, 10);
+  const todayDate = useMemo(() => new Date().toISOString().slice(0, 10), []);
   const isTodayFilterActive = filters.nuevasDesde === todayDate || filters.fechaDesde === todayDate;
 
   // Preset loading
