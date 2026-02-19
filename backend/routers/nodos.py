@@ -175,6 +175,10 @@ async def rematch_all_nodos(request: Request):
     total = 0
     matched_total = 0
 
+    from pymongo import UpdateOne
+    bulk_ops = []
+    BATCH_SIZE = 500
+
     cursor = db.licitaciones.find(
         {},
         {"_id": 1, "title": 1, "objeto": 1, "description": 1, "organization": 1, "category": 1}
@@ -193,10 +197,16 @@ async def rematch_all_nodos(request: Request):
             for nid in matched_ids:
                 nodo_counts[nid] += 1
 
-        await db.licitaciones.update_one(
-            {"_id": lic["_id"]},
-            {"$set": {"nodos": matched_ids}}
-        )
+        bulk_ops.append(UpdateOne({"_id": lic["_id"]}, {"$set": {"nodos": matched_ids}}))
+
+        # Flush in batches to avoid holding too many ops in memory
+        if len(bulk_ops) >= BATCH_SIZE:
+            await db.licitaciones.bulk_write(bulk_ops, ordered=False)
+            bulk_ops = []
+
+    # Flush remaining ops
+    if bulk_ops:
+        await db.licitaciones.bulk_write(bulk_ops, ordered=False)
 
     # Update matched_count on each nodo
     results = []
@@ -257,6 +267,10 @@ async def rematch_nodo(nodo_id: str, request: Request):
         return {"matched": 0, "message": "No keywords or categories configured, cleared all assignments"}
 
     matched = 0
+    from pymongo import UpdateOne
+    bulk_ops = []
+    BATCH_SIZE = 500
+
     cursor = db.licitaciones.find(
         {},
         {"_id": 1, "title": 1, "objeto": 1, "description": 1, "organization": 1, "category": 1}
@@ -279,17 +293,19 @@ async def rematch_nodo(nodo_id: str, request: Request):
             hit = any(p.search(combined) for p in patterns)
 
         if hit:
-            await db.licitaciones.update_one(
-                {"_id": lic["_id"]},
-                {"$addToSet": {"nodos": nodo_id}}
-            )
+            bulk_ops.append(UpdateOne({"_id": lic["_id"]}, {"$addToSet": {"nodos": nodo_id}}))
             matched += 1
         else:
-            # Remove this nodo if it was previously assigned (keyword removed)
-            await db.licitaciones.update_one(
-                {"_id": lic["_id"]},
-                {"$pull": {"nodos": nodo_id}}
-            )
+            bulk_ops.append(UpdateOne({"_id": lic["_id"]}, {"$pull": {"nodos": nodo_id}}))
+
+        # Flush in batches to avoid holding too many ops in memory
+        if len(bulk_ops) >= BATCH_SIZE:
+            await db.licitaciones.bulk_write(bulk_ops, ordered=False)
+            bulk_ops = []
+
+    # Flush remaining ops
+    if bulk_ops:
+        await db.licitaciones.bulk_write(bulk_ops, ordered=False)
 
     # Update matched_count
     await db.nodos.update_one({"_id": oid}, {"$set": {"matched_count": matched}})

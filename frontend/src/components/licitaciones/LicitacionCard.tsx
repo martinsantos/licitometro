@@ -339,4 +339,21 @@ const LicitacionCard: React.FC<LicitacionCardProps> = ({
   );
 };
 
-export default React.memo(LicitacionCard);
+export default React.memo(LicitacionCard, (prev, next) => {
+  // Re-render only when data that affects what's displayed changes
+  return (
+    prev.lic.id === next.lic.id &&
+    prev.lic.fecha_scraping === next.lic.fecha_scraping &&
+    prev.lic.workflow_state === next.lic.workflow_state &&
+    prev.lic.estado === next.lic.estado &&
+    prev.isFavorite === next.isFavorite &&
+    prev.isNew === next.isNew &&
+    prev.isCritical === next.isCritical &&
+    prev.isUrgent === next.isUrgent &&
+    prev.sortBy === next.sortBy &&
+    prev.searchQuery === next.searchQuery &&
+    prev.nodoMap === next.nodoMap &&
+    prev.onRowClick === next.onRowClick &&
+    prev.onToggleFavorite === next.onToggleFavorite
+  );
+});

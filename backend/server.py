@@ -60,6 +60,25 @@ app.add_middleware(
 
 
 @app.middleware("http")
+async def cache_control_middleware(request: Request, call_next):
+    """Add Cache-Control headers to GET responses for semi-static endpoints.
+    Stats and reference data can be cached for a short period to reduce DB load."""
+    response = await call_next(request)
+    if request.method == "GET":
+        path = request.url.path
+        # Stats endpoints: cache 15 minutes (change infrequently)
+        if "/stats/" in path:
+            response.headers.setdefault("Cache-Control", "public, max-age=900, stale-while-revalidate=60")
+        # Rubros list: cache 1 hour (loaded from static JSON)
+        elif path.endswith("/rubros/list"):
+            response.headers.setdefault("Cache-Control", "public, max-age=3600, stale-while-revalidate=300")
+        # Distinct values (fuente, status lists): cache 30 minutes
+        elif "/distinct/" in path:
+            response.headers.setdefault("Cache-Control", "public, max-age=1800, stale-while-revalidate=120")
+    return response
+
+
+@app.middleware("http")
 async def auth_middleware(request: Request, call_next):
     """Require authentication for all API routes except exempt ones.
     Non-GET requests require admin role.
