@@ -1,28 +1,37 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, lazy, Suspense } from "react";
 import "./App.css";
 import { BrowserRouter, Routes, Route, Navigate, useLocation } from "react-router-dom";
 import axios from "axios";
 
-// Components
+// Components (always loaded — part of shell)
 import Header from "./components/Header";
 import Footer from "./components/Footer";
 import ScrollToTop from "./components/ScrollToTop";
 
-// Pages
-import HomePage from "./pages/HomePage";
-import LicitacionesPage from "./pages/LicitacionesPage";
-import LicitacionesArgentinaPage from "./pages/LicitacionesArgentinaPage";
-import LicitacionDetailPage from "./pages/LicitacionDetailPage";
-import FavoritosPage from "./pages/FavoritosPage";
-import StatsPage from "./pages/StatsPage";
-import AdminPage from "./pages/AdminPage";
-import ScraperFormPage from "./pages/ScraperFormPage";
-import OfferTemplatesPage from "./pages/OfferTemplatesPage";
-import NodosPage from "./pages/NodosPage";
-import LicitacionesARPage from "./pages/LicitacionesARPage";
+// Critical pages — loaded eagerly (shown immediately after auth)
 import LoginPage from "./pages/LoginPage";
-import PublicLicitacionPage from "./pages/PublicLicitacionPage";
-import PublicListPage from "./pages/PublicListPage";
+import HomePage from "./pages/HomePage";
+
+// Heavy pages — lazy loaded to reduce initial bundle
+const LicitacionesPage = lazy(() => import("./pages/LicitacionesPage"));
+const LicitacionesArgentinaPage = lazy(() => import("./pages/LicitacionesArgentinaPage"));
+const LicitacionDetailPage = lazy(() => import("./pages/LicitacionDetailPage"));
+const FavoritosPage = lazy(() => import("./pages/FavoritosPage"));
+const StatsPage = lazy(() => import("./pages/StatsPage"));
+const AdminPage = lazy(() => import("./pages/AdminPage"));
+const ScraperFormPage = lazy(() => import("./pages/ScraperFormPage"));
+const OfferTemplatesPage = lazy(() => import("./pages/OfferTemplatesPage"));
+const NodosPage = lazy(() => import("./pages/NodosPage"));
+const LicitacionesARPage = lazy(() => import("./pages/LicitacionesARPage"));
+const PublicLicitacionPage = lazy(() => import("./pages/PublicLicitacionPage"));
+const PublicListPage = lazy(() => import("./pages/PublicListPage"));
+
+// Fallback shown while lazy chunks load
+const PageLoader = () => (
+  <div className="min-h-screen flex items-center justify-center bg-gray-50">
+    <div className="text-gray-400 text-sm">Cargando...</div>
+  </div>
+);
 
 // Set up global backend URL
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL || '';
@@ -34,21 +43,23 @@ const AuthenticatedApp = ({ userRole }) => (
   <div className="App flex flex-col min-h-screen">
     <Header userRole={userRole} />
     <main className="flex-grow">
-      <Routes>
-        <Route path="/" element={<HomePage />} />
-        <Route path="/licitaciones-ar" element={<LicitacionesArgentinaPage apiUrl={BACKEND_URL} />} />
-        <Route path="/licitaciones" element={<LicitacionesPage apiUrl={BACKEND_URL} />} />
-        <Route path="/licitaciones/:id" element={<LicitacionDetailPage userRole={userRole} />} />
-        <Route path="/licitacion/:id" element={<LicitacionDetailPage userRole={userRole} />} />
-        <Route path="/favoritos" element={<FavoritosPage />} />
-        <Route path="/stats" element={<StatsPage />} />
-        {/* Admin-only routes */}
-        <Route path="/admin" element={userRole === 'admin' ? <AdminPage /> : <Navigate to="/licitaciones" />} />
-        <Route path="/admin/licitacion/:id" element={userRole === 'admin' ? <LicitacionDetailPage userRole={userRole} /> : <Navigate to="/licitaciones" />} />
-        <Route path="/admin/scraper/:id" element={userRole === 'admin' ? <ScraperFormPage /> : <Navigate to="/licitaciones" />} />
-        <Route path="/templates" element={userRole === 'admin' ? <OfferTemplatesPage /> : <Navigate to="/licitaciones" />} />
-        <Route path="/nodos" element={userRole === 'admin' ? <NodosPage /> : <Navigate to="/licitaciones" />} />
-      </Routes>
+      <Suspense fallback={<PageLoader />}>
+        <Routes>
+          <Route path="/" element={<HomePage />} />
+          <Route path="/licitaciones-ar" element={<LicitacionesArgentinaPage apiUrl={BACKEND_URL} />} />
+          <Route path="/licitaciones" element={<LicitacionesPage apiUrl={BACKEND_URL} />} />
+          <Route path="/licitaciones/:id" element={<LicitacionDetailPage userRole={userRole} />} />
+          <Route path="/licitacion/:id" element={<LicitacionDetailPage userRole={userRole} />} />
+          <Route path="/favoritos" element={<FavoritosPage />} />
+          <Route path="/stats" element={<StatsPage />} />
+          {/* Admin-only routes */}
+          <Route path="/admin" element={userRole === 'admin' ? <AdminPage /> : <Navigate to="/licitaciones" />} />
+          <Route path="/admin/licitacion/:id" element={userRole === 'admin' ? <LicitacionDetailPage userRole={userRole} /> : <Navigate to="/licitaciones" />} />
+          <Route path="/admin/scraper/:id" element={userRole === 'admin' ? <ScraperFormPage /> : <Navigate to="/licitaciones" />} />
+          <Route path="/templates" element={userRole === 'admin' ? <OfferTemplatesPage /> : <Navigate to="/licitaciones" />} />
+          <Route path="/nodos" element={userRole === 'admin' ? <NodosPage /> : <Navigate to="/licitaciones" />} />
+        </Routes>
+      </Suspense>
     </main>
     <Footer />
   </div>
@@ -60,10 +71,12 @@ function AppRouter({ authState, setAuthState }) {
   // Public routes - no auth required
   if (location.pathname.startsWith("/p/") || location.pathname === "/p") {
     return (
-      <Routes>
-        <Route path="/p" element={<PublicListPage />} />
-        <Route path="/p/:slug" element={<PublicLicitacionPage />} />
-      </Routes>
+      <Suspense fallback={<PageLoader />}>
+        <Routes>
+          <Route path="/p" element={<PublicListPage />} />
+          <Route path="/p/:slug" element={<PublicLicitacionPage />} />
+        </Routes>
+      </Suspense>
     );
   }
 

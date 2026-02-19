@@ -292,13 +292,17 @@ async def _get_licitaciones_impl(
     nullable_sort_fields = ["opening_date", "fecha_scraping", "budget"]
     use_nulls_last = sort_by in nullable_sort_fields
 
-    # Get data and count
-    items = await repo.get_all(
-        skip=skip, limit=size, filters=filters,
-        sort_by=sort_by, sort_order=order_val,
-        nulls_last=use_nulls_last
+    # Get data and count in parallel, using list projection to reduce payload size
+    import asyncio as _asyncio
+    items, total_items = await _asyncio.gather(
+        repo.get_all(
+            skip=skip, limit=size, filters=filters,
+            sort_by=sort_by, sort_order=order_val,
+            nulls_last=use_nulls_last,
+            projection=repo.LIST_PROJECTION
+        ),
+        repo.count(filters=filters)
     )
-    total_items = await repo.count(filters=filters)
     
     return {
         "items": items,
@@ -522,9 +526,10 @@ async def get_facets(
         "organization": "organization",
     }
 
-    result = {}
-    for facet_name, field in facet_fields.items():
-        # Build match excluding this field's own filter
+    import asyncio as _asyncio
+
+    async def _compute_facet(facet_name: str, field: str) -> tuple:
+        """Run a single facet aggregation and return (name, results)."""
         cross_match = {k: v for k, v in base_match.items() if k != field}
         pipeline = [
             {"$match": cross_match} if cross_match else {"$match": {}},
@@ -535,26 +540,33 @@ async def get_facets(
         ]
         try:
             docs = await collection.aggregate(pipeline).to_list(length=50)
-            result[facet_name] = [{"value": d["_id"], "count": d["count"]} for d in docs]
+            return facet_name, [{"value": d["_id"], "count": d["count"]} for d in docs]
         except Exception:
-            result[facet_name] = []
+            return facet_name, []
 
-    # Nodos facet: needs $unwind since nodos is an array field
-    try:
-        nodos_cross = {k: v for k, v in base_match.items() if k != "nodos"}
-        nodos_pipeline = [
-            {"$match": nodos_cross} if nodos_cross else {"$match": {}},
-            {"$unwind": "$nodos"},
-            {"$group": {"_id": "$nodos", "count": {"$sum": 1}}},
-            {"$match": {"_id": {"$ne": None}}},
-            {"$sort": {"count": -1}},
-            {"$limit": 50},
-        ]
-        nodos_docs = await collection.aggregate(nodos_pipeline).to_list(length=50)
-        result["nodos"] = [{"value": d["_id"], "count": d["count"]} for d in nodos_docs]
-    except Exception:
-        result["nodos"] = []
+    async def _compute_nodos_facet() -> tuple:
+        """Compute nodos facet (needs $unwind for array field)."""
+        try:
+            nodos_cross = {k: v for k, v in base_match.items() if k != "nodos"}
+            nodos_pipeline = [
+                {"$match": nodos_cross} if nodos_cross else {"$match": {}},
+                {"$unwind": "$nodos"},
+                {"$group": {"_id": "$nodos", "count": {"$sum": 1}}},
+                {"$match": {"_id": {"$ne": None}}},
+                {"$sort": {"count": -1}},
+                {"$limit": 50},
+            ]
+            nodos_docs = await collection.aggregate(nodos_pipeline).to_list(length=50)
+            return "nodos", [{"value": d["_id"], "count": d["count"]} for d in nodos_docs]
+        except Exception:
+            return "nodos", []
 
+    # Run all facet aggregations concurrently instead of sequentially
+    tasks = [_compute_facet(name, field) for name, field in facet_fields.items()]
+    tasks.append(_compute_nodos_facet())
+    facet_results = await _asyncio.gather(*tasks)
+
+    result = {name: data for name, data in facet_results}
     return result
 
 

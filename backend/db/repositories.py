@@ -36,6 +36,15 @@ class LicitacionRepository:
         await self.collection.create_index("created_at")
         await self.collection.create_index("fecha_scraping")
         await self.collection.create_index("nodos")
+        # Performance indexes for frequently-filtered fields
+        await self.collection.create_index("first_seen_at")
+        await self.collection.create_index("estado")
+        await self.collection.create_index("tags")
+        # Compound indexes for common filter+sort combinations
+        await self.collection.create_index([("fuente", pymongo.ASCENDING), ("publication_date", pymongo.DESCENDING)])
+        await self.collection.create_index([("estado", pymongo.ASCENDING), ("opening_date", pymongo.ASCENDING)])
+        await self.collection.create_index([("nodos", pymongo.ASCENDING), ("fecha_scraping", pymongo.DESCENDING)])
+        await self.collection.create_index([("tags", pymongo.ASCENDING), ("publication_date", pymongo.DESCENDING)])
     
     async def create(self, licitacion: LicitacionCreate) -> Licitacion:
         """Create a new licitacion with auto-classification"""
@@ -61,14 +70,29 @@ class LicitacionRepository:
         await self.collection.insert_one(licitacion_dict)
         return licitacion_entity(licitacion_dict)
     
+    # Projection for list endpoints: exclude heavy fields not shown in cards/table
+    LIST_PROJECTION = {
+        "items": 0,
+        "garantias": 0,
+        "solicitudes_contratacion": 0,
+        "pliegos_bases": 0,
+        "requisitos_participacion": 0,
+        "actos_administrativos": 0,
+        "circulares": 0,
+        "workflow_history": 0,
+        "auto_update_changes": 0,
+    }
+
     async def get_all(self, skip: int = 0, limit: int = 100, filters: Dict = None,
                       sort_by: str = "publication_date", sort_order: int = pymongo.DESCENDING,
-                      nulls_last: bool = False) -> List[Licitacion]:
+                      nulls_last: bool = False, projection: Dict = None) -> List[Licitacion]:
         """Get all licitaciones with optional filtering and sorting.
 
         When nulls_last=True, records where sort_by field is null are pushed to the end.
+        When projection is provided, only specified fields are returned (reduces payload size).
         """
         query = filters or {}
+        proj = projection  # None = return all fields
 
         # Ensure sort_by is a valid field to prevent injection/errors
         if sort_by not in Licitacion.model_fields and sort_by != "_id":
@@ -86,8 +110,12 @@ class LicitacionRepository:
                     {"$sort": {"_has_sort_field": 1, "_currency_order": 1, "budget": sort_order}},
                     {"$skip": skip},
                     {"$limit": limit},
-                    {"$project": {"_has_sort_field": 0, "_currency_order": 0}},
                 ]
+                # Build project stage: exclude helper fields + apply projection
+                project_stage: Dict[str, Any] = {"_has_sort_field": 0, "_currency_order": 0}
+                if proj:
+                    project_stage.update(proj)
+                pipeline.append({"$project": project_stage})
             else:
                 # Generic nulls-last sort
                 pipeline = [
@@ -98,11 +126,14 @@ class LicitacionRepository:
                     {"$sort": {"_has_sort_field": 1, sort_by: sort_order}},
                     {"$skip": skip},
                     {"$limit": limit},
-                    {"$project": {"_has_sort_field": 0}},
                 ]
+                project_stage = {"_has_sort_field": 0}
+                if proj:
+                    project_stage.update(proj)
+                pipeline.append({"$project": project_stage})
             licitaciones = await self.collection.aggregate(pipeline).to_list(length=limit)
         else:
-            cursor = self.collection.find(query).sort(sort_by, sort_order).skip(skip).limit(limit)
+            cursor = self.collection.find(query, proj).sort(sort_by, sort_order).skip(skip).limit(limit)
             licitaciones = await cursor.to_list(length=limit)
 
         return licitaciones_entity(licitaciones)

@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import type { Nodo } from '../types/licitacion';
 
 const API_URL = process.env.REACT_APP_API_URL || '';
@@ -21,11 +21,14 @@ export function useNodos() {
 
   useEffect(() => { fetchNodos(); }, [fetchNodos]);
 
-  // Map id→nodo for fast lookup
-  const nodoMap: Record<string, Nodo> = {};
-  for (const n of nodos) {
-    nodoMap[n.id] = n;
-  }
+  // Stable map id→nodo — only rebuilt when nodos array changes
+  const nodoMap = useMemo<Record<string, Nodo>>(() => {
+    const map: Record<string, Nodo> = {};
+    for (const n of nodos) {
+      map[n.id] = n;
+    }
+    return map;
+  }, [nodos]);
 
   return { nodos, nodoMap, loading, refetch: fetchNodos };
 }
