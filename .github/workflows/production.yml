@@ -59,6 +59,35 @@ jobs:
           mkdir -p ~/.ssh
           echo "$VPS_KNOWN_HOSTS" >> ~/.ssh/known_hosts
 
+      - name: Verify SSH connectivity
+        env:
+          VPS_HOST: ${{ secrets.VPS_HOST }}
+          VPS_USER: ${{ secrets.VPS_USER }}
+        run: |
+          echo "Testing SSH connectivity to VPS..."
+          # Retry up to 4 times with exponential backoff (2s, 4s, 8s, 16s)
+          for attempt in 1 2 3 4; do
+            if ssh -o StrictHostKeyChecking=no \
+                   -o ConnectTimeout=15 \
+                   -o ServerAliveInterval=10 \
+                   -o ServerAliveCountMax=3 \
+                   "${VPS_USER}@${VPS_HOST}" "echo 'SSH OK'" 2>&1; then
+              echo "✅ SSH connection established on attempt ${attempt}"
+              exit 0
+            fi
+            wait_time=$((2 ** attempt))
+            echo "⚠️  Attempt ${attempt} failed. Retrying in ${wait_time}s..."
+            sleep $wait_time
+          done
+          echo "❌ Could not connect to VPS after 4 attempts."
+          echo "Possible causes:"
+          echo "  1. VPS is down or unreachable"
+          echo "  2. Firewall blocking GitHub Actions IPs on port 22"
+          echo "  3. SSH daemon not running on VPS"
+          echo "  4. Secret VPS_HOST/VPS_USER incorrect"
+          echo "Manual check: ssh ${VPS_USER}@${VPS_HOST}"
+          exit 1
+
       - name: Sync code to VPS
         env:
           VPS_HOST: ${{ secrets.VPS_HOST }}
@@ -76,7 +105,7 @@ jobs:
             --exclude '.env.preview-*' \
             --exclude 'docker-compose.preview-*.yml' \
             --exclude 'docker-compose.caddy.yml' \
-            -e "ssh -o StrictHostKeyChecking=no -o ServerAliveInterval=30 -o ServerAliveCountMax=20" \
+            -e "ssh -o StrictHostKeyChecking=no -o ConnectTimeout=15 -o ServerAliveInterval=30 -o ServerAliveCountMax=20" \
             ./ "${VPS_USER}@${VPS_HOST}:/opt/licitometro/"
 
       - name: Deploy to production
@@ -91,6 +120,7 @@ jobs:
           echo "Commit: ${COMMIT_SHORT}"
 
           ssh -o StrictHostKeyChecking=no \
+            -o ConnectTimeout=15 \
             -o ServerAliveInterval=30 \
             -o ServerAliveCountMax=20 \
             "${VPS_USER}@${VPS_HOST}" \
