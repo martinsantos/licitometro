@@ -179,7 +179,7 @@ def create_scraper(config: ScraperConfig) -> Optional[BaseScraper]:
         return PbacBuenosAiresScraper(config)
 
     # Comprar.gob.ar (nacional - legacy)
-    if "comprar.gob.ar" in config_url_lower and "comprar" in config_name_lower:
+    if "comprar.gob.ar" in config_url_lower:
         return ComprarGobArScraper(config)
 
     # No matching scraper found
