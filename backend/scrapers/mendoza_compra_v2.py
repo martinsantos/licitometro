@@ -819,8 +819,10 @@ class MendozaCompraScraperV2(BaseScraper):
                 if self.config.max_items and len(licitaciones) >= self.config.max_items:
                     break
             
-            # Sort by publication date
-            licitaciones.sort(key=lambda l: l.publication_date, reverse=True)
+            # Sort by publication date; handle None gracefully
+            licitaciones.sort(
+                key=lambda l: l.publication_date or datetime.min, reverse=True
+            )
             
             logger.info(f"Scraper complete. Total: {len(licitaciones)}, "
                        f"Direct URLs: {sum(1 for l in licitaciones if l.url_quality == 'direct')}, "

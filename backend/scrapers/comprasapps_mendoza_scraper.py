@@ -36,6 +36,7 @@ import sys
 import hashlib
 import json
 from pathlib import Path
+import aiohttp
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
@@ -137,10 +138,15 @@ class ComprasAppsMendozaScraper(BaseScraper):
         self._gxstate = {}      # Parsed GXState dict
         self._cookies = {}
 
+    # Short per-request timeout to avoid burning the total 1200s budget on slow requests
+    _REQUEST_TIMEOUT = aiohttp.ClientTimeout(total=20, connect=5, sock_read=15)
+
     async def _init_session(self) -> bool:
         """GET initial page to establish session and extract GXState."""
         try:
-            async with self.session.get(self.BASE_URL, ssl=False) as resp:
+            async with self.session.get(
+                self.BASE_URL, ssl=False, timeout=self._REQUEST_TIMEOUT
+            ) as resp:
                 if resp.status != 200:
                     logger.error(f"Init failed: HTTP {resp.status}")
                     return False
@@ -219,6 +225,7 @@ class ComprasAppsMendozaScraper(BaseScraper):
                     "Referer": self.BASE_URL,
                 },
                 ssl=False,
+                timeout=self._REQUEST_TIMEOUT,
             ) as resp:
                 if resp.status != 200:
                     logger.error(f"POST failed: HTTP {resp.status}")
@@ -445,7 +452,7 @@ class ComprasAppsMendozaScraper(BaseScraper):
             # MUST use explicit filters ["V", "P"] for working pagination.
             estado_filters = selectors.get("estado_filters", ["V", "P"])
             cuc = str(selectors.get("cuc_filter", "0"))   # 0=all CUCs
-            max_pages = int(selectors.get("max_pages", 200))
+            max_pages = int(selectors.get("max_pages", 100))
 
             # Store for pagination
             self._search_cuc = cuc
@@ -541,8 +548,10 @@ class ComprasAppsMendozaScraper(BaseScraper):
                 if self.config.max_items and len(licitaciones) >= self.config.max_items:
                     break
 
-            # Sort by publication date (newest first)
-            licitaciones.sort(key=lambda l: l.publication_date, reverse=True)
+            # Sort by publication date (newest first); handle None gracefully
+            licitaciones.sort(
+                key=lambda l: l.publication_date or datetime.min, reverse=True
+            )
 
             # Log CUC distribution
             cuc_counts: Dict[str, int] = {}
