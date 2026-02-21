@@ -28,6 +28,7 @@ Correct field names (discovered via live protocol analysis):
 from typing import List, Dict, Any, Optional
 import asyncio
 import logging
+import time
 from bs4 import BeautifulSoup
 from datetime import datetime
 import re
@@ -37,6 +38,10 @@ import hashlib
 import json
 from pathlib import Path
 import aiohttp
+
+# Maximum wall-clock seconds the scraper should run before stopping pagination.
+# The scheduler kills the task at 1200s; stop early to flush results cleanly.
+_SCRAPE_BUDGET_SECS = 900
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
@@ -436,6 +441,9 @@ class ComprasAppsMendozaScraper(BaseScraper):
         """Execute the scraper: fetch all licitaciones from all CUCs."""
         await self.setup()
         try:
+            # Track total elapsed time to stay within the scheduler's 1200s kill timeout.
+            scrape_start = time.monotonic()
+
             # Initialize session
             if not await self._init_session():
                 logger.error("Failed to initialize session - "
@@ -452,7 +460,7 @@ class ComprasAppsMendozaScraper(BaseScraper):
             # MUST use explicit filters ["V", "P"] for working pagination.
             estado_filters = selectors.get("estado_filters", ["V", "P"])
             cuc = str(selectors.get("cuc_filter", "0"))   # 0=all CUCs
-            max_pages = int(selectors.get("max_pages", 100))
+            max_pages = int(selectors.get("max_pages", 50))
 
             # Store for pagination
             self._search_cuc = cuc
@@ -462,11 +470,27 @@ class ComprasAppsMendozaScraper(BaseScraper):
 
             for anio in years_to_search:
                 anio = int(anio)
+
+                # Don't start a new year-combo if time budget is already spent
+                elapsed = time.monotonic() - scrape_start
+                if elapsed > _SCRAPE_BUDGET_SECS:
+                    logger.warning(f"Time budget ({_SCRAPE_BUDGET_SECS}s) reached before "
+                                   f"starting year {anio}, stopping")
+                    break
+
                 for estado in estado_filters:
+                    # Also check budget before each estado combo
+                    elapsed = time.monotonic() - scrape_start
+                    if elapsed > _SCRAPE_BUDGET_SECS:
+                        logger.warning(f"Time budget reached before "
+                                       f"year {anio}/estado {estado}, stopping")
+                        break
+
                     self._search_anio = anio
                     self._search_estado = estado
                     estado_label = estado or "(Vigente/empty)"
-                    logger.info(f"Searching year {anio}, estado={estado_label}, cuc={cuc}")
+                    logger.info(f"Searching year {anio}, estado={estado_label}, cuc={cuc} "
+                                f"(elapsed: {elapsed:.0f}s/{_SCRAPE_BUDGET_SECS}s)")
 
                     # Re-initialize session for each search to get fresh GXState
                     if not await self._init_session():
@@ -500,9 +524,17 @@ class ComprasAppsMendozaScraper(BaseScraper):
 
                         all_rows.extend(new_rows)
                         search_rows += len(new_rows)
+                        elapsed = time.monotonic() - scrape_start
                         logger.info(f"  {anio}/{estado_label} p{page}: "
                                    f"{len(rows)} rows ({len(new_rows)} new, "
-                                   f"total: {len(all_rows)})")
+                                   f"total: {len(all_rows)}, elapsed: {elapsed:.0f}s)")
+
+                        # Time budget guard: stop pagination if approaching kill timeout
+                        if elapsed > _SCRAPE_BUDGET_SECS:
+                            logger.warning(f"  Time budget ({_SCRAPE_BUDGET_SECS}s) reached "
+                                           f"at page {page}, stopping pagination with "
+                                           f"{len(all_rows)} rows collected")
+                            break
 
                         # Early stop: if pagination loops (returns same rows)
                         if len(new_rows) == 0:
