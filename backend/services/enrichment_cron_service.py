@@ -23,10 +23,10 @@ from motor.motor_asyncio import AsyncIOMotorDatabase
 logger = logging.getLogger("enrichment_cron")
 
 # Limits
-MAX_HTTP_BATCH = 50        # max items per HTTP enrichment run
-MAX_TITLEONLY_BATCH = 200  # max items per title-only run
+MAX_HTTP_BATCH = 75        # max items per HTTP enrichment run (was 50)
+MAX_TITLEONLY_BATCH = 300  # max items per title-only run (was 200)
 MAX_RUNTIME_SECONDS = 25 * 60  # 25 min safety cap for HTTP pass
-HTTP_DELAY = 2.0           # seconds between HTTP fetches
+HTTP_DELAY = 1.0           # seconds between HTTP fetches (was 2.0 — still polite)
 
 
 class EnrichmentCronService:
@@ -71,7 +71,8 @@ class EnrichmentCronService:
         return stats
 
     async def _pass_title_only(self, stats: dict):
-        """Enrich items that don't need HTTP: extract_objeto + classify + workflow transition."""
+        """Enrich items that don't need HTTP: extract_objeto + classify.
+        Uses a single bulk_write instead of one update_one per item."""
         # ComprasApps items OR items without source_url
         query = {
             "enrichment_level": {"$in": [None, 1]},
@@ -91,7 +92,11 @@ class EnrichmentCronService:
 
         from utils.object_extractor import extract_objeto
         from services.category_classifier import get_category_classifier
+        from pymongo import UpdateOne as MongoUpdateOne
         classifier = get_category_classifier()
+
+        now = datetime.utcnow()
+        bulk_ops = []
 
         for doc in items:
             stats["title_only"]["processed"] += 1
@@ -119,20 +124,25 @@ class EnrichmentCronService:
                 # Set enrichment level only - DO NOT auto-transition workflow state
                 # Workflow transitions should be explicit business logic, not automatic
                 updates["enrichment_level"] = 2
-                updates["updated_at"] = datetime.utcnow()
+                updates["updated_at"] = now
 
-                await self.collection.update_one(
-                    {"_id": doc["_id"]},
-                    {"$set": updates}
-                )
+                bulk_ops.append(MongoUpdateOne({"_id": doc["_id"]}, {"$set": updates}))
                 stats["title_only"]["enriched"] += 1
 
             except Exception as e:
                 stats["title_only"]["errors"] += 1
                 logger.error(f"Title-only enrichment failed for {doc.get('_id')}: {e}")
 
+        # Single bulk_write for all items instead of one update_one per item
+        if bulk_ops:
+            try:
+                await self.collection.bulk_write(bulk_ops, ordered=False)
+            except Exception as bw_err:
+                logger.error(f"Title-only bulk_write failed: {bw_err}")
+
     async def _pass_http(self, stats: dict, start: datetime):
-        """Enrich items with source_url via HTTP fetch + full pipeline."""
+        """Enrich items with source_url via HTTP fetch + full pipeline.
+        Pre-loads all scraper configs in ONE query to avoid N+1 MongoDB round-trips."""
         query = {
             "enrichment_level": {"$in": [None, 1]},
             "source_url": {"$nin": [None, ""]},
@@ -147,6 +157,17 @@ class EnrichmentCronService:
 
         logger.info(f"HTTP pass: processing {len(items)} items")
 
+        # Pre-load ALL scraper configs in one query (eliminates N+1 pattern).
+        # Build a lowercase name → selectors map for O(1) lookups per item.
+        all_configs = await self.db.scraper_configs.find(
+            {}, {"name": 1, "selectors": 1}
+        ).to_list(length=None)
+        selectors_cache: Dict[str, Optional[dict]] = {
+            cfg["name"].lower(): cfg.get("selectors") or {}
+            for cfg in all_configs
+            if cfg.get("name")
+        }
+
         from services.generic_enrichment import GenericEnrichmentService
         enrichment_service = GenericEnrichmentService()
 
@@ -160,8 +181,8 @@ class EnrichmentCronService:
 
                 stats["http"]["processed"] += 1
                 try:
-                    # Look up scraper config for CSS selectors
-                    selectors = await self._get_selectors_for_fuente(doc.get("fuente", ""))
+                    # O(1) lookup from pre-loaded cache instead of per-item DB query
+                    selectors = self._get_selectors_from_cache(doc.get("fuente", ""), selectors_cache)
 
                     updates = await enrichment_service.enrich(doc, selectors)
 
@@ -194,7 +215,7 @@ class EnrichmentCronService:
                     )
                     stats["http"]["enriched"] += 1
 
-                    # Rate limit
+                    # Rate limit — polite to source servers
                     await asyncio.sleep(HTTP_DELAY)
 
                 except Exception as e:
@@ -203,8 +224,23 @@ class EnrichmentCronService:
         finally:
             await enrichment_service.close()
 
+    def _get_selectors_from_cache(self, fuente: str, cache: Dict[str, Optional[dict]]) -> Optional[dict]:
+        """O(1) lookup of CSS selectors using the pre-loaded configs cache."""
+        if not fuente:
+            return None
+        fuente_lower = fuente.lower()
+        # Exact match first
+        if fuente_lower in cache:
+            return cache[fuente_lower]
+        # Partial match fallback (scraper name may be a substring of fuente)
+        for name, selectors in cache.items():
+            if name in fuente_lower or fuente_lower in name:
+                return selectors
+        return None
+
     async def _get_selectors_for_fuente(self, fuente: str) -> Optional[dict]:
-        """Look up CSS selectors from scraper config for a given fuente name."""
+        """Legacy per-item DB lookup — kept for external callers.
+        Use _get_selectors_from_cache() inside enrichment cycles instead."""
         if not fuente:
             return None
         import re

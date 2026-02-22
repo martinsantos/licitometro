@@ -57,67 +57,84 @@ class AutoUpdateService:
 
         logger.info(f"Found {len(candidates)} active licitaciones to check")
 
-        for lic_doc in candidates:
-            try:
-                lic_id = str(lic_doc["_id"])
-                fuente = lic_doc.get("fuente", "")
+        # Pre-load scraper configs to avoid per-item DB queries in _enrich_generic
+        all_configs = await self.db.scraper_configs.find(
+            {"active": True}, {"name": 1, "selectors": 1}
+        ).to_list(length=None)
+        selectors_cache: Dict[str, Any] = {
+            cfg["name"].lower(): cfg.get("selectors") or {}
+            for cfg in all_configs
+            if cfg.get("name")
+        }
 
-                # Take snapshot of key fields before enrichment
-                before_snapshot = self._take_snapshot(lic_doc)
+        # Process up to 5 items concurrently (was sequential with 2s sleep each).
+        # Semaphore prevents thundering-herd on source servers.
+        sem = asyncio.Semaphore(5)
 
-                # Run enrichment (COMPR.AR uses specialized logic, others use generic)
-                if "COMPR.AR" in fuente:
-                    success = await self._enrich_licitacion(lic_doc)
-                else:
-                    success = await self._enrich_generic(lic_doc)
+        async def process_one(lic_doc: Dict[str, Any]) -> Dict[str, Any]:
+            result = {"updated": 0, "skipped": 0, "errors": 0, "change": None}
+            async with sem:
+                try:
+                    lic_id = str(lic_doc["_id"])
+                    fuente = lic_doc.get("fuente", "")
+                    before_snapshot = self._take_snapshot(lic_doc)
 
-                if not success:
-                    stats["skipped"] += 1
-                    continue
+                    if "COMPR.AR" in fuente:
+                        success = await self._enrich_licitacion(lic_doc)
+                    else:
+                        success = await self._enrich_generic(lic_doc, selectors_cache)
 
-                # Get updated doc
-                updated_doc = await self.collection.find_one({"_id": lic_doc["_id"]})
-                if not updated_doc:
-                    continue
+                    if not success:
+                        result["skipped"] = 1
+                        return result
 
-                after_snapshot = self._take_snapshot(updated_doc)
-                changes = self._detect_changes(before_snapshot, after_snapshot)
+                    updated_doc = await self.collection.find_one({"_id": lic_doc["_id"]})
+                    if not updated_doc:
+                        result["skipped"] = 1
+                        return result
 
-                # Update auto-update tracking fields
-                auto_update_entry = {
-                    "timestamp": now.isoformat(),
-                    "changes": changes,
-                    "fields_changed": len(changes),
-                }
+                    after_snapshot = self._take_snapshot(updated_doc)
+                    changes = self._detect_changes(before_snapshot, after_snapshot)
 
-                update_fields = {
-                    "last_auto_update": now,
-                }
+                    await self.collection.update_one(
+                        {"_id": lic_doc["_id"]},
+                        {
+                            "$set": {"last_auto_update": now},
+                            "$push": {"auto_update_changes": {
+                                "timestamp": now.isoformat(),
+                                "changes": changes,
+                                "fields_changed": len(changes),
+                            }},
+                        }
+                    )
 
-                # Append to auto_update_changes array
-                await self.collection.update_one(
-                    {"_id": lic_doc["_id"]},
-                    {
-                        "$set": update_fields,
-                        "$push": {"auto_update_changes": auto_update_entry}
-                    }
-                )
+                    result["updated"] = 1
+                    if changes:
+                        result["change"] = {"id": lic_id, "changes": changes}
+                    logger.info(f"Auto-updated {lic_id}: {len(changes)} changes detected")
 
-                if changes:
-                    stats["changes_detected"].append({
-                        "id": lic_id,
-                        "changes": changes,
-                    })
+                    # Light rate limit (was 2s; semaphore already staggers requests)
+                    await asyncio.sleep(0.5)
 
-                stats["updated"] += 1
-                logger.info(f"Auto-updated {lic_id}: {len(changes)} changes detected")
+                except Exception as e:
+                    result["errors"] = 1
+                    logger.error(f"Error auto-updating {lic_doc.get('_id')}: {e}")
+            return result
 
-                # Rate limit - don't overwhelm the source
-                await asyncio.sleep(2)
+        results = await asyncio.gather(
+            *[process_one(doc) for doc in candidates],
+            return_exceptions=True,
+        )
 
-            except Exception as e:
+        for r in results:
+            if isinstance(r, Exception):
                 stats["errors"] += 1
-                logger.error(f"Error auto-updating {lic_doc.get('_id')}: {e}")
+            else:
+                stats["updated"] += r["updated"]
+                stats["skipped"] += r["skipped"]
+                stats["errors"] += r["errors"]
+                if r.get("change"):
+                    stats["changes_detected"].append(r["change"])
 
         stats["finished_at"] = datetime.utcnow().isoformat()
         logger.info(f"Auto-update complete: {stats['updated']} updated, {stats['skipped']} skipped, {stats['errors']} errors")
@@ -327,23 +344,35 @@ class AutoUpdateService:
             logger.error(f"Enrichment error for {lic_doc.get('_id')}: {e}")
             return False
 
-    async def _enrich_generic(self, lic_doc: dict) -> bool:
-        """Run generic enrichment for non-COMPR.AR licitaciones."""
+    async def _enrich_generic(self, lic_doc: dict, selectors_cache: Optional[Dict[str, Any]] = None) -> bool:
+        """Run generic enrichment for non-COMPR.AR licitaciones.
+        Accepts pre-loaded selectors_cache for O(1) lookup instead of per-item DB query."""
         try:
             source_url = str(lic_doc.get("source_url", "") or "")
             if not source_url:
                 return False
 
-            # Look up scraper config for CSS selectors
             fuente = lic_doc.get("fuente", "")
             selectors = None
-            import re
-            config_doc = await self.db.scraper_configs.find_one({
-                "name": {"$regex": re.escape(fuente), "$options": "i"},
-                "active": True,
-            })
-            if config_doc:
-                selectors = config_doc.get("selectors", {})
+
+            if selectors_cache is not None:
+                # O(1) lookup from pre-loaded cache
+                fuente_lower = fuente.lower()
+                selectors = selectors_cache.get(fuente_lower)
+                if selectors is None:
+                    for name, sel in selectors_cache.items():
+                        if name in fuente_lower or fuente_lower in name:
+                            selectors = sel
+                            break
+            else:
+                # Fallback: per-item DB query (legacy path, avoid in hot loops)
+                import re
+                config_doc = await self.db.scraper_configs.find_one({
+                    "name": {"$regex": re.escape(fuente), "$options": "i"},
+                    "active": True,
+                })
+                if config_doc:
+                    selectors = config_doc.get("selectors", {})
 
             from services.generic_enrichment import GenericEnrichmentService
             service = GenericEnrichmentService()
