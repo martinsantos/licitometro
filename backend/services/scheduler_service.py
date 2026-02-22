@@ -93,16 +93,16 @@ class SchedulerService:
         configs_collection = self.db.scraper_configs
         configs = await configs_collection.find({"active": True}).to_list(length=100)
         
-        logger.info(f"DEBUG: Found {len(configs)} active scrapers in DB")
+        logger.debug(f"Found {len(configs)} active scrapers in DB")
         for c in configs:
-            logger.info(f"DEBUG: Config in DB: {c.get('name')} active={c.get('active')}")
-        
+            logger.debug(f"Config in DB: {c.get('name')} active={c.get('active')}")
+
         scheduled_count = 0
         for config_data in configs:
             try:
                 config_data.pop('_id', None)
                 config = ScraperConfig(**config_data)
-                logger.info(f"DEBUG: Scheduling {config.name}")
+                logger.debug(f"Scheduling {config.name}")
                 if await self.schedule_scraper(config):
                     scheduled_count += 1
             except Exception as e:
@@ -197,9 +197,13 @@ class SchedulerService:
             result = await runs_collection.insert_one(run.model_dump())
             run_id = str(result.inserted_id)
             
-            # Execute immediately (don't wait)
-            asyncio.create_task(self._execute_scraper_with_tracking(scraper_name, run_id))
-            
+            # Execute immediately (fire-and-forget) with error logging on failure
+            task = asyncio.create_task(self._execute_scraper_with_tracking(scraper_name, run_id))
+            task.add_done_callback(
+                lambda t: logger.error(f"Scraper task '{scraper_name}' failed: {t.exception()}")
+                if not t.cancelled() and t.exception() else None
+            )
+
             logger.info(f"Triggered manual execution of '{scraper_name}', run_id: {run_id}")
             return run_id
             
@@ -483,9 +487,10 @@ class SchedulerService:
                 duplicates_skipped=duplicates_skipped,
             )
             
+            # Use default mode (Python) — preserves datetime as BSON Date, not ISO string
             await runs_collection.update_one(
                 {"_id": ObjectId(run_id)},
-                {"$set": update.model_dump(exclude_unset=True, mode='json')}
+                {"$set": update.model_dump(exclude_unset=True)}
             )
             
             # Update scraper config last_run
@@ -505,7 +510,7 @@ class SchedulerService:
                 try:
                     from services.notification_service import get_notification_service
                     ns = get_notification_service(self.db)
-                    saved_items = [i.model_dump(mode='json') for i in items[:items_saved]]
+                    saved_items = [i.model_dump() for i in items[:items_saved]]
                     await ns.notify_new_licitaciones(saved_items, scraper_name)
                 except Exception as notify_err:
                     log(f"Notification failed: {notify_err}", "warning")
