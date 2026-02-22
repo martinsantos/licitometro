@@ -36,31 +36,49 @@ USER_AGENTS = [
 class DomainState:
     """Track state per domain for rate limiting and circuit breaker."""
 
+    # Adaptive rate-limit bounds (seconds between requests)
+    _MIN_INTERVAL_FLOOR = 0.3   # fastest we ever go
+    _MIN_INTERVAL_CEIL  = 3.0   # slowest before circuit breaker kicks in
+    _INTERVAL_BACKOFF   = 1.5   # multiply on 429/5xx
+    _INTERVAL_RECOVER   = 0.85  # multiply on success (slow creep back to fast)
+
     def __init__(self):
         self.failure_count = 0
         self.last_request_time = 0.0
         self.cooldown_until = 0.0
-        self.min_interval = 1.0  # minimum seconds between requests
+        self.min_interval = 0.5  # start at 0.5 s (2 req/s), adapts up/down
+        self._lock = asyncio.Lock()  # serialise rate-limit window per domain
 
     @property
     def is_in_cooldown(self) -> bool:
         return time.time() < self.cooldown_until
 
-    def record_failure(self):
+    def record_failure(self, rate_limited: bool = False):
         self.failure_count += 1
+        # Adaptive back-off: slow down when the server pushes back
+        if rate_limited:
+            self.min_interval = min(self.min_interval * self._INTERVAL_BACKOFF,
+                                    self._MIN_INTERVAL_CEIL)
+            logger.debug(f"Rate-limited: min_interval → {self.min_interval:.2f}s")
         if self.failure_count >= 5:
             self.cooldown_until = time.time() + 300  # 5 min cooldown
-            logger.warning(f"Circuit breaker tripped: 5 failures, cooldown 5 min")
+            logger.warning("Circuit breaker tripped: 5 failures, cooldown 5 min")
 
     def record_success(self):
         self.failure_count = 0
+        # Gradually recover speed after a run of successes
+        self.min_interval = max(self.min_interval * self._INTERVAL_RECOVER,
+                                self._MIN_INTERVAL_FLOOR)
 
     async def wait_rate_limit(self):
-        elapsed = time.time() - self.last_request_time
-        if elapsed < self.min_interval:
-            wait = self.min_interval - elapsed
-            await asyncio.sleep(wait)
-        self.last_request_time = time.time()
+        # Lock ensures concurrent coroutines targeting the same domain are
+        # serialised here, so each one waits its own full interval rather than
+        # all waking up simultaneously after a single shared wait.
+        async with self._lock:
+            elapsed = time.time() - self.last_request_time
+            if elapsed < self.min_interval:
+                await asyncio.sleep(self.min_interval - elapsed)
+            self.last_request_time = time.time()
 
 
 class ResilientHttpClient:
@@ -160,7 +178,7 @@ class ResilientHttpClient:
                             f"Rate limited ({response.status}) on {url}, "
                             f"retrying in {delay:.1f}s (attempt {attempt + 1})"
                         )
-                        domain_state.record_failure()
+                        domain_state.record_failure(rate_limited=True)
                         await asyncio.sleep(delay)
                         continue
 

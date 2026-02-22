@@ -351,7 +351,6 @@ class SchedulerService:
 
                 now = datetime.utcnow()
                 bulk_ops = []
-                enrichment_updates: List[Dict] = []  # list of {id_licitacion, updates}
 
                 for item in items:
                     try:
@@ -408,11 +407,9 @@ class SchedulerService:
                         else:
                             item_data["created_at"] = now
                             item_data["first_seen_at"] = now
-                            items_saved += 1
-                            bulk_ops.append(InsertOne(item_data))
 
-                            # Collect inline enrichment for new items
-                            _inline_updates = {}
+                            # Inline enrichment fields baked into the INSERT document
+                            # (eliminates the separate second bulk-write round-trip)
                             if not item_data.get("objeto"):
                                 obj = extract_objeto(
                                     title=item_data.get("title", ""),
@@ -420,18 +417,19 @@ class SchedulerService:
                                     metadata=item_data.get("metadata"),
                                 )
                                 if obj:
-                                    _inline_updates["objeto"] = obj
+                                    item_data["objeto"] = obj
                             if not item_data.get("category"):
                                 _title = item_data.get("title", "")
-                                _objeto = _inline_updates.get("objeto", item_data.get("objeto", ""))
+                                _objeto = item_data.get("objeto", "")
                                 cat = classifier.classify(title=_title, objeto=_objeto)
                                 if not cat:
                                     _desc = (item_data.get("description", "") or "")[:500]
                                     cat = classifier.classify(title=_title, objeto=_objeto, description=_desc)
                                 if cat:
-                                    _inline_updates["category"] = cat
-                            if _inline_updates:
-                                enrichment_updates.append({"id_licitacion": item.id_licitacion, "updates": _inline_updates})
+                                    item_data["category"] = cat
+
+                            items_saved += 1
+                            bulk_ops.append(InsertOne(item_data))
 
                         # Count URLs with PLIEGO
                         if item.metadata and item.metadata.get("comprar_pliego_url"):
@@ -446,23 +444,12 @@ class SchedulerService:
                         })
                         items_duplicated += 1
 
-                # ── Execute bulk write (all inserts + updates in one round-trip) ──
+                # ── Single bulk write (inserts + updates in one round-trip) ──
                 if bulk_ops:
                     try:
                         await licitaciones_collection.bulk_write(bulk_ops, ordered=False)
                     except Exception as bw_err:
                         log(f"Bulk write error: {bw_err}", "error")
-
-                # ── Batch enrichment updates for new items ──
-                if enrichment_updates:
-                    enrich_ops = [
-                        UpdateOne({"id_licitacion": eu["id_licitacion"]}, {"$set": eu["updates"]})
-                        for eu in enrichment_updates
-                    ]
-                    try:
-                        await licitaciones_collection.bulk_write(enrich_ops, ordered=False)
-                    except Exception as enrich_err:
-                        log(f"Enrichment bulk write error: {enrich_err}", "warning")
             
             # Determine status
             status = "success"

@@ -8,6 +8,10 @@ import uuid
 import sys
 from pathlib import Path
 
+# Max concurrent detail-page fetches per scraper run.
+# Keeps parallelism bounded so we don't overwhelm slow gov servers.
+DETAIL_FETCH_CONCURRENCY = 5
+
 # Add parent directory to path so we can import modules
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
@@ -86,20 +90,33 @@ class BaseScraper(ABC):
             licitaciones.append(LicitacionCreate(**licitacion_data_dict))
             return licitaciones
 
-        # If this is a listing page
+        # If this is a listing page — fetch all detail pages concurrently
         links = await self.extract_links(html)
-        for link in links:
-            detail_html = await self.fetch_page(link)
-            if detail_html:
-                licitacion_data_dict = await self.extract_licitacion_data(detail_html, link)
-                if licitacion_data_dict:
-                    # Add fuente to the licitacion data
-                    licitacion_data_dict["fuente"] = self.config.name
-                    licitaciones.append(LicitacionCreate(**licitacion_data_dict))
+        if self.config.max_items:
+            links = links[:self.config.max_items]
 
-            # Stop if we've reached the maximum number of items
-            if self.config.max_items and len(licitaciones) >= self.config.max_items:
-                break
+        semaphore = asyncio.Semaphore(DETAIL_FETCH_CONCURRENCY)
+
+        async def _fetch_detail(link: str) -> Optional[LicitacionCreate]:
+            async with semaphore:
+                detail_html = await self.fetch_page(link)
+                if not detail_html:
+                    return None
+                data = await self.extract_licitacion_data(detail_html, link)
+                if data:
+                    data["fuente"] = self.config.name
+                    return LicitacionCreate(**data)
+                return None
+
+        results = await asyncio.gather(
+            *[_fetch_detail(link) for link in links],
+            return_exceptions=True,
+        )
+        for result in results:
+            if isinstance(result, Exception):
+                logger.warning(f"Detail fetch error: {result}")
+            elif result is not None:
+                licitaciones.append(result)
 
         return licitaciones
 
@@ -395,15 +412,33 @@ class BaseScraper(ABC):
                     licitaciones.append(LicitacionCreate(**licitacion_data_dict))
                 else:
                     links = await self.extract_links(html)
-                    for link in links:
-                        detail_html = await self.fetch_page(link)
-                        if detail_html:
-                            licitacion_data_dict = await self.extract_licitacion_data(detail_html, link)
-                            if licitacion_data_dict:
-                                licitacion_data_dict["fuente"] = self.config.name
-                                licitaciones.append(LicitacionCreate(**licitacion_data_dict))
-                        if self.config.max_items and len(licitaciones) >= self.config.max_items:
-                            break
+                    # Honour max_items: trim link list before spawning tasks
+                    if self.config.max_items:
+                        remaining = self.config.max_items - len(licitaciones)
+                        links = links[:remaining]
+
+                    semaphore = asyncio.Semaphore(DETAIL_FETCH_CONCURRENCY)
+
+                    async def _fetch_detail(link: str) -> Optional[LicitacionCreate]:
+                        async with semaphore:
+                            detail_html = await self.fetch_page(link)
+                            if not detail_html:
+                                return None
+                            data = await self.extract_licitacion_data(detail_html, link)
+                            if data:
+                                data["fuente"] = self.config.name
+                                return LicitacionCreate(**data)
+                            return None
+
+                    page_results = await asyncio.gather(
+                        *[_fetch_detail(link) for link in links],
+                        return_exceptions=True,
+                    )
+                    for result in page_results:
+                        if isinstance(result, Exception):
+                            logger.warning(f"Detail fetch error: {result}")
+                        elif result is not None:
+                            licitaciones.append(result)
 
                 # Stop if we've reached the maximum number of items
                 if self.config.max_items and len(licitaciones) >= self.config.max_items:
