@@ -22,34 +22,49 @@ class LicitacionRepository:
     async def ensure_indexes(self):
         """Create indexes — must be awaited from startup.
         NOTE: The text index is managed by scripts/migrate_text_index.py (v3).
-        Do NOT create a text index here — it would overwrite the expanded one."""
-        await self.collection.create_index("organization")
-        await self.collection.create_index("publication_date")
-        await self.collection.create_index("status")
-        await self.collection.create_index("location")
-        await self.collection.create_index("category")
-        await self.collection.create_index("fuente")
-        await self.collection.create_index("workflow_state")
-        await self.collection.create_index("enrichment_level")
-        await self.collection.create_index([("publication_date", pymongo.DESCENDING), ("opening_date", pymongo.DESCENDING)])
-        await self.collection.create_index([("workflow_state", 1), ("opening_date", 1)])
-        await self.collection.create_index("created_at")
-        await self.collection.create_index("fecha_scraping")
-        await self.collection.create_index("nodos")
+        Do NOT create a text index here — it would overwrite the expanded one.
+        NOTE: This method is idempotent — IndexOptionsConflict errors (e.g. unique→sparse
+        change) are caught per-index so a single conflict never aborts startup."""
+        import logging as _logging
+        from pymongo.errors import OperationFailure as _OpFail
+
+        _log = _logging.getLogger("repositories.ensure_indexes")
+
+        async def _safe_index(keys, **kwargs):
+            """Create index; silently skip if an identical or conflicting index
+            already exists (avoids crash when index options change between deploys)."""
+            try:
+                await self.collection.create_index(keys, **kwargs)
+            except _OpFail as e:
+                _log.warning(f"Index creation skipped (already exists or conflict): {e}")
+
+        await _safe_index("organization")
+        await _safe_index("publication_date")
+        await _safe_index("status")
+        await _safe_index("location")
+        await _safe_index("category")
+        await _safe_index("fuente")
+        await _safe_index("workflow_state")
+        await _safe_index("enrichment_level")
+        await _safe_index([("publication_date", pymongo.DESCENDING), ("opening_date", pymongo.DESCENDING)])
+        await _safe_index([("workflow_state", 1), ("opening_date", 1)])
+        await _safe_index("created_at")
+        await _safe_index("fecha_scraping")
+        await _safe_index("nodos")
         # Performance indexes for frequently-filtered fields
-        await self.collection.create_index("first_seen_at")
-        await self.collection.create_index("estado")
-        await self.collection.create_index("tags")
+        await _safe_index("first_seen_at")
+        await _safe_index("estado")
+        await _safe_index("tags")
         # CRITICAL: dedup lookups in scheduler_service — every item queries these fields
         # Non-unique sparse index: fast O(1) lookups without uniqueness enforcement
         # (app-level dedup logic in scheduler_service handles duplicates already)
-        await self.collection.create_index("id_licitacion", sparse=True)
-        await self.collection.create_index("content_hash", sparse=True)
+        await _safe_index("id_licitacion", sparse=True)
+        await _safe_index("content_hash", sparse=True)
         # Compound indexes for common filter+sort combinations
-        await self.collection.create_index([("fuente", pymongo.ASCENDING), ("publication_date", pymongo.DESCENDING)])
-        await self.collection.create_index([("estado", pymongo.ASCENDING), ("opening_date", pymongo.ASCENDING)])
-        await self.collection.create_index([("nodos", pymongo.ASCENDING), ("fecha_scraping", pymongo.DESCENDING)])
-        await self.collection.create_index([("tags", pymongo.ASCENDING), ("publication_date", pymongo.DESCENDING)])
+        await _safe_index([("fuente", pymongo.ASCENDING), ("publication_date", pymongo.DESCENDING)])
+        await _safe_index([("estado", pymongo.ASCENDING), ("opening_date", pymongo.ASCENDING)])
+        await _safe_index([("nodos", pymongo.ASCENDING), ("fecha_scraping", pymongo.DESCENDING)])
+        await _safe_index([("tags", pymongo.ASCENDING), ("publication_date", pymongo.DESCENDING)])
     
     async def create(self, licitacion: LicitacionCreate) -> Licitacion:
         """Create a new licitacion with auto-classification"""
