@@ -19,6 +19,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from bson import ObjectId
+from pymongo import InsertOne, UpdateOne
 from motor.motor_asyncio import AsyncIOMotorDatabase
 from models.scraper_config import ScraperConfig
 from models.scraper_run import ScraperRun, ScraperRunCreate, ScraperRunUpdate
@@ -92,16 +93,16 @@ class SchedulerService:
         configs_collection = self.db.scraper_configs
         configs = await configs_collection.find({"active": True}).to_list(length=100)
         
-        logger.info(f"DEBUG: Found {len(configs)} active scrapers in DB")
+        logger.debug(f"Found {len(configs)} active scrapers in DB")
         for c in configs:
-            logger.info(f"DEBUG: Config in DB: {c.get('name')} active={c.get('active')}")
-        
+            logger.debug(f"Config in DB: {c.get('name')} active={c.get('active')}")
+
         scheduled_count = 0
         for config_data in configs:
             try:
                 config_data.pop('_id', None)
                 config = ScraperConfig(**config_data)
-                logger.info(f"DEBUG: Scheduling {config.name}")
+                logger.debug(f"Scheduling {config.name}")
                 if await self.schedule_scraper(config):
                     scheduled_count += 1
             except Exception as e:
@@ -196,9 +197,13 @@ class SchedulerService:
             result = await runs_collection.insert_one(run.model_dump())
             run_id = str(result.inserted_id)
             
-            # Execute immediately (don't wait)
-            asyncio.create_task(self._execute_scraper_with_tracking(scraper_name, run_id))
-            
+            # Execute immediately (fire-and-forget) with error logging on failure
+            task = asyncio.create_task(self._execute_scraper_with_tracking(scraper_name, run_id))
+            task.add_done_callback(
+                lambda t: logger.error(f"Scraper task '{scraper_name}' failed: {t.exception()}")
+                if not t.cancelled() and t.exception() else None
+            )
+
             logger.info(f"Triggered manual execution of '{scraper_name}', run_id: {run_id}")
             return run_id
             
@@ -296,37 +301,76 @@ class SchedulerService:
             # Save items to database
             if items:
                 licitaciones_collection = self.db.licitaciones
+                is_ar_scope = getattr(config, 'scope', None) == "ar_nacional"
+                is_boletin = scraper_name.startswith("boletin")
+
+                # ── Bulk pre-load: fetch ALL existing records for this batch in ONE query ──
+                batch_ids = [i.id_licitacion for i in items if i.id_licitacion]
+                batch_hashes = [i.content_hash for i in items if i.content_hash]
+
+                existing_ids: set = set()
+                existing_hashes: Dict[str, str] = {}  # hash → id_licitacion
+                boe_existing_numbers: set = set()
+
+                if batch_ids:
+                    existing_docs = await licitaciones_collection.find(
+                        {"id_licitacion": {"$in": batch_ids}},
+                        {"id_licitacion": 1}
+                    ).to_list(length=None)
+                    existing_ids = {doc["id_licitacion"] for doc in existing_docs}
+
+                if batch_hashes:
+                    hash_docs = await licitaciones_collection.find(
+                        {"content_hash": {"$in": batch_hashes}},
+                        {"id_licitacion": 1, "content_hash": 1}
+                    ).to_list(length=None)
+                    existing_hashes = {doc["content_hash"]: doc["id_licitacion"] for doc in hash_docs}
+
+                if is_boletin:
+                    batch_numbers = [i.licitacion_number for i in items if i.licitacion_number]
+                    if batch_numbers:
+                        boe_docs = await licitaciones_collection.find(
+                            {"licitacion_number": {"$in": batch_numbers}, "fuente": {"$regex": "Boletin", "$options": "i"}},
+                            {"id_licitacion": 1, "licitacion_number": 1}
+                        ).to_list(length=None)
+                        boe_existing_numbers = {doc["licitacion_number"] for doc in boe_docs}
+
+                # Pre-load nodo_matcher singleton once (not per-item)
+                nodo_matcher = None
+                if not is_ar_scope:
+                    try:
+                        from services.nodo_matcher import get_nodo_matcher
+                        nodo_matcher = get_nodo_matcher(self.db)
+                    except Exception as nm_err:
+                        log(f"Nodo matcher init failed: {nm_err}", "warning")
+
+                # Pre-load enrichment helpers once
+                from utils.object_extractor import extract_objeto
+                from services.category_classifier import get_category_classifier
+                classifier = get_category_classifier()
+
+                now = datetime.utcnow()
+                bulk_ops = []
+                enrichment_updates: List[Dict] = []  # list of {id_licitacion, updates}
+
                 for item in items:
                     try:
-                        # Check if exists by id_licitacion
-                        existing = await licitaciones_collection.find_one({
-                            "id_licitacion": item.id_licitacion
-                        })
+                        id_exists = item.id_licitacion in existing_ids
 
-                        # Content-hash dedup: check if a different record has the same hash
-                        if not existing and item.content_hash:
-                            hash_match = await licitaciones_collection.find_one({
-                                "content_hash": item.content_hash,
-                                "id_licitacion": {"$ne": item.id_licitacion}
-                            })
-                            if hash_match:
-                                log(f"Skipped duplicate by content_hash: {item.id_licitacion} matches {hash_match.get('id_licitacion')}")
+                        # Content-hash dedup (new items only)
+                        if not id_exists and item.content_hash:
+                            matched_id = existing_hashes.get(item.content_hash)
+                            if matched_id and matched_id != item.id_licitacion:
+                                log(f"Skipped duplicate by content_hash: {item.id_licitacion} matches {matched_id}")
                                 duplicates_skipped += 1
                                 continue
 
-                        # BOE-specific dedup: same expediente + similar title
-                        if not existing and scraper_name.startswith("boletin"):
-                            title_words = (item.title or "").lower().split()[:5]
-                            if item.licitacion_number:
-                                boe_match = await licitaciones_collection.find_one({
-                                    "licitacion_number": item.licitacion_number,
-                                    "fuente": {"$regex": "Boletin", "$options": "i"},
-                                    "id_licitacion": {"$ne": item.id_licitacion}
-                                })
-                                if boe_match:
-                                    log(f"Skipped BOE duplicate: {item.id_licitacion} matches {boe_match.get('id_licitacion')} by licitacion_number")
-                                    duplicates_skipped += 1
-                                    continue
+                        # BOE-specific dedup (new items only)
+                        if not id_exists and is_boletin and item.licitacion_number:
+                            if item.licitacion_number in boe_existing_numbers:
+                                log(f"Skipped BOE duplicate by licitacion_number: {item.id_licitacion}")
+                                duplicates_skipped += 1
+                                continue
 
                         # Compute content_hash if missing
                         if not item.content_hash:
@@ -334,89 +378,91 @@ class SchedulerService:
                                 item.title, item.organization, item.publication_date
                             )
 
-                        # Use default mode to preserve datetime as native objects for MongoDB
+                        # Prepare item data
                         item_data = item.model_dump()
-                        # Convert HttpUrl to str for BSON compatibility
                         for url_field in ("source_url", "canonical_url"):
                             if item_data.get(url_field) is not None:
                                 item_data[url_field] = str(item_data[url_field])
-                        item_data["updated_at"] = datetime.utcnow()
+                        item_data["updated_at"] = now
 
-                        # AR scope: add LIC_AR tag and skip auto nodo matching
-                        is_ar_scope = getattr(config, 'scope', None) == "ar_nacional"
+                        # AR scope: add LIC_AR tag
                         if is_ar_scope:
                             tags = item_data.get("tags") or []
                             if "LIC_AR" not in tags:
                                 tags.append("LIC_AR")
                             item_data["tags"] = tags
 
-                        # Match nodos before insert/update (skip for AR scope - manual only)
-                        if not is_ar_scope:
+                        # Nodo matching (pre-loaded singleton)
+                        if nodo_matcher:
                             try:
-                                from services.nodo_matcher import get_nodo_matcher
-                                nodo_matcher = get_nodo_matcher(self.db)
                                 await nodo_matcher.assign_nodos_to_item_data(item_data)
                             except Exception as nodo_err:
                                 log(f"Nodo matching failed for {item.id_licitacion}: {nodo_err}", "warning")
 
-                        if existing:
-                            # Update
-                            await licitaciones_collection.update_one(
+                        if id_exists:
+                            items_updated += 1
+                            bulk_ops.append(UpdateOne(
                                 {"id_licitacion": item.id_licitacion},
                                 {"$set": item_data}
-                            )
-                            items_updated += 1
+                            ))
                         else:
-                            # Insert - set both created_at AND first_seen_at
-                            now = datetime.utcnow()
                             item_data["created_at"] = now
                             item_data["first_seen_at"] = now
-                            await licitaciones_collection.insert_one(item_data)
                             items_saved += 1
+                            bulk_ops.append(InsertOne(item_data))
 
-                            # Inline lightweight enrichment (CPU only, no HTTP)
-                            try:
-                                _inline_updates = {}
-                                if not item_data.get("objeto"):
-                                    from utils.object_extractor import extract_objeto
-                                    obj = extract_objeto(
-                                        title=item_data.get("title", ""),
-                                        description=item_data.get("description", ""),
-                                        metadata=item_data.get("metadata"),
-                                    )
-                                    if obj:
-                                        _inline_updates["objeto"] = obj
-                                if not item_data.get("category"):
-                                    from services.category_classifier import get_category_classifier
-                                    classifier = get_category_classifier()
-                                    _title = item_data.get("title", "")
-                                    _objeto = _inline_updates.get("objeto", item_data.get("objeto", ""))
-                                    cat = classifier.classify(title=_title, objeto=_objeto)
-                                    if not cat:
-                                        _desc = (item_data.get("description", "") or "")[:500]
-                                        cat = classifier.classify(title=_title, objeto=_objeto, description=_desc)
-                                    if cat:
-                                        _inline_updates["category"] = cat
-                                if _inline_updates:
-                                    await licitaciones_collection.update_one(
-                                        {"id_licitacion": item.id_licitacion},
-                                        {"$set": _inline_updates}
-                                    )
-                            except Exception as inline_err:
-                                log(f"Inline enrichment failed for {item.id_licitacion}: {inline_err}", "warning")
+                            # Collect inline enrichment for new items
+                            _inline_updates = {}
+                            if not item_data.get("objeto"):
+                                obj = extract_objeto(
+                                    title=item_data.get("title", ""),
+                                    description=item_data.get("description", ""),
+                                    metadata=item_data.get("metadata"),
+                                )
+                                if obj:
+                                    _inline_updates["objeto"] = obj
+                            if not item_data.get("category"):
+                                _title = item_data.get("title", "")
+                                _objeto = _inline_updates.get("objeto", item_data.get("objeto", ""))
+                                cat = classifier.classify(title=_title, objeto=_objeto)
+                                if not cat:
+                                    _desc = (item_data.get("description", "") or "")[:500]
+                                    cat = classifier.classify(title=_title, objeto=_objeto, description=_desc)
+                                if cat:
+                                    _inline_updates["category"] = cat
+                            if _inline_updates:
+                                enrichment_updates.append({"id_licitacion": item.id_licitacion, "updates": _inline_updates})
 
                         # Count URLs with PLIEGO
                         if item.metadata and item.metadata.get("comprar_pliego_url"):
                             urls_with_pliego += 1
 
                     except Exception as e:
-                        log(f"Error saving item {item.id_licitacion}: {e}", "error")
+                        log(f"Error preparing item {item.id_licitacion}: {e}", "error")
                         record_errors.append({
                             "id_licitacion": item.id_licitacion,
                             "error": str(e),
                             "timestamp": datetime.utcnow().isoformat()
                         })
                         items_duplicated += 1
+
+                # ── Execute bulk write (all inserts + updates in one round-trip) ──
+                if bulk_ops:
+                    try:
+                        await licitaciones_collection.bulk_write(bulk_ops, ordered=False)
+                    except Exception as bw_err:
+                        log(f"Bulk write error: {bw_err}", "error")
+
+                # ── Batch enrichment updates for new items ──
+                if enrichment_updates:
+                    enrich_ops = [
+                        UpdateOne({"id_licitacion": eu["id_licitacion"]}, {"$set": eu["updates"]})
+                        for eu in enrichment_updates
+                    ]
+                    try:
+                        await licitaciones_collection.bulk_write(enrich_ops, ordered=False)
+                    except Exception as enrich_err:
+                        log(f"Enrichment bulk write error: {enrich_err}", "warning")
             
             # Determine status
             status = "success"
@@ -441,9 +487,10 @@ class SchedulerService:
                 duplicates_skipped=duplicates_skipped,
             )
             
+            # Use default mode (Python) — preserves datetime as BSON Date, not ISO string
             await runs_collection.update_one(
                 {"_id": ObjectId(run_id)},
-                {"$set": update.model_dump(exclude_unset=True, mode='json')}
+                {"$set": update.model_dump(exclude_unset=True)}
             )
             
             # Update scraper config last_run
@@ -463,7 +510,7 @@ class SchedulerService:
                 try:
                     from services.notification_service import get_notification_service
                     ns = get_notification_service(self.db)
-                    saved_items = [i.model_dump(mode='json') for i in items[:items_saved]]
+                    saved_items = [i.model_dump() for i in items[:items_saved]]
                     await ns.notify_new_licitaciones(saved_items, scraper_name)
                 except Exception as notify_err:
                     log(f"Notification failed: {notify_err}", "warning")

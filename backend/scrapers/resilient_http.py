@@ -102,7 +102,12 @@ class ResilientHttpClient:
     async def _ensure_session(self):
         if self._session is None or self._session.closed:
             timeout = aiohttp.ClientTimeout(total=60, connect=15, sock_read=30)
-            connector = aiohttp.TCPConnector(ssl=False)
+            connector = aiohttp.TCPConnector(
+                ssl=False,
+                limit=100,            # Global connection pool cap
+                limit_per_host=10,    # Per-domain cap (avoids hammering single host)
+                ttl_dns_cache=300,    # Cache DNS 5 min (reduces blocking DNS lookups)
+            )
             self._session = aiohttp.ClientSession(
                 cookies=self.extra_cookies,
                 timeout=timeout,

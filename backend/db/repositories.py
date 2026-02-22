@@ -40,6 +40,11 @@ class LicitacionRepository:
         await self.collection.create_index("first_seen_at")
         await self.collection.create_index("estado")
         await self.collection.create_index("tags")
+        # CRITICAL: dedup lookups in scheduler_service — every item queries these fields
+        # Non-unique sparse index: fast O(1) lookups without uniqueness enforcement
+        # (app-level dedup logic in scheduler_service handles duplicates already)
+        await self.collection.create_index("id_licitacion", sparse=True)
+        await self.collection.create_index("content_hash", sparse=True)
         # Compound indexes for common filter+sort combinations
         await self.collection.create_index([("fuente", pymongo.ASCENDING), ("publication_date", pymongo.DESCENDING)])
         await self.collection.create_index([("estado", pymongo.ASCENDING), ("opening_date", pymongo.ASCENDING)])
