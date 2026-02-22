@@ -31,12 +31,15 @@ logger = logging.getLogger("scheduler_service")
 
 class SchedulerService:
     """Service for scheduling and managing scraper executions"""
-    
+
     def __init__(self, database: AsyncIOMotorDatabase):
         self.db = database
         self.scheduler: Optional[AsyncIOScheduler] = None
         self._is_running = False
         self._active_jobs: Dict[str, str] = {}  # scraper_name -> job_id
+        # Global concurrency limit: max 6 scrapers running simultaneously.
+        # Prevents network overload when many scrapers fire at the same cron hour.
+        self._scraper_semaphore = asyncio.Semaphore(6)
         
     async def initialize(self):
         """Initialize the scheduler"""
@@ -273,14 +276,18 @@ class SchedulerService:
             
             log(f"Created scraper instance for {scraper_name}")
 
-            # Execute scraper with timeout (10 min default, 20 min for Selenium scrapers)
+            # Execute scraper with timeout (10 min default, 20 min for Selenium scrapers).
+            # Global semaphore (max 6 concurrent) prevents network overload when many
+            # scrapers fire at the same cron hour.
             is_heavy = (
                 (getattr(config, 'selectors', None) and isinstance(config.selectors, dict) and config.selectors.get('use_selenium_pliego'))
                 or 'comprasapps' in scraper_name.lower()
             )
             timeout_seconds = 1200 if is_heavy else 600
             try:
-                items = await asyncio.wait_for(scraper.run(), timeout=timeout_seconds)
+                async with self._scraper_semaphore:
+                    log(f"Semaphore acquired for {scraper_name} (timeout={timeout_seconds}s)")
+                    items = await asyncio.wait_for(scraper.run(), timeout=timeout_seconds)
             except asyncio.TimeoutError:
                 raise TimeoutError(f"Scraper timed out after {timeout_seconds}s")
             

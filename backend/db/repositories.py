@@ -50,6 +50,10 @@ class LicitacionRepository:
         await self.collection.create_index([("estado", pymongo.ASCENDING), ("opening_date", pymongo.ASCENDING)])
         await self.collection.create_index([("nodos", pymongo.ASCENDING), ("fecha_scraping", pymongo.DESCENDING)])
         await self.collection.create_index([("tags", pymongo.ASCENDING), ("publication_date", pymongo.DESCENDING)])
+        # Synchronized date filter: "Today's new items" applies both first_seen_at AND fecha_scraping
+        await self.collection.create_index([("first_seen_at", pymongo.DESCENDING), ("fecha_scraping", pymongo.DESCENDING)])
+        # Auto-update query: workflow_state filter + opening_date range
+        await self.collection.create_index([("workflow_state", pymongo.ASCENDING), ("first_seen_at", pymongo.DESCENDING)])
     
     async def create(self, licitacion: LicitacionCreate) -> Licitacion:
         """Create a new licitacion with auto-classification"""
