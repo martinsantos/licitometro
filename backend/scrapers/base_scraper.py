@@ -369,7 +369,9 @@ class BaseScraper(ABC):
         return "vigente"
 
     async def run(self) -> List[LicitacionCreate]:
-        """Run the scraper and extract licitaciones"""
+        """Run the scraper and extract licitaciones.
+        Fetches each page ONCE and reuses the HTML for both item extraction
+        and pagination — avoids the previous double-fetch per page."""
         await self.setup()
 
         try:
@@ -381,18 +383,33 @@ class BaseScraper(ABC):
                 page_count += 1
                 logger.info(f"Processing page {page_count}: {current_url}")
 
-                page_licitaciones = await self.process_page(current_url)
-                licitaciones.extend(page_licitaciones)
+                # Fetch once — reuse for extraction AND pagination
+                html = await self.fetch_page(current_url)
+                if not html:
+                    break
+
+                # Determine if this is a detail page or a listing page
+                licitacion_data_dict = await self.extract_licitacion_data(html, current_url)
+                if licitacion_data_dict:
+                    licitacion_data_dict["fuente"] = self.config.name
+                    licitaciones.append(LicitacionCreate(**licitacion_data_dict))
+                else:
+                    links = await self.extract_links(html)
+                    for link in links:
+                        detail_html = await self.fetch_page(link)
+                        if detail_html:
+                            licitacion_data_dict = await self.extract_licitacion_data(detail_html, link)
+                            if licitacion_data_dict:
+                                licitacion_data_dict["fuente"] = self.config.name
+                                licitaciones.append(LicitacionCreate(**licitacion_data_dict))
+                        if self.config.max_items and len(licitaciones) >= self.config.max_items:
+                            break
 
                 # Stop if we've reached the maximum number of items
                 if self.config.max_items and len(licitaciones) >= self.config.max_items:
                     break
 
-                # Get the next page
-                html = await self.fetch_page(current_url)
-                if not html:
-                    break
-
+                # Reuse already-fetched HTML for pagination (no second request)
                 current_url = await self.get_next_page_url(html, current_url)
 
             return licitaciones
