@@ -31,13 +31,24 @@ logger = logging.getLogger("scheduler_service")
 
 class SchedulerService:
     """Service for scheduling and managing scraper executions"""
-    
+
+    # Global concurrency limit: prevents server overload when all scrapers fire at once
+    # (e.g., 24 scrapers scheduled at 8am will queue here, max 4 run simultaneously)
+    MAX_CONCURRENT_SCRAPERS = 4
+
     def __init__(self, database: AsyncIOMotorDatabase):
         self.db = database
         self.scheduler: Optional[AsyncIOScheduler] = None
         self._is_running = False
         self._active_jobs: Dict[str, str] = {}  # scraper_name -> job_id
+        self._scraper_semaphore: Optional[asyncio.Semaphore] = None  # lazy init (needs event loop)
         
+    def _get_semaphore(self) -> asyncio.Semaphore:
+        """Lazy-init semaphore (must be created inside a running event loop)."""
+        if self._scraper_semaphore is None:
+            self._scraper_semaphore = asyncio.Semaphore(self.MAX_CONCURRENT_SCRAPERS)
+        return self._scraper_semaphore
+
     async def initialize(self):
         """Initialize the scheduler"""
         if self.scheduler is None:
@@ -229,7 +240,25 @@ class SchedulerService:
             logger.error(f"Error in scraper job {scraper_name}: {e}")
     
     async def _execute_scraper_with_tracking(self, scraper_name: str, run_id: str):
-        """Execute a scraper and track its progress"""
+        """Execute a scraper and track its progress.
+        Acquires a global semaphore slot first to cap concurrent scrapers at
+        MAX_CONCURRENT_SCRAPERS regardless of how many are scheduled at the same time."""
+        sem = self._get_semaphore()
+        try:
+            # Wait up to 2 hours for a slot; after that mark as failed to avoid eternal blocking
+            async with asyncio.timeout(7200):
+                async with sem:
+                    await self._run_scraper_body(scraper_name, run_id)
+        except TimeoutError:
+            logger.error(f"Scraper '{scraper_name}' waited >2h for a concurrency slot — aborting")
+            await self.db.scraper_runs.update_one(
+                {"_id": ObjectId(run_id)},
+                {"$set": {"status": "failed", "error_message": "Timeout waiting for concurrency slot",
+                           "ended_at": datetime.utcnow()}}
+            )
+
+    async def _run_scraper_body(self, scraper_name: str, run_id: str):
+        """Internal: execute scraper once a semaphore slot is held."""
         runs_collection = self.db.scraper_runs
         start_time = datetime.utcnow()
         

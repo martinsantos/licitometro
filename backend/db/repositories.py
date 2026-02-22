@@ -65,6 +65,33 @@ class LicitacionRepository:
         await _safe_index([("estado", pymongo.ASCENDING), ("opening_date", pymongo.ASCENDING)])
         await _safe_index([("nodos", pymongo.ASCENDING), ("fecha_scraping", pymongo.DESCENDING)])
         await _safe_index([("tags", pymongo.ASCENDING), ("publication_date", pymongo.DESCENDING)])
+
+        # ── Text search index v3 ────────────────────────────────────────────────
+        # Auto-create if not present so fresh deploys work without running the migrate script.
+        # Exists-check prevents overwriting an already-expanded index.
+        try:
+            existing = await self.collection.index_information()
+            has_text = any(
+                "textIndexVersion" in v for v in existing.values()
+            )
+            if not has_text:
+                await self.collection.create_index(
+                    [
+                        ("title", "text"),
+                        ("objeto", "text"),
+                        ("description", "text"),
+                        ("fuente", "text"),
+                        ("organization", "text"),
+                    ],
+                    name="text_search_v3",
+                    default_language="spanish",
+                    weights={"title": 10, "objeto": 8, "organization": 4, "fuente": 3, "description": 1},
+                )
+                _log.info("Text search index v3 created automatically on startup")
+            else:
+                _log.debug("Text search index already present — skipping auto-create")
+        except Exception as ti_err:
+            _log.warning(f"Text index auto-create skipped: {ti_err}")
     
     async def create(self, licitacion: LicitacionCreate) -> Licitacion:
         """Create a new licitacion with auto-classification"""

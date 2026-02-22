@@ -7,6 +7,7 @@ from datetime import date, datetime
 import logging
 import re
 import sys
+import time as _time
 from bson import ObjectId
 from pathlib import Path
 
@@ -18,6 +19,30 @@ from models.licitacion import Licitacion, LicitacionCreate, LicitacionUpdate
 from dependencies import get_licitacion_repository
 
 logger = logging.getLogger("licitaciones_router")
+
+
+class _TTLCache:
+    """Simple in-memory TTL cache for expensive read-only endpoints.
+    Avoids repeated MongoDB aggregations for data that rarely changes (stats, facets, rubros).
+    Thread-safe for asyncio (single-threaded event loop)."""
+
+    def __init__(self):
+        self._store: Dict[str, tuple] = {}  # key -> (value, expires_at)
+
+    def get(self, key: str):
+        entry = self._store.get(key)
+        if entry and _time.monotonic() < entry[1]:
+            return entry[0]
+        return None  # miss or expired
+
+    def set(self, key: str, value, ttl: int):
+        self._store[key] = (value, _time.monotonic() + ttl)
+
+    def invalidate_prefix(self, prefix: str):
+        self._store = {k: v for k, v in self._store.items() if not k.startswith(prefix)}
+
+
+_cache = _TTLCache()
 
 router = APIRouter(
     prefix="/api/licitaciones",
@@ -467,7 +492,21 @@ async def get_facets(
     request: Request = None,
 ):
     """Return value counts for each filterable field, applying cross-filters.
-    Each facet applies ALL filters except its own field."""
+    Each facet applies ALL filters except its own field.
+    Results are cached in-memory (5 min no-filters, 2 min with filters) to reduce DB load."""
+    # Build a stable cache key from all relevant parameters
+    _ck_parts = [q, status, organization, category, fuente, workflow_state, jurisdiccion,
+                 tipo_procedimiento, nodo, budget_min, budget_max, fecha_desde, fecha_hasta,
+                 fecha_campo, nuevas_desde, only_national,
+                 ",".join(sorted(fuente_exclude)) if fuente_exclude else ""]
+    _cache_key = f"facets:{':'.join(str(p) for p in _ck_parts)}"
+    _has_filters = any(p not in (None, False, "publication_date", "") for p in _ck_parts[:-1])
+    _ttl = 120 if _has_filters else 300  # 2 min with filters, 5 min without
+
+    _cached = _cache.get(_cache_key)
+    if _cached is not None:
+        return _cached
+
     try:
         db = request.app.mongodb
     except AttributeError:
@@ -567,6 +606,7 @@ async def get_facets(
     facet_results = await _asyncio.gather(*tasks)
 
     result = {name: data for name, data in facet_results}
+    _cache.set(_cache_key, result, ttl=_ttl)
     return result
 
 
@@ -1593,13 +1633,18 @@ async def get_distinct_values(
     only_national: Optional[bool] = Query(False, description="Only show Argentina nacional sources"),
     repo: LicitacionRepository = Depends(get_licitacion_repository)
 ):
-    """Get distinct values for a given field"""
-    # Validate field_name to prevent arbitrary field access if necessary
+    """Get distinct values for a given field (cached 30 min — changes only when scrapers run)"""
     allowed_fields = ["organization", "location", "category", "fuente", "status", "workflow_state", "jurisdiccion", "tipo_procedimiento"]
     if field_name not in allowed_fields:
         raise HTTPException(status_code=400, detail=f"Filtering by field '{field_name}' is not allowed.")
 
+    _ck = f"distinct:{field_name}:{only_national}"
+    _hit = _cache.get(_ck)
+    if _hit is not None:
+        return _hit
+
     distinct_values = await repo.get_distinct(field_name, only_national=only_national)
+    _cache.set(_ck, distinct_values, ttl=1800)  # 30 min
     return distinct_values
 
 
@@ -1608,8 +1653,13 @@ async def get_rubros_list(
     only_national: Optional[bool] = Query(False, description="Only show Argentina nacional sources"),
     request: Request = None
 ):
-    """Get list of all COMPR.AR rubros (categories) for filtering"""
+    """Get list of all COMPR.AR rubros (cached 1 h — static data)"""
     from services.category_classifier import get_category_classifier
+
+    _ck = f"rubros:{only_national}"
+    _hit = _cache.get(_ck)
+    if _hit is not None:
+        return _hit
 
     # If only_national is set, filter rubros to only those with Argentina items
     if only_national:
@@ -1631,16 +1681,14 @@ async def get_rubros_list(
         all_rubros = classifier.get_all_rubros()
         filtered_rubros = [r for r in all_rubros if r.get("nombre") in argentina_categories]
 
-        return {
-            "rubros": filtered_rubros,
-            "total": len(filtered_rubros)
-        }
+        result_payload = {"rubros": filtered_rubros, "total": len(filtered_rubros)}
+        _cache.set(_ck, result_payload, ttl=3600)
+        return result_payload
     else:
         classifier = get_category_classifier()
-        return {
-            "rubros": classifier.get_all_rubros(),
-            "total": len(classifier.rubros)
-        }
+        result_payload = {"rubros": classifier.get_all_rubros(), "total": len(classifier.rubros)}
+        _cache.set(_ck, result_payload, ttl=3600)
+        return result_payload
 
 
 @router.post("/{licitacion_id}/classify")
