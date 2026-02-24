@@ -27,6 +27,18 @@ logging.basicConfig(
 )
 logger = logging.getLogger("licitometro")
 
+# Dedicated file handler for API errors — survives enrichment log flood.
+# Writes to /app/storage/api_errors.log (Docker volume) or ./api_errors.log (local).
+_api_error_logger = logging.getLogger("api_errors")
+_api_error_logger.setLevel(logging.ERROR)
+try:
+    _log_dir = Path("/app/storage") if Path("/app/storage").exists() else Path(".")
+    _fh = logging.FileHandler(_log_dir / "api_errors.log", encoding="utf-8")
+    _fh.setFormatter(logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s'))
+    _api_error_logger.addHandler(_fh)
+except Exception:
+    pass  # Fall back to root logger if file handler fails
+
 # Get MongoDB connection string from environment variable
 MONGO_URL = os.environ.get("MONGO_URL", "mongodb://localhost:27017")
 DB_NAME = os.environ.get("DB_NAME", "licitaciones_db")
@@ -47,6 +59,25 @@ app = FastAPI(
     description="API for the Licitometro application",
     version="1.0.0",
 )
+
+# Global exception handler — catches ALL unhandled exceptions from any endpoint.
+# Without this, 76% of endpoints (stats, facets, favorites, etc.) return raw 500
+# with no logging when they throw exceptions.
+@app.exception_handler(Exception)
+async def global_exception_handler(request: Request, exc: Exception):
+    import traceback
+    path = request.url.path
+    error_msg = f"{type(exc).__name__}: {str(exc)[:300]}"
+    logger.error(f"Unhandled exception at {request.method} {path}: {error_msg}", exc_info=True)
+    # Also log to dedicated file (survives enrichment log flood)
+    _api_error_logger.error(
+        f"Unhandled exception at {request.method} {path}: {error_msg}\n{traceback.format_exc()[-800:]}"
+    )
+    return JSONResponse(
+        status_code=500,
+        content={"detail": f"Error interno: {error_msg}"},
+    )
+
 
 # Add CORS middleware
 allowed_origins = os.environ.get("ALLOWED_ORIGINS", "*").split(",")
@@ -220,14 +251,41 @@ async def startup_db_client():
     except Exception as e:
         logger.error(f"Failed to create indexes: {e}")
 
-    # Initialize and start scheduler automatically
+    # Initialize and start scheduler automatically.
+    # CRITICAL: With Gunicorn -w 2, BOTH workers run this startup event.
+    # Use a file lock to ensure only ONE worker starts the scheduler.
+    # This prevents double-execution of enrichment cron, scrapers, etc.
+    import fcntl
+    _scheduler_lock_file = None
+    _scheduler_acquired = False
+    try:
+        _scheduler_lock_file = open("/tmp/licitometro-scheduler.lock", "w")
+        fcntl.flock(_scheduler_lock_file.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+        _scheduler_acquired = True
+        logger.info(f"Scheduler lock acquired by worker PID={os.getpid()}")
+    except (IOError, OSError):
+        logger.info(f"Scheduler lock NOT acquired by worker PID={os.getpid()} — another worker owns it")
+    except Exception as e:
+        logger.warning(f"Scheduler lock check failed: {e} — will start scheduler anyway")
+        _scheduler_acquired = True  # Fallback: start scheduler if lock mechanism fails
+
+    if _scheduler_acquired:
+        # Store lock file handle on app to prevent GC from closing it
+        app.state._scheduler_lock_file = _scheduler_lock_file
+    else:
+        if _scheduler_lock_file:
+            _scheduler_lock_file.close()
+
     try:
         from services.scheduler_service import get_scheduler_service
         scheduler_service = get_scheduler_service(database)
         await scheduler_service.initialize()
         await scheduler_service.load_and_schedule_scrapers()
-        scheduler_service.start()
-        logger.info("Scheduler initialized and started automatically")
+        if _scheduler_acquired:
+            scheduler_service.start()
+            logger.info("Scheduler initialized and started (this worker owns the scheduler lock)")
+        else:
+            logger.info("Scheduler initialized but NOT started (another worker owns the scheduler lock)")
 
         # Schedule daily storage cleanup at 3am
         from services.storage_cleanup_service import get_cleanup_service

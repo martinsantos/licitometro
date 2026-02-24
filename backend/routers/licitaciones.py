@@ -5,6 +5,7 @@ from typing import List, Dict, Optional, Any
 from uuid import UUID
 from datetime import date, datetime
 import logging
+import os
 import re
 import sys
 from bson import ObjectId
@@ -25,7 +26,7 @@ router = APIRouter(
     responses={404: {"description": "Not found"}}
 )
 
-@router.post("/", response_model=Licitacion)
+@router.post("/", response_model=Dict[str, Any])
 async def create_licitacion(
     licitacion: LicitacionCreate,
     repo: LicitacionRepository = Depends(get_licitacion_repository)
@@ -83,7 +84,83 @@ async def get_licitaciones(
         )
     except Exception as e:
         logger.error(f"GET /api/licitaciones/ failed: {type(e).__name__}: {e}", exc_info=True)
+        # Also log to dedicated API error file (survives enrichment log flood)
+        _api_err_logger = logging.getLogger("api_errors")
+        _api_err_logger.error(f"GET /api/licitaciones/ failed: {type(e).__name__}: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"Error interno: {type(e).__name__}: {str(e)[:200]}")
+
+
+@router.get("/debug-query")
+async def debug_query(
+    request: Request,
+    repo: LicitacionRepository = Depends(get_licitacion_repository),
+):
+    """Diagnostic endpoint: test basic query and report errors.
+    Returns DB connection status, sample document, and serialization health."""
+    import traceback
+    from db.models import licitacion_entity
+    results = {"status": "ok", "checks": {}}
+
+    # Check 1: DB connection
+    try:
+        db = request.app.mongodb
+        count = await db.licitaciones.estimated_document_count()
+        results["checks"]["db_connection"] = {"ok": True, "document_count": count}
+    except Exception as e:
+        results["checks"]["db_connection"] = {"ok": False, "error": f"{type(e).__name__}: {e}"}
+        results["status"] = "error"
+
+    # Check 2: Fetch 1 document and serialize it
+    try:
+        doc = await db.licitaciones.find_one()
+        if doc:
+            entity = licitacion_entity(doc)
+            # Test JSON serialization (same as FastAPI would do)
+            encoded = jsonable_encoder(entity)
+            results["checks"]["serialization"] = {
+                "ok": True,
+                "sample_id": entity.get("id", "?"),
+                "sample_title": (entity.get("title", "?"))[:80],
+                "_id_type": type(doc["_id"]).__name__,
+            }
+        else:
+            results["checks"]["serialization"] = {"ok": True, "note": "no documents"}
+    except Exception as e:
+        results["checks"]["serialization"] = {
+            "ok": False,
+            "error": f"{type(e).__name__}: {e}",
+            "traceback": traceback.format_exc()[-500:],
+        }
+        results["status"] = "error"
+
+    # Check 3: Fetch first page (same as GET /api/licitaciones/?page=1&size=1)
+    try:
+        filters = {"tags": {"$ne": "LIC_AR"}}
+        items = await repo.get_all(
+            skip=0, limit=1, filters=filters,
+            sort_by="publication_date", sort_order=-1,
+            projection=repo.LIST_PROJECTION,
+        )
+        total = await repo.count(filters=filters)
+        encoded_items = jsonable_encoder(items)
+        results["checks"]["list_query"] = {
+            "ok": True,
+            "total": total,
+            "returned": len(items),
+            "first_item_id": items[0]["id"] if items else None,
+        }
+    except Exception as e:
+        results["checks"]["list_query"] = {
+            "ok": False,
+            "error": f"{type(e).__name__}: {e}",
+            "traceback": traceback.format_exc()[-500:],
+        }
+        results["status"] = "error"
+
+    # Check 4: Worker info
+    results["worker_pid"] = os.getpid()
+
+    return results
 
 
 async def _get_licitaciones_impl(
@@ -1469,18 +1546,20 @@ async def enrich_licitacion_universal(
         })
 
 
-@router.get("/{licitacion_id}", response_model=Licitacion)
+@router.get("/{licitacion_id}", response_model=Dict[str, Any])
 async def get_licitacion(
     licitacion_id: str,
     repo: LicitacionRepository = Depends(get_licitacion_repository)
 ):
-    """Get a licitacion by id"""
+    """Get a licitacion by id.
+    NOTE: Uses Dict response_model (not Licitacion) to avoid Pydantic validator
+    rejecting documents with dates outside 2024-2027 or opening < publication."""
     licitacion = await repo.get_by_id(licitacion_id)
     if not licitacion:
         raise HTTPException(status_code=404, detail="Licitación not found")
     return licitacion
 
-@router.put("/{licitacion_id}", response_model=Licitacion)
+@router.put("/{licitacion_id}", response_model=Dict[str, Any])
 async def update_licitacion(
     licitacion_id: str,
     licitacion: LicitacionUpdate,
