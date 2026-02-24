@@ -1,7 +1,10 @@
 from datetime import datetime
 from typing import List, Dict, Any, Optional
 from uuid import UUID
-from bson import Binary, ObjectId
+from bson import Binary, ObjectId, Decimal128
+import logging
+
+_entity_logger = logging.getLogger("db.entity_mapper")
 
 
 def mongo_id_to_str(raw_id) -> str:
@@ -14,6 +17,33 @@ def mongo_id_to_str(raw_id) -> str:
     if isinstance(raw_id, UUID):
         return str(raw_id)
     return str(raw_id)
+
+
+def _bson_safe(value):
+    """Recursively convert BSON-specific types to JSON-serializable Python types.
+    Handles ObjectId, Binary, Decimal128, UUID inside nested dicts/lists."""
+    if value is None or isinstance(value, (str, int, float, bool)):
+        return value
+    if isinstance(value, ObjectId):
+        return str(value)
+    if isinstance(value, Decimal128):
+        return float(value.to_decimal())
+    if isinstance(value, Binary):
+        if value.subtype == 4:
+            try:
+                return str(UUID(bytes=bytes(value)))
+            except Exception:
+                pass
+        return value.hex()
+    if isinstance(value, UUID):
+        return str(value)
+    if isinstance(value, datetime):
+        return value
+    if isinstance(value, dict):
+        return {k: _bson_safe(v) for k, v in value.items()}
+    if isinstance(value, (list, tuple)):
+        return [_bson_safe(item) for item in value]
+    return value
 
 
 def str_to_mongo_id(id_str: str):
@@ -33,9 +63,10 @@ def str_to_mongo_id(id_str: str):
 
 def licitacion_entity(licitacion) -> dict:
     """Convert MongoDB document to dict.
-    Uses .get() for all fields to prevent KeyError on incomplete documents."""
+    Uses .get() for all fields to prevent KeyError on incomplete documents.
+    Uses mongo_id_to_str() for _id and _bson_safe() for nested dicts/lists."""
     return {
-        "id": str(licitacion["_id"]),
+        "id": mongo_id_to_str(licitacion["_id"]),
         "title": licitacion.get("title", "Sin título"),
         "organization": licitacion.get("organization", "Sin organización"),
         "publication_date": licitacion.get("publication_date"),
@@ -56,14 +87,14 @@ def licitacion_entity(licitacion) -> dict:
         "requiere_pago": licitacion.get("requiere_pago"),
         "duracion_contrato": licitacion.get("duracion_contrato"),
         "fecha_inicio_contrato": licitacion.get("fecha_inicio_contrato"),
-        # Lists and structured data
-        "items": licitacion.get("items", []),
-        "garantias": licitacion.get("garantias", []),
-        "solicitudes_contratacion": licitacion.get("solicitudes_contratacion", []),
-        "pliegos_bases": licitacion.get("pliegos_bases", []),
-        "requisitos_participacion": licitacion.get("requisitos_participacion", []),
-        "actos_administrativos": licitacion.get("actos_administrativos", []),
-        "circulares": licitacion.get("circulares", []),
+        # Lists and structured data — _bson_safe handles ObjectId/Binary in nested structures
+        "items": _bson_safe(licitacion.get("items", [])),
+        "garantias": _bson_safe(licitacion.get("garantias", [])),
+        "solicitudes_contratacion": _bson_safe(licitacion.get("solicitudes_contratacion", [])),
+        "pliegos_bases": _bson_safe(licitacion.get("pliegos_bases", [])),
+        "requisitos_participacion": _bson_safe(licitacion.get("requisitos_participacion", [])),
+        "actos_administrativos": _bson_safe(licitacion.get("actos_administrativos", [])),
+        "circulares": _bson_safe(licitacion.get("circulares", [])),
         # ID and coverage fields
         "id_licitacion": licitacion.get("id_licitacion"),
         "municipios_cubiertos": licitacion.get("municipios_cubiertos"),
@@ -75,9 +106,9 @@ def licitacion_entity(licitacion) -> dict:
         "description": licitacion.get("description"),
         "objeto": licitacion.get("objeto"),
         "contact": licitacion.get("contact"),
-        "source_url": licitacion.get("source_url"),
-        "canonical_url": licitacion.get("canonical_url"),
-        "source_urls": licitacion.get("source_urls", {}),
+        "source_url": _bson_safe(licitacion.get("source_url")),
+        "canonical_url": _bson_safe(licitacion.get("canonical_url")),
+        "source_urls": _bson_safe(licitacion.get("source_urls", {})),
         "url_quality": licitacion.get("url_quality"),
         "status": licitacion.get("status", "active"),
         "fuente": licitacion.get("fuente"),
@@ -88,31 +119,31 @@ def licitacion_entity(licitacion) -> dict:
         "jurisdiccion": licitacion.get("jurisdiccion"),
         "location": licitacion.get("location"),
         "category": licitacion.get("category"),
-        "budget": licitacion.get("budget"),
+        "budget": _bson_safe(licitacion.get("budget")),
         "currency": licitacion.get("currency"),
-        "attached_files": licitacion.get("attached_files", []),
-        "keywords": licitacion.get("keywords", []),
-        "metadata": licitacion.get("metadata", {}),
+        "attached_files": _bson_safe(licitacion.get("attached_files", [])),
+        "keywords": _bson_safe(licitacion.get("keywords", [])),
+        "metadata": _bson_safe(licitacion.get("metadata", {})),
         "content_hash": licitacion.get("content_hash"),
-        "merged_from": licitacion.get("merged_from", []),
+        "merged_from": _bson_safe(licitacion.get("merged_from", [])),
         "is_merged": licitacion.get("is_merged", False),
         # Workflow
         "workflow_state": licitacion.get("workflow_state", "descubierta"),
-        "workflow_history": licitacion.get("workflow_history", []),
+        "workflow_history": _bson_safe(licitacion.get("workflow_history", [])),
         # Enrichment
         "enrichment_level": licitacion.get("enrichment_level", 1),
         "last_enrichment": licitacion.get("last_enrichment"),
         "document_count": licitacion.get("document_count", 0),
         # Auto-update
         "last_auto_update": licitacion.get("last_auto_update"),
-        "auto_update_changes": licitacion.get("auto_update_changes", []),
+        "auto_update_changes": _bson_safe(licitacion.get("auto_update_changes", [])),
         # Public sharing
         "is_public": licitacion.get("is_public", False),
         "public_slug": licitacion.get("public_slug"),
         # Nodos
-        "nodos": licitacion.get("nodos", []),
+        "nodos": _bson_safe(licitacion.get("nodos", [])),
         # Tags
-        "tags": licitacion.get("tags", []),
+        "tags": _bson_safe(licitacion.get("tags", [])),
         # Vigencia
         "estado": licitacion.get("estado", "vigente"),
         "fecha_prorroga": licitacion.get("fecha_prorroga"),
@@ -123,8 +154,16 @@ def licitacion_entity(licitacion) -> dict:
     }
 
 def licitaciones_entity(licitaciones) -> list:
-    """Convert a list of MongoDB documents to a list of dicts"""
-    return [licitacion_entity(licitacion) for licitacion in licitaciones]
+    """Convert a list of MongoDB documents to a list of dicts.
+    Skips individual documents that fail conversion instead of crashing the entire response."""
+    results = []
+    for doc in licitaciones:
+        try:
+            results.append(licitacion_entity(doc))
+        except Exception as e:
+            doc_id = doc.get("_id", "unknown") if isinstance(doc, dict) else "invalid"
+            _entity_logger.error(f"licitacion_entity failed for _id={doc_id}: {type(e).__name__}: {e}")
+    return results
 
 def scraper_config_entity(config) -> dict:
     """Convert MongoDB document to dict"""
