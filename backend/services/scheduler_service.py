@@ -95,7 +95,7 @@ class SchedulerService:
         """Load active scraper configs and schedule them"""
         configs_collection = self.db.scraper_configs
         configs = await configs_collection.find({"active": True}).to_list(length=100)
-        
+
         logger.debug(f"Found {len(configs)} active scrapers in DB")
         for c in configs:
             logger.debug(f"Config in DB: {c.get('name')} active={c.get('active')}")
@@ -110,10 +110,87 @@ class SchedulerService:
                     scheduled_count += 1
             except Exception as e:
                 logger.error(f"Error scheduling scraper {config_data.get('name')}: {e}")
-        
+
         logger.info(f"Scheduled {scheduled_count} active scrapers")
         return scheduled_count
-    
+
+    async def reload_schedules(self):
+        """Re-load all per-scraper schedules from DB without restarting.
+
+        Picks up any schedule changes made via API or migration scripts.
+        Called automatically every hour and after config updates.
+        Only removes/re-adds per-scraper jobs (system jobs like orphan_cleanup
+        and enrichment_cron are left untouched).
+        """
+        if not self.scheduler:
+            logger.warning("reload_schedules called but scheduler not initialized")
+            return 0
+
+        # Unschedule all current per-scraper jobs (id starts with "scraper_")
+        jobs_removed = 0
+        for job in list(self.scheduler.get_jobs()):
+            if job.id.startswith("scraper_"):
+                try:
+                    self.scheduler.remove_job(job.id)
+                    jobs_removed += 1
+                except Exception:
+                    pass
+        # Clear internal map so there are no stale entries
+        self._active_jobs.clear()
+
+        # Re-schedule from DB
+        count = await self.load_and_schedule_scrapers()
+        logger.info(f"Schedules reloaded: removed {jobs_removed} old jobs, scheduled {count} scrapers")
+        return count
+
+    async def trigger_all_scrapers(self, scope_filter: Optional[str] = None) -> Dict[str, Any]:
+        """Fire all active scrapers immediately (fire-and-forget, staggered).
+
+        Args:
+            scope_filter: If provided, only trigger scrapers matching this scope.
+                          Use "mendoza" to skip ar_nacional sources,
+                          or None to trigger everything.
+
+        Returns dict with counts: triggered, skipped, errors.
+        """
+        configs_collection = self.db.scraper_configs
+        query: Dict[str, Any] = {"active": True}
+
+        if scope_filter == "mendoza":
+            query["$or"] = [
+                {"scope": {"$exists": False}},
+                {"scope": None},
+                {"scope": {"$nin": ["ar_nacional"]}},
+            ]
+        elif scope_filter:
+            query["scope"] = scope_filter
+
+        configs = await configs_collection.find(query).to_list(length=200)
+
+        triggered = 0
+        skipped = 0
+        errors: List[str] = []
+
+        for config_data in configs:
+            name = config_data.get("name", "")
+            try:
+                run_id = await self.trigger_scraper_now(name)
+                if run_id:
+                    triggered += 1
+                    # Small stagger to avoid thundering herd on network/DB
+                    await asyncio.sleep(1)
+                else:
+                    skipped += 1
+            except Exception as e:
+                errors.append(f"{name}: {e}")
+                logger.error(f"trigger_all: failed to trigger {name}: {e}")
+
+        logger.info(
+            f"trigger_all_scrapers(scope={scope_filter}): "
+            f"triggered={triggered}, skipped={skipped}, errors={len(errors)}"
+        )
+        return {"triggered": triggered, "skipped": skipped, "errors": errors}
+
     async def schedule_scraper(self, config: ScraperConfig) -> bool:
         """Schedule a single scraper based on its cron schedule"""
         if not self.scheduler:
