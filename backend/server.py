@@ -60,6 +60,25 @@ app = FastAPI(
     version="1.0.0",
 )
 
+# Global exception handler — catches ALL unhandled exceptions from any endpoint.
+# Without this, 76% of endpoints (stats, facets, favorites, etc.) return raw 500
+# with no logging when they throw exceptions.
+@app.exception_handler(Exception)
+async def global_exception_handler(request: Request, exc: Exception):
+    import traceback
+    path = request.url.path
+    error_msg = f"{type(exc).__name__}: {str(exc)[:300]}"
+    logger.error(f"Unhandled exception at {request.method} {path}: {error_msg}", exc_info=True)
+    # Also log to dedicated file (survives enrichment log flood)
+    _api_error_logger.error(
+        f"Unhandled exception at {request.method} {path}: {error_msg}\n{traceback.format_exc()[-800:]}"
+    )
+    return JSONResponse(
+        status_code=500,
+        content={"detail": f"Error interno: {error_msg}"},
+    )
+
+
 # Add CORS middleware
 allowed_origins = os.environ.get("ALLOWED_ORIGINS", "*").split(",")
 app.add_middleware(

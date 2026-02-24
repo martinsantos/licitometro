@@ -26,7 +26,7 @@ router = APIRouter(
     responses={404: {"description": "Not found"}}
 )
 
-@router.post("/", response_model=Licitacion)
+@router.post("/", response_model=Dict[str, Any])
 async def create_licitacion(
     licitacion: LicitacionCreate,
     repo: LicitacionRepository = Depends(get_licitacion_repository)
@@ -1546,18 +1546,20 @@ async def enrich_licitacion_universal(
         })
 
 
-@router.get("/{licitacion_id}", response_model=Licitacion)
+@router.get("/{licitacion_id}", response_model=Dict[str, Any])
 async def get_licitacion(
     licitacion_id: str,
     repo: LicitacionRepository = Depends(get_licitacion_repository)
 ):
-    """Get a licitacion by id"""
+    """Get a licitacion by id.
+    NOTE: Uses Dict response_model (not Licitacion) to avoid Pydantic validator
+    rejecting documents with dates outside 2024-2027 or opening < publication."""
     licitacion = await repo.get_by_id(licitacion_id)
     if not licitacion:
         raise HTTPException(status_code=404, detail="Licitación not found")
     return licitacion
 
-@router.put("/{licitacion_id}", response_model=Licitacion)
+@router.put("/{licitacion_id}", response_model=Dict[str, Any])
 async def update_licitacion(
     licitacion_id: str,
     licitacion: LicitacionUpdate,

@@ -21,13 +21,17 @@ def mongo_id_to_str(raw_id) -> str:
 
 def _bson_safe(value):
     """Recursively convert BSON-specific types to JSON-serializable Python types.
-    Handles ObjectId, Binary, Decimal128, UUID inside nested dicts/lists."""
+    Handles ObjectId, Binary, Decimal128, UUID, Regex, Code, Int64, bytes,
+    and any other non-JSON type via str() fallback."""
     if value is None or isinstance(value, (str, int, float, bool)):
         return value
     if isinstance(value, ObjectId):
         return str(value)
     if isinstance(value, Decimal128):
-        return float(value.to_decimal())
+        try:
+            return float(value.to_decimal())
+        except Exception:
+            return str(value)
     if isinstance(value, Binary):
         if value.subtype == 4:
             try:
@@ -39,11 +43,20 @@ def _bson_safe(value):
         return str(value)
     if isinstance(value, datetime):
         return value
+    if isinstance(value, bytes):
+        try:
+            return value.decode("utf-8")
+        except Exception:
+            return value.hex()
     if isinstance(value, dict):
-        return {k: _bson_safe(v) for k, v in value.items()}
+        return {str(k): _bson_safe(v) for k, v in value.items()}
     if isinstance(value, (list, tuple)):
         return [_bson_safe(item) for item in value]
-    return value
+    # Fallback for any other BSON type (Regex, Code, Timestamp, Int64, etc.)
+    try:
+        return str(value)
+    except Exception:
+        return repr(value)
 
 
 def str_to_mongo_id(id_str: str):
