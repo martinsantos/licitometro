@@ -107,11 +107,11 @@ async def trigger_scraper(
     try:
         service = get_scheduler_service(db)
         await service.initialize()
-        
+
         run_id = await service.trigger_scraper_now(scraper_name)
         if not run_id:
             raise HTTPException(status_code=404, detail=f"Scraper '{scraper_name}' not found")
-        
+
         return {
             "status": "triggered",
             "scraper_name": scraper_name,
@@ -123,6 +123,56 @@ async def trigger_scraper(
     except Exception as e:
         logger.error(f"Error triggering scraper {scraper_name}: {e}")
         raise HTTPException(status_code=500, detail=f"Failed to trigger scraper: {str(e)}")
+
+
+@router.post("/reload")
+async def reload_schedules(db: AsyncIOMotorDatabase = Depends(get_db)):
+    """Reload per-scraper schedules from DB without restarting the backend.
+
+    Use this after running fix_scraper_schedules.py or updating any schedule
+    via the API to apply changes immediately.
+    """
+    try:
+        service = get_scheduler_service(db)
+        count = await service.reload_schedules()
+        return {
+            "status": "reloaded",
+            "scheduled_count": count,
+            "message": f"Schedules reloaded: {count} scrapers re-scheduled from DB",
+        }
+    except Exception as e:
+        logger.error(f"Error reloading schedules: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to reload schedules: {str(e)}")
+
+
+@router.post("/trigger-all")
+async def trigger_all_scrapers(
+    scope: Optional[str] = Query(
+        None,
+        description="Scope filter: 'mendoza' (skip ar_nacional), 'ar_nacional', or omit for all",
+    ),
+    db: AsyncIOMotorDatabase = Depends(get_db),
+):
+    """Fire all active scrapers immediately (staggered, respects semaphore).
+
+    Useful for manual full-refresh or testing the new 3x-daily schedule.
+    """
+    try:
+        service = get_scheduler_service(db)
+        await service.initialize()
+        result = await service.trigger_all_scrapers(scope_filter=scope)
+        return {
+            "status": "triggered",
+            **result,
+            "message": (
+                f"Triggered {result['triggered']} scrapers "
+                f"(scope={scope or 'all'}), "
+                f"skipped {result['skipped']}"
+            ),
+        }
+    except Exception as e:
+        logger.error(f"Error triggering all scrapers: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to trigger all scrapers: {str(e)}")
 
 
 @router.get("/runs", response_model=List[ScraperRun])

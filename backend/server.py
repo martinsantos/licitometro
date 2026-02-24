@@ -329,6 +329,19 @@ async def startup_db_client():
         except Exception as e:
             logger.warning(f"Vigencia service not configured: {e}")
 
+        # Schedule hourly reload of per-scraper schedules from DB.
+        # This ensures any schedule changes made via API or migration scripts
+        # take effect within 60 minutes without requiring a backend restart.
+        scheduler_service.scheduler.add_job(
+            func=scheduler_service.reload_schedules,
+            trigger=IntervalTrigger(hours=1),
+            id="schedule_reload",
+            name="Hourly scraper schedule reload from DB",
+            replace_existing=True,
+            max_instances=1,
+        )
+        logger.info("Hourly schedule reload registered")
+
     except Exception as e:
         logger.error(f"Failed to auto-start scheduler: {e}")
 

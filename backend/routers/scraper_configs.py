@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, Query, BackgroundTasks
+from fastapi import APIRouter, Depends, HTTPException, Query, BackgroundTasks, Request
 from typing import List, Dict, Optional, Any
 from uuid import UUID
 import asyncio
@@ -17,6 +17,16 @@ from scrapers.scraper_factory import create_scraper
 
 logger = logging.getLogger("api.scraper_configs")
 
+
+def _schedule_reload(request: Request):
+    """Fire-and-forget schedule reload after a config change."""
+    try:
+        from services.scheduler_service import get_scheduler_service
+        svc = get_scheduler_service(request.app.mongodb)
+        asyncio.create_task(svc.reload_schedules())
+    except Exception as e:
+        logger.warning(f"Could not trigger schedule reload after config change: {e}")
+
 router = APIRouter(
     prefix="/api/scraper-configs",
     tags=["scraper_configs"],
@@ -25,6 +35,7 @@ router = APIRouter(
 
 @router.post("/", response_model=ScraperConfig)
 async def create_scraper_config(
+    request: Request,
     config: ScraperConfigCreate,
     repo: ScraperConfigRepository = Depends(get_scraper_config_repository)
 ):
@@ -33,8 +44,10 @@ async def create_scraper_config(
     existing = await repo.get_by_name(config.name)
     if existing:
         raise HTTPException(status_code=400, detail="Scraper config with this name already exists")
-    
-    return await repo.create(config)
+
+    created = await repo.create(config)
+    _schedule_reload(request)
+    return created
 
 @router.get("/", response_model=List[ScraperConfig])
 async def get_scraper_configs(
@@ -61,6 +74,7 @@ async def get_scraper_config(
 @router.put("/{config_id}", response_model=ScraperConfig)
 async def update_scraper_config(
     config_id: str,
+    request: Request,
     config: ScraperConfigUpdate,
     repo: ScraperConfigRepository = Depends(get_scraper_config_repository)
 ):
@@ -72,26 +86,30 @@ async def update_scraper_config(
             existing_id = existing["id"] if isinstance(existing, dict) else existing.id
             if str(existing_id) != str(config_id):
                 raise HTTPException(status_code=400, detail="Scraper config with this name already exists")
-    
+
     updated_config = await repo.update(config_id, config)
     if not updated_config:
         raise HTTPException(status_code=404, detail="Scraper config not found")
+    _schedule_reload(request)
     return updated_config
 
 @router.delete("/{config_id}")
 async def delete_scraper_config(
     config_id: str,
+    request: Request,
     repo: ScraperConfigRepository = Depends(get_scraper_config_repository)
 ):
     """Delete a scraper configuration"""
     deleted = await repo.delete(config_id)
     if not deleted:
         raise HTTPException(status_code=404, detail="Scraper config not found")
+    _schedule_reload(request)
     return {"message": "Scraper config deleted successfully"}
 
 @router.post("/{config_id}/toggle")
 async def toggle_scraper_config(
     config_id: str,
+    request: Request,
     repo: ScraperConfigRepository = Depends(get_scraper_config_repository)
 ):
     """Toggle active status of a scraper configuration"""
@@ -108,6 +126,7 @@ async def toggle_scraper_config(
         raise HTTPException(status_code=500, detail="Failed to toggle scraper config")
     name = updated["name"] if isinstance(updated, dict) else updated.name
     active = updated["active"] if isinstance(updated, dict) else updated.active
+    _schedule_reload(request)
     return {"name": name, "active": active}
 
 
