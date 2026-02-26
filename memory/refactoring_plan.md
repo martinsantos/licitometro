@@ -8,6 +8,13 @@
 
 ## Cambios Ejecutados (Sesion Actual)
 
+### Arquitectura Licitometro vs CotiZar (Definida)
+- **Licitometro** = scrapea, enriquece, almacena, presenta licitaciones
+- **CotiZar** = consume SOLO licitaciones marcadas como favoritas en Licitometro
+- Favoritos: sistema dual (localStorage + MongoDB coleccion `favorites`)
+- API: `GET /api/licitaciones/favorites?full=true` devuelve datos completos para CotiZar
+- CotiZar container accede via `LICITOMETRO_API_URL=http://backend:8000/api`
+
 ### CotiZar: Iframe eliminado, Docker conectado
 - **CotizarPage.js**: Ruta React eliminada (ya no carga iframe a GitHub Pages)
 - **App.js**: Ruta `/cotizar` removida del React Router (nginx la sirve directamente)

@@ -688,12 +688,27 @@ async def delete_preset(preset_id: str, request: Request = None):
 
 
 @router.get("/favorites")
-async def get_favorites(request: Request):
-    """Get all favorite licitacion IDs"""
+async def get_favorites(
+    request: Request,
+    full: bool = Query(False, description="Return full licitacion data (for CotiZar)"),
+):
+    """Get favorite licitaciones. With full=true returns complete data for CotiZar."""
     db = request.app.mongodb
     cursor = db.favorites.find({}, {"licitacion_id": 1, "_id": 0})
     docs = await cursor.to_list(length=5000)
-    return [doc["licitacion_id"] for doc in docs]
+    ids = [doc["licitacion_id"] for doc in docs]
+
+    if not full:
+        return ids
+
+    # Full mode: return complete licitacion data (consumed by CotiZar container)
+    if not ids:
+        return []
+    from db.models import licitacion_entity
+    licitaciones = await db.licitaciones.find(
+        {"id_licitacion": {"$in": ids}}
+    ).to_list(length=5000)
+    return [licitacion_entity(lic) for lic in licitaciones]
 
 
 @router.post("/favorites/{licitacion_id}")
