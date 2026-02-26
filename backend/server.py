@@ -98,8 +98,14 @@ async def auth_middleware(request: Request, call_next):
     if not path.startswith("/api") or path in AUTH_EXEMPT_PATHS or path.startswith("/api/public/"):
         return await call_next(request)
 
-    # Allow public GET access to licitaciones endpoints (both main and AR)
-    if request.method == "GET" and (path.startswith("/api/licitaciones") or path.startswith("/api/licitaciones-ar")):
+    # Allow public GET access to licitaciones, meta, and scraper-configs
+    # (CotiZar container calls these without auth via internal Docker network)
+    if request.method == "GET" and (
+        path.startswith("/api/licitaciones")
+        or path.startswith("/api/licitaciones-ar")
+        or path.startswith("/api/meta/")
+        or path.startswith("/api/scraper-configs")
+    ):
         return await call_next(request)
 
     token = request.cookies.get("access_token")
@@ -366,6 +372,28 @@ async def health_check():
     except Exception as e:
         logger.error(f"Health check failed: {e}")
         raise HTTPException(status_code=500, detail="Database connection error")
+
+
+@app.get("/api/meta/jurisdicciones")
+async def get_jurisdicciones():
+    """List distinct jurisdicciones from licitaciones (consumed by CotiZar)."""
+    values = await app.mongodb.licitaciones.distinct("jurisdiccion")
+    return [v for v in values if v]
+
+
+@app.get("/api/meta/rubros")
+async def get_rubros():
+    """List rubros/categories from config (consumed by CotiZar)."""
+    import json
+    rubros_path = Path(__file__).parent / "config" / "rubros_comprar.json"
+    try:
+        with open(rubros_path, "r", encoding="utf-8") as f:
+            data = json.load(f)
+        return data.get("rubros", [])
+    except FileNotFoundError:
+        # Fallback: distinct categories from DB
+        values = await app.mongodb.licitaciones.distinct("category")
+        return [{"id": v, "nombre": v} for v in values if v]
 
 if __name__ == "__main__":
     uvicorn.run("server:app", host="0.0.0.0", port=8001, reload=True)
