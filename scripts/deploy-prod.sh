@@ -65,7 +65,8 @@ echo "Note: Using 'up --force-recreate' to use new images while preserving volum
 # Recreate backend and nginx with new images (MongoDB stays up - data safety)
 # --force-recreate: Always recreate containers even if config hasn't changed
 # --no-deps: Don't recreate dependencies (MongoDB)
-docker compose -f "$COMPOSE_FILE" up -d --force-recreate --no-deps backend nginx
+docker compose -f "$COMPOSE_FILE" pull cotizar-api 2>/dev/null || true
+docker compose -f "$COMPOSE_FILE" up -d --force-recreate --no-deps backend cotizar-api nginx
 
 if [ $? -ne 0 ]; then
     echo "❌ Service restart failed"

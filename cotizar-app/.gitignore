@@ -1,6 +1,0 @@
-# Cotizar app build output (built separately from cotiza repo)
-# Only keep the placeholder index.html in git
-node_modules/
-build/*
-!build/index.html
-.git/
