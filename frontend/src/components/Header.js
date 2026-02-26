@@ -66,6 +66,14 @@ const Header = ({ userRole }) => {
                   </Link>
                 </li>
               ))}
+              <li>
+                <a
+                  href="/cotizar"
+                  className="flex items-center gap-1.5 px-3 py-2 rounded-md text-sm font-medium transition-colors text-slate-300 hover:bg-white/5 hover:text-white"
+                >
+                  Cotizar
+                </a>
+              </li>
             </ul>
             {/* Logout button */}
             <button
@@ -114,6 +122,14 @@ const Header = ({ userRole }) => {
                   </Link>
                 </li>
               ))}
+              <li>
+                <a
+                  href="/cotizar"
+                  className="flex items-center gap-2 px-3 py-2 rounded-md text-sm font-medium transition-colors text-slate-300 hover:bg-white/5 hover:text-white"
+                >
+                  Cotizar
+                </a>
+              </li>
               <li>
                 <button
                   onClick={handleLogout}
