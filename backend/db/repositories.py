@@ -149,12 +149,7 @@ class LicitacionRepository:
     
     async def get_by_id(self, id) -> Optional[Licitacion]:
         """Get a licitacion by id"""
-        query_id = id
-        if isinstance(id, str):
-            try:
-                query_id = ObjectId(id)
-            except Exception:
-                pass
+        query_id = str_to_mongo_id(id) if isinstance(id, str) else id
         licitacion = await self.collection.find_one({"_id": query_id})
         if licitacion:
             return licitacion_entity(licitacion)
@@ -164,14 +159,9 @@ class LicitacionRepository:
         """Update a licitacion"""
         update_data = {k: v for k, v in licitacion.model_dump().items() if v is not None}
         update_data["updated_at"] = datetime.utcnow()
-        
+
         if update_data:
-            query_id = id
-            if isinstance(id, str):
-                try:
-                    query_id = ObjectId(id)
-                except Exception:
-                    pass
+            query_id = str_to_mongo_id(id) if isinstance(id, str) else id
             result = await self.collection.update_one(
                 {"_id": query_id},
                 {"$set": update_data}
@@ -182,12 +172,7 @@ class LicitacionRepository:
     
     async def delete(self, id) -> bool:
         """Delete a licitacion"""
-        query_id = id
-        if isinstance(id, str):
-            try:
-                query_id = ObjectId(id)
-            except Exception:
-                pass
+        query_id = str_to_mongo_id(id) if isinstance(id, str) else id
         result = await self.collection.delete_one({"_id": query_id})
         return result.deleted_count > 0
     

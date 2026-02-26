@@ -108,6 +108,10 @@ async def auth_middleware(request: Request, call_next):
     ):
         return await call_next(request)
 
+    # Allow unauthenticated POST/DELETE on favorites (bookmarking is a user action, not admin)
+    if path.startswith("/api/licitaciones/favorites/") and request.method in ("POST", "DELETE"):
+        return await call_next(request)
+
     token = request.cookies.get("access_token")
     if not token:
         return JSONResponse(status_code=401, content={"detail": "Not authenticated"})
