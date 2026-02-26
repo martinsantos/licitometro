@@ -86,6 +86,7 @@ services:
         condition: service_healthy
     volumes:
       - ./frontend/build:/usr/share/nginx/html:ro
+      - ./cotizar-app/build:/usr/share/nginx/cotizar:ro
       - ./nginx/nginx.conf:/etc/nginx/templates/nginx-ssl.conf:ro
       - ./nginx/nginx-initial.conf:/etc/nginx/templates/nginx-initial.conf:ro
       - ./nginx/entrypoint.sh:/entrypoint.sh:ro
