@@ -54,18 +54,19 @@ class SchedulerService:
             logger.info("Scheduler initialized")
 
     async def _check_scraper_health(self):
-        """Periodic health check: auto-pause scrapers with 3+ consecutive failures."""
+        """Periodic health check: report failing scrapers via Telegram (no auto-pause)."""
         try:
             from services.scraper_health_service import get_scraper_health_service
             health_svc = get_scraper_health_service(self.db)
-            paused = await health_svc.check_and_pause_failing()
-            if paused:
-                logger.warning(f"Auto-paused {len(paused)} failing scrapers: {paused}")
-                # Notify via Telegram
+            failing = await health_svc.check_and_alert_failing()
+            if failing:
+                names = [f["name"] for f in failing]
+                logger.warning(f"{len(failing)} scrapers need attention: {names}")
                 try:
                     from services.notification_service import get_notification_service
                     ns = get_notification_service(self.db)
-                    msg = f"Auto-paused {len(paused)} failing scrapers: {', '.join(paused)}"
+                    lines = [f"- {f['name']}: {f['consecutive_failures']} fails, score {f['score']}" for f in failing]
+                    msg = f"{len(failing)} scrapers need attention:\n" + "\n".join(lines)
                     await ns.notify_scraper_error("Health Check", msg)
                 except Exception:
                     pass

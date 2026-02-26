@@ -22,7 +22,7 @@ class ScraperHealthService:
     WARNING_THRESHOLD = 50       # 50 <= score < 80 → yellow
     # score < 50 → red
 
-    AUTO_PAUSE_CONSECUTIVE_FAILURES = 3
+    ALERT_CONSECUTIVE_FAILURES = 3  # alert (not pause) after N failures
     LOOKBACK_RUNS = 20  # analyze last N runs for health score
 
     def __init__(self, db: AsyncIOMotorDatabase):
@@ -144,8 +144,8 @@ class ScraperHealthService:
         else:
             status = "critical"
 
-        # Determine if should auto-pause
-        should_pause = consecutive_failures >= self.AUTO_PAUSE_CONSECUTIVE_FAILURES
+        # Flag for alerting (report only, no auto-pause)
+        needs_attention = consecutive_failures >= self.ALERT_CONSECUTIVE_FAILURES
 
         # Collect issues
         issues = []
@@ -172,49 +172,35 @@ class ScraperHealthService:
             "consecutive_failures": consecutive_failures,
             "total_runs_analyzed": total,
             "last_success": last_success.isoformat() if last_success else None,
-            "should_pause": should_pause,
+            "needs_attention": needs_attention,
             "issues": issues,
         }
 
-    async def check_and_pause_failing(self) -> List[str]:
+    async def check_and_alert_failing(self) -> List[Dict[str, Any]]:
         """
-        Check all active scrapers and auto-pause those with 3+ consecutive failures.
-        Returns list of paused scraper names.
+        Check all active scrapers and return those needing attention (3+ consecutive failures).
+        Does NOT pause anything — only reports.
         """
         configs = await self.db.scraper_configs.find({"active": True}).to_list(length=200)
-        paused = []
+        failing = []
 
         for config in configs:
             name = config.get("name", "unknown")
             health = await self._compute_health_score(name)
 
-            if health["should_pause"]:
-                await self.db.scraper_configs.update_one(
-                    {"name": name},
-                    {"$set": {
-                        "active": False,
-                        "pause_reason": f"Auto-paused: {health['consecutive_failures']} consecutive failures",
-                        "paused_at": datetime.utcnow(),
-                    }}
+            if health["needs_attention"]:
+                failing.append({
+                    "name": name,
+                    "consecutive_failures": health["consecutive_failures"],
+                    "score": health["score"],
+                    "issues": health["issues"],
+                })
+                logger.warning(
+                    f"Scraper '{name}' needs attention: "
+                    f"{health['consecutive_failures']} consecutive failures, score={health['score']}"
                 )
-                paused.append(name)
-                logger.warning(f"Auto-paused scraper '{name}': {health['consecutive_failures']} consecutive failures")
 
-        return paused
-
-    async def reactivate_scraper(self, scraper_name: str) -> bool:
-        """Manually reactivate a paused scraper."""
-        result = await self.db.scraper_configs.update_one(
-            {"name": scraper_name},
-            {
-                "$set": {"active": True},
-                "$unset": {"pause_reason": "", "paused_at": ""},
-            }
-        )
-        if result.modified_count:
-            logger.info(f"Reactivated scraper '{scraper_name}'")
-            return True
-        return False
+        return failing
 
 
 # Singleton

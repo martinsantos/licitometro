@@ -240,7 +240,7 @@ async def get_scraper_health(db: AsyncIOMotorDatabase = Depends(get_db)):
     - score: overall health (0-100)
     - status: "healthy" (>=80), "warning" (>=50), "critical" (<50)
     - success_rate, freshness_hours, avg_items_found, consecutive_failures
-    - should_pause: True if 3+ consecutive failures
+    - needs_attention: True if 3+ consecutive failures
     - issues: list of human-readable problems
     """
     try:
@@ -252,35 +252,19 @@ async def get_scraper_health(db: AsyncIOMotorDatabase = Depends(get_db)):
         raise HTTPException(status_code=500, detail=f"Failed to get health: {str(e)}")
 
 
-@router.post("/health/check-and-pause")
-async def check_and_pause_failing(db: AsyncIOMotorDatabase = Depends(get_db)):
-    """Auto-pause scrapers with 3+ consecutive failures."""
+@router.get("/health/failing")
+async def get_failing_scrapers(db: AsyncIOMotorDatabase = Depends(get_db)):
+    """List scrapers with 3+ consecutive failures (report only, no auto-pause)."""
     try:
         service = get_scraper_health_service(db)
-        paused = await service.check_and_pause_failing()
+        failing = await service.check_and_alert_failing()
         return {
-            "paused_count": len(paused),
-            "paused_scrapers": paused,
-            "message": f"Paused {len(paused)} failing scraper(s)" if paused else "All scrapers healthy",
+            "failing_count": len(failing),
+            "failing_scrapers": failing,
+            "message": f"{len(failing)} scraper(s) need attention" if failing else "All scrapers healthy",
         }
     except Exception as e:
-        logger.error(f"Error in check-and-pause: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
-
-
-@router.post("/health/reactivate/{scraper_name}")
-async def reactivate_scraper(scraper_name: str, db: AsyncIOMotorDatabase = Depends(get_db)):
-    """Manually reactivate a paused scraper."""
-    try:
-        service = get_scraper_health_service(db)
-        success = await service.reactivate_scraper(scraper_name)
-        if not success:
-            raise HTTPException(status_code=404, detail=f"Scraper '{scraper_name}' not found or already active")
-        return {"status": "reactivated", "scraper_name": scraper_name}
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error(f"Error reactivating scraper: {e}")
+        logger.error(f"Error checking failing scrapers: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 
