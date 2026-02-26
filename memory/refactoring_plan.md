@@ -6,6 +6,38 @@
 
 ---
 
+## Cambios Ejecutados (Sesion Actual)
+
+### CotiZar: Iframe eliminado, Docker conectado
+- **CotizarPage.js**: Ruta React eliminada (ya no carga iframe a GitHub Pages)
+- **App.js**: Ruta `/cotizar` removida del React Router (nginx la sirve directamente)
+- **Header.js**: Link "Cotizador" agregado al nav (usa `<a href>` externo, no React Router)
+  - Apunta a `/cotizar/` → nginx proxea a container Docker `cotizar-api:3000`
+  - Funciona en desktop y mobile nav
+- **Arquitectura final**: `/cotizar/*` es servido enteramente por el container Docker
+  - Container tiene `LICITOMETRO_API_URL=http://backend:8000/api` (datos reales)
+  - Volume persistente para bids generados
+  - Health check funcional
+
+### Scrapers: Health Service + Factory Refactor
+- **scraper_health_service.py** (NUEVO): Servicio de salud con score 0-100
+  - 4 componentes: success_rate (40%), freshness (30%), yield (20%), stability (10%)
+  - Auto-pause si 3+ fallos consecutivos
+  - Endpoint de reactivacion manual
+- **scraper_factory.py**: Refactorizado de if/elif chain a registry pattern
+  - URL_REGISTRY: lista ordenada de (url_pattern, scraper_class)
+  - NAME_REGISTRY: fallback por nombre
+  - GenericHtmlScraper sigue antes del fallback mendoza.gov.ar
+  - Misma semantica, mejor mantenibilidad
+- **scheduler_service.py**: Health check cada 30 min como job de APScheduler
+  - Auto-pausa + notificacion Telegram si scrapers fallan
+- **scheduler.py (router)**: 3 nuevos endpoints
+  - `GET /api/scheduler/health` — reporte completo con scores
+  - `POST /api/scheduler/health/check-and-pause` — trigger manual de auto-pause
+  - `POST /api/scheduler/health/reactivate/{name}` — reactivar scraper pausado
+
+---
+
 ## Estado Actual del Sistema (Snapshot)
 
 ### Scrapers: Arquitectura Actual

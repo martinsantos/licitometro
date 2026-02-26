@@ -17,6 +17,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from services.scheduler_service import get_scheduler_service
+from services.scraper_health_service import get_scraper_health_service
 from models.scraper_run import ScraperRun, ScraperRunSummary
 
 logger = logging.getLogger("scheduler_router")
@@ -228,6 +229,59 @@ async def get_source_health(db: AsyncIOMotorDatabase = Depends(get_db)):
     except Exception as e:
         logger.error(f"Error getting source health: {e}")
         raise HTTPException(status_code=500, detail=f"Failed to get source health: {str(e)}")
+
+
+@router.get("/health")
+async def get_scraper_health(db: AsyncIOMotorDatabase = Depends(get_db)):
+    """
+    Get health scores for all scrapers.
+
+    Returns a scored report (0-100) per scraper with:
+    - score: overall health (0-100)
+    - status: "healthy" (>=80), "warning" (>=50), "critical" (<50)
+    - success_rate, freshness_hours, avg_items_found, consecutive_failures
+    - should_pause: True if 3+ consecutive failures
+    - issues: list of human-readable problems
+    """
+    try:
+        service = get_scraper_health_service(db)
+        report = await service.get_health_report()
+        return {"scrapers": report}
+    except Exception as e:
+        logger.error(f"Error getting health report: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to get health: {str(e)}")
+
+
+@router.post("/health/check-and-pause")
+async def check_and_pause_failing(db: AsyncIOMotorDatabase = Depends(get_db)):
+    """Auto-pause scrapers with 3+ consecutive failures."""
+    try:
+        service = get_scraper_health_service(db)
+        paused = await service.check_and_pause_failing()
+        return {
+            "paused_count": len(paused),
+            "paused_scrapers": paused,
+            "message": f"Paused {len(paused)} failing scraper(s)" if paused else "All scrapers healthy",
+        }
+    except Exception as e:
+        logger.error(f"Error in check-and-pause: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/health/reactivate/{scraper_name}")
+async def reactivate_scraper(scraper_name: str, db: AsyncIOMotorDatabase = Depends(get_db)):
+    """Manually reactivate a paused scraper."""
+    try:
+        service = get_scraper_health_service(db)
+        success = await service.reactivate_scraper(scraper_name)
+        if not success:
+            raise HTTPException(status_code=404, detail=f"Scraper '{scraper_name}' not found or already active")
+        return {"status": "reactivated", "scraper_name": scraper_name}
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error reactivating scraper: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 @router.get("/stats")

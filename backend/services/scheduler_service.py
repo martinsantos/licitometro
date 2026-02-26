@@ -53,6 +53,25 @@ class SchedulerService:
             await self._cleanup_orphaned_runs()
             logger.info("Scheduler initialized")
 
+    async def _check_scraper_health(self):
+        """Periodic health check: auto-pause scrapers with 3+ consecutive failures."""
+        try:
+            from services.scraper_health_service import get_scraper_health_service
+            health_svc = get_scraper_health_service(self.db)
+            paused = await health_svc.check_and_pause_failing()
+            if paused:
+                logger.warning(f"Auto-paused {len(paused)} failing scrapers: {paused}")
+                # Notify via Telegram
+                try:
+                    from services.notification_service import get_notification_service
+                    ns = get_notification_service(self.db)
+                    msg = f"Auto-paused {len(paused)} failing scrapers: {', '.join(paused)}"
+                    await ns.notify_scraper_error("Health Check", msg)
+                except Exception:
+                    pass
+        except Exception as e:
+            logger.error(f"Health check failed: {e}")
+
     async def _cleanup_orphaned_runs(self):
         """Mark runs stuck in 'running' as failed (from previous crashes/restarts).
         Runs every 10 min via scheduler + on startup."""
@@ -78,6 +97,14 @@ class SchedulerService:
                 trigger=IntervalTrigger(minutes=10),
                 id="orphan_cleanup",
                 name="Orphan Run Cleanup",
+                replace_existing=True,
+            )
+            # Add periodic health check (every 30 min, auto-pauses failing scrapers)
+            self.scheduler.add_job(
+                func=self._check_scraper_health,
+                trigger=IntervalTrigger(minutes=30),
+                id="health_check",
+                name="Scraper Health Check",
                 replace_existing=True,
             )
             self.scheduler.start()

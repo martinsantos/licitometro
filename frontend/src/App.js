@@ -25,7 +25,7 @@ const NodosPage = lazy(() => import("./pages/NodosPage"));
 const LicitacionesARPage = lazy(() => import("./pages/LicitacionesARPage"));
 const PublicLicitacionPage = lazy(() => import("./pages/PublicLicitacionPage"));
 const PublicListPage = lazy(() => import("./pages/PublicListPage"));
-const CotizarPage = lazy(() => import("./pages/CotizarPage"));
+// CotizarPage removed: /cotizar is now served directly by Docker container via nginx proxy
 
 // Fallback shown while lazy chunks load
 const PageLoader = () => (
@@ -59,7 +59,7 @@ const AuthenticatedApp = ({ userRole }) => (
           <Route path="/admin/scraper/:id" element={userRole === 'admin' ? <ScraperFormPage /> : <Navigate to="/licitaciones" />} />
           <Route path="/templates" element={userRole === 'admin' ? <OfferTemplatesPage /> : <Navigate to="/licitaciones" />} />
           <Route path="/nodos" element={userRole === 'admin' ? <NodosPage /> : <Navigate to="/licitaciones" />} />
-          <Route path="/cotizar" element={<CotizarPage />} />
+          {/* /cotizar served directly by Docker container via nginx - not a React route */}
         </Routes>
       </Suspense>
     </main>
