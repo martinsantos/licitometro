@@ -702,13 +702,45 @@ async def get_favorites(
         return ids
 
     # Full mode: return complete licitacion data (consumed by CotiZar container)
+    # Favorites store MongoDB _id as string (from frontend lic.id)
     if not ids:
         return []
-    from db.models import licitacion_entity
+    from db.models import licitacion_entity, str_to_mongo_id
+    mongo_ids = [str_to_mongo_id(id_str) for id_str in ids]
     licitaciones = await db.licitaciones.find(
-        {"id_licitacion": {"$in": ids}}
+        {"_id": {"$in": mongo_ids}}
     ).to_list(length=5000)
     return [licitacion_entity(lic) for lic in licitaciones]
+
+
+@router.get("/sync")
+async def sync_for_cotizar(request: Request):
+    """Sync endpoint for CotiZar: returns favorites with full data + total count."""
+    db = request.app.mongodb
+    from db.models import licitacion_entity, str_to_mongo_id
+
+    # Get favorite IDs
+    cursor = db.favorites.find({}, {"licitacion_id": 1, "_id": 0})
+    docs = await cursor.to_list(length=5000)
+    ids = [doc["licitacion_id"] for doc in docs]
+
+    # Fetch full licitacion data for favorites
+    licitaciones = []
+    if ids:
+        mongo_ids = [str_to_mongo_id(id_str) for id_str in ids]
+        licitaciones_docs = await db.licitaciones.find(
+            {"_id": {"$in": mongo_ids}}
+        ).to_list(length=5000)
+        licitaciones = [licitacion_entity(lic) for lic in licitaciones_docs]
+
+    # Total licitaciones in the system
+    total = await db.licitaciones.count_documents({})
+
+    return {
+        "favorites": licitaciones,
+        "favorites_count": len(licitaciones),
+        "total_licitaciones": total,
+    }
 
 
 @router.post("/favorites/{licitacion_id}")
