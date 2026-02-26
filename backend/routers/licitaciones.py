@@ -141,7 +141,12 @@ async def _get_licitaciones_impl(
         if jurisdiccion: extra_filters["jurisdiccion"] = jurisdiccion
         if tipo_procedimiento: extra_filters["tipo_procedimiento"] = tipo_procedimiento
         if nodo: extra_filters["nodos"] = nodo
-        if estado: extra_filters["estado"] = estado
+        if estado:
+            # "vigente" is the default, so include docs where field is absent
+            if estado == "vigente":
+                extra_filters["$or"] = [{"estado": "vigente"}, {"estado": {"$exists": False}}]
+            else:
+                extra_filters["estado"] = estado
 
         # National/source exclusion filters
         if only_national:
@@ -215,7 +220,10 @@ async def _get_licitaciones_impl(
     if nodo:
         filters["nodos"] = nodo
     if estado:
-        filters["estado"] = estado
+        if estado == "vigente":
+            filters["$or"] = [{"estado": "vigente"}, {"estado": {"$exists": False}}]
+        else:
+            filters["estado"] = estado
 
     # National/source exclusion filters (applied to both search and non-search paths)
     if only_national:
@@ -337,15 +345,21 @@ async def get_vigentes(
 
     filters = {
         "tags": {"$ne": "LIC_AR"},
-        "estado": {"$in": ["vigente", "prorrogada"]},
+        # Include docs with estado field absent (default = vigente)
+        "$and": [
+            {"$or": [
+                {"estado": {"$in": ["vigente", "prorrogada"]}},
+                {"estado": {"$exists": False}}
+            ]},
+            {"$or": [
+                {"opening_date": {"$gte": today}},
+                {"opening_date": None}  # Missing opening_date
+            ]}
+        ],
         "publication_date": {
             "$gte": datetime(2024, 1, 1),
             "$lte": datetime(2027, 12, 31)
         },
-        "$or": [
-            {"opening_date": {"$gte": today}},
-            {"opening_date": None}  # Missing opening_date
-        ]
     }
 
     # Add jurisdiccion filtering
