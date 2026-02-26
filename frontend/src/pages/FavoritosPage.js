@@ -114,7 +114,7 @@ const FavoritosPage = () => {
         const date = new Date(fav.publication_date);
         key = format(date, 'MMMM yyyy', { locale: es });
       } else if (groupBy === 'status') {
-        key = fav.status === 'active' ? 'Abiertas' : 'Cerradas';
+        key = (fav.estado === 'vigente' || fav.estado === 'prorrogada') ? 'Abiertas' : 'Cerradas';
       } else if (groupBy === 'jurisdiccion') {
         key = fav.jurisdiccion || 'Sin jurisdicción';
       }
@@ -308,7 +308,7 @@ const FavoritosPage = () => {
                             <div className="flex items-start justify-between gap-4">
                               <div className="flex-1">
                                 <h4 className="text-lg font-black text-gray-900 group-hover:text-blue-600 transition-colors line-clamp-2">
-                                  {fav.title}
+                                  {fav.objeto || fav.title}
                                 </h4>
                                 <p className="text-sm text-gray-500 mt-1">
                                   {fav.organization}
@@ -370,7 +370,7 @@ const FavoritosPage = () => {
               />
               <StatCard
                 label="Abiertas"
-                value={favoritos.filter(f => f.status === 'active').length}
+                value={favoritos.filter(f => f.estado === 'vigente' || f.estado === 'prorrogada').length}
                 icon={<svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>}
                 color="emerald"
               />

@@ -1,15 +1,16 @@
 import React, { useState, useRef } from "react";
 
 /**
- * CotizarPage — embeds the cotizar app from github.com/martinsantos/cotizar
- * Served as GitHub Pages at https://martinsantos.github.io/cotizar
+ * CotizarPage — embeds the cotizar app served by cotizar-api Docker container.
+ * Nginx proxies /cotizar → cotizar-api:3000 (Express.js, BASE_PATH=/cotizar).
+ * Same-origin: cookies + localStorage are shared with LICITOMETRO.
  *
  * Handles three states:
  *  - loading: spinner while iframe fetches
  *  - loaded: iframe visible, no overlay
- *  - error: fallback message with external link (GitHub Pages may block iframes via CSP)
+ *  - error: fallback message with direct link
  */
-const COTIZAR_URL = "https://martinsantos.github.io/cotizar";
+const COTIZAR_URL = window.location.origin + "/cotizar";
 
 export default function CotizarPage() {
   const [status, setStatus] = useState("loading"); // "loading" | "loaded" | "error"
@@ -61,8 +62,8 @@ export default function CotizarPage() {
           <div className="text-4xl">🚧</div>
           <h2 className="text-lg font-semibold text-gray-700">Cotizador no disponible</h2>
           <p className="text-sm text-gray-500 max-w-md">
-            La aplicación de cotización no pudo cargarse aquí. Esto ocurre cuando
-            GitHub Pages bloquea el embed por política de seguridad (CSP / X-Frame-Options).
+            La aplicación de cotización no pudo cargarse. Verificá que el servicio
+            cotizar-api esté corriendo (<code className="text-xs bg-gray-100 px-1 rounded">docker logs licitometro-cotizar-api-1</code>).
           </p>
           <a
             href={COTIZAR_URL}
