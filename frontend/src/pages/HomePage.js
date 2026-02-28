@@ -131,7 +131,8 @@ const HomePage = () => {
                 </div>
                 <h3 className="text-xl font-semibold mb-2">Alertas y Notificaciones</h3>
                 <p className="text-gray-600">
-                  Próximamente: Configura alertas para recibir notificaciones sobre nuevas licitaciones que cumplan con tus criterios.
+                  Recibí alertas diarias por Telegram o email cuando aparezcan licitaciones relevantes.{' '}
+                  <a href="/nodos" className="text-blue-700 font-semibold hover:underline">Configurar Nodos</a>
                 </p>
               </div>
             </div>

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { Link } from 'react-router-dom';
 import axios from 'axios';
 
@@ -9,6 +9,7 @@ const StatsPage = () => {
   const [stats, setStats] = useState(null);
   const [savedItems, setSavedItems] = useState([]);
   const [savedLicitaciones, setSavedLicitaciones] = useState([]);
+  const [savedLoading, setSavedLoading] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [activeTab, setActiveTab] = useState('overview');
@@ -16,61 +17,34 @@ const StatsPage = () => {
   useEffect(() => {
     const fetchData = async () => {
       try {
-        // Fetch all licitaciones in pages of 100 (backend max)
-        let allLicitaciones = [];
-        let page = 1;
-        let totalItems = 0;
-        while (true) {
-          const res = await axios.get(`${API}/licitaciones/`, {
-            params: { page, size: 100 }
-          });
-          const items = res.data.items || [];
-          totalItems = res.data.paginacion?.total_items || 0;
-          allLicitaciones = allLicitaciones.concat(items);
-          if (allLicitaciones.length >= totalItems || items.length === 0) break;
-          page++;
+        // Parallel calls to dedicated backend endpoints — no more 33-request download loop
+        const [countRes, dataQualityRes, estadoRes, recentRes] = await Promise.all([
+          axios.get(`${API}/licitaciones/count`),
+          axios.get(`${API}/licitaciones/stats/data-quality`),
+          axios.get(`${API}/licitaciones/stats/estado-distribution`),
+          axios.get(`${API}/licitaciones/stats/recent-activity`, { params: { hours: 168 } }),
+        ]);
+
+        // byFuente from data-quality endpoint
+        const byFuente = {};
+        for (const src of (dataQualityRes.data.by_source || [])) {
+          byFuente[src.fuente] = src.total;
         }
 
-        // Calculate stats
-        const calculatedStats = {
-          total: totalItems,
-          byFuente: {},
-          byStatus: {},
-          byJurisdiccion: {},
-          recentCount: 0
-        };
+        // byEstado from estado-distribution endpoint
+        const estadoData = estadoRes.data.by_estado || {};
 
-        const oneWeekAgo = new Date();
-        oneWeekAgo.setDate(oneWeekAgo.getDate() - 7);
-
-        allLicitaciones.forEach(lic => {
-          const fuente = lic.fuente || 'Sin fuente';
-          calculatedStats.byFuente[fuente] = (calculatedStats.byFuente[fuente] || 0) + 1;
-
-          const status = lic.status || 'unknown';
-          calculatedStats.byStatus[status] = (calculatedStats.byStatus[status] || 0) + 1;
-
-          const jurisdiccion = lic.jurisdiccion || lic.location || 'Sin especificar';
-          calculatedStats.byJurisdiccion[jurisdiccion] = (calculatedStats.byJurisdiccion[jurisdiccion] || 0) + 1;
-
-          if (lic.publication_date) {
-            const pubDate = new Date(lic.publication_date);
-            if (pubDate >= oneWeekAgo) {
-              calculatedStats.recentCount++;
-            }
-          }
+        setStats({
+          total: countRes.data.count || dataQualityRes.data.total_records || 0,
+          byFuente,
+          byEstado: estadoData,
+          recentCount: recentRes.data.total_new || 0,
+          vigentesCount: (estadoData.vigente || 0) + (estadoData.prorrogada || 0),
         });
 
-        setStats(calculatedStats);
-
-        // Load saved licitaciones from LocalStorage
+        // Read saved IDs from localStorage (data fetched lazily on tab open)
         const saved = JSON.parse(localStorage.getItem('savedLicitaciones') || '[]');
         setSavedItems(saved);
-
-        if (saved.length > 0) {
-          const savedData = allLicitaciones.filter(lic => saved.includes(lic.id));
-          setSavedLicitaciones(savedData);
-        }
 
         setLoading(false);
       } catch (err) {
@@ -84,6 +58,27 @@ const StatsPage = () => {
 
     fetchData();
   }, []);
+
+  // Lazy-load saved licitaciones only when the "Guardadas" tab opens
+  const loadSavedLicitaciones = useCallback(async () => {
+    if (savedLicitaciones.length > 0 || savedItems.length === 0) return;
+    setSavedLoading(true);
+    try {
+      const results = await Promise.all(
+        savedItems.map(id => axios.get(`${API}/licitaciones/${id}`).catch(() => null))
+      );
+      setSavedLicitaciones(results.filter(r => r?.data).map(r => r.data));
+    } catch (err) {
+      console.error('Error loading saved licitaciones:', err);
+    } finally {
+      setSavedLoading(false);
+    }
+  }, [savedItems, savedLicitaciones.length]);
+
+  const handleTabChange = (tab) => {
+    setActiveTab(tab);
+    if (tab === 'saved') loadSavedLicitaciones();
+  };
 
   const removeSaved = (id) => {
     const newSaved = savedItems.filter(item => item !== id);
@@ -144,7 +139,7 @@ const StatsPage = () => {
         {/* Tabs */}
         <div className="flex gap-2 mb-8">
           <button
-            onClick={() => setActiveTab('overview')}
+            onClick={() => handleTabChange('overview')}
             className={`px-3 py-2 sm:px-6 sm:py-3 rounded-2xl font-bold text-sm sm:text-base transition-all ${
               activeTab === 'overview'
                 ? 'bg-blue-600 text-white shadow-lg shadow-blue-200'
@@ -154,7 +149,7 @@ const StatsPage = () => {
             Vista General
           </button>
           <button
-            onClick={() => setActiveTab('saved')}
+            onClick={() => handleTabChange('saved')}
             className={`px-3 py-2 sm:px-6 sm:py-3 rounded-2xl font-bold text-sm sm:text-base transition-all flex items-center gap-2 ${
               activeTab === 'saved'
                 ? 'bg-blue-600 text-white shadow-lg shadow-blue-200'
@@ -176,27 +171,27 @@ const StatsPage = () => {
           <>
             {/* Key Metrics */}
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-              <MetricCard 
-                label="Total Licitaciones" 
-                value={stats.total} 
+              <MetricCard
+                label="Total Licitaciones"
+                value={stats.total}
                 icon="📊"
                 gradient="from-blue-500 to-indigo-600"
               />
-              <MetricCard 
-                label="Activas" 
-                value={stats.byStatus.active || 0} 
+              <MetricCard
+                label="Vigentes"
+                value={stats.vigentesCount}
                 icon="✅"
                 gradient="from-emerald-500 to-teal-600"
               />
-              <MetricCard 
-                label="Nuevas (7 días)" 
-                value={stats.recentCount} 
+              <MetricCard
+                label="Nuevas (7 días)"
+                value={stats.recentCount}
                 icon="🆕"
                 gradient="from-amber-500 to-orange-600"
               />
-              <MetricCard 
-                label="Guardadas" 
-                value={savedItems.length} 
+              <MetricCard
+                label="Guardadas"
+                value={savedItems.length}
                 icon="⭐"
                 gradient="from-purple-500 to-pink-600"
               />
@@ -204,37 +199,46 @@ const StatsPage = () => {
 
             {/* Charts Grid */}
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-              {/* By Fuente */}
               <StatCard title="Por Fuente" data={stats.byFuente} colorScheme="blue" />
-              
-              {/* By Status */}
-              <StatCard title="Por Estado" data={stats.byStatus} colorScheme="green" statusLabels />
-              
-              {/* By Jurisdiccion */}
-              <StatCard title="Por Jurisdicción" data={stats.byJurisdiccion} colorScheme="purple" />
+              <StatCard
+                title="Por Estado"
+                data={stats.byEstado}
+                colorScheme="green"
+                labelMap={{ vigente: 'Vigente', vencida: 'Vencida', prorrogada: 'Prorrogada', archivada: 'Archivada' }}
+              />
             </div>
           </>
         )}
 
         {activeTab === 'saved' && (
           <div className="glass rounded-3xl p-8 shadow-xl border border-white/40">
-            {savedLicitaciones.length > 0 ? (
+            {savedLoading ? (
+              <div className="flex items-center justify-center py-12 gap-3">
+                <div className="w-6 h-6 border-2 border-blue-200 border-t-blue-600 rounded-full animate-spin" />
+                <span className="text-gray-500 font-medium">Cargando guardadas...</span>
+              </div>
+            ) : savedLicitaciones.length > 0 ? (
               <ul className="space-y-4">
                 {savedLicitaciones.map(lic => (
                   <li key={lic.id} className="bg-white rounded-2xl p-5 shadow-sm border border-gray-100 flex items-start justify-between gap-4">
                     <div className="flex-1 min-w-0">
-                      <Link 
+                      <Link
                         to={`/licitaciones/${lic.id}`}
                         className="text-lg font-bold text-gray-900 hover:text-blue-600 transition-colors block truncate"
                       >
-                        {lic.title}
+                        {lic.objeto || lic.title}
                       </Link>
                       <p className="text-sm text-gray-500 mt-1">{lic.organization}</p>
                       <div className="flex flex-wrap gap-2 mt-2">
                         <span className={`px-2 py-0.5 rounded-full text-xs font-bold ${
-                          lic.status === 'active' ? 'bg-emerald-100 text-emerald-700' : 'bg-gray-100 text-gray-600'
+                          lic.estado === 'vigente' || lic.estado === 'prorrogada'
+                            ? 'bg-emerald-100 text-emerald-700'
+                            : 'bg-gray-100 text-gray-600'
                         }`}>
-                          {lic.status === 'active' ? 'Activa' : lic.status}
+                          {lic.estado === 'vigente' ? 'Vigente'
+                            : lic.estado === 'prorrogada' ? 'Prorrogada'
+                            : lic.estado === 'vencida' ? 'Vencida'
+                            : lic.estado || 'Sin estado'}
                         </span>
                         {lic.fuente && (
                           <span className="px-2 py-0.5 rounded-full bg-blue-50 text-blue-600 text-xs font-bold">
@@ -260,10 +264,10 @@ const StatsPage = () => {
                 <div className="w-20 h-20 mx-auto mb-6 rounded-3xl bg-gray-100 flex items-center justify-center">
                   <span className="text-4xl">⭐</span>
                 </div>
-                <h3 className="text-xl font-black text-gray-900 mb-2">No tienes licitaciones guardadas</h3>
-                <p className="text-gray-500 mb-6">Guarda licitaciones haciendo clic en el ícono de marcador en la vista de detalle.</p>
-                <Link 
-                  to="/licitaciones" 
+                <h3 className="text-xl font-black text-gray-900 mb-2">No tenés licitaciones guardadas</h3>
+                <p className="text-gray-500 mb-6">Guardá licitaciones haciendo clic en el ícono de marcador en la vista de detalle.</p>
+                <Link
+                  to="/licitaciones"
                   className="inline-flex items-center gap-2 px-6 py-3 bg-blue-600 text-white rounded-2xl font-bold hover:bg-blue-700 transition-colors"
                 >
                   Explorar licitaciones
@@ -285,56 +289,49 @@ const StatsPage = () => {
   );
 };
 
-// Componente para métricas
 const MetricCard = ({ label, value, icon, gradient }) => (
   <div className={`bg-gradient-to-br ${gradient} rounded-3xl p-4 sm:p-6 text-white shadow-xl`}>
     <div className="flex items-start justify-between mb-3 sm:mb-4">
       <span className="text-2xl sm:text-4xl">{icon}</span>
     </div>
-    <p className="text-2xl sm:text-3xl lg:text-4xl font-black mb-1">{value.toLocaleString()}</p>
+    <p className="text-2xl sm:text-3xl lg:text-4xl font-black mb-1">{(value || 0).toLocaleString()}</p>
     <p className="text-white/80 font-medium text-sm">{label}</p>
   </div>
 );
 
-// Componente para gráficos de barras simples
-const StatCard = ({ title, data, colorScheme, statusLabels = false }) => {
-  const entries = Object.entries(data).sort((a, b) => b[1] - a[1]).slice(0, 6);
-  const max = Math.max(...entries.map(e => e[1]));
-  
+const StatCard = ({ title, data, colorScheme, labelMap = {} }) => {
+  const entries = Object.entries(data || {}).sort((a, b) => b[1] - a[1]).slice(0, 8);
+  const max = Math.max(...entries.map(e => e[1]), 1);
+
   const colors = {
     blue: { bar: 'bg-blue-500', bg: 'bg-blue-100', text: 'text-blue-600' },
     green: { bar: 'bg-emerald-500', bg: 'bg-emerald-100', text: 'text-emerald-600' },
-    purple: { bar: 'bg-purple-500', bg: 'bg-purple-100', text: 'text-purple-600' }
-  };
-  
-  const statusMap = {
-    active: 'Activa',
-    closed: 'Cerrada',
-    awarded: 'Adjudicada',
-    unknown: 'Desconocido'
+    purple: { bar: 'bg-purple-500', bg: 'bg-purple-100', text: 'text-purple-600' },
   };
 
   return (
     <div className="glass rounded-3xl p-4 sm:p-6 shadow-xl border border-white/40">
       <h3 className="text-base sm:text-lg font-black text-gray-900 mb-4 sm:mb-6">{title}</h3>
-      <div className="space-y-4">
-        {entries.map(([key, count]) => (
-          <div key={key}>
-            <div className="flex justify-between text-sm mb-1">
-              <span className="font-medium text-gray-700">
-                {statusLabels && statusMap[key] ? statusMap[key] : key}
-              </span>
-              <span className={`font-bold ${colors[colorScheme].text}`}>{count}</span>
+      {entries.length === 0 ? (
+        <p className="text-gray-400 text-sm">Sin datos</p>
+      ) : (
+        <div className="space-y-4">
+          {entries.map(([key, count]) => (
+            <div key={key}>
+              <div className="flex justify-between text-sm mb-1">
+                <span className="font-medium text-gray-700">{labelMap[key] || key}</span>
+                <span className={`font-bold ${colors[colorScheme].text}`}>{count}</span>
+              </div>
+              <div className={`h-3 rounded-full ${colors[colorScheme].bg} overflow-hidden`}>
+                <div
+                  className={`h-full rounded-full ${colors[colorScheme].bar} transition-all duration-500`}
+                  style={{ width: `${(count / max) * 100}%` }}
+                />
+              </div>
             </div>
-            <div className={`h-3 rounded-full ${colors[colorScheme].bg} overflow-hidden`}>
-              <div 
-                className={`h-full rounded-full ${colors[colorScheme].bar} transition-all duration-500`}
-                style={{ width: `${(count / max) * 100}%` }}
-              />
-            </div>
-          </div>
-        ))}
-      </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 };

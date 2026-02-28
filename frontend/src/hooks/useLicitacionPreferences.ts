@@ -33,22 +33,24 @@ export function useLicitacionPreferences() {
     fetch(`${backendUrl}/api/licitaciones/favorites`, { credentials: 'include' })
       .then(r => r.ok ? r.json() : Promise.reject())
       .then((serverIds: string[]) => {
-        if (serverIds.length > 0) {
-          setFavorites(prev => {
-            const merged = new Set(prev);
-            let changed = false;
-            for (const id of serverIds) {
-              if (!merged.has(id)) { merged.add(id); changed = true; }
+        // Always run sync regardless of server count (fixes chicken-and-egg:
+        // if MongoDB is empty, local favorites must still be pushed to server)
+        setFavorites(prev => {
+          const merged = new Set(prev);
+          let changed = false;
+          // Merge server favorites into local
+          for (const id of serverIds) {
+            if (!merged.has(id)) { merged.add(id); changed = true; }
+          }
+          // Push local-only favorites to server (initial sync)
+          const serverSet = new Set(serverIds);
+          Array.from(prev).forEach(id => {
+            if (!serverSet.has(id)) {
+              fetch(`${backendUrl}/api/licitaciones/favorites/${id}`, { method: 'POST', credentials: 'include' }).catch(() => {});
             }
-            // Push any local-only favorites to server
-            Array.from(prev).forEach(id => {
-              if (!serverIds.includes(id)) {
-                fetch(`${backendUrl}/api/licitaciones/favorites/${id}`, { method: 'POST', credentials: 'include' }).catch(() => {});
-              }
-            });
-            return changed ? merged : prev;
           });
-        }
+          return changed ? merged : prev;
+        });
       })
       .catch(() => {}); // Fallback to localStorage-only
   }, []); // eslint-disable-line

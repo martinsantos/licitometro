@@ -350,6 +350,13 @@ const FavoritosPage = () => {
                                   Fin consultas: {formatDate(fav.fecha_fin_consultas)}
                                 </span>
                               )}
+                              <a
+                                href="/cotizar"
+                                className="px-2 py-1 bg-emerald-50 text-emerald-700 text-xs font-bold rounded-lg hover:bg-emerald-100 transition-colors"
+                                title="Preparar oferta en CotizAR"
+                              >
+                                Cotizar →
+                              </a>
                             </div>
                           </div>
                         </div>
