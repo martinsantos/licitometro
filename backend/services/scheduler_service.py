@@ -19,7 +19,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from bson import ObjectId
-from pymongo import InsertOne, UpdateOne
+from pymongo import UpdateOne
 from motor.motor_asyncio import AsyncIOMotorDatabase
 from models.scraper_config import ScraperConfig
 from models.scraper_run import ScraperRun, ScraperRunCreate, ScraperRunUpdate
@@ -311,7 +311,22 @@ class SchedulerService:
                 is_ar_scope = getattr(config, 'scope', None) == "ar_nacional"
                 is_boletin = scraper_name.startswith("boletin")
 
-                # ── Bulk pre-load: fetch ALL existing records for this batch in ONE query ──
+                # Fields that must NEVER be overwritten by a re-scrape.
+                # workflow_state, workflow_history: user-managed business state
+                # first_seen_at, created_at: immutable timestamps
+                # id_licitacion: primary key
+                _SCRAPER_IMMUTABLE = frozenset({
+                    "workflow_state", "workflow_history",
+                    "first_seen_at", "created_at",
+                    "id_licitacion",
+                })
+
+                # ── Bulk pre-load ──────────────────────────────────────────────────────────
+                # existing_ids: tells us which items are already in DB so we can
+                #   (a) skip cross-source content-hash dedup for known items and
+                #   (b) decide whether to run inline enrichment (new items only)
+                # existing_hashes: cross-source dedup — same item from a different scraper
+                # boe_existing_numbers: BOE-specific gazette dedup
                 batch_ids = [i.id_licitacion for i in items if i.id_licitacion]
                 batch_hashes = [i.content_hash for i in items if i.content_hash]
 
@@ -362,10 +377,14 @@ class SchedulerService:
 
                 for item in items:
                     try:
-                        id_exists = item.id_licitacion in existing_ids
+                        # is_new_estimate: based on the pre-load snapshot.
+                        # Used to gate cross-source dedup and inline enrichment.
+                        # The actual DB write is an atomic upsert regardless.
+                        is_new_estimate = item.id_licitacion not in existing_ids
 
-                        # Content-hash dedup (new items only)
-                        if not id_exists and item.content_hash:
+                        # Content-hash dedup: skip if a DIFFERENT item already has this hash
+                        # (same licitación scraped by another source)
+                        if is_new_estimate and item.content_hash:
                             matched_id = existing_hashes.get(item.content_hash)
                             if matched_id and matched_id != item.id_licitacion:
                                 log(f"Skipped duplicate by content_hash: {item.id_licitacion} matches {matched_id}")
@@ -373,7 +392,7 @@ class SchedulerService:
                                 continue
 
                         # BOE-specific dedup (new items only)
-                        if not id_exists and is_boletin and item.licitacion_number:
+                        if is_new_estimate and is_boletin and item.licitacion_number:
                             if item.licitacion_number in boe_existing_numbers:
                                 log(f"Skipped BOE duplicate by licitacion_number: {item.id_licitacion}")
                                 duplicates_skipped += 1
@@ -390,7 +409,6 @@ class SchedulerService:
                         for url_field in ("source_url", "canonical_url"):
                             if item_data.get(url_field) is not None:
                                 item_data[url_field] = str(item_data[url_field])
-                        item_data["updated_at"] = now
 
                         # AR scope: add LIC_AR tag
                         if is_ar_scope:
@@ -406,19 +424,34 @@ class SchedulerService:
                             except Exception as nodo_err:
                                 log(f"Nodo matching failed for {item.id_licitacion}: {nodo_err}", "warning")
 
-                        if id_exists:
-                            items_updated += 1
-                            bulk_ops.append(UpdateOne(
-                                {"id_licitacion": item.id_licitacion},
-                                {"$set": item_data}
-                            ))
-                        else:
-                            item_data["created_at"] = now
-                            item_data["first_seen_at"] = now
-                            items_saved += 1
-                            bulk_ops.append(InsertOne(item_data))
+                        # ── Atomic upsert ─────────────────────────────────────────────────
+                        # $set:         mutable fields — always updated on each scrape
+                        # $setOnInsert: immutable fields — only written on first INSERT
+                        #
+                        # This prevents:
+                        # 1. workflow_state being reset to "descubierta" on every re-scrape
+                        # 2. first_seen_at changing (would break "Nuevas de hoy" filter)
+                        # 3. Race conditions between concurrent scrapers (atomic at DB level)
+                        mutable_data = {k: v for k, v in item_data.items()
+                                        if k not in _SCRAPER_IMMUTABLE}
+                        mutable_data["updated_at"] = now
 
-                            # Collect inline enrichment for new items
+                        bulk_ops.append(UpdateOne(
+                            {"id_licitacion": item.id_licitacion},
+                            {
+                                "$set": mutable_data,
+                                "$setOnInsert": {
+                                    "first_seen_at": now,
+                                    "created_at": now,
+                                    "workflow_state": "descubierta",
+                                    "workflow_history": [],
+                                },
+                            },
+                            upsert=True
+                        ))
+
+                        # Inline enrichment — only for items that appear to be new
+                        if is_new_estimate:
                             _inline_updates = {}
                             if not item_data.get("objeto"):
                                 obj = extract_objeto(
@@ -453,10 +486,12 @@ class SchedulerService:
                         })
                         items_duplicated += 1
 
-                # ── Execute bulk write (all inserts + updates in one round-trip) ──
+                # ── Execute bulk write (atomic upserts in one round-trip) ──────────────
                 if bulk_ops:
                     try:
-                        await licitaciones_collection.bulk_write(bulk_ops, ordered=False)
+                        bw_result = await licitaciones_collection.bulk_write(bulk_ops, ordered=False)
+                        items_saved = bw_result.upserted_count      # truly new documents
+                        items_updated = bw_result.modified_count     # existing documents updated
                     except Exception as bw_err:
                         log(f"Bulk write error: {bw_err}", "error")
 

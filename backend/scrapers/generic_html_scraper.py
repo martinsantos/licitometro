@@ -60,18 +60,36 @@ class GenericHtmlScraper(BaseScraper):
         text = self._extract_text(soup, selector)
         return parse_date_guess(text) if text else None
 
+    # Query parameters known to be dynamic/session-specific across sources
+    _DYNAMIC_QUERY_PARAMS = frozenset({
+        '_nonce', 'nonce', 'sid', 'session', 'sessionid', 'session_id',
+        'token', 'csrf', 'csrftoken', 'ts', 'timestamp', '_ts',
+        'rand', 'r', '_rand', '_r', '_t', 't', 'v', '_v',
+        'utm_source', 'utm_medium', 'utm_campaign', 'utm_content', 'utm_term',
+        'fbclid', 'gclid', 'msclkid',
+    })
+
+    def _normalize_url(self, url: str) -> str:
+        """Strip dynamic/session query params so the same item yields the same URL."""
+        from urllib.parse import urlparse, urlencode, parse_qs
+        parsed = urlparse(url)
+        if not parsed.query:
+            return url
+        stable = {k: v for k, v in parse_qs(parsed.query).items()
+                  if k.lower() not in self._DYNAMIC_QUERY_PARAMS}
+        return parsed._replace(query=urlencode(stable, doseq=True)).geturl()
+
     def _make_id(self, url: str, title: str) -> str:
+        stable_url = self._normalize_url(url)
         slug = re.sub(r"[^a-z0-9]+", "-", self.config.name.lower())[:20]
-        h = hashlib.md5(url.encode()).hexdigest()[:10]
+        h = hashlib.md5(stable_url.encode()).hexdigest()[:10]
         return f"{slug}:{h}"
 
-    def _content_hash(self, title: str, pub_date: Optional[datetime]) -> str:
-        # Use stable date component - if no pub_date, use "unknown" to prevent daily hash changes
-        if pub_date:
-            date_str = pub_date.strftime('%Y%m%d')
-        else:
-            date_str = "unknown"  # Stable fallback prevents re-indexing inflation
-        s = f"{(title or '').lower().strip()}|{self.config.name}|{date_str}"
+    def _content_hash(self, title: str, pub_date: Optional[datetime] = None) -> str:
+        # Only title + source name — date is too unstable to include
+        # (date may go from None→found or wrong→correct between scraping runs,
+        # which would break the cross-run dedup match)
+        s = f"{(title or '').lower().strip()}|{self.config.name}"
         return hashlib.md5(s.encode()).hexdigest()
 
     def _extract_date_from_meta_tags(self, soup, url: str) -> Optional[datetime]:
