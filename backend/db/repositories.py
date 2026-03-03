@@ -45,7 +45,21 @@ class LicitacionRepository:
         # id_licitacion, acting as a safety net even if app-level dedup logic
         # has a race condition or edge-case miss.
         # sparse=True means null/missing values are excluded from uniqueness enforcement.
-        await self.collection.create_index("id_licitacion", sparse=True, unique=True)
+        #
+        # Migration note: if the old non-unique sparse index exists, MongoDB raises
+        # IndexOptionsConflict. Drop it first so the unique version can be created.
+        try:
+            await self.collection.create_index("id_licitacion", sparse=True, unique=True)
+        except Exception:
+            # Likely IndexOptionsConflict: old non-unique index exists → drop and recreate
+            try:
+                await self.collection.drop_index([("id_licitacion", pymongo.ASCENDING)])
+                await self.collection.create_index("id_licitacion", sparse=True, unique=True)
+            except Exception as idx_err:
+                import logging as _logging
+                _logging.getLogger("repositories").warning(
+                    f"Could not create unique index on id_licitacion: {idx_err}"
+                )
         await self.collection.create_index("content_hash", sparse=True)
         # Compound indexes for common filter+sort combinations
         await self.collection.create_index([("fuente", pymongo.ASCENDING), ("publication_date", pymongo.DESCENDING)])
