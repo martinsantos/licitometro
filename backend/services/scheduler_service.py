@@ -20,6 +20,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from bson import ObjectId
 from pymongo import InsertOne, UpdateOne
+from pymongo.errors import BulkWriteError
 from motor.motor_asyncio import AsyncIOMotorDatabase
 from models.scraper_config import ScraperConfig
 from models.scraper_run import ScraperRun, ScraperRunCreate, ScraperRunUpdate
@@ -457,6 +458,18 @@ class SchedulerService:
                 if bulk_ops:
                     try:
                         await licitaciones_collection.bulk_write(bulk_ops, ordered=False)
+                    except BulkWriteError as bw_err:
+                        # With unique index on id_licitacion, concurrent scraper runs
+                        # may race and hit duplicate key errors (code 11000).
+                        # ordered=False means non-dup ops still succeed; just log the dups.
+                        dup_count = sum(1 for e in bw_err.details.get("writeErrors", []) if e.get("code") == 11000)
+                        other_errors = [e for e in bw_err.details.get("writeErrors", []) if e.get("code") != 11000]
+                        if dup_count:
+                            items_duplicated += dup_count
+                            items_saved -= dup_count
+                            log(f"Skipped {dup_count} duplicate(s) caught by unique index", "info")
+                        if other_errors:
+                            log(f"Bulk write errors (non-dup): {other_errors}", "error")
                     except Exception as bw_err:
                         log(f"Bulk write error: {bw_err}", "error")
 

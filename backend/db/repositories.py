@@ -40,10 +40,36 @@ class LicitacionRepository:
         await self.collection.create_index("first_seen_at")
         await self.collection.create_index("estado")
         await self.collection.create_index("tags")
-        # CRITICAL: dedup lookups in scheduler_service — every item queries these fields
-        # Non-unique sparse index: fast O(1) lookups without uniqueness enforcement
-        # (app-level dedup logic in scheduler_service handles duplicates already)
-        await self.collection.create_index("id_licitacion", sparse=True)
+        # CRITICAL: unique constraint prevents duplicate inserts at DB level
+        # sparse=True allows multiple docs without id_licitacion (legacy/null)
+        # App-level dedup in scheduler_service is the fast path; this is the safety net
+        # NOTE: create_index is a silent no-op if an index with the same key exists,
+        # even with different options. We must check and upgrade if needed.
+        indexes = await self.collection.index_information()
+        id_lic_idx = next(
+            ((name, info) for name, info in indexes.items()
+             if any(k[0] == "id_licitacion" for k in info.get("key", []))),
+            None
+        )
+        if id_lic_idx and not id_lic_idx[1].get("unique", False):
+            # Non-unique index exists — drop and recreate as unique
+            try:
+                await self.collection.drop_index(id_lic_idx[0])
+                await self.collection.create_index("id_licitacion", unique=True, sparse=True)
+            except Exception as idx_err:
+                # Unique index creation fails if duplicates still exist in DB.
+                # Fall back to non-unique; run migrate_unique_id_licitacion.py --cleanup --migrate
+                import logging
+                logging.getLogger("repositories").warning(
+                    f"Could not create unique index on id_licitacion (duplicates exist?): {idx_err}. "
+                    "Run: python scripts/migrate_unique_id_licitacion.py --cleanup --migrate"
+                )
+                await self.collection.create_index("id_licitacion", sparse=True)
+        elif not id_lic_idx:
+            try:
+                await self.collection.create_index("id_licitacion", unique=True, sparse=True)
+            except Exception:
+                await self.collection.create_index("id_licitacion", sparse=True)
         await self.collection.create_index("content_hash", sparse=True)
         # Compound indexes for common filter+sort combinations
         await self.collection.create_index([("fuente", pymongo.ASCENDING), ("publication_date", pymongo.DESCENDING)])
