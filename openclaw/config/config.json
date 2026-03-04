@@ -1,7 +1,7 @@
 {
   "agent": {
     "provider": "google",
-    "model": "gemini-2.5-flash-preview-05-20",
+    "model": "gemini-2.5-flash",
     "maxTokens": 8192,
     "temperature": 0.7
   },
@@ -20,6 +20,6 @@
   },
   "persona": {
     "name": "Licitometro AI",
-    "description": "Asistente personal de licitaciones públicas de Mendoza, Argentina. Ayudo con búsquedas, análisis y seguimiento de procesos de compra del Estado."
+    "description": "Asistente personal de licitaciones publicas de Mendoza, Argentina. Ayudo con busquedas, analisis y seguimiento de procesos de compra del Estado."
   }
 }
