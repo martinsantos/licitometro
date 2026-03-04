@@ -143,6 +143,51 @@ services:
         max-size: "10m"
         max-file: "3"
 
+  openclaw-gateway:
+    image: ghcr.io/openclaw/openclaw:latest
+    restart: unless-stopped
+    environment:
+      HOME: /home/node
+      TERM: xterm-256color
+      GEMINI_API_KEY: ${GEMINI_API_KEY:-}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      OPENCLAW_GATEWAY_TOKEN: ${OPENCLAW_GATEWAY_TOKEN:-}
+      OPENCLAW_TELEGRAM_BOT_TOKEN: ${OPENCLAW_TELEGRAM_BOT_TOKEN:-}
+      OPENCLAW_TELEGRAM_OWNER_ID: ${OPENCLAW_TELEGRAM_OWNER_ID:-}
+    volumes:
+      - openclaw_config:/home/node/.openclaw
+      - ./openclaw/config/config.json:/home/node/.openclaw/config.json:ro
+      - openclaw_workspace:/home/node/.openclaw/workspace
+    networks:
+      - internal
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+    command:
+      - "node"
+      - "dist/index.js"
+      - "gateway"
+      - "--bind"
+      - "lan"
+      - "--port"
+      - "18789"
+    healthcheck:
+      test:
+        - "CMD"
+        - "node"
+        - "-e"
+        - "fetch('http://127.0.0.1:18789/healthz').then((r)=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"
+      interval: 30s
+      timeout: 5s
+      retries: 5
+      start_period: 60s
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
   certbot:
     image: certbot/certbot
     volumes:
@@ -176,6 +221,12 @@ volumes:
     external: false
   cotizar_bids:
     name: licitometro_cotizar_bids
+    external: false
+  openclaw_config:
+    name: licitometro_openclaw_config
+    external: false
+  openclaw_workspace:
+    name: licitometro_openclaw_workspace
     external: false
   certbot_webroot:
   certbot_certs:
