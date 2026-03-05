@@ -8,14 +8,15 @@
     "provider": "google",
     "model": "gemini-2.5-flash",
     "maxTokens": 8192,
-    "temperature": 0.7
+    "temperature": 0.7,
+    "workspace": "/opt/openclaw/workspace"
   },
   "channels": {
     "telegram": {
       "enabled": true,
-      "botToken": "${OPENCLAW_TELEGRAM_BOT_TOKEN}",
+      "botToken": "${BOT_TOKEN}",
       "dmPolicy": "allowlist",
-      "allowFrom": ["${OPENCLAW_TELEGRAM_OWNER_ID}"],
+      "allowFrom": ["${OWNER_ID}"],
       "groups": {
         "*": {
           "requireMention": true
@@ -23,8 +24,17 @@
       }
     }
   },
+  "mcpServers": {
+    "licitometro": {
+      "command": "node",
+      "args": ["/opt/openclaw/mcp-licitometro/index.js"],
+      "env": {
+        "LICITOMETRO_API_URL": "http://127.0.0.1:8000/api"
+      }
+    }
+  },
   "persona": {
-    "name": "Licitometro AI",
-    "description": "Asistente personal de licitaciones publicas de Mendoza, Argentina. Ayudo con busquedas, analisis y seguimiento de procesos de compra del Estado."
+    "name": "Licitobot",
+    "description": "Asistente inteligente de licitaciones publicas de Mendoza, Argentina. Busco, analizo y te ayudo con procesos de compra del Estado."
   }
 }

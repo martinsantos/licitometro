@@ -1,0 +1,13 @@
+{
+  "name": "mcp-licitometro",
+  "version": "1.0.0",
+  "description": "MCP server that exposes Licitometro API as tools for OpenClaw",
+  "type": "module",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.25.0"
+  }
+}
