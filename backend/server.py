@@ -98,8 +98,8 @@ async def auth_middleware(request: Request, call_next):
     if not path.startswith("/api") or path in AUTH_EXEMPT_PATHS or path.startswith("/api/public/"):
         return await call_next(request)
 
-    # Allow public GET access to licitaciones endpoints (both main and AR)
-    if request.method == "GET" and (path.startswith("/api/licitaciones") or path.startswith("/api/licitaciones-ar")):
+    # Allow public GET access to licitaciones, nodos, and AR endpoints
+    if request.method == "GET" and (path.startswith("/api/licitaciones") or path.startswith("/api/licitaciones-ar") or path.startswith("/api/nodos")):
         return await call_next(request)
 
     token = request.cookies.get("access_token")

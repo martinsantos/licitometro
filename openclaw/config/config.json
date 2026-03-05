@@ -29,7 +29,7 @@
       "command": "node",
       "args": ["/opt/openclaw/mcp-licitometro/index.js"],
       "env": {
-        "LICITOMETRO_API_URL": "http://127.0.0.1:8000/api"
+        "LICITOMETRO_API_URL": "http://127.0.0.1/api"
       }
     }
   },
