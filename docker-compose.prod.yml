@@ -144,7 +144,10 @@ services:
         max-file: "3"
 
   openclaw-gateway:
-    image: ghcr.io/openclaw/openclaw:latest
+    build:
+      context: ./openclaw
+      dockerfile: Dockerfile
+    image: licitometro/openclaw-gateway:latest
     restart: unless-stopped
     environment:
       HOME: /home/node
@@ -165,8 +168,6 @@ services:
         limits:
           memory: 512M
     command:
-      - "node"
-      - "dist/index.js"
       - "gateway"
       - "--bind"
       - "lan"

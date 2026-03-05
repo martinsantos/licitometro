@@ -71,15 +71,15 @@ fi
 echo "✅ All prerequisites met"
 echo ""
 
-# Pull the OpenClaw image
-echo "Step 1/3: Pulling OpenClaw Docker image..."
-docker compose -f "$COMPOSE_FILE" pull openclaw-gateway
+# Build the OpenClaw image
+echo "Step 1/3: Building OpenClaw Docker image..."
+docker compose -f "$COMPOSE_FILE" build openclaw-gateway
 
 if [ $? -ne 0 ]; then
-    echo "❌ Failed to pull OpenClaw image"
+    echo "❌ Failed to build OpenClaw image"
     exit 1
 fi
-echo "✅ Image pulled successfully"
+echo "✅ Image built successfully"
 echo ""
 
 # Start the gateway
