@@ -159,7 +159,7 @@ services:
       OPENCLAW_TELEGRAM_OWNER_ID: ${OPENCLAW_TELEGRAM_OWNER_ID:-}
     volumes:
       - openclaw_config:/home/node/.openclaw
-      - ./openclaw/config/config.json:/home/node/.openclaw/config.json:ro
+      - ./openclaw/config/config.json:/home/node/config.template.json:ro
       - openclaw_workspace:/home/node/.openclaw/workspace
     networks:
       - internal
