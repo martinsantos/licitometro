@@ -18,6 +18,11 @@ if [ -z "$BOT_TOKEN" ]; then
     exit 1
 fi
 
+if [ -z "$GEMINI_API_KEY" ]; then
+    echo "WARNING: GEMINI_API_KEY not set - bot will not be able to respond to messages"
+    echo "Get one at: https://aistudio.google.com/apikeys"
+fi
+
 # Generate config from template with env vars substituted
 TEMPLATE="$REPO_DIR/openclaw/config/config.json"
 if [ -f "$TEMPLATE" ]; then

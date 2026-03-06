@@ -68,7 +68,12 @@ if [ -z "$OPENCLAW_TELEGRAM_OWNER_ID" ]; then
     echo "✗ No Telegram owner ID found (set OPENCLAW_TELEGRAM_OWNER_ID or TELEGRAM_CHAT_ID in .env)"
     exit 1
 fi
+if [ -z "$GEMINI_API_KEY" ]; then
+    echo "✗ No GEMINI_API_KEY found. Get one at: https://aistudio.google.com/apikeys"
+    exit 1
+fi
 echo "✓ Telegram credentials found"
+echo "✓ Gemini API key found"
 
 # 4. Create directories
 mkdir -p "$CONFIG_DIR" "$WORKSPACE_DIR" "$MCP_DIR"
