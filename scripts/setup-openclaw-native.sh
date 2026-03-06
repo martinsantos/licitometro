@@ -103,7 +103,12 @@ sed \
 
 echo "✓ Config generated at $CONFIG_DIR/config.json"
 
-# 8. Create systemd service
+# 8. Copy prestart script
+cp "$REPO_DIR/scripts/openclaw-prestart.sh" "$INSTALL_DIR/prestart.sh"
+chmod +x "$INSTALL_DIR/prestart.sh"
+echo "✓ Prestart script installed"
+
+# 9. Create systemd service
 NODE_DIR="$(dirname $NODE_BIN)"
 cat > /etc/systemd/system/openclaw.service << UNIT
 [Unit]
@@ -113,7 +118,7 @@ Wants=network-online.target
 
 [Service]
 Type=simple
-ExecStartPre=/bin/bash -c 'sed -e "s|\\\${BOT_TOKEN}|\${OPENCLAW_TELEGRAM_BOT_TOKEN:-\${TELEGRAM_BOT_TOKEN}}|g" -e "s|\\\${OWNER_ID}|\${OPENCLAW_TELEGRAM_OWNER_ID:-\${TELEGRAM_CHAT_ID}}|g" $REPO_DIR/openclaw/config/config.json > $CONFIG_DIR/config.json && cp $REPO_DIR/openclaw/workspace/SOUL.md $WORKSPACE_DIR/SOUL.md 2>/dev/null; cp $REPO_DIR/openclaw/mcp-licitometro/index.js $MCP_DIR/index.js 2>/dev/null; true'
+ExecStartPre=${INSTALL_DIR}/prestart.sh
 ExecStart=${NODE_BIN} ${OPENCLAW_BIN} gateway --bind lan --port 18789
 WorkingDirectory=${WORKSPACE_DIR}
 Environment=HOME=${INSTALL_DIR}
@@ -129,11 +134,11 @@ UNIT
 
 echo "✓ Systemd service created"
 
-# 9. Symlink config where openclaw expects it
+# 10. Symlink config where openclaw expects it
 mkdir -p "$INSTALL_DIR/.openclaw" 2>/dev/null || true
 ln -sf "$CONFIG_DIR/config.json" "$INSTALL_DIR/.openclaw/config.json"
 
-# 10. Enable and start
+# 11. Enable and start
 systemctl daemon-reload
 systemctl enable openclaw
 systemctl restart openclaw
@@ -147,7 +152,7 @@ echo "Restart: systemctl restart openclaw"
 echo "Stop:    systemctl stop openclaw"
 echo ""
 
-# 11. Quick health check
+# 12. Quick health check
 sleep 3
 if systemctl is-active --quiet openclaw; then
     echo "✓ OpenClaw is running!"
