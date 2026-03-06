@@ -15,7 +15,7 @@
     "telegram": {
       "enabled": true,
       "botToken": "${BOT_TOKEN}",
-      "dmPolicy": "allowlist",
+      "dmPolicy": "pairing",
       "allowFrom": ["${OWNER_ID}"],
       "groups": {
         "*": {
