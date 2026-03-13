@@ -61,21 +61,16 @@ const LicitacionesList = ({
   const [mobileFiltersOpen, setMobileFiltersOpen] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
 
-  // Hooks
+  // Hooks - pass ALL overrides at init time to avoid race conditions with first fetch
+  const filterOverrides = useMemo(() => {
+    const o: Partial<FilterState> = {};
+    if (defaultJurisdiccionMode) o.jurisdiccionMode = defaultJurisdiccionMode;
+    if (defaultYear) o.yearWorkspace = defaultYear;
+    return Object.keys(o).length > 0 ? o : undefined;
+  }, []);
   const { filters, setFilter, setMany, clearAll, hasActiveFilters, activeFilterCount } = useLicitacionFilters(
-    defaultJurisdiccionMode ? { jurisdiccionMode: defaultJurisdiccionMode } : undefined
+    filterOverrides
   );
-
-  // Override yearWorkspace on mount when defaultYear is provided (e.g., AR page uses 'all')
-  const hasAppliedDefaultYear = useRef(false);
-  useEffect(() => {
-    if (defaultYear && !hasAppliedDefaultYear.current) {
-      hasAppliedDefaultYear.current = true;
-      if (filters.yearWorkspace !== defaultYear) {
-        setFilter('yearWorkspace', defaultYear);
-      }
-    }
-  }, [defaultYear, filters.yearWorkspace, setFilter]);
   const prefs = useLicitacionPreferences();
   const filterOptions = useFilterOptions(apiUrl, filters.jurisdiccionMode);
 
