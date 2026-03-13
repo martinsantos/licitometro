@@ -1,0 +1,122 @@
+[
+  {
+    "identifier": "ar-comprar-01",
+    "title": "COMPR.AR - Portal de Compras Públicas",
+    "description": "Sistema electrónico de contratación de bienes y servicios de la Administración Pública Nacional.",
+    "publisher": "Oficina Nacional de Contrataciones",
+    "url": "https://comprar.gob.ar/",
+    "categories": ["Bienes", "Servicios"],
+    "formats": ["HTML", "PDF"],
+    "api_publica": "no"
+  },
+  {
+    "identifier": "ar-contratar-01",
+    "title": "CONTRAT.AR - Obra Pública",
+    "description": "Portal electrónico de contratación y ejecución de obras públicas nacionales.",
+    "publisher": "Oficina Nacional de Contrataciones",
+    "url": "https://contratar.gob.ar/",
+    "categories": ["Obra Pública", "Consultoría"],
+    "formats": ["HTML", "PDF"],
+    "api_publica": "no"
+  },
+  {
+    "identifier": "ar-datos-ckan",
+    "title": "Datos Argentina - API CKAN",
+    "description": "Catálogo de datos abiertos que permite acceso programático a datasets de contrataciones mediante package_show y datastore_search.",
+    "publisher": "Subsecretaría de Tecnologías de la Información",
+    "url": "https://www.datos.gob.ar/",
+    "categories": ["Datos Abiertos", "APIs"],
+    "formats": ["JSON", "CSV", "HTML"],
+    "api_publica": "sí"
+  },
+  {
+    "identifier": "ar-pami-01",
+    "title": "Portal de Prestadores PAMI",
+    "description": "Licitaciones y compulsas abreviadas para insumos médicos y servicios de salud del INSSJP.",
+    "publisher": "INSSJP",
+    "url": "https://prestadores.pami.org.ar/index.php?c=compras&s=licitaciones",
+    "categories": ["Salud", "Insumos Médicos"],
+    "formats": ["HTML", "PDF"],
+    "api_publica": "no"
+  },
+  {
+    "identifier": "ar-mpf-01",
+    "title": "Procuración General de la Nación - Contrataciones",
+    "description": "Portal de licitaciones y concursos de precios del Ministerio Público Fiscal.",
+    "publisher": "Ministerio Público Fiscal de la Nación",
+    "url": "https://www.mpf.gob.ar/licitaciones/",
+    "categories": ["Justicia", "Suministros"],
+    "formats": ["HTML", "PDF"],
+    "api_publica": "no"
+  },
+  {
+    "identifier": "ar-pjn-01",
+    "title": "Poder Judicial de la Nación - Licitaciones",
+    "description": "Sistema de gestión de contrataciones del Consejo de la Magistratura y el PJN.",
+    "publisher": "Poder Judicial de la Nación",
+    "url": "https://scv.pjn.gov.ar/contrataciones.php",
+    "categories": ["Justicia", "Infraestructura"],
+    "formats": ["HTML", "PDF"],
+    "api_publica": "no"
+  },
+  {
+    "identifier": "ar-cin-01",
+    "title": "Portal de Compras Universidades Nacionales (CIN)",
+    "description": "Centralización de procesos de compra y gestión de las Universidades Públicas Argentinas mediante sistema SIU-Diaguita.",
+    "publisher": "Consejo Interuniversitario Nacional",
+    "url": "https://compras.cin.edu.ar/",
+    "categories": ["Educación", "Ciencia"],
+    "formats": ["HTML"],
+    "api_publica": "no"
+  },
+  {
+    "identifier": "ar-mendoza-01",
+    "title": "COMPRAR Mendoza",
+    "description": "Portal de compras públicas de la Provincia de Mendoza. Incluye buscador de licitaciones de apertura próxima.",
+    "publisher": "Gobierno de Mendoza",
+    "url": "https://comprar.mendoza.gov.ar/",
+    "categories": ["Provincial", "Mendoza"],
+    "formats": ["HTML", "PDF"],
+    "api_publica": "no"
+  },
+  {
+    "identifier": "ar-mendoza-ocds",
+    "title": "Contrataciones Abiertas Mendoza (API)",
+    "description": "Endpoint de descarga de procesos bajo estándar OCDS por método y año.",
+    "publisher": "Gobierno de Mendoza",
+    "url": "https://datosabiertos-compras.mendoza.gov.ar/",
+    "categories": ["Mendoza", "OCDS"],
+    "formats": ["JSON", "HTML"],
+    "api_publica": "sí"
+  },
+  {
+    "identifier": "ar-santafe-01",
+    "title": "Provincia de Santa Fe - Portal de Compras",
+    "description": "Cartelera de licitaciones que ofrece, de forma distintiva, un canal RSS para la sección de compras.",
+    "publisher": "Gobierno de Santa Fe",
+    "url": "https://www.santafe.gov.ar/index.php/guia/portal_compras",
+    "categories": ["Provincial", "Santa Fe"],
+    "formats": ["HTML", "PDF", "RSS"],
+    "api_publica": "no"
+  },
+  {
+    "identifier": "ar-bo-01",
+    "title": "Boletín Oficial - Tercera Sección",
+    "description": "Publicación oficial diaria de edictos de convocatorias y contrataciones nacionales.",
+    "publisher": "Estado Nacional",
+    "url": "https://www.boletinoficial.gob.ar/seccion/tercera",
+    "categories": ["Legal", "Nacional"],
+    "formats": ["HTML", "PDF"],
+    "api_publica": "no"
+  },
+  {
+    "identifier": "int-bm-01",
+    "title": "Banco Mundial - Procurement Notices API",
+    "description": "API para captar avisos de adquisiciones en proyectos financiados por el Banco Mundial.",
+    "publisher": "World Bank Group",
+    "url": "https://search.worldbank.org/api/v2/procnotices",
+    "categories": ["Internacional", "Financiamiento"],
+    "formats": ["JSON", "XML"],
+    "api_publica": "sí"
+  }
+]
