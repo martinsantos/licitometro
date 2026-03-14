@@ -97,12 +97,22 @@ if [ ! -f "$TEMPLATE" ]; then
 fi
 
 # Substitute env vars + fix MCP paths for native (non-Docker) install
-sed \
-    -e "s|\${BOT_TOKEN}|${OPENCLAW_TELEGRAM_BOT_TOKEN}|g" \
-    -e "s|\${OWNER_ID}|${OPENCLAW_TELEGRAM_OWNER_ID}|g" \
-    -e "s|/home/node/mcp-licitometro/index.js|${MCP_DIR}/index.js|g" \
-    -e "s|http://backend:8000/api|http://127.0.0.1/api|g" \
-    "$TEMPLATE" > "$CONFIG_DIR/openclaw.json"
+# Using Python to handle special chars in tokens (e.g. ':') that break sed
+BOT_TOKEN_VAL="$OPENCLAW_TELEGRAM_BOT_TOKEN"
+OWNER_ID_VAL="$OPENCLAW_TELEGRAM_OWNER_ID"
+MCP_PATH="$MCP_DIR/index.js"
+
+python3 - "$TEMPLATE" "$CONFIG_DIR/openclaw.json" \
+    "$BOT_TOKEN_VAL" "$OWNER_ID_VAL" "$MCP_PATH" << 'PYEOF'
+import sys
+template_path, output_path, bot_token, owner_id, mcp_path = sys.argv[1:]
+content = open(template_path).read()
+content = content.replace('${BOT_TOKEN}', bot_token)
+content = content.replace('${OWNER_ID}', owner_id)
+content = content.replace('/home/node/mcp-licitometro/index.js', mcp_path)
+content = content.replace('http://backend:8000/api', 'http://127.0.0.1/api')
+open(output_path, 'w').write(content)
+PYEOF
 
 echo "✓ Config generated at $CONFIG_DIR/openclaw.json"
 
@@ -116,7 +126,7 @@ Wants=network-online.target
 
 [Service]
 Type=simple
-ExecStartPre=/bin/bash -c 'sed -e "s|\\\${BOT_TOKEN}|\${OPENCLAW_TELEGRAM_BOT_TOKEN:-\${TELEGRAM_BOT_TOKEN}}|g" -e "s|\\\${OWNER_ID}|\${OPENCLAW_TELEGRAM_OWNER_ID:-\${TELEGRAM_CHAT_ID}}|g" -e "s|/home/node/mcp-licitometro/index.js|${MCP_DIR}/index.js|g" -e "s|http://backend:8000/api|http://127.0.0.1/api|g" $REPO_DIR/openclaw/config/config.json > $CONFIG_DIR/openclaw.json && cp $REPO_DIR/openclaw/workspace/SOUL.md $WORKSPACE_DIR/SOUL.md 2>/dev/null; cp $REPO_DIR/openclaw/mcp-licitometro/index.js $MCP_DIR/index.js 2>/dev/null; true'
+ExecStartPre=/bin/true
 ExecStart=${NODE_BIN} ${OPENCLAW_BIN} gateway --bind lan --port 18789
 WorkingDirectory=${WORKSPACE_DIR}
 Environment=HOME=${INSTALL_DIR}
