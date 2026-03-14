@@ -89,19 +89,22 @@ if [ -f "$REPO_DIR/openclaw/mcp-licitometro/package.json" ]; then
     cd "$REPO_DIR"
 fi
 
-# 7. Generate config.json with env vars substituted
+# 7. Generate openclaw.json with env vars substituted
 TEMPLATE="$REPO_DIR/openclaw/config/config.json"
 if [ ! -f "$TEMPLATE" ]; then
     echo "✗ Config template not found at $TEMPLATE"
     exit 1
 fi
 
+# Substitute env vars + fix MCP paths for native (non-Docker) install
 sed \
     -e "s|\${BOT_TOKEN}|${OPENCLAW_TELEGRAM_BOT_TOKEN}|g" \
     -e "s|\${OWNER_ID}|${OPENCLAW_TELEGRAM_OWNER_ID}|g" \
-    "$TEMPLATE" > "$CONFIG_DIR/config.json"
+    -e "s|/home/node/mcp-licitometro/index.js|${MCP_DIR}/index.js|g" \
+    -e "s|http://backend:8000/api|http://127.0.0.1/api|g" \
+    "$TEMPLATE" > "$CONFIG_DIR/openclaw.json"
 
-echo "✓ Config generated at $CONFIG_DIR/config.json"
+echo "✓ Config generated at $CONFIG_DIR/openclaw.json"
 
 # 8. Create systemd service
 NODE_DIR="$(dirname $NODE_BIN)"
@@ -113,7 +116,7 @@ Wants=network-online.target
 
 [Service]
 Type=simple
-ExecStartPre=/bin/bash -c 'sed -e "s|\\\${BOT_TOKEN}|\${OPENCLAW_TELEGRAM_BOT_TOKEN:-\${TELEGRAM_BOT_TOKEN}}|g" -e "s|\\\${OWNER_ID}|\${OPENCLAW_TELEGRAM_OWNER_ID:-\${TELEGRAM_CHAT_ID}}|g" $REPO_DIR/openclaw/config/config.json > $CONFIG_DIR/config.json && cp $REPO_DIR/openclaw/workspace/SOUL.md $WORKSPACE_DIR/SOUL.md 2>/dev/null; cp $REPO_DIR/openclaw/mcp-licitometro/index.js $MCP_DIR/index.js 2>/dev/null; true'
+ExecStartPre=/bin/bash -c 'sed -e "s|\\\${BOT_TOKEN}|\${OPENCLAW_TELEGRAM_BOT_TOKEN:-\${TELEGRAM_BOT_TOKEN}}|g" -e "s|\\\${OWNER_ID}|\${OPENCLAW_TELEGRAM_OWNER_ID:-\${TELEGRAM_CHAT_ID}}|g" -e "s|/home/node/mcp-licitometro/index.js|${MCP_DIR}/index.js|g" -e "s|http://backend:8000/api|http://127.0.0.1/api|g" $REPO_DIR/openclaw/config/config.json > $CONFIG_DIR/openclaw.json && cp $REPO_DIR/openclaw/workspace/SOUL.md $WORKSPACE_DIR/SOUL.md 2>/dev/null; cp $REPO_DIR/openclaw/mcp-licitometro/index.js $MCP_DIR/index.js 2>/dev/null; true'
 ExecStart=${NODE_BIN} ${OPENCLAW_BIN} gateway --bind lan --port 18789
 WorkingDirectory=${WORKSPACE_DIR}
 Environment=HOME=${INSTALL_DIR}
@@ -131,7 +134,7 @@ echo "✓ Systemd service created"
 
 # 9. Symlink config where openclaw expects it
 mkdir -p "$INSTALL_DIR/.openclaw" 2>/dev/null || true
-ln -sf "$CONFIG_DIR/config.json" "$INSTALL_DIR/.openclaw/config.json"
+ln -sf "$CONFIG_DIR/openclaw.json" "$INSTALL_DIR/.openclaw/openclaw.json"
 
 # 10. Enable and start
 systemctl daemon-reload

@@ -1,15 +1,14 @@
 {
   "gateway": {
-    "mode": "local",
     "port": 18789,
-    "bind": "0.0.0.0"
+    "mode": "local",
+    "bind": "lan"
   },
-  "agent": {
-    "provider": "google",
-    "model": "gemini-2.5-flash",
-    "maxTokens": 8192,
-    "temperature": 0.7,
-    "workspace": "/opt/openclaw/workspace"
+  "agents": {
+    "defaults": {
+      "model": "google:gemini-2.5-flash",
+      "maxTokens": 8192
+    }
   },
   "channels": {
     "telegram": {
@@ -27,14 +26,10 @@
   "mcpServers": {
     "licitometro": {
       "command": "node",
-      "args": ["/opt/openclaw/mcp-licitometro/index.js"],
+      "args": ["/home/node/mcp-licitometro/index.js"],
       "env": {
-        "LICITOMETRO_API_URL": "http://127.0.0.1/api"
+        "LICITOMETRO_API_URL": "http://backend:8000/api"
       }
     }
-  },
-  "persona": {
-    "name": "Licitobot",
-    "description": "Asistente inteligente de licitaciones publicas de Mendoza, Argentina. Busco, analizo y te ayudo con procesos de compra del Estado."
   }
 }

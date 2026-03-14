@@ -2,7 +2,7 @@
 set -e
 
 CONFIG_TEMPLATE="/home/node/config.template.json"
-CONFIG_TARGET="/home/node/.openclaw/config.json"
+CONFIG_TARGET="/home/node/.openclaw/openclaw.json"
 
 # Ensure .openclaw directory is writable by node user
 chown -R node:node /home/node/.openclaw 2>/dev/null || true
