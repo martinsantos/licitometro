@@ -6,8 +6,7 @@
   },
   "agents": {
     "defaults": {
-      "model": "google:gemini-2.5-flash",
-      "maxTokens": 8192
+      "model": "google:gemini-2.5-flash"
     }
   },
   "channels": {
@@ -20,15 +19,6 @@
         "*": {
           "requireMention": true
         }
-      }
-    }
-  },
-  "mcpServers": {
-    "licitometro": {
-      "command": "node",
-      "args": ["/home/node/mcp-licitometro/index.js"],
-      "env": {
-        "LICITOMETRO_API_URL": "http://backend:8000/api"
       }
     }
   }
