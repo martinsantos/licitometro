@@ -105,7 +105,10 @@ async def _get_licitaciones_impl(
             status = parsed["status"]
         if not organization and parsed.get("organization"):
             organization = parsed["organization"]
-        if not category and parsed.get("category"):
+        # Only apply auto-category when query was fully consumed (no remaining text).
+        # If there's still text to search, skip auto-category to avoid over-filtering
+        # on mismatched category values (e.g. "obras electricas" → CONSTRUCCIONES ≠ DB value).
+        if not category and parsed.get("category") and not parsed.get("text", ""):
             category = parsed["category"]
         if not fuente and parsed.get("fuente"):
             # Fuente from smart parser is a partial name; use regex match
@@ -165,13 +168,17 @@ async def _get_licitaciones_impl(
                 field = fecha_campo if fecha_campo in ["publication_date", "opening_date", "created_at", "fecha_scraping"] else "publication_date"
                 extra_filters[field] = date_filter
 
-        if search_text:
-            items = await repo.search(search_text, skip=skip, limit=size,
+        # If smart parser consumed all text into filters but q was provided,
+        # use the original query as text search too (prevents 0 results)
+        effective_search = search_text or q
+
+        if effective_search:
+            items = await repo.search(effective_search, skip=skip, limit=size,
                                        sort_by=sort_by, sort_order=order_val,
                                        extra_filters=extra_filters)
-            total_items = await repo.search_count(search_text, extra_filters=extra_filters)
+            total_items = await repo.search_count(effective_search, extra_filters=extra_filters)
         else:
-            # Smart query consumed all text into filters — no text search needed
+            # No text search needed (q was None)
             items = await repo.get_all(skip=skip, limit=size, filters=extra_filters,
                                         sort_by=sort_by, sort_order=order_val,
                                         nulls_last=sort_by in ["opening_date", "fecha_scraping", "budget"])

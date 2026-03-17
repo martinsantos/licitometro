@@ -22,7 +22,6 @@ const AdminPage = lazy(() => import("./pages/AdminPage"));
 const ScraperFormPage = lazy(() => import("./pages/ScraperFormPage"));
 const OfferTemplatesPage = lazy(() => import("./pages/OfferTemplatesPage"));
 const NodosPage = lazy(() => import("./pages/NodosPage"));
-const LicitacionesARPage = lazy(() => import("./pages/LicitacionesARPage"));
 const PublicLicitacionPage = lazy(() => import("./pages/PublicLicitacionPage"));
 const PublicListPage = lazy(() => import("./pages/PublicListPage"));
 const CotizarPage = lazy(() => import("./pages/CotizarPage"));

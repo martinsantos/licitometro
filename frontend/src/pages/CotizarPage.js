@@ -1,15 +1,15 @@
 import React, { useState, useRef } from "react";
 
 /**
- * CotizarPage — embeds the cotizar app from github.com/martinsantos/cotizar
- * Served as GitHub Pages at https://martinsantos.github.io/cotizar
+ * CotizarPage — embeds the cotizar app served via Docker (cotizar-api service)
+ * Proxied by nginx at /cotizar → cotizar-api:3000
  *
  * Handles three states:
  *  - loading: spinner while iframe fetches
  *  - loaded: iframe visible, no overlay
- *  - error: fallback message with external link (GitHub Pages may block iframes via CSP)
+ *  - error: fallback message if service is unavailable
  */
-const COTIZAR_URL = "https://martinsantos.github.io/cotizar";
+const COTIZAR_URL = "/cotizar";
 
 export default function CotizarPage() {
   const [status, setStatus] = useState("loading"); // "loading" | "loaded" | "error"
@@ -61,8 +61,8 @@ export default function CotizarPage() {
           <div className="text-4xl">🚧</div>
           <h2 className="text-lg font-semibold text-gray-700">Cotizador no disponible</h2>
           <p className="text-sm text-gray-500 max-w-md">
-            La aplicación de cotización no pudo cargarse aquí. Esto ocurre cuando
-            GitHub Pages bloquea el embed por política de seguridad (CSP / X-Frame-Options).
+            La aplicación de cotización no pudo cargarse. El servicio puede estar
+            temporalmente no disponible.
           </p>
           <a
             href={COTIZAR_URL}
