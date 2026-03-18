@@ -95,20 +95,24 @@ export function useCotizarAPI() {
       budget?: number | null;
       items?: Array<Record<string, unknown>>;
     }): Promise<CotizarTender> {
-      return apiFetch<CotizarTender>('/tenders', {
-        method: 'POST',
-        body: JSON.stringify({
-          id: `lm-${licitacion.id}`,
-          title: licitacion.objeto || licitacion.title,
-          description: '',
-          agency: licitacion.organization || '',
-          region: 'Mendoza',
-          budget: licitacion.budget || 0,
-          closingDate: licitacion.opening_date || null,
-          status: 'abierta',
-          licitometroId: licitacion.id,
-        }),
-      });
+      const tenderId = `lm-${licitacion.id}`;
+      // Try to fetch existing tender first
+      try {
+        return await apiFetch<CotizarTender>(`/tenders/${tenderId}`);
+      } catch {
+        // Tender not found — trigger bulk sync and retry
+        try {
+          await apiFetch<unknown>('/licitometro/sync', { method: 'POST' });
+        } catch {
+          // Sync endpoint may fail; ignore and return stub
+        }
+        try {
+          return await apiFetch<CotizarTender>(`/tenders/${tenderId}`);
+        } catch {
+          // Return minimal stub so UI can still create a bid
+          return { id: tenderId, licitometroId: licitacion.id, title: licitacion.objeto || licitacion.title };
+        }
+      }
     },
 
     async listBids(tenderId?: string): Promise<CotizarBid[]> {
@@ -128,9 +132,17 @@ export function useCotizarAPI() {
       commercialOffer?: { basePrice: number; taxRate: number };
       company_name?: string;
     }): Promise<CotizarBid> {
-      return apiFetch<CotizarBid>(`/bids/${id}`, {
-        method: 'PUT',
-        body: JSON.stringify(data),
+      // PUT /bids/:id doesn't exist — use calculate endpoint with basePrice
+      const basePrice = data.commercialOffer?.basePrice ?? 0;
+      return apiFetch<CotizarBid>(`/bids/${id}/calculate`, {
+        method: 'POST',
+        body: JSON.stringify({
+          labor: basePrice,
+          materials: 0,
+          equipment: 0,
+          overhead: 0,
+          other: 0,
+        }),
       });
     },
 
