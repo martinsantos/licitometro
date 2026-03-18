@@ -125,6 +125,7 @@ services:
       - LOG_LEVEL=info
     volumes:
       - cotizar_bids:/app/bids
+      - ./cotizar-patches/index.html:/app/public/index.html:ro
     networks:
       - internal
     deploy:

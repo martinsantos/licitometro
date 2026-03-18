@@ -383,12 +383,16 @@ function FavoritosTab({
 // ── Home: 3-tab selector ──────────────────────────────────────────────────────
 function CotizarHome({ onSelect }: { onSelect: (id: string) => void }) {
   const api = useCotizarAPI();
-  const [tab, setTab] = useState<'cotizaciones' | 'activas' | 'favoritos'>('cotizaciones');
+  const [tab, setTab] = useState<'cotizaciones' | 'activas' | 'favoritos'>('favoritos');
   const [bids, setBids] = useState<CotizarBid[]>([]);
 
   // Load bids once to mark which licitaciones are in-progress
+  // If there are active bids, switch default tab to cotizaciones
   useEffect(() => {
-    api.listBids().then(setBids).catch(() => {});
+    api.listBids().then(bs => {
+      setBids(bs);
+      if (bs.length > 0) setTab(t => t === 'favoritos' ? 'cotizaciones' : t);
+    }).catch(() => {});
   }, []);
 
   const bidIds = useMemo(
@@ -397,9 +401,9 @@ function CotizarHome({ onSelect }: { onSelect: (id: string) => void }) {
   );
 
   const TABS = [
-    { id: 'cotizaciones' as const, label: 'Mis cotizaciones', icon: '📋' },
-    { id: 'activas' as const, label: 'Licitaciones activas', icon: '🔎' },
     { id: 'favoritos' as const, label: 'Favoritos', icon: '⭐' },
+    { id: 'cotizaciones' as const, label: 'Mis cotizaciones', icon: '📋' },
+    { id: 'activas' as const, label: 'Buscar', icon: '🔎' },
   ];
 
   return (
@@ -428,9 +432,9 @@ function CotizarHome({ onSelect }: { onSelect: (id: string) => void }) {
       </div>
 
       {/* Tab content */}
+      {tab === 'favoritos' && <FavoritosTab onSelect={onSelect} bidIds={bidIds} />}
       {tab === 'cotizaciones' && <MisCotizacionesTab onSelect={onSelect} />}
       {tab === 'activas' && <LicitacionesActivasTab onSelect={onSelect} bidIds={bidIds} />}
-      {tab === 'favoritos' && <FavoritosTab onSelect={onSelect} bidIds={bidIds} />}
     </div>
   );
 }

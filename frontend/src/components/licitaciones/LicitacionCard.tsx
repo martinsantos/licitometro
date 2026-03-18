@@ -333,6 +333,17 @@ const LicitacionCard: React.FC<LicitacionCardProps> = ({
             </div>
 
             <div className="flex items-center gap-1.5 flex-shrink-0">
+              <Link
+                to={`/cotizar?licitacion_id=${lic.id}`}
+                onClick={(e) => e.stopPropagation()}
+                className="flex items-center gap-1 px-2.5 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white text-[11px] font-bold rounded-lg transition-colors"
+                title="Armar cotización"
+              >
+                <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 7h6m0 10v-3m-3 3h.01M9 17h.01M9 14h.01M12 14h.01M15 11h.01M12 11h.01M9 11h.01M7 21h10a2 2 0 002-2V5a2 2 0 00-2-2H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
+                </svg>
+                Cotizar
+              </Link>
               <WorkflowBadge state={lic.workflow_state || 'descubierta'} compact />
               <span className={`px-2 py-0.5 rounded-full text-[10px] lg:text-xs font-bold ${
                 lic.status === 'active' ? 'bg-emerald-100 text-emerald-700' : 'bg-red-100 text-red-700'
