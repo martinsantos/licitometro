@@ -4,6 +4,7 @@ import axios from 'axios';
 import WorkflowStepper from '../components/WorkflowStepper';
 import WorkflowBadge from '../components/WorkflowBadge';
 import OfferChecklist from '../components/OfferChecklist';
+import OfertaEditor from '../components/cotizar/OfertaEditor';
 import { useNodos } from '../hooks/useNodos';
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL || '';
@@ -427,6 +428,17 @@ const LicitacionDetailPage = ({ userRole }) => {
                   </div>
                 </div>
 
+                {/* Cotizar button — visible to all users */}
+                <Link
+                  to={`/cotizar?licitacion_id=${id}`}
+                  className="p-3 rounded-2xl bg-white/20 text-white hover:bg-white/30 transition-all duration-300"
+                  title="Cotizar esta licitación"
+                >
+                  <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 7h6m0 10v-3m-3 3h.01M9 17h.01M9 14h.01M12 14h.01M15 11h.01M12 11h.01M9 11h.01M7 21h10a2 2 0 002-2V5a2 2 0 00-2-2H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
+                  </svg>
+                </Link>
+
                 {isAdmin && licitacion?.source_url && (
                   <div className="flex sm:flex-col gap-2">
                     <button
@@ -488,7 +500,7 @@ const LicitacionDetailPage = ({ userRole }) => {
                 { id: 'docs', label: 'Documentos', count: (licitacion.attached_files || []).length + (licitacion.pliegos_bases || []).length },
                 { id: 'cronograma', label: 'Cronograma', show: hasCronograma },
                 { id: 'workflow', label: 'Workflow', show: isAdmin },
-                { id: 'oferta', label: 'Oferta', show: isAdmin && licitacion?.workflow_state === 'preparando' },
+                { id: 'oferta', label: 'Oferta', show: isAdmin && ['evaluando', 'preparando'].includes(licitacion?.workflow_state) },
               ].filter(t => t.show !== false).map(tab => (
                 <button
                   key={tab.id}
@@ -546,7 +558,13 @@ const LicitacionDetailPage = ({ userRole }) => {
 
             {/* Oferta Tab */}
             {activeTab === 'oferta' && (
-              <OfferChecklist licitacionId={id} apiUrl={BACKEND_URL} />
+              <div className="space-y-8">
+                <OfertaEditor licitacion={licitacion} />
+                <div className="border-t border-gray-200 pt-8">
+                  <h3 className="font-semibold text-gray-700 mb-4">Checklist de Documentación</h3>
+                  <OfferChecklist licitacionId={id} apiUrl={BACKEND_URL} />
+                </div>
+              </div>
             )}
 
             {/* All other tabs show the existing grid layout */}
