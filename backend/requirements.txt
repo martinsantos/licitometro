@@ -39,7 +39,7 @@ aiosmtplib>=2.0.0
 # Timezone
 tzdata>=2024.2
 
-# AI / Embeddings
-sentence-transformers>=3.0.0
+# AI / Embeddings (lightweight; sentence-transformers installed manually post-deploy)
 groq>=0.4.0
 numpy>=1.26.0
+# sentence-transformers installed separately: pip install sentence-transformers>=3.0.0
