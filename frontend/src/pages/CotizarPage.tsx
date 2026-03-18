@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from 'react';
-import { useSearchParams, Link } from 'react-router-dom';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import { useSearchParams, Link, useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import MarketDataBanner from '../components/cotizar/MarketDataBanner';
 import OfertaEditor from '../components/cotizar/OfertaEditor';
@@ -14,22 +14,441 @@ interface Licitacion {
   organization?: string;
   opening_date?: string | null;
   budget?: number | null;
-  items?: Array<{ description?: string; unit?: string; quantity?: number }>;
+  estado?: string;
   workflow_state?: string;
+  items?: Array<{ description?: string; unit?: string; quantity?: number }>;
 }
 
 function formatARS(n: number) {
-  return new Intl.NumberFormat('es-AR', { style: 'currency', currency: 'ARS' }).format(n);
+  return new Intl.NumberFormat('es-AR', { style: 'currency', currency: 'ARS', maximumFractionDigits: 0 }).format(n);
 }
 
-// ── Mode A: Show OfertaEditor for a specific licitacion ──────────────────────
-function LicitacionCotizarView({ licitacionId }: { licitacionId: string }) {
+function daysUntil(dateStr: string | null | undefined): number | null {
+  if (!dateStr) return null;
+  const d = new Date(dateStr);
+  if (isNaN(d.getTime())) return null;
+  return Math.ceil((d.getTime() - Date.now()) / 86400000);
+}
+
+function UrgencyBadge({ opening_date }: { opening_date?: string | null }) {
+  const days = daysUntil(opening_date);
+  if (days === null) return null;
+  if (days < 0) return <span className="text-xs text-gray-400">Vencida</span>;
+  if (days === 0) return <span className="text-xs font-semibold text-red-600 bg-red-50 px-2 py-0.5 rounded-full">Hoy</span>;
+  if (days <= 3) return <span className="text-xs font-semibold text-orange-600 bg-orange-50 px-2 py-0.5 rounded-full">{days}d</span>;
+  if (days <= 7) return <span className="text-xs font-semibold text-yellow-700 bg-yellow-50 px-2 py-0.5 rounded-full">{days}d</span>;
+  return <span className="text-xs text-gray-500">{days}d</span>;
+}
+
+function LicitacionCard({
+  lic,
+  hasBid,
+  onSelect,
+}: {
+  lic: Licitacion;
+  hasBid?: boolean;
+  onSelect: (id: string) => void;
+}) {
+  return (
+    <div className="flex items-start gap-3 p-4 bg-white rounded-xl border border-gray-100 hover:border-blue-200 hover:shadow-sm transition-all group">
+      <div className="flex-1 min-w-0">
+        <p className="font-medium text-gray-800 text-sm line-clamp-2 group-hover:text-blue-700 transition-colors">
+          {lic.objeto || lic.title}
+        </p>
+        <div className="flex items-center gap-3 mt-1.5 flex-wrap">
+          {lic.organization && (
+            <span className="text-xs text-gray-500 truncate max-w-[200px]">{lic.organization}</span>
+          )}
+          {lic.opening_date && (
+            <span className="flex items-center gap-1 text-xs text-gray-400">
+              <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+              </svg>
+              {new Date(lic.opening_date).toLocaleDateString('es-AR')}
+            </span>
+          )}
+          <UrgencyBadge opening_date={lic.opening_date} />
+          {lic.budget ? (
+            <span className="text-xs text-gray-400">{formatARS(lic.budget)}</span>
+          ) : null}
+        </div>
+      </div>
+      <div className="flex flex-col items-end gap-2 shrink-0">
+        {hasBid && (
+          <span className="text-xs bg-emerald-50 text-emerald-700 px-2 py-0.5 rounded-full font-medium">
+            En proceso
+          </span>
+        )}
+        <button
+          onClick={() => onSelect(lic.id)}
+          className="text-xs font-semibold px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors"
+        >
+          {hasBid ? 'Continuar' : 'Cotizar'}
+        </button>
+      </div>
+    </div>
+  );
+}
+
+// ── Tab: Mis Cotizaciones ─────────────────────────────────────────────────────
+function MisCotizacionesTab({ onSelect }: { onSelect: (id: string) => void }) {
+  const api = useCotizarAPI();
+  const [bids, setBids] = useState<CotizarBid[]>([]);
+  const [licitaciones, setLicitaciones] = useState<Record<string, Licitacion>>({});
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    api.listBids()
+      .then(async bs => {
+        setBids(bs);
+        // Fetch licitacion details for each bid
+        const ids = Array.from(new Set(bs.map(b => b.licitometroId).filter(Boolean) as string[]));
+        const results = await Promise.allSettled(
+          ids.map(id =>
+            axios.get<Licitacion>(`${BACKEND_URL}/api/licitaciones/${id}`, { withCredentials: true })
+              .then(r => r.data)
+          )
+        );
+        const map: Record<string, Licitacion> = {};
+        results.forEach((r, i) => {
+          if (r.status === 'fulfilled') map[ids[i]] = r.value;
+        });
+        setLicitaciones(map);
+      })
+      .catch(() => setBids([]))
+      .finally(() => setLoading(false));
+  }, []);
+
+  if (loading) {
+    return (
+      <div className="flex items-center gap-3 py-12 justify-center text-gray-400 text-sm">
+        <div className="w-5 h-5 border-2 border-gray-200 border-t-blue-500 rounded-full animate-spin" />
+        Cargando cotizaciones…
+      </div>
+    );
+  }
+
+  if (bids.length === 0) {
+    return (
+      <div className="text-center py-14 space-y-3">
+        <div className="text-5xl">📋</div>
+        <h3 className="font-semibold text-gray-700">Sin cotizaciones aún</h3>
+        <p className="text-sm text-gray-400 max-w-xs mx-auto">
+          Encontrá una licitación activa o en favoritos y presioná "Cotizar".
+        </p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-3">
+      {bids.map(bid => {
+        const lic = bid.licitometroId ? licitaciones[bid.licitometroId] : undefined;
+        const total = bid.commercialOffer?.total || bid.total || 0;
+        return (
+          <div
+            key={bid.id}
+            className="flex items-start gap-3 p-4 bg-white rounded-xl border border-gray-100 hover:border-blue-200 hover:shadow-sm transition-all group"
+          >
+            <div className="flex-1 min-w-0">
+              <p className="font-medium text-gray-800 text-sm line-clamp-2">
+                {lic ? (lic.objeto || lic.title) : (bid.licitometroId || 'Cotización sin título')}
+              </p>
+              <div className="flex items-center gap-3 mt-1.5 flex-wrap">
+                {lic?.organization && (
+                  <span className="text-xs text-gray-500">{lic.organization}</span>
+                )}
+                {lic?.opening_date && (
+                  <UrgencyBadge opening_date={lic.opening_date} />
+                )}
+                {total > 0 && (
+                  <span className="text-xs font-semibold text-gray-700 tabular-nums">
+                    {formatARS(total)}
+                  </span>
+                )}
+                {bid.updated_at && (
+                  <span className="text-xs text-gray-400">
+                    Editado {new Date(bid.updated_at).toLocaleDateString('es-AR')}
+                  </span>
+                )}
+              </div>
+            </div>
+            <div className="shrink-0">
+              {bid.licitometroId && (
+                <button
+                  onClick={() => onSelect(bid.licitometroId!)}
+                  className="text-xs font-semibold px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors"
+                >
+                  Continuar →
+                </button>
+              )}
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+// ── Tab: Licitaciones Activas ─────────────────────────────────────────────────
+function LicitacionesActivasTab({
+  onSelect,
+  bidIds,
+}: {
+  onSelect: (id: string) => void;
+  bidIds: Set<string>;
+}) {
+  const [items, setItems] = useState<Licitacion[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [q, setQ] = useState('');
+  const [page, setPage] = useState(1);
+  const [total, setTotal] = useState(0);
+  const PER_PAGE = 20;
+
+  const fetchActive = useCallback(async (query: string, p: number) => {
+    setLoading(true);
+    try {
+      const params: Record<string, string | number> = {
+        limit: PER_PAGE,
+        page: p,
+        sort_by: 'opening_date',
+        sort_order: 'asc',
+        estado: 'vigente',
+      };
+      if (query.trim()) params.q = query.trim();
+      const res = await axios.get(`${BACKEND_URL}/api/licitaciones/`, {
+        params,
+        withCredentials: true,
+      });
+      setItems(res.data.items || []);
+      setTotal(res.data.paginacion?.total_items || 0);
+    } catch {
+      setItems([]);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    const t = setTimeout(() => { setPage(1); fetchActive(q, 1); }, 400);
+    return () => clearTimeout(t);
+  }, [q]);
+
+  useEffect(() => {
+    fetchActive(q, page);
+  }, [page]);
+
+  const totalPages = Math.ceil(total / PER_PAGE);
+
+  return (
+    <div className="space-y-4">
+      {/* Search */}
+      <div className="relative">
+        <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+        </svg>
+        <input
+          type="text"
+          value={q}
+          onChange={e => setQ(e.target.value)}
+          placeholder="Buscar por objeto, organismo…"
+          className="w-full pl-9 pr-4 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-400 bg-white"
+          autoFocus
+        />
+        {q && (
+          <button
+            onClick={() => setQ('')}
+            className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+          >
+            ✕
+          </button>
+        )}
+      </div>
+
+      {loading ? (
+        <div className="flex items-center gap-3 py-8 justify-center text-gray-400 text-sm">
+          <div className="w-5 h-5 border-2 border-gray-200 border-t-blue-500 rounded-full animate-spin" />
+          Buscando…
+        </div>
+      ) : items.length === 0 ? (
+        <div className="text-center py-10 text-gray-400 text-sm">
+          {q ? `Sin resultados para "${q}"` : 'Sin licitaciones activas'}
+        </div>
+      ) : (
+        <>
+          <p className="text-xs text-gray-400">{total} licitaciones activas{q ? ` — "${q}"` : ''}</p>
+          <div className="space-y-2">
+            {items.map(lic => (
+              <LicitacionCard
+                key={lic.id}
+                lic={lic}
+                hasBid={bidIds.has(lic.id)}
+                onSelect={onSelect}
+              />
+            ))}
+          </div>
+          {totalPages > 1 && (
+            <div className="flex items-center justify-center gap-2 pt-2">
+              <button
+                onClick={() => setPage(p => Math.max(1, p - 1))}
+                disabled={page === 1}
+                className="px-3 py-1.5 text-sm border border-gray-200 rounded-lg disabled:opacity-40 hover:bg-gray-50"
+              >
+                ←
+              </button>
+              <span className="text-sm text-gray-500">{page} / {totalPages}</span>
+              <button
+                onClick={() => setPage(p => Math.min(totalPages, p + 1))}
+                disabled={page === totalPages}
+                className="px-3 py-1.5 text-sm border border-gray-200 rounded-lg disabled:opacity-40 hover:bg-gray-50"
+              >
+                →
+              </button>
+            </div>
+          )}
+        </>
+      )}
+    </div>
+  );
+}
+
+// ── Tab: Favoritos ────────────────────────────────────────────────────────────
+function FavoritosTab({
+  onSelect,
+  bidIds,
+}: {
+  onSelect: (id: string) => void;
+  bidIds: Set<string>;
+}) {
+  const [licitaciones, setLicitaciones] = useState<Licitacion[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const saved = JSON.parse(localStorage.getItem('savedLicitaciones') || '[]') as string[];
+    if (saved.length === 0) { setLoading(false); return; }
+
+    Promise.allSettled(
+      saved.map(id =>
+        axios.get<Licitacion>(`${BACKEND_URL}/api/licitaciones/${id}`, { withCredentials: true })
+          .then(r => r.data)
+      )
+    ).then(results => {
+      setLicitaciones(
+        results
+          .filter((r): r is PromiseFulfilledResult<Licitacion> => r.status === 'fulfilled')
+          .map(r => r.value)
+      );
+    }).finally(() => setLoading(false));
+  }, []);
+
+  if (loading) {
+    return (
+      <div className="flex items-center gap-3 py-12 justify-center text-gray-400 text-sm">
+        <div className="w-5 h-5 border-2 border-gray-200 border-t-blue-500 rounded-full animate-spin" />
+        Cargando favoritos…
+      </div>
+    );
+  }
+
+  if (licitaciones.length === 0) {
+    return (
+      <div className="text-center py-14 space-y-3">
+        <div className="text-5xl">⭐</div>
+        <h3 className="font-semibold text-gray-700">Sin favoritos</h3>
+        <p className="text-sm text-gray-400 max-w-xs mx-auto">
+          Guardá licitaciones con el ícono de estrella para acceder rápido desde acá.
+        </p>
+        <Link to="/licitaciones" className="text-sm text-blue-600 hover:underline">
+          Ver licitaciones →
+        </Link>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-3">
+      <p className="text-xs text-gray-400">{licitaciones.length} guardadas</p>
+      {licitaciones.map(lic => (
+        <LicitacionCard
+          key={lic.id}
+          lic={lic}
+          hasBid={bidIds.has(lic.id)}
+          onSelect={onSelect}
+        />
+      ))}
+    </div>
+  );
+}
+
+// ── Home: 3-tab selector ──────────────────────────────────────────────────────
+function CotizarHome({ onSelect }: { onSelect: (id: string) => void }) {
+  const api = useCotizarAPI();
+  const [tab, setTab] = useState<'cotizaciones' | 'activas' | 'favoritos'>('cotizaciones');
+  const [bids, setBids] = useState<CotizarBid[]>([]);
+
+  // Load bids once to mark which licitaciones are in-progress
+  useEffect(() => {
+    api.listBids().then(setBids).catch(() => {});
+  }, []);
+
+  const bidIds = useMemo(
+    () => new Set(bids.map(b => b.licitometroId).filter(Boolean) as string[]),
+    [bids]
+  );
+
+  const TABS = [
+    { id: 'cotizaciones' as const, label: 'Mis cotizaciones', icon: '📋' },
+    { id: 'activas' as const, label: 'Licitaciones activas', icon: '🔎' },
+    { id: 'favoritos' as const, label: 'Favoritos', icon: '⭐' },
+  ];
+
+  return (
+    <div className="max-w-3xl mx-auto px-4 py-6 space-y-5">
+      {/* Tabs */}
+      <div className="flex gap-1 bg-gray-100 rounded-xl p-1">
+        {TABS.map(t => (
+          <button
+            key={t.id}
+            onClick={() => setTab(t.id)}
+            className={`flex-1 flex items-center justify-center gap-2 px-3 py-2 rounded-lg text-sm font-medium transition-all ${
+              tab === t.id
+                ? 'bg-white text-gray-800 shadow-sm'
+                : 'text-gray-500 hover:text-gray-700'
+            }`}
+          >
+            <span className="hidden sm:inline">{t.icon}</span>
+            <span className="truncate">{t.label}</span>
+            {t.id === 'cotizaciones' && bids.length > 0 && (
+              <span className="bg-blue-100 text-blue-700 text-xs px-1.5 py-0.5 rounded-full font-semibold min-w-[20px] text-center">
+                {bids.length}
+              </span>
+            )}
+          </button>
+        ))}
+      </div>
+
+      {/* Tab content */}
+      {tab === 'cotizaciones' && <MisCotizacionesTab onSelect={onSelect} />}
+      {tab === 'activas' && <LicitacionesActivasTab onSelect={onSelect} bidIds={bidIds} />}
+      {tab === 'favoritos' && <FavoritosTab onSelect={onSelect} bidIds={bidIds} />}
+    </div>
+  );
+}
+
+// ── Licitacion Cotizar View ───────────────────────────────────────────────────
+function LicitacionCotizarView({
+  licitacionId,
+  onBack,
+}: {
+  licitacionId: string;
+  onBack: () => void;
+}) {
   const [licitacion, setLicitacion] = useState<Licitacion | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
   useEffect(() => {
-    axios.get(`${BACKEND_URL}/api/licitaciones/${licitacionId}`, { withCredentials: true })
+    axios.get<Licitacion>(`${BACKEND_URL}/api/licitaciones/${licitacionId}`, { withCredentials: true })
       .then(r => { setLicitacion(r.data); setLoading(false); })
       .catch(() => { setError('No se pudo cargar la licitación'); setLoading(false); });
   }, [licitacionId]);
@@ -50,21 +469,30 @@ function LicitacionCotizarView({ licitacionId }: { licitacionId: string }) {
   return (
     <div className="max-w-4xl mx-auto px-4 py-6 space-y-4">
       <div className="flex items-center gap-3">
-        <Link
-          to={`/licitacion/${licitacionId}`}
+        <button
+          onClick={onBack}
           className="inline-flex items-center gap-1.5 text-sm font-medium text-gray-500 hover:text-blue-600 transition-colors"
         >
           <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M10 19l-7-7m0 0l7-7m-7 7h18" />
           </svg>
-          Volver a la licitación
+          Mis cotizaciones
+        </button>
+        <span className="text-gray-300">·</span>
+        <Link
+          to={`/licitacion/${licitacionId}`}
+          className="text-sm text-gray-400 hover:text-blue-600 transition-colors"
+        >
+          Ver licitación
         </Link>
       </div>
 
       <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
         <div className="px-6 py-4 border-b border-gray-100 bg-gray-50">
           <h2 className="font-bold text-gray-800">Armar Cotización</h2>
-          <p className="text-sm text-gray-500 mt-0.5">{licitacion.objeto || licitacion.title}</p>
+          <p className="text-sm text-gray-500 mt-0.5 line-clamp-2">
+            {licitacion.objeto || licitacion.title}
+          </p>
         </div>
         <div className="p-6">
           <OfertaEditor licitacion={licitacion} />
@@ -74,139 +502,22 @@ function LicitacionCotizarView({ licitacionId }: { licitacionId: string }) {
   );
 }
 
-// ── Mode B: List all bids ─────────────────────────────────────────────────────
-function BidListView() {
-  const api = useCotizarAPI();
-  const [bids, setBids] = useState<CotizarBid[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [generatingPDF, setGeneratingPDF] = useState<string | null>(null);
-
-  useEffect(() => {
-    api.listBids()
-      .then(setBids)
-      .catch(() => setBids([]))
-      .finally(() => setLoading(false));
-  }, []);
-
-  const handleDownloadPDF = async (bid: CotizarBid) => {
-    setGeneratingPDF(bid.id);
-    try {
-      const result = await api.generatePDF(bid.id);
-      if (typeof result === 'string' && result.startsWith('http')) {
-        window.open(result, '_blank');
-      } else if (result instanceof Blob) {
-        const url = URL.createObjectURL(result);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = `oferta-${bid.licitometroId || bid.id}.pdf`;
-        a.click();
-        setTimeout(() => URL.revokeObjectURL(url), 5000);
-      }
-    } catch (e) {
-      console.error('PDF error:', e);
-    } finally {
-      setGeneratingPDF(null);
-    }
-  };
-
-  return (
-    <div className="max-w-4xl mx-auto px-4 py-6">
-      <h1 className="text-xl font-bold text-gray-900 mb-6">Mis Cotizaciones</h1>
-
-      {loading && (
-        <div className="flex items-center gap-3 py-8 text-gray-500 text-sm">
-          <div className="w-5 h-5 border-2 border-gray-200 border-t-blue-500 rounded-full animate-spin" />
-          Cargando cotizaciones…
-        </div>
-      )}
-
-      {!loading && bids.length === 0 && (
-        <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-12 text-center">
-          <div className="text-4xl mb-4">📋</div>
-          <h3 className="font-semibold text-gray-700 mb-2">Sin cotizaciones</h3>
-          <p className="text-sm text-gray-400">
-            Abrí una licitación y presioná "Cotizar" para comenzar.
-          </p>
-          <Link
-            to="/licitaciones"
-            className="mt-4 inline-block text-sm text-blue-600 hover:underline"
-          >
-            Ver licitaciones →
-          </Link>
-        </div>
-      )}
-
-      {!loading && bids.length > 0 && (
-        <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
-          <table className="w-full text-sm">
-            <thead className="bg-gray-50 border-b border-gray-100">
-              <tr>
-                <th className="text-left px-4 py-3 font-semibold text-gray-600 text-xs uppercase">Licitación</th>
-                <th className="text-right px-4 py-3 font-semibold text-gray-600 text-xs uppercase">Total</th>
-                <th className="text-left px-4 py-3 font-semibold text-gray-600 text-xs uppercase hidden sm:table-cell">Fecha</th>
-                <th className="px-4 py-3"></th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-50">
-              {bids.map(bid => (
-                <tr key={bid.id} className="hover:bg-gray-50 transition-colors">
-                  <td className="px-4 py-3 text-gray-700">
-                    {bid.licitometroId ? (
-                      <Link
-                        to={`/cotizar?licitacion_id=${bid.licitometroId}`}
-                        className="hover:text-blue-600 transition-colors line-clamp-1"
-                      >
-                        {bid.licitometroId}
-                      </Link>
-                    ) : (
-                      <span className="text-gray-400">–</span>
-                    )}
-                  </td>
-                  <td className="px-4 py-3 text-right font-semibold text-gray-900 whitespace-nowrap">
-                    {(bid.commercialOffer?.total || bid.total) ? formatARS(bid.commercialOffer?.total || bid.total) : '–'}
-                  </td>
-                  <td className="px-4 py-3 text-gray-500 hidden sm:table-cell whitespace-nowrap">
-                    {bid.updated_at
-                      ? new Date(bid.updated_at).toLocaleDateString('es-AR')
-                      : '–'}
-                  </td>
-                  <td className="px-4 py-3">
-                    <div className="flex items-center gap-2 justify-end">
-                      {bid.licitometroId && (
-                        <Link
-                          to={`/cotizar?licitacion_id=${bid.licitometroId}`}
-                          className="text-xs text-blue-600 hover:text-blue-800 font-medium"
-                        >
-                          Abrir
-                        </Link>
-                      )}
-                      <button
-                        onClick={() => handleDownloadPDF(bid)}
-                        disabled={generatingPDF === bid.id}
-                        className="text-xs text-emerald-600 hover:text-emerald-800 font-medium disabled:opacity-50"
-                      >
-                        {generatingPDF === bid.id ? '…' : 'PDF'}
-                      </button>
-                    </div>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      )}
-    </div>
-  );
-}
-
 // ── Main Page ─────────────────────────────────────────────────────────────────
 export default function CotizarPage() {
-  const [searchParams] = useSearchParams();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const navigate = useNavigate();
   const licitacionId = searchParams.get('licitacion_id');
+
+  const handleSelect = useCallback((id: string) => {
+    setSearchParams({ licitacion_id: id });
+  }, [setSearchParams]);
+
+  const handleBack = useCallback(() => {
+    setSearchParams({});
+  }, [setSearchParams]);
 
   return (
     <div className="min-h-screen bg-gray-50">
-      {/* Header */}
       <div className="bg-white border-b border-gray-200 px-4 py-3 flex items-center justify-between">
         <h1 className="text-base font-bold text-gray-800">Cotizador</h1>
         <Link to="/licitaciones" className="text-sm text-gray-400 hover:text-gray-700 transition-colors">
@@ -217,9 +528,9 @@ export default function CotizarPage() {
       <MarketDataBanner />
 
       {licitacionId ? (
-        <LicitacionCotizarView licitacionId={licitacionId} />
+        <LicitacionCotizarView licitacionId={licitacionId} onBack={handleBack} />
       ) : (
-        <BidListView />
+        <CotizarHome onSelect={handleSelect} />
       )}
     </div>
   );
