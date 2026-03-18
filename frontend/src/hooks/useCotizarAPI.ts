@@ -96,23 +96,20 @@ export function useCotizarAPI() {
       items?: Array<Record<string, unknown>>;
     }): Promise<CotizarTender> {
       const tenderId = `lm-${licitacion.id}`;
-      // Try to fetch existing tender first
-      try {
-        return await apiFetch<CotizarTender>(`/tenders/${tenderId}`);
-      } catch {
-        // Tender not found — trigger bulk sync and retry
-        try {
-          await apiFetch<unknown>('/licitometro/sync', { method: 'POST' });
-        } catch {
-          // Sync endpoint may fail; ignore and return stub
-        }
-        try {
-          return await apiFetch<CotizarTender>(`/tenders/${tenderId}`);
-        } catch {
-          // Return minimal stub so UI can still create a bid
-          return { id: tenderId, licitometroId: licitacion.id, title: licitacion.objeto || licitacion.title };
-        }
-      }
+      // Upsert the tender — POST /api/tenders creates or updates
+      return apiFetch<CotizarTender>('/tenders', {
+        method: 'POST',
+        body: JSON.stringify({
+          id: tenderId,
+          title: licitacion.objeto || licitacion.title,
+          agency: licitacion.organization || '',
+          region: 'Mendoza',
+          budget: licitacion.budget || 0,
+          closingDate: licitacion.opening_date || null,
+          status: 'abierta',
+          licitometroId: licitacion.id,
+        }),
+      });
     },
 
     async listBids(tenderId?: string): Promise<CotizarBid[]> {
