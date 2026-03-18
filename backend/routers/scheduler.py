@@ -348,3 +348,16 @@ async def get_system_stats(request: Request):
         }
     except Exception as e:
         return {"error": str(e)}
+
+
+@router.get("/stats/duplicates")
+async def get_cross_source_duplicates(request: Request):
+    """Find licitaciones appearing in multiple sources (cross-source duplicates)."""
+    db = request.app.mongodb
+    try:
+        from services.deduplication_service import DeduplicationService
+        svc = DeduplicationService(db)
+        dupes = await svc.find_cross_source_dupes()
+        return {"total": len(dupes), "duplicates": dupes}
+    except Exception as e:
+        return {"error": str(e)}

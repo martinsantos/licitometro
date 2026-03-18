@@ -154,6 +154,48 @@ class NodoMatcher:
                     break  # one match per nodo is enough
         return matched_ids
 
+    def match_licitacion_with_scores(
+        self,
+        title: str = "",
+        objeto: str = "",
+        description: str = "",
+        organization: str = "",
+        category: str = "",
+    ) -> tuple[list[str], dict[str, float]]:
+        """Like match_licitacion but also returns per-nodo match scores.
+
+        Score = matched_patterns / total_patterns (0.0-1.0).
+        Returns (matched_ids, scores_dict) where scores_dict maps nodo_id -> score.
+        """
+        parts = [
+            _normalize_text(title or ""),
+            _normalize_text(objeto or ""),
+            _normalize_text((description or "")[:2000]),
+            _normalize_text(organization or ""),
+        ]
+        combined = " ".join(parts)
+        lic_category = (category or "").strip()
+
+        matched_ids = []
+        scores: dict[str, float] = {}
+        for nodo, patterns in self._cache:
+            nodo_categories = nodo.get("categories", []) or []
+            if lic_category and nodo_categories and lic_category in nodo_categories:
+                nodo_id = str(nodo["_id"])
+                matched_ids.append(nodo_id)
+                scores[nodo_id] = 1.0
+                continue
+
+            if not patterns:
+                continue
+            matched_count = sum(1 for p in patterns if p.search(combined))
+            if matched_count > 0:
+                nodo_id = str(nodo["_id"])
+                matched_ids.append(nodo_id)
+                scores[nodo_id] = round(matched_count / len(patterns), 3)
+
+        return matched_ids, scores
+
     async def assign_nodos_to_licitacion(
         self,
         lic_id,
@@ -259,7 +301,7 @@ class NodoMatcher:
         self._cache = scope_filtered_cache
 
         try:
-            matched_ids = self.match_licitacion(
+            matched_ids, nodo_scores = self.match_licitacion_with_scores(
                 title=item_data.get("title", ""),
                 objeto=item_data.get("objeto", ""),
                 description=item_data.get("description", ""),
@@ -273,6 +315,11 @@ class NodoMatcher:
             existing = item_data.get("nodos", []) or []
             merged = list(set(existing + matched_ids))
             item_data["nodos"] = merged
+            # Store scores in metadata for frontend display
+            meta = item_data.setdefault("metadata", {})
+            existing_scores = meta.get("nodo_scores", {}) or {}
+            existing_scores.update(nodo_scores)
+            meta["nodo_scores"] = existing_scores
         return matched_ids
 
     async def _execute_nodo_actions(

@@ -160,7 +160,15 @@ const LicitacionCard: React.FC<LicitacionCardProps> = ({
                 <div className="flex items-center gap-1 mb-1 flex-wrap">
                   {lic.nodos.slice(0, 2).map(nid => {
                     const nodo = nodoMap[nid];
-                    return nodo ? <NodoBadge key={nid} name={nodo.name} color={nodo.color} small /> : null;
+                    return nodo ? (
+                      <NodoBadge
+                        key={nid}
+                        name={nodo.name}
+                        color={nodo.color}
+                        small
+                        score={lic.metadata?.nodo_scores?.[nid]}
+                      />
+                    ) : null;
                   })}
                   {lic.nodos.length > 2 && (
                     <span className="text-[9px] text-gray-400 font-bold">+{lic.nodos.length - 2}</span>

@@ -1,6 +1,14 @@
 import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { useCotizarAPI, CotizarItem, CotizarBid } from '../../hooks/useCotizarAPI';
 
+interface AnalysisResult {
+  strengths: string[];
+  weaknesses: string[];
+  risks: Array<{ description: string; severity: string; probability: number; mitigation?: string }>;
+  recommendations: string[];
+  winProbability: number;
+}
+
 interface Licitacion {
   id: string;
   title: string;
@@ -46,7 +54,8 @@ const STEPS = [
   { id: 1, label: 'Items', icon: '📋' },
   { id: 2, label: 'Propuesta', icon: '📝' },
   { id: 3, label: 'Empresa', icon: '🏢' },
-  { id: 4, label: 'Resumen', icon: '✅' },
+  { id: 4, label: 'Análisis IA', icon: '🤖' },
+  { id: 5, label: 'Resumen', icon: '✅' },
 ];
 
 function formatARS(n: number) {
@@ -155,6 +164,9 @@ export default function OfertaEditor({ licitacion, onBidSaved }: Props) {
     telefono: '',
     domicilio: '',
   });
+  const [analysis, setAnalysis] = useState<AnalysisResult | null>(null);
+  const [analyzing, setAnalyzing] = useState(false);
+  const [analyzeError, setAnalyzeError] = useState('');
   const [saving, setSaving] = useState(false);
   const [savedAt, setSavedAt] = useState<string | null>(null);
   const [generatingPDF, setGeneratingPDF] = useState(false);

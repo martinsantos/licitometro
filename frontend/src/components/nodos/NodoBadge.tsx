@@ -4,10 +4,11 @@ interface NodoBadgeProps {
   name: string;
   color: string;
   small?: boolean;
+  score?: number;
   onClick?: () => void;
 }
 
-const NodoBadge: React.FC<NodoBadgeProps> = ({ name, color, small, onClick }) => (
+const NodoBadge: React.FC<NodoBadgeProps> = ({ name, color, small, score, onClick }) => (
   <span
     onClick={onClick}
     className={`inline-flex items-center gap-1 rounded font-bold ${
@@ -17,6 +18,9 @@ const NodoBadge: React.FC<NodoBadgeProps> = ({ name, color, small, onClick }) =>
   >
     <span className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: color }} />
     {name}
+    {score != null && score > 0 && (
+      <span style={{ opacity: 0.7 }}>{Math.round(score * 100)}%</span>
+    )}
   </span>
 );
 

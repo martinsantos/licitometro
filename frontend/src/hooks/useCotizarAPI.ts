@@ -143,6 +143,23 @@ export function useCotizarAPI() {
       });
     },
 
+    async updateBidData(id: string, data: Record<string, unknown>): Promise<CotizarBid> {
+      return apiFetch<CotizarBid>(`/bids/${id}`, {
+        method: 'PUT',
+        body: JSON.stringify(data),
+      });
+    },
+
+    async analyzeBid(id: string): Promise<{
+      strengths: string[];
+      weaknesses: string[];
+      risks: Array<{ description: string; severity: string; probability: number; mitigation?: string }>;
+      recommendations: string[];
+      winProbability: number;
+    }> {
+      return apiFetch(`/bids/${id}/analyze`, { method: 'POST' });
+    },
+
     async calculateBid(id: string, costs?: {
       labor?: number;
       materials?: number;

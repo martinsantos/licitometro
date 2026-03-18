@@ -13,6 +13,7 @@ import { useNodos } from '../hooks/useNodos';
 import DailyDigestStrip from './DailyDigestStrip';
 import NovedadesStrip from './NovedadesStrip';
 import TimelineView from './TimelineView';
+import CalendarView from './licitaciones/CalendarView';
 
 import SearchBar from './licitaciones/SearchBar';
 import SortDropdown from './licitaciones/SortDropdown';
@@ -455,7 +456,13 @@ const LicitacionesList = ({
               </div>
             )}
 
-            {prefs.viewMode === 'timeline' ? (
+            {prefs.viewMode === 'calendar' ? (
+              <CalendarView
+                licitaciones={licitaciones}
+                onDaySelect={handleDaySelect}
+                selectedDate={filters.fechaDesde || undefined}
+              />
+            ) : prefs.viewMode === 'timeline' ? (
               <TimelineView licitaciones={licitaciones} onItemClick={handleRowClick} />
             ) : prefs.viewMode === 'cards' ? (
               <div className="space-y-3">
