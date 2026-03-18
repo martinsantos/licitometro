@@ -290,6 +290,57 @@ class DeduplicationService:
             stats["errors"].append(error_msg)
             return stats
 
+    async def find_cross_source_dupes(self) -> list:
+        """Detect licitaciones that appear in multiple sources (e.g., COMPR.AR + ComprasApps).
+
+        Uses organization + first 80 chars of objeto as dedup key.
+        Only reports groups with items from 2+ different fuentes.
+        Returns up to 500 duplicate groups.
+        """
+        pipeline = [
+            {"$match": {"objeto": {"$exists": True, "$ne": None, "$ne": ""}}},
+            {
+                "$addFields": {
+                    "dedup_key": {
+                        "$concat": [
+                            {"$toLower": {"$trim": {"input": {"$ifNull": ["$organization", ""]}}}},
+                            "::",
+                            {
+                                "$substr": [
+                                    {"$toLower": {"$trim": {"input": {"$ifNull": ["$objeto", ""]}}}},
+                                    0,
+                                    80,
+                                ]
+                            },
+                        ]
+                    }
+                }
+            },
+            {
+                "$group": {
+                    "_id": "$dedup_key",
+                    "count": {"$sum": 1},
+                    "ids": {"$push": {"$toString": "$_id"}},
+                    "fuentes": {"$addToSet": "$fuente"},
+                    "organizations": {"$addToSet": "$organization"},
+                }
+            },
+            {
+                "$match": {
+                    "count": {"$gt": 1},
+                    "$expr": {"$gt": [{"$size": "$fuentes"}, 1]},
+                }
+            },
+            {"$sort": {"count": -1}},
+            {"$limit": 500},
+        ]
+        try:
+            results = await self.db.licitaciones.aggregate(pipeline).to_list(500)
+            return results
+        except Exception as e:
+            logger.error(f"find_cross_source_dupes failed: {e}")
+            return []
+
 
 # Singleton instance
 _dedup_service: Optional[DeduplicationService] = None

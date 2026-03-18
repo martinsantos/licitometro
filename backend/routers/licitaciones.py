@@ -1,4 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException, Query, Body, Request
+from pydantic import BaseModel
 from fastapi.responses import JSONResponse
 from fastapi.encoders import jsonable_encoder
 from typing import List, Dict, Optional, Any
@@ -1726,6 +1727,40 @@ async def get_licitacion_urls(
         "source_urls": licitacion.source_urls or {},
         "source_url": licitacion.source_url,
     }
+
+
+@router.get("/similar/{licitacion_id}")
+async def get_similar_licitaciones(
+    licitacion_id: str,
+    top_k: int = Query(8, ge=1, le=20),
+    request: Request = None,
+):
+    """Return the K most semantically similar licitaciones (requires embeddings)."""
+    from services.embedding_service import get_embedding_service
+    from db.models import licitacion_entity
+    db = request.app.mongodb
+    svc = get_embedding_service(db)
+    similar = await svc.find_similar(licitacion_id, top_k=top_k)
+    return [licitacion_entity(s) for s in similar]
+
+
+class SemanticSearchBody(BaseModel):
+    q: str
+    limit: int = 20
+
+
+@router.post("/search/semantic")
+async def semantic_search(
+    body: SemanticSearchBody,
+    request: Request = None,
+):
+    """Semantic search by free text (requires embeddings)."""
+    from services.embedding_service import get_embedding_service
+    from db.models import licitacion_entity
+    db = request.app.mongodb
+    svc = get_embedding_service(db)
+    results = await svc.search_by_text(body.q, top_k=body.limit)
+    return {"items": [licitacion_entity(r) for r in results], "total": len(results)}
 
 
 @router.post("/deduplicate")

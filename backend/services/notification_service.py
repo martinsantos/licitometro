@@ -253,6 +253,58 @@ class NotificationService:
             logger.error(f"Failed to send daily digest: {e}")
 
 
+    async def send_deadline_alerts(self):
+        """Send Telegram alerts for licitaciones opening in ~48h.
+
+        Only alerts items with a nodo, workflow state evaluando/preparando,
+        and not already alerted (metadata.deadline_alert_sent != true).
+        """
+        try:
+            now = datetime.utcnow()
+            window_end = now + timedelta(hours=48)
+            window_start = window_end - timedelta(hours=4)
+
+            items = await self.db.licitaciones.find({
+                "opening_date": {"$gte": window_start, "$lte": window_end},
+                "nodos": {"$exists": True, "$not": {"$size": 0}},
+                "workflow_state": {"$in": ["evaluando", "preparando"]},
+                "metadata.deadline_alert_sent": {"$ne": True},
+            }).to_list(50)
+
+            if not items:
+                logger.info("No deadline alerts to send")
+                return
+
+            logger.info(f"Sending deadline alerts for {len(items)} licitaciones")
+
+            for item in items:
+                try:
+                    display = item.get("objeto") or item.get("title", "Sin título")
+                    org = item.get("organization", "")
+                    opening = item.get("opening_date")
+                    opening_str = opening.strftime("%d/%m/%Y %H:%M") if opening else "N/A"
+                    lic_id = str(item["_id"])
+
+                    msg = (
+                        f"⏰ <b>Apertura en 48hs</b>\n"
+                        f"{display[:200]}\n"
+                        f"Organismo: {org}\n"
+                        f"Apertura: {opening_str}\n"
+                        f"https://licitometro.ar/licitaciones/{lic_id}"
+                    )
+                    await self.send_telegram(msg)
+
+                    await self.db.licitaciones.update_one(
+                        {"_id": item["_id"]},
+                        {"$set": {"metadata.deadline_alert_sent": True}},
+                    )
+                except Exception as e:
+                    logger.error(f"Failed deadline alert for {item.get('_id')}: {e}")
+
+        except Exception as e:
+            logger.error(f"send_deadline_alerts failed: {e}")
+
+
 _notification_service: Optional[NotificationService] = None
 
 

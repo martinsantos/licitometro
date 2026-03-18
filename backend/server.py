@@ -42,10 +42,13 @@ AUTH_EXEMPT_PATHS = {
 }
 
 # Create FastAPI app
+_ENABLE_DOCS = os.getenv("ENABLE_DOCS", "false").lower() == "true"
 app = FastAPI(
     title="Licitometro API",
     description="API for the Licitometro application",
     version="1.0.0",
+    docs_url="/docs" if _ENABLE_DOCS else None,
+    redoc_url="/redoc" if _ENABLE_DOCS else None,
 )
 
 # Add CORS middleware
@@ -328,6 +331,38 @@ async def startup_db_client():
             logger.info("Daily estado update scheduled at 6:00 AM")
         except Exception as e:
             logger.warning(f"Vigencia service not configured: {e}")
+
+        # Schedule nightly embedding batch at 11:00 PM
+        try:
+            from services.embedding_service import get_embedding_service
+            embedding_service = get_embedding_service(database)
+            scheduler_service.scheduler.add_job(
+                func=embedding_service.embed_batch,
+                trigger=CronTrigger(hour=23, minute=0),
+                id="embedding_batch",
+                name="Nightly embedding batch",
+                replace_existing=True,
+                max_instances=1,
+            )
+            logger.info("Nightly embedding batch scheduled at 11:00 PM")
+        except Exception as e:
+            logger.warning(f"Embedding service not configured: {e}")
+
+        # Schedule deadline alerts at 8am and 8pm
+        try:
+            from services.notification_service import get_notification_service as _get_ns
+            notification_service_dl = _get_ns(database)
+            scheduler_service.scheduler.add_job(
+                func=notification_service_dl.send_deadline_alerts,
+                trigger=CronTrigger(hour="8,20", minute=0),
+                id="deadline_alerts",
+                name="Deadline alerts (48h before opening)",
+                replace_existing=True,
+                max_instances=1,
+            )
+            logger.info("Deadline alerts scheduled at 8:00 AM and 8:00 PM")
+        except Exception as e:
+            logger.warning(f"Deadline alerts not configured: {e}")
 
     except Exception as e:
         logger.error(f"Failed to auto-start scheduler: {e}")

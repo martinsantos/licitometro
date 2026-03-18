@@ -9,6 +9,14 @@ export interface CotizarItem {
   subtotal?: number;
 }
 
+export interface CommercialOffer {
+  basePrice?: number;
+  taxRate?: number;
+  total?: number;
+  subtotal?: number;
+  taxAmount?: number;
+}
+
 export interface CotizarBid {
   id: string;
   tenderId: string;
@@ -19,6 +27,7 @@ export interface CotizarBid {
   iva_amount: number;
   total: number;
   company_name?: string;
+  commercialOffer?: CommercialOffer;
   created_at?: string;
   updated_at?: string;
 }
@@ -34,6 +43,13 @@ export interface MarketRates {
   usd: number;
   eur?: number;
   updated_at: string;
+}
+
+export interface CurrencyRate {
+  pair: string;
+  buy?: number;
+  sell?: number;
+  value?: number;
 }
 
 export interface InflationData {
@@ -54,6 +70,20 @@ async function apiFetch<T>(path: string, options?: RequestInit): Promise<T> {
   return res.json();
 }
 
+function parseCurrenciesToRates(currencies: CurrencyRate[]): MarketRates {
+  const usdEntry = currencies.find(c =>
+    c.pair?.toLowerCase().includes('usd') &&
+    c.pair?.toLowerCase().includes('ars') &&
+    c.pair?.toLowerCase().includes('oficial')
+  ) || currencies.find(c =>
+    c.pair?.toLowerCase().includes('usd')
+  );
+  return {
+    usd: usdEntry?.sell ?? usdEntry?.value ?? usdEntry?.buy ?? 0,
+    updated_at: new Date().toISOString(),
+  };
+}
+
 export function useCotizarAPI() {
   return {
     async syncLicitacion(licitacion: {
@@ -65,15 +95,18 @@ export function useCotizarAPI() {
       budget?: number | null;
       items?: Array<Record<string, unknown>>;
     }): Promise<CotizarTender> {
-      return apiFetch<CotizarTender>('/licitometro/sync', {
+      return apiFetch<CotizarTender>('/tenders', {
         method: 'POST',
         body: JSON.stringify({
-          licitometroId: licitacion.id,
+          id: `lm-${licitacion.id}`,
           title: licitacion.objeto || licitacion.title,
-          organization: licitacion.organization,
-          openingDate: licitacion.opening_date,
-          budget: licitacion.budget,
-          items: licitacion.items || [],
+          description: '',
+          agency: licitacion.organization || '',
+          region: 'Mendoza',
+          budget: licitacion.budget || 0,
+          closingDate: licitacion.opening_date || null,
+          status: 'abierta',
+          licitometroId: licitacion.id,
         }),
       });
     },
@@ -90,15 +123,28 @@ export function useCotizarAPI() {
       });
     },
 
-    async updateBid(id: string, data: Partial<Pick<CotizarBid, 'items' | 'iva_rate' | 'company_name'>>): Promise<CotizarBid> {
+    async updateBid(id: string, data: {
+      items?: CotizarItem[];
+      commercialOffer?: { basePrice: number; taxRate: number };
+      company_name?: string;
+    }): Promise<CotizarBid> {
       return apiFetch<CotizarBid>(`/bids/${id}`, {
         method: 'PUT',
         body: JSON.stringify(data),
       });
     },
 
-    async calculateBid(id: string): Promise<CotizarBid> {
-      return apiFetch<CotizarBid>(`/bids/${id}/calculate`, { method: 'POST' });
+    async calculateBid(id: string, costs?: {
+      labor?: number;
+      materials?: number;
+      equipment?: number;
+      overhead?: number;
+      other?: number;
+    }): Promise<CotizarBid> {
+      return apiFetch<CotizarBid>(`/bids/${id}/calculate`, {
+        method: 'POST',
+        body: costs ? JSON.stringify(costs) : undefined,
+      });
     },
 
     async generatePDF(id: string): Promise<Blob | string> {
@@ -118,7 +164,13 @@ export function useCotizarAPI() {
     },
 
     async getMarketRates(): Promise<MarketRates> {
-      return apiFetch<MarketRates>('/market/rates');
+      try {
+        const currencies = await apiFetch<CurrencyRate[]>('/market/currencies');
+        return parseCurrenciesToRates(currencies);
+      } catch {
+        // Fallback: try legacy endpoint
+        return apiFetch<MarketRates>('/market/rates');
+      }
     },
 
     async getInflation(): Promise<InflationData> {

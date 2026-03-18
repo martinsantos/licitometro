@@ -10,6 +10,56 @@ import { useNodos } from '../hooks/useNodos';
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL || '';
 const API = `${BACKEND_URL}/api`;
 
+function SimilaresTab({ licitacionId }) {
+  const [items, setItems] = React.useState([]);
+  const [loading, setLoading] = React.useState(true);
+  const [error, setError] = React.useState(null);
+
+  React.useEffect(() => {
+    axios.get(`${API}/licitaciones/similar/${licitacionId}`, { withCredentials: true })
+      .then(r => { setItems(r.data || []); setLoading(false); })
+      .catch(() => { setError('No hay embeddings disponibles para esta licitación todavía.'); setLoading(false); });
+  }, [licitacionId]);
+
+  if (loading) return (
+    <div className="flex items-center gap-3 py-8 text-gray-400 text-sm">
+      <div className="w-4 h-4 border-2 border-gray-200 border-t-blue-400 rounded-full animate-spin" />
+      Buscando licitaciones similares…
+    </div>
+  );
+
+  if (error) return <div className="py-6 text-sm text-gray-400">{error}</div>;
+
+  if (items.length === 0) return (
+    <div className="py-6 text-sm text-gray-400">Sin resultados similares.</div>
+  );
+
+  return (
+    <div className="space-y-3">
+      <p className="text-xs text-gray-400 mb-4">Licitaciones con contenido semánticamente similar (por embeddings)</p>
+      {items.map(item => (
+        <Link
+          key={item.id}
+          to={`/licitaciones/${item.id}`}
+          className="block bg-white rounded-xl border border-gray-100 p-4 hover:border-blue-200 hover:shadow-sm transition-all"
+        >
+          <div className="flex items-start justify-between gap-3">
+            <div className="flex-1 min-w-0">
+              <p className="font-medium text-gray-800 text-sm line-clamp-2">{item.objeto || item.title}</p>
+              <p className="text-xs text-gray-400 mt-1 truncate">{item.organization}</p>
+            </div>
+            {item.relevance_score != null && (
+              <span className="text-xs font-semibold text-blue-600 whitespace-nowrap bg-blue-50 px-2 py-0.5 rounded-full">
+                {Math.round(item.relevance_score * 100)}% similar
+              </span>
+            )}
+          </div>
+        </Link>
+      ))}
+    </div>
+  );
+}
+
 const ENRICHMENT_LABELS = {
   1: { label: 'Básico', color: 'bg-gray-100 text-gray-600' },
   2: { label: 'Detallado', color: 'bg-blue-100 text-blue-700' },
@@ -501,6 +551,7 @@ const LicitacionDetailPage = ({ userRole }) => {
                 { id: 'cronograma', label: 'Cronograma', show: hasCronograma },
                 { id: 'workflow', label: 'Workflow', show: isAdmin },
                 { id: 'oferta', label: 'Oferta', show: isAdmin && ['evaluando', 'preparando'].includes(licitacion?.workflow_state) },
+                { id: 'similares', label: 'Similares' },
               ].filter(t => t.show !== false).map(tab => (
                 <button
                   key={tab.id}
@@ -567,8 +618,13 @@ const LicitacionDetailPage = ({ userRole }) => {
               </div>
             )}
 
+            {/* Similares Tab */}
+            {activeTab === 'similares' && (
+              <SimilaresTab licitacionId={id} />
+            )}
+
             {/* All other tabs show the existing grid layout */}
-            <div className={`grid grid-cols-1 lg:grid-cols-3 gap-8 ${activeTab === 'workflow' || activeTab === 'oferta' ? 'hidden' : ''}`}>
+            <div className={`grid grid-cols-1 lg:grid-cols-3 gap-8 ${activeTab === 'workflow' || activeTab === 'oferta' || activeTab === 'similares' ? 'hidden' : ''}`}>
               {/* Left Column - Main Info */}
               <div className="lg:col-span-2 space-y-8">
                 {/* Información General */}

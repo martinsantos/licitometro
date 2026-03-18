@@ -278,3 +278,73 @@ async def get_scheduler_stats(db: AsyncIOMotorDatabase = Depends(get_db)):
     except Exception as e:
         logger.error(f"Error getting stats: {e}")
         raise HTTPException(status_code=500, detail=f"Failed to get stats: {str(e)}")
+
+
+@router.get("/stats/system")
+async def get_system_stats(request: Request):
+    """System monitoring stats: scraper health, embedding coverage, pending queues."""
+    db = request.app.mongodb
+
+    try:
+        from datetime import datetime, timedelta
+
+        # Scraper health last 24h
+        since = datetime.utcnow() - timedelta(hours=24)
+        pipeline_health = [
+            {"$match": {"started_at": {"$gte": since}}},
+            {
+                "$group": {
+                    "_id": "$scraper_name",
+                    "success": {"$sum": {"$cond": [{"$eq": ["$status", "success"]}, 1, 0]}},
+                    "fail": {"$sum": {"$cond": [{"$in": ["$status", ["error", "failed"]]}, 1, 0]}},
+                    "skip": {"$sum": {"$cond": [{"$eq": ["$status", "skipped"]}, 1, 0]}},
+                    "last_run": {"$max": "$started_at"},
+                }
+            },
+            {"$sort": {"_id": 1}},
+        ]
+        scraper_24h = await db.scraper_runs.aggregate(pipeline_health).to_list(100)
+
+        # Embedding coverage
+        total_lic = await db.licitaciones.count_documents({"enrichment_level": {"$gte": 2}})
+        embedded = await db.licitacion_embeddings.count_documents({})
+        embedding_pct = round(embedded / total_lic * 100, 1) if total_lic > 0 else 0
+
+        # Pending queues
+        pending_enrichment = await db.licitaciones.count_documents({"enrichment_level": {"$lt": 2}})
+        pending_embedding = max(0, total_lic - embedded)
+
+        # MongoDB collection stats
+        total_docs = await db.licitaciones.count_documents({})
+
+        # Pending objeto
+        pending_objeto = await db.licitaciones.count_documents({
+            "$or": [{"objeto": None}, {"objeto": ""}]
+        })
+
+        return {
+            "scraper_24h": [
+                {
+                    "name": s["_id"],
+                    "success": s["success"],
+                    "fail": s["fail"],
+                    "skip": s.get("skip", 0),
+                    "last_run": s["last_run"].isoformat() if s.get("last_run") else None,
+                }
+                for s in scraper_24h
+            ],
+            "embedding_coverage": {
+                "total": total_lic,
+                "embedded": embedded,
+                "pct": embedding_pct,
+            },
+            "pending_enrichment": pending_enrichment,
+            "pending_embedding": pending_embedding,
+            "pending_objeto": pending_objeto,
+            "mongo_stats": {
+                "doc_count": total_docs,
+            },
+            "generated_at": datetime.utcnow().isoformat(),
+        }
+    except Exception as e:
+        return {"error": str(e)}

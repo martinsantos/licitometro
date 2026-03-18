@@ -26,6 +26,7 @@ export interface Licitacion {
   tags?: string[];
   estado?: 'vigente' | 'vencida' | 'prorrogada' | 'archivada';
   fecha_prorroga?: string;
+  relevance_score?: number;
   metadata?: {
     comprar_estado?: string;
     comprar_directa_tipo?: string;
@@ -35,6 +36,7 @@ export interface Licitacion {
     budget_source?: string;
     costo_pliego?: number;
     pliego_to_budget_ratio?: number;
+    nodo_scores?: Record<string, number>;
   };
 }
 
@@ -76,7 +78,7 @@ export interface Paginacion {
 
 export type SortField = 'publication_date' | 'opening_date' | 'fecha_scraping' | 'title' | 'budget';
 export type SortOrder = 'asc' | 'desc';
-export type ViewMode = 'cards' | 'table' | 'timeline';
+export type ViewMode = 'cards' | 'table' | 'timeline' | 'calendar';
 export interface FilterState {
   busqueda: string;
   fuenteFiltro: string;

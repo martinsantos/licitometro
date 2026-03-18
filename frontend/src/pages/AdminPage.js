@@ -9,6 +9,7 @@ import DataQualityDashboard from '../components/DataQualityDashboard';
 import StorageQuotaPanel from '../components/StorageQuotaPanel';
 import AdminARPanel from '../components/admin/AdminARPanel';
 import AdminImportSources from '../components/AdminImportSources';
+import AdminSistemaPanel from '../components/admin/AdminSistemaPanel';
 
 const API_URL = '';
 
@@ -22,6 +23,7 @@ const TABS = [
   { key: 'scrapers', label: 'Scrapers' },
   { key: 'licitaciones', label: 'Licitaciones' },
   { key: 'licitaciones-ar', label: 'Lic. AR' },
+  { key: 'sistema', label: 'Sistema' },
 ];
 
 const AdminPage = () => {
@@ -147,6 +149,10 @@ const AdminPage = () => {
               </div>
               <AdminARPanel />
             </div>
+          )}
+
+          {activeTab === 'sistema' && (
+            <AdminSistemaPanel />
           )}
         </div>
       </div>

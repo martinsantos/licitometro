@@ -122,8 +122,14 @@ export default function OfertaEditor({ licitacion, onBidSaved }: Props) {
     if (!bid) return null;
     if (!silent) setSaving(true);
     try {
-      await api.updateBid(bid.id, { items, iva_rate: ivaRate });
-      const updated = await api.calculateBid(bid.id);
+      const basePrice = items.reduce((s, i) => s + (i.cantidad || 0) * (i.precio_unitario || 0), 0);
+      await api.updateBid(bid.id, {
+        items,
+        commercialOffer: { basePrice, taxRate: ivaRate },
+      });
+      const updated = await api.calculateBid(bid.id, {
+        labor: basePrice, materials: 0, equipment: 0, overhead: 0, other: 0,
+      });
       setBid(updated);
       setSavedAt(new Date().toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' }));
       onBidSaved?.(updated);
