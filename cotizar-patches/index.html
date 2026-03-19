@@ -1252,8 +1252,23 @@
         }
 
         function openNewBidModal(preselectedTenderId) {
+            if (preselectedTenderId) {
+                createBidDirect(preselectedTenderId);
+                return;
+            }
             openModal('new-bid-modal');
-            loadBidModalTenders(preselectedTenderId);
+            loadBidModalTenders();
+        }
+
+        async function createBidDirect(tenderId) {
+            try {
+                await apiFetch('/bids', { method: 'POST', body: JSON.stringify({ tenderId }) });
+                showToast('Cotizacion creada exitosamente', 'success');
+                loadBids();
+                showSection('bids');
+            } catch (error) {
+                showToast('Error creando cotizacion: ' + (error.message || 'Intente de nuevo'), 'error');
+            }
         }
 
         async function loadBidModalTenders(selectedId = '') {
@@ -1262,18 +1277,21 @@
                 const url = selectedId ? '/tenders' : '/tenders?status=abierta';
                 const tenders = await apiFetch(url);
                 let options = tenders.map(t =>
-                    `<option value="${t.id}" ${t.id === selectedId ? 'selected' : ''}>${t.number} - ${t.title.substring(0, 50)}</option>`
+                    `<option value="${t.id}">${t.number} - ${t.title.substring(0, 50)}</option>`
                 ).join('');
                 // Si el preseleccionado no esta en la lista, buscarlo por separado
                 if (selectedId && !tenders.find(t => t.id === selectedId)) {
                     try {
                         const t = await apiFetch(`/tenders/${selectedId}`);
                         if (t && t.id) {
-                            options = `<option value="${t.id}" selected>${t.number} - ${t.title.substring(0, 50)}</option>` + options;
+                            options = `<option value="${t.id}">${t.number} - ${t.title.substring(0, 50)}</option>` + options;
                         }
                     } catch(e) {}
                 }
-                document.getElementById('bid-tender-select').innerHTML = options || '<option value="">No hay licitaciones</option>';
+                const sel = document.getElementById('bid-tender-select');
+                sel.innerHTML = options || '<option value="">No hay licitaciones</option>';
+                // Setear value explícitamente (el atributo selected en innerHTML no siempre funciona)
+                if (selectedId) sel.value = selectedId;
             } catch (error) {
                 document.getElementById('bid-tender-select').innerHTML = '<option value="">Error cargando</option>';
             }
