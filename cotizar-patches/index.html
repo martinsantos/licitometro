@@ -3,6 +3,9 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+    <meta http-equiv="Pragma" content="no-cache">
+    <meta http-equiv="Expires" content="0">
     <title>cotizAR - Licitometro.ar | Armador de Cotizaciones</title>
     <!-- __BASE_PATH__ -->
     <meta name="description" content="Armador de cotizaciones para licitaciones publicas argentinas. Genera ofertas competitivas con datos de LICITOMETRO.AR">
@@ -1262,6 +1265,12 @@
 
         async function createBidDirect(tenderId) {
             try {
+                // Step 1: Ensure tender exists in local storage by syncing from cache
+                const cached = tendersCache.find(t => t.id === tenderId);
+                if (cached) {
+                    await apiFetch('/tenders', { method: 'POST', body: JSON.stringify(cached) });
+                }
+                // Step 2: Create the bid
                 await apiFetch('/bids', { method: 'POST', body: JSON.stringify({ tenderId }) });
                 showToast('Cotizacion creada exitosamente', 'success');
                 loadBids();
@@ -1784,9 +1793,30 @@
         }
 
         // === INIT ===
+        // Handle ?licitacion_id= URL param: auto-create bid for specific licitacion
+        const _urlParams = new URLSearchParams(window.location.search);
+        const _pendingLicitacionId = _urlParams.get('licitacion_id');
+
         // Respect hash on initial load (e.g. /cotizar#tenders)
         const initialSection = window.location.hash.replace('#', '') || 'dashboard';
         showSection(initialSection);
+
+        // If licitacion_id param present, wait for favorites to load then auto-create bid
+        if (_pendingLicitacionId) {
+            const targetTenderId = 'lm-' + _pendingLicitacionId;
+            // Poll until tendersCache has the favorite (loadFavorites adds them)
+            const _waitForFavorite = setInterval(() => {
+                const found = tendersCache.find(t => t.id === targetTenderId);
+                if (found) {
+                    clearInterval(_waitForFavorite);
+                    // Clean URL to prevent re-trigger on refresh
+                    history.replaceState(null, '', window.location.pathname + window.location.hash);
+                    createBidDirect(targetTenderId);
+                }
+            }, 500);
+            // Stop polling after 15s
+            setTimeout(() => clearInterval(_waitForFavorite), 15000);
+        }
     </script>
 </body>
 </html>
