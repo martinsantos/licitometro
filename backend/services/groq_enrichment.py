@@ -1,7 +1,7 @@
 """
 GroqEnrichmentService - LLM-powered enrichment using Groq free tier.
 
-Uses llama-3.2-3b-preview model (14,400 req/day free tier).
+Uses llama-3.3-70b-versatile model (Groq free tier).
 Requires GROQ_API_KEY in environment.
 Falls back silently if key not set or quota exceeded.
 """
@@ -14,7 +14,7 @@ from typing import Any, Dict, List, Optional
 
 logger = logging.getLogger("groq_enrichment")
 
-GROQ_MODEL = "llama-3.2-3b-preview"
+GROQ_MODEL = "llama-3.3-70b-versatile"
 
 PROMPT_OBJETO = """Dado el siguiente texto de una licitación pública argentina, extrae el objeto principal de la contratación en máximo 150 caracteres. Solo devuelve el texto del objeto, sin explicaciones ni formato adicional.
 
