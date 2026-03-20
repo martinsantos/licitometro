@@ -1513,15 +1513,13 @@ async def get_budget_hints(licitacion_id: str, request: Request):
     if not lic:
         raise HTTPException(status_code=404, detail="Licitación not found")
 
-    # Load thresholds
+    # Determine if Mendoza provincial (UF) or federal (módulos)
     import json as _json
-    thresholds_path = Path(__file__).parent.parent / "data" / "procurement_thresholds.json"
-    thresholds_data = {}
-    try:
-        with open(thresholds_path) as f:
-            thresholds_data = _json.load(f)
-    except Exception:
-        pass
+    data_dir = Path(__file__).parent.parent / "data"
+    jurisdiccion = (lic.get("jurisdiccion") or "").lower()
+    fuente = (lic.get("fuente") or "").lower()
+    encuadre = (lic.get("encuadre_legal") or "").lower()
+    is_mendoza = "mendoza" in jurisdiccion or "mendoza" in fuente or "8706" in encuadre
 
     budget = lic.get("budget")
     tipo = (lic.get("tipo_procedimiento") or "").lower().strip()
@@ -1531,6 +1529,10 @@ async def get_budget_hints(licitacion_id: str, request: Request):
     range_min = None
     range_max = None
     threshold_label = None
+    uf_value = None
+    budget_in_ufs = None
+    threshold_system = "modulo_federal"
+
     if "directa" in tipo:
         tipo_key = "contratacion_directa"
     elif "privada" in tipo:
@@ -1538,20 +1540,48 @@ async def get_budget_hints(licitacion_id: str, request: Request):
     elif "publica" in tipo or "pública" in tipo:
         tipo_key = "licitacion_publica"
 
-    thresholds = thresholds_data.get("thresholds", {})
-    if tipo_key and tipo_key in thresholds:
-        th = thresholds[tipo_key]
-        threshold_label = th.get("label")
-        if th.get("max_ars"):
-            range_max = th["max_ars"]
-            # Estimate range_min from previous tier
-            keys = list(thresholds.keys())
-            idx = keys.index(tipo_key)
-            if idx > 0:
-                prev = thresholds[keys[idx - 1]]
-                range_min = prev.get("max_ars", 0)
-            else:
-                range_min = 0
+    if is_mendoza:
+        threshold_system = "uf_mendoza"
+        try:
+            with open(data_dir / "mendoza_uf.json") as f:
+                uf_data = _json.load(f)
+            uf_value = uf_data["uf_value"]
+            if budget:
+                budget_in_ufs = round(budget / uf_value, 1)
+            thresholds = uf_data.get("thresholds_mendoza", {})
+            if tipo_key and tipo_key in thresholds:
+                th = thresholds[tipo_key]
+                threshold_label = th.get("label")
+                if th.get("max_ars_calc"):
+                    range_max = th["max_ars_calc"]
+                    keys = list(thresholds.keys())
+                    idx = keys.index(tipo_key)
+                    if idx > 0:
+                        prev = thresholds[keys[idx - 1]]
+                        range_min = prev.get("max_ars_calc", 0)
+                    else:
+                        range_min = 0
+        except Exception:
+            pass
+    else:
+        try:
+            with open(data_dir / "procurement_thresholds.json") as f:
+                thresholds_data = _json.load(f)
+            thresholds = thresholds_data.get("thresholds", {})
+            if tipo_key and tipo_key in thresholds:
+                th = thresholds[tipo_key]
+                threshold_label = th.get("label")
+                if th.get("max_ars"):
+                    range_max = th["max_ars"]
+                    keys = list(thresholds.keys())
+                    idx = keys.index(tipo_key)
+                    if idx > 0:
+                        prev = thresholds[keys[idx - 1]]
+                        range_min = prev.get("max_ars", 0)
+                    else:
+                        range_min = 0
+        except Exception:
+            pass
 
     # Extract items: prefer structured items from scraping, fall back to AI extraction
     items_from_pliego = []
@@ -1611,6 +1641,9 @@ async def get_budget_hints(licitacion_id: str, request: Request):
         "threshold_label": threshold_label,
         "items_from_pliego": items_from_pliego or [],
         "enrichment_level": enrichment_level,
+        "uf_value": uf_value,
+        "budget_in_ufs": budget_in_ufs,
+        "threshold_system": threshold_system,
     }
 
 

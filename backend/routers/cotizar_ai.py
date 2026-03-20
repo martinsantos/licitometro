@@ -208,19 +208,23 @@ async def extract_pliego_info(body: Dict[str, Any], request: Request):
         parts.append(f"Organismo: {lic['organization']}")
     if lic.get("tipo_procedimiento"):
         parts.append(f"Tipo: {lic['tipo_procedimiento']}")
-    # Include COMPR.AR pliego fields (cronograma, encuadre legal, etc.)
+    # Include ALL COMPR.AR pliego fields (not just 10 hardcoded keys)
     meta = lic.get("metadata") or {}
     pliego_fields = meta.get("comprar_pliego_fields") or {}
     if pliego_fields:
-        relevant_keys = [
-            "Encuadre legal", "Etapa", "Modalidad", "Alcance",
-            "Tipo de cotización", "Tipo de adjudicación",
-            "Plazo mantenimiento de la oferta", "Requiere pago",
-            "Duración del contrato", "Fecha estimada del inicio del contrato",
-        ]
-        pliego_parts = [f"  {k}: {pliego_fields[k]}" for k in relevant_keys if pliego_fields.get(k)]
+        pliego_parts = [f"  {k}: {v}" for k, v in pliego_fields.items() if v]
         if pliego_parts:
             parts.append("Datos del pliego COMPR.AR:\n" + "\n".join(pliego_parts))
+
+    # Include structured fields already parsed on the licitacion
+    if lic.get("opening_date"):
+        parts.append(f"Fecha de apertura: {lic['opening_date']}")
+    if lic.get("encuadre_legal"):
+        parts.append(f"Encuadre legal: {lic['encuadre_legal']}")
+    if lic.get("garantias"):
+        parts.append(f"Garantías: {json.dumps(lic['garantias'], ensure_ascii=False)[:500]}")
+    if lic.get("duracion_contrato"):
+        parts.append(f"Duración contrato: {lic['duracion_contrato']}")
 
     text = "\n".join(parts)
     if len(text) < 20:
@@ -269,36 +273,75 @@ async def extract_marco_legal(body: Dict[str, Any], request: Request):
         parts.append(f"Organismo: {lic['organization']}")
     if lic.get("budget"):
         parts.append(f"Presupuesto oficial: ${lic['budget']}")
+    if lic.get("duracion_contrato"):
+        parts.append(f"Duración contrato: {lic['duracion_contrato']}")
+    if lic.get("opening_date"):
+        parts.append(f"Fecha de apertura: {lic['opening_date']}")
+
+    # Include ALL COMPR.AR pliego fields for richer legal context
+    pliego_fields = metadata.get("comprar_pliego_fields") or {}
+    if pliego_fields:
+        pliego_parts = [f"  {k}: {v}" for k, v in pliego_fields.items() if v]
+        if pliego_parts:
+            parts.append("Datos del pliego COMPR.AR:\n" + "\n".join(pliego_parts))
 
     context = "\n".join(parts)
     if len(context) < 20:
         return {"error": "Información insuficiente para análisis legal"}
 
-    # Load procurement thresholds for budget context
+    # Determine if Mendoza provincial (UF) or federal (módulos)
     threshold_info = None
     budget = lic.get("budget")
+    encuadre = (metadata.get("encuadre_legal") or lic.get("encuadre_legal") or "").lower()
+    jurisdiccion = (lic.get("jurisdiccion") or "").lower()
+    fuente = (lic.get("fuente") or "").lower()
+    is_mendoza = "mendoza" in jurisdiccion or "mendoza" in fuente or "8706" in encuadre
+
     if budget:
         try:
-            thresholds_path = Path(__file__).parent.parent / "data" / "procurement_thresholds.json"
-            with open(thresholds_path, "r") as f:
-                thresholds_data = json.load(f)
-            thresholds = thresholds_data.get("thresholds", {})
-            # Determine which threshold bracket the budget falls into
-            for key in ["contratacion_directa", "licitacion_privada", "licitacion_publica"]:
-                t = thresholds.get(key, {})
-                max_ars = t.get("max_ars")
-                if max_ars is None or budget <= max_ars:
-                    threshold_info = {
-                        "tipo_segun_monto": t.get("label", key),
-                        "modulos": t.get("modulos"),
-                        "tope_ars": max_ars,
-                        "modulo_value": thresholds_data.get("modulo_value"),
-                    }
-                    break
-            if threshold_info:
-                context += f"\n\nUmbrales de contratación: El presupuesto de ${budget} corresponde a {threshold_info['tipo_segun_monto']}."
-                if threshold_info.get("modulos"):
-                    context += f" (hasta {threshold_info['modulos']} módulos, módulo = ${threshold_info['modulo_value']})"
+            data_dir = Path(__file__).parent.parent / "data"
+            if is_mendoza:
+                with open(data_dir / "mendoza_uf.json", "r") as f:
+                    uf_data = json.load(f)
+                uf_value = uf_data["uf_value"]
+                budget_in_ufs = round(budget / uf_value, 1)
+                thresholds = uf_data.get("thresholds_mendoza", {})
+                for key in ["contratacion_directa", "licitacion_privada", "licitacion_publica"]:
+                    t = thresholds.get(key, {})
+                    max_uf = t.get("max_uf")
+                    if max_uf is None or budget_in_ufs <= max_uf:
+                        threshold_info = {
+                            "tipo_segun_monto": t.get("label", key),
+                            "uf_value": uf_value,
+                            "budget_in_ufs": budget_in_ufs,
+                            "max_uf": max_uf,
+                            "tope_ars": t.get("max_ars_calc"),
+                            "threshold_system": "uf_mendoza",
+                        }
+                        break
+                if threshold_info:
+                    context += f"\n\nContexto legal provincial: Ley 8706 de Mendoza. UF {uf_data.get('uf_year', 2026)} = ${uf_value}."
+                    context += f" Presupuesto = {budget_in_ufs} UF → {threshold_info['tipo_segun_monto']}."
+            else:
+                with open(data_dir / "procurement_thresholds.json", "r") as f:
+                    thresholds_data = json.load(f)
+                thresholds = thresholds_data.get("thresholds", {})
+                for key in ["contratacion_directa", "licitacion_privada", "licitacion_publica"]:
+                    t = thresholds.get(key, {})
+                    max_ars = t.get("max_ars")
+                    if max_ars is None or budget <= max_ars:
+                        threshold_info = {
+                            "tipo_segun_monto": t.get("label", key),
+                            "modulos": t.get("modulos"),
+                            "tope_ars": max_ars,
+                            "modulo_value": thresholds_data.get("modulo_value"),
+                            "threshold_system": "modulo_federal",
+                        }
+                        break
+                if threshold_info:
+                    context += f"\n\nUmbrales de contratación: El presupuesto de ${budget} corresponde a {threshold_info['tipo_segun_monto']}."
+                    if threshold_info.get("modulos"):
+                        context += f" (hasta {threshold_info['modulos']} módulos, módulo = ${threshold_info['modulo_value']})"
         except Exception as e:
             logger.warning(f"Could not load procurement thresholds: {e}")
 

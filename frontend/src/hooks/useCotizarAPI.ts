@@ -38,6 +38,9 @@ export interface BudgetHints {
   range_max: number | null;
   items_from_pliego: Array<{ descripcion: string; cantidad: number; unidad: string }>;
   enrichment_level: number;
+  uf_value: number | null;
+  budget_in_ufs: number | null;
+  threshold_system: 'uf_mendoza' | 'modulo_federal';
 }
 
 export interface Antecedente {

@@ -578,7 +578,12 @@ export default function OfertaEditor({ licitacion, onSaved }: Props) {
                 <p className="font-bold text-gray-800 mt-0.5">{formatARS(budgetHints.budget)}</p>
               </div>
               {budgetHints.threshold_label && (
-                <span className="text-xs px-2 py-1 rounded-full bg-white/70 text-gray-600">{budgetHints.threshold_label}</span>
+                <div className="text-right">
+                  <span className="text-xs px-2 py-1 rounded-full bg-white/70 text-gray-600">{budgetHints.threshold_label}</span>
+                  {budgetHints.uf_value && budgetHints.budget_in_ufs != null && (
+                    <p className="text-xs text-gray-500 mt-1">UF Mendoza: ${budgetHints.uf_value} · {budgetHints.budget_in_ufs} UF</p>
+                  )}
+                </div>
               )}
             </div>
           ) : null}
@@ -963,6 +968,9 @@ export default function OfertaEditor({ licitacion, onSaved }: Props) {
               <div className="bg-gray-50 rounded-lg p-3">
                 <span className="text-xs font-semibold text-gray-400 uppercase">Umbral</span>
                 <p className="text-sm text-gray-800 font-medium mt-0.5">{budgetHints.threshold_label}</p>
+                {budgetHints.threshold_system === 'uf_mendoza' && budgetHints.uf_value && (
+                  <p className="text-xs text-gray-500 mt-1">Ley 8706 · UF {budgetHints.uf_value} · {budgetHints.budget_in_ufs} UF</p>
+                )}
               </div>
             )}
           </div>

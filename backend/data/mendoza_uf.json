@@ -1,0 +1,27 @@
+{
+  "uf_value": 500,
+  "uf_year": 2026,
+  "uf_source": "Rentas Mendoza",
+  "ley": "Ley Nº 8706",
+  "thresholds_mendoza": {
+    "contratacion_directa": {
+      "label": "Contratación Directa",
+      "max_uf": 1300,
+      "max_ars_calc": 650000
+    },
+    "licitacion_privada": {
+      "label": "Licitación Privada",
+      "min_uf": 1300,
+      "max_uf": 5200,
+      "min_ars_calc": 650000,
+      "max_ars_calc": 2600000
+    },
+    "licitacion_publica": {
+      "label": "Licitación Pública",
+      "min_uf": 5200,
+      "max_uf": null,
+      "min_ars_calc": 2600000,
+      "max_ars_calc": null
+    }
+  }
+}
