@@ -422,6 +422,145 @@ class GenericEnrichmentService:
     # Alias: title-only enrichment works the same for any source
     _enrich_title_only = _enrich_comprar_title_only
 
+    async def _enrich_osep_postback(self, lic_doc: dict, list_url: str, target: str) -> Dict[str, Any]:
+        """Enrich OSEP licitacion by fetching the list page and doing ASP.NET postback.
+        OSEP uses the same COMPR.AR portal architecture — ASP.NET WebForms with __doPostBack."""
+        import re
+        try:
+            # Step 1: Fetch the list page to get ASP.NET hidden fields
+            list_html = await self.http.fetch(list_url)
+            if not list_html:
+                logger.warning("OSEP enrichment: could not fetch list page")
+                return {}
+
+            soup = BeautifulSoup(list_html, "html.parser")
+            fields = {}
+            for name in ["__VIEWSTATE", "__EVENTVALIDATION", "__VIEWSTATEGENERATOR"]:
+                inp = soup.find("input", {"name": name})
+                if inp and inp.get("value") is not None:
+                    fields[name] = inp.get("value")
+
+            if not fields.get("__VIEWSTATE"):
+                logger.warning("OSEP enrichment: no __VIEWSTATE found")
+                return {}
+
+            # Step 2: Postback to navigate to the process detail page
+            fields["__EVENTTARGET"] = target
+            fields["__EVENTARGUMENT"] = ""
+
+            import aiohttp
+            async with aiohttp.ClientSession(
+                timeout=aiohttp.ClientTimeout(total=30),
+                connector=aiohttp.TCPConnector(ssl=False),
+            ) as session:
+                async with session.post(list_url, data=fields) as resp:
+                    if resp.status != 200:
+                        logger.warning(f"OSEP postback returned {resp.status}")
+                        return {}
+                    raw = await resp.read()
+                    try:
+                        detail_html = raw.decode("utf-8")
+                    except UnicodeDecodeError:
+                        detail_html = raw.decode("latin-1", errors="replace")
+
+            if not detail_html or len(detail_html) < 200:
+                return {}
+
+            # Step 3: Extract data from the detail page (same label-based extraction as OsepScraper)
+            detail_soup = BeautifulSoup(detail_html, "html.parser")
+            updates: Dict[str, Any] = {}
+
+            def value_by_label(label_texts):
+                for lab in detail_soup.find_all("label"):
+                    text = lab.get_text(" ", strip=True)
+                    if any(t.lower() in text.lower() for t in label_texts):
+                        nxt = lab.find_next_sibling()
+                        if nxt:
+                            return nxt.get_text(" ", strip=True)
+                return None
+
+            description = value_by_label(["Objeto de la contratación", "Objeto"])
+            if description and description != lic_doc.get("description"):
+                updates["description"] = description[:10000]
+
+            expedient = value_by_label(["Número de expediente"])
+            if expedient and not lic_doc.get("expedient_number"):
+                updates["expedient_number"] = expedient
+
+            lic_number = value_by_label(["Número de proceso", "Nº de proceso"])
+            if lic_number and not lic_doc.get("licitacion_number"):
+                updates["licitacion_number"] = lic_number
+
+            contact = value_by_label(["Consultas", "Contacto"])
+            if contact:
+                updates["contact"] = contact
+
+            tipo = value_by_label(["Procedimiento de selección"])
+            if tipo and not lic_doc.get("tipo_procedimiento"):
+                updates["tipo_procedimiento"] = tipo
+
+            # Opening date
+            from utils.dates import parse_date_guess
+            open_raw = value_by_label(["Fecha y hora acto de apertura", "Fecha de Apertura"])
+            if open_raw:
+                parsed = parse_date_guess(open_raw)
+                if parsed and not lic_doc.get("opening_date"):
+                    updates["opening_date"] = parsed
+
+            pub_raw = value_by_label(["Fecha y hora estimada de publicación", "Fecha de publicación"])
+            if pub_raw:
+                parsed = parse_date_guess(pub_raw)
+                if parsed and not lic_doc.get("publication_date"):
+                    updates["publication_date"] = parsed
+
+            # Attached files
+            from urllib.parse import urljoin
+            attached = []
+            for a in detail_soup.find_all("a", href=True):
+                href = a.get("href", "")
+                if any(ext in href.lower() for ext in [".pdf", ".doc", ".docx", ".xls", ".xlsx"]):
+                    attached.append({
+                        "name": a.get_text(" ", strip=True) or href.split("/")[-1],
+                        "url": urljoin(list_url, href),
+                        "type": href.split(".")[-1].lower() if "." in href else "unknown",
+                    })
+            if attached and not lic_doc.get("attached_files"):
+                updates["attached_files"] = attached
+
+            # Extract objeto
+            if not lic_doc.get("objeto"):
+                from utils.object_extractor import extract_objeto
+                obj = extract_objeto(
+                    title=lic_doc.get("title", ""),
+                    description=updates.get("description", lic_doc.get("description", "") or ""),
+                    metadata=lic_doc.get("metadata", {}),
+                )
+                if obj:
+                    updates["objeto"] = obj
+
+            # Classify category
+            if not lic_doc.get("category"):
+                from services.category_classifier import get_category_classifier
+                classifier = get_category_classifier()
+                cat = classifier.classify(
+                    title=lic_doc.get("title", ""),
+                    objeto=updates.get("objeto", ""),
+                    description=updates.get("description", "")[:500],
+                )
+                if cat:
+                    updates["category"] = cat
+
+            # Update enrichment level
+            if updates:
+                updates["enrichment_level"] = max(lic_doc.get("enrichment_level", 1), 2)
+
+            logger.info(f"OSEP postback enrichment: {len(updates)} fields extracted")
+            return updates
+
+        except Exception as e:
+            logger.error(f"OSEP postback enrichment failed: {e}")
+            return {}
+
     # ---- Main enrich method ----
 
     async def enrich(self, lic_doc: dict, selectors: Optional[dict] = None) -> Dict[str, Any]:
@@ -455,9 +594,18 @@ class GenericEnrichmentService:
             if text:
                 return self._analyze_extracted_text(text, lic_doc)
 
-        # Skip broken proxy URLs (e.g., localhost:8001 for OSEP)
+        # Broken proxy URLs (e.g., localhost:8001 for OSEP) — try real URL first
         if "localhost:" in source_url and ":8000" not in source_url:
-            logger.debug(f"Skipping broken proxy URL: {source_url[:60]}")
+            logger.debug(f"Proxy URL detected: {source_url[:60]}")
+            # OSEP: try to fetch via real list URL + postback
+            source_urls = lic_doc.get("source_urls") or {}
+            osep_list = source_urls.get("osep_list", "")
+            osep_target = (lic_doc.get("metadata") or {}).get("osep_target", "")
+            if osep_list and osep_target:
+                logger.info(f"OSEP enrichment via postback: {osep_list[:60]}")
+                result = await self._enrich_osep_postback(lic_doc, osep_list, osep_target)
+                if result:
+                    return result
             return self._enrich_title_only(lic_doc)
 
         try:
