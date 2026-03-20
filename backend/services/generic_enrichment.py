@@ -607,7 +607,8 @@ class GenericEnrichmentService:
         # Handle binary URLs (PDF/ZIP) before attempting HTML fetch
         if source_url:
             url_lower = source_url.lower().split("?")[0].split("#")[0]
-            if url_lower.endswith(".pdf"):
+            is_pdf_url = url_lower.endswith(".pdf") or "/verpdf/" in url_lower or "/getpdf/" in url_lower or "/download/pdf" in url_lower
+            if is_pdf_url:
                 text = await self._extract_text_from_pdf_url(source_url)
                 if text:
                     return self._analyze_extracted_text(text, lic_doc)
@@ -646,6 +647,14 @@ class GenericEnrichmentService:
             return result
 
         if not html:
+            return self._enrich_title_only(lic_doc)
+
+        # Safety: if fetched content looks like binary PDF (starts with %PDF), treat as PDF
+        if html.lstrip()[:5] == "%PDF-":
+            logger.info(f"Content-type mismatch: URL returned PDF binary: {source_url[:80]}")
+            text = await self._extract_text_from_pdf_url(source_url)
+            if text:
+                return self._analyze_extracted_text(text, lic_doc)
             return self._enrich_title_only(lic_doc)
 
         soup = BeautifulSoup(html, "html.parser")
