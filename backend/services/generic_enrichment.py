@@ -422,6 +422,25 @@ class GenericEnrichmentService:
     # Alias: title-only enrichment works the same for any source
     _enrich_title_only = _enrich_comprar_title_only
 
+    def _find_best_alt_url(self, source_urls: dict) -> Optional[str]:
+        """Find the best alternative URL from source_urls dict, skipping proxies and list pages."""
+        if not source_urls:
+            return None
+        for key in sorted(source_urls.keys()):
+            url = source_urls[key]
+            if not url or not isinstance(url, str):
+                continue
+            if "localhost:" in url:
+                continue
+            # Prefer detail pages over list pages
+            if "detail" in key or "pliego" in key:
+                return url
+        # Fallback: any non-proxy URL
+        for url in source_urls.values():
+            if url and isinstance(url, str) and "localhost:" not in url:
+                return url
+        return None
+
     async def _enrich_osep_postback(self, lic_doc: dict, list_url: str, target: str) -> Dict[str, Any]:
         """Enrich OSEP licitacion by fetching the list page and doing ASP.NET postback.
         OSEP uses the same COMPR.AR portal architecture — ASP.NET WebForms with __doPostBack."""
@@ -575,30 +594,32 @@ class GenericEnrichmentService:
             Dict of fields to update (empty if nothing new found)
         """
         source_url = str(lic_doc.get("source_url", "") or "")
-        if not source_url:
-            return {}
+        source_urls = lic_doc.get("source_urls") or {}
+
+        # No URL at all — title-only enrichment
+        if not source_url and not source_urls:
+            return self._enrich_title_only(lic_doc)
 
         # COMPR.AR: VistaPreviaPliegoCiudadano URLs are STABLE and contain rich data.
-        # ComprasElectronicas URLs are SESSION-DEPENDENT and resolve to the portal homepage.
-        if "comprar.mendoza.gov.ar" in source_url and "qs=" in source_url:
+        if source_url and "comprar.mendoza.gov.ar" in source_url and "qs=" in source_url:
             return await self._enrich_comprar(lic_doc, source_url)
 
         # Handle binary URLs (PDF/ZIP) before attempting HTML fetch
-        url_lower = source_url.lower().split("?")[0].split("#")[0]
-        if url_lower.endswith(".pdf"):
-            text = await self._extract_text_from_pdf_url(source_url)
-            if text:
-                return self._analyze_extracted_text(text, lic_doc)
-        elif url_lower.endswith(".zip"):
-            text = await self._extract_text_from_zip(source_url)
-            if text:
-                return self._analyze_extracted_text(text, lic_doc)
+        if source_url:
+            url_lower = source_url.lower().split("?")[0].split("#")[0]
+            if url_lower.endswith(".pdf"):
+                text = await self._extract_text_from_pdf_url(source_url)
+                if text:
+                    return self._analyze_extracted_text(text, lic_doc)
+            elif url_lower.endswith(".zip"):
+                text = await self._extract_text_from_zip(source_url)
+                if text:
+                    return self._analyze_extracted_text(text, lic_doc)
 
         # Broken proxy URLs (e.g., localhost:8001 for OSEP) — try real URL first
-        if "localhost:" in source_url and ":8000" not in source_url:
+        if source_url and "localhost:" in source_url and ":8000" not in source_url:
             logger.debug(f"Proxy URL detected: {source_url[:60]}")
             # OSEP: try to fetch via real list URL + postback
-            source_urls = lic_doc.get("source_urls") or {}
             osep_list = source_urls.get("osep_list", "")
             osep_target = (lic_doc.get("metadata") or {}).get("osep_target", "")
             if osep_list and osep_target:
@@ -606,7 +627,13 @@ class GenericEnrichmentService:
                 result = await self._enrich_osep_postback(lic_doc, osep_list, osep_target)
                 if result:
                     return result
-            return self._enrich_title_only(lic_doc)
+            # Try any alternative URL from source_urls
+            alt_url = self._find_best_alt_url(source_urls)
+            if alt_url:
+                source_url = alt_url
+                logger.info(f"Using alternative URL: {alt_url[:80]}")
+            else:
+                return self._enrich_title_only(lic_doc)
 
         try:
             html = await self.http.fetch(source_url)
@@ -741,7 +768,31 @@ class GenericEnrichmentService:
             updates["metadata"] = meta
             logger.info(f"Prórroga detected (keyword): fecha_prorroga = {effective_opening.date()}")
 
+        # GUARANTEE: Always try objeto+category extraction even if HTML yielded nothing new
+        # This ensures every enrichment run produces at least title-derived fields
+        if not updates.get("objeto") and not lic_doc.get("objeto"):
+            from utils.object_extractor import extract_objeto
+            obj = extract_objeto(
+                title=lic_doc.get("title", ""),
+                description=updates.get("description", lic_doc.get("description", "") or ""),
+                metadata=updates.get("metadata", lic_doc.get("metadata", {})),
+            )
+            if obj:
+                updates["objeto"] = obj
+
+        if not updates.get("category") and not lic_doc.get("category"):
+            from services.category_classifier import get_category_classifier
+            classifier = get_category_classifier()
+            title = updates.get("title", lic_doc.get("title", ""))
+            objeto = updates.get("objeto", lic_doc.get("objeto", ""))
+            desc_short = (updates.get("description", lic_doc.get("description", "")) or "")[:500]
+            cat = classifier.classify(title=title, objeto=objeto, description=desc_short)
+            if cat:
+                updates["category"] = cat
+
+        # Always bump enrichment_level if we extracted anything
         if updates:
+            updates["enrichment_level"] = max(lic_doc.get("enrichment_level", 1), 2)
             updates["last_enrichment"] = datetime.utcnow()
             updates["updated_at"] = datetime.utcnow()
             logger.info(f"Generic enrichment found {len(updates)} field updates for {source_url}")

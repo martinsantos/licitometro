@@ -1404,10 +1404,11 @@ async def enrich_licitacion_universal(
             if config_doc:
                 selectors = config_doc.get("selectors", {})
 
-        if source_url:
+        source_urls = lic_dict.get("source_urls") or {}
+        if source_url or source_urls:
             updates = await service.enrich(lic_dict, selectors)
         else:
-            # No source URL — do title-only enrichment (objeto + category)
+            # No URLs at all — do title-only enrichment (objeto + category)
             updates = service._enrich_title_only(lic_dict)
 
         if not updates:
