@@ -162,12 +162,48 @@ export default function OfertaEditor({ licitacion, onSaved }: Props) {
   const normalizeLicItems = useCallback((rawItems: Array<Record<string, unknown>>): CotizarItem[] => {
     return rawItems
       .filter(it => it.descripcion || it.description)
-      .map(it => ({
-        descripcion: String(it.descripcion || it.description || ''),
-        cantidad: Number(it.cantidad || it.quantity || 1) || 1,
-        unidad: String(it.unidad || it.unit || 'u.'),
-        precio_unitario: Number(it.precio_unitario || 0),
-      }));
+      .map(it => {
+        // Parse cantidad: can be number, "1,00", "1,00 UNIDAD/S", etc.
+        let cantidadRaw = it.cantidad || it.quantity || 1;
+        let cantidad = 1;
+        let unitFromCantidad = '';
+        if (typeof cantidadRaw === 'string') {
+          // Extract number part: "1,00 UNIDAD/S" → "1,00"
+          const numMatch = cantidadRaw.match(/^[\d.,]+/);
+          if (numMatch) {
+            cantidad = parseFloat(numMatch[0].replace(/\./g, '').replace(',', '.')) || 1;
+          }
+          // Extract unit part: "1,00 UNIDAD/S" → "UNIDAD/S"
+          const unitPart = cantidadRaw.replace(/^[\d.,\s]+/, '').trim();
+          if (unitPart) unitFromCantidad = unitPart;
+        } else {
+          cantidad = Number(cantidadRaw) || 1;
+        }
+
+        // Parse unidad: from explicit field, from cantidad suffix, or from descripcion
+        let unidad = String(it.unidad || it.unidad_medida || it.unit || '').trim();
+        if (!unidad && unitFromCantidad) {
+          unidad = unitFromCantidad;
+        }
+        if (!unidad) {
+          // Try to extract from descripcion: "Presentación: UNIDAD"
+          const desc = String(it.descripcion || it.description || '');
+          const presMatch = desc.match(/Presentaci[oó]n:\s*(\S+)/i);
+          if (presMatch) unidad = presMatch[1];
+        }
+        if (!unidad) unidad = 'u.';
+
+        // Clean up descripcion: remove "Presentación: X  Solicitado: Y" suffix
+        let descripcion = String(it.descripcion || it.description || '');
+        descripcion = descripcion.replace(/\s+Presentaci[oó]n:\s*.+$/i, '').trim();
+
+        return {
+          descripcion,
+          cantidad,
+          unidad,
+          precio_unitario: Number(it.precio_unitario || 0),
+        };
+      });
   }, []);
 
   // Mount: load from MongoDB or auto-import

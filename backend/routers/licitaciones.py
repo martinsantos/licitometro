@@ -1553,10 +1553,46 @@ async def get_budget_hints(licitacion_id: str, request: Request):
             else:
                 range_min = 0
 
-    # Extract items from pliego if enrichment level >= 3
+    # Extract items: prefer structured items from scraping, fall back to AI extraction
     items_from_pliego = []
     enrichment_level = lic.get("enrichment_level", 1)
-    if enrichment_level >= 2 and lic.get("description"):
+
+    # 1. Use existing structured items if available
+    lic_items = lic.get("items") or []
+    if lic_items:
+        for it in lic_items:
+            desc = it.get("descripcion", "")
+            if not desc:
+                continue
+            # Clean up descripcion: remove "Presentación: X  Solicitado: Y"
+            desc_clean = re.sub(r'\s+Presentaci[oó]n:\s*.+$', '', desc, flags=re.IGNORECASE).strip()
+            # Parse cantidad: "1,00 UNIDAD/S" → number + unit
+            cant_raw = it.get("cantidad", "1")
+            cantidad = 1.0
+            unidad = it.get("unidad", "") or ""
+            if isinstance(cant_raw, str):
+                num_match = re.match(r'^[\d.,]+', cant_raw)
+                if num_match:
+                    cantidad = float(num_match.group(0).replace('.', '').replace(',', '.') or '1')
+                unit_part = re.sub(r'^[\d.,\s]+', '', cant_raw).strip()
+                if unit_part and not unidad:
+                    unidad = unit_part
+            else:
+                cantidad = float(cant_raw) if cant_raw else 1.0
+            if not unidad:
+                pres_match = re.search(r'Presentaci[oó]n:\s*(\S+)', desc, re.IGNORECASE)
+                if pres_match:
+                    unidad = pres_match.group(1)
+            if not unidad:
+                unidad = "u."
+            items_from_pliego.append({
+                "descripcion": desc_clean,
+                "cantidad": cantidad,
+                "unidad": unidad,
+            })
+
+    # 2. Fallback: try AI extraction from description text
+    if not items_from_pliego and enrichment_level >= 2 and lic.get("description"):
         try:
             from services.groq_enrichment import get_groq_enrichment_service
             groq = get_groq_enrichment_service()
@@ -1564,7 +1600,7 @@ async def get_budget_hints(licitacion_id: str, request: Request):
                 lic["description"][:3000]
             )
         except Exception as e:
-            logger.warning(f"Failed to extract pliego items: {e}")
+            logger.warning(f"Failed to extract pliego items via AI: {e}")
 
     return {
         "budget": budget,

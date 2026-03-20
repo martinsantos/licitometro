@@ -200,7 +200,7 @@ async def extract_pliego_info(body: Dict[str, Any], request: Request):
     if lic.get("description"):
         parts.append(f"Descripción:\n{lic['description'][:4000]}")
     if lic.get("items"):
-        items_str = json.dumps(lic["items"], ensure_ascii=False)[:1000]
+        items_str = json.dumps(lic["items"], ensure_ascii=False)[:2000]
         parts.append(f"Items del pliego: {items_str}")
     if lic.get("budget"):
         parts.append(f"Presupuesto oficial: ${lic['budget']}")
@@ -208,6 +208,19 @@ async def extract_pliego_info(body: Dict[str, Any], request: Request):
         parts.append(f"Organismo: {lic['organization']}")
     if lic.get("tipo_procedimiento"):
         parts.append(f"Tipo: {lic['tipo_procedimiento']}")
+    # Include COMPR.AR pliego fields (cronograma, encuadre legal, etc.)
+    meta = lic.get("metadata") or {}
+    pliego_fields = meta.get("comprar_pliego_fields") or {}
+    if pliego_fields:
+        relevant_keys = [
+            "Encuadre legal", "Etapa", "Modalidad", "Alcance",
+            "Tipo de cotización", "Tipo de adjudicación",
+            "Plazo mantenimiento de la oferta", "Requiere pago",
+            "Duración del contrato", "Fecha estimada del inicio del contrato",
+        ]
+        pliego_parts = [f"  {k}: {pliego_fields[k]}" for k in relevant_keys if pliego_fields.get(k)]
+        if pliego_parts:
+            parts.append("Datos del pliego COMPR.AR:\n" + "\n".join(pliego_parts))
 
     text = "\n".join(parts)
     if len(text) < 20:
