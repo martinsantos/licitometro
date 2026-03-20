@@ -162,6 +162,8 @@ export default function OfertaEditor({ licitacion, onSaved }: Props) {
   const [companyAntecedentes, setCompanyAntecedentes] = useState<Antecedente[]>([]);
   const [loadingCompanyAntecedentes, setLoadingCompanyAntecedentes] = useState(false);
   const [showCompanyAntecedentes, setShowCompanyAntecedentes] = useState(false);
+  const [companyAntSectors, setCompanyAntSectors] = useState<Array<{ sector: string; count: number }>>([]);
+  const [selectedCompanyAntSector, setSelectedCompanyAntSector] = useState<string>('');
   const offerRef = useRef<HTMLDivElement>(null);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -388,19 +390,40 @@ export default function OfertaEditor({ licitacion, onSaved }: Props) {
     }
   }, [licitacion.id, antecedentes.length]);
 
-  const handleLoadCompanyAntecedentes = useCallback(async () => {
-    if (companyAntecedentes.length > 0) { setShowCompanyAntecedentes(p => !p); return; }
+  const handleLoadCompanyAntecedentes = useCallback(async (sector?: string) => {
+    if (!sector && companyAntecedentes.length > 0 && !selectedCompanyAntSector) {
+      setShowCompanyAntecedentes(p => !p);
+      return;
+    }
     setLoadingCompanyAntecedentes(true);
     setShowCompanyAntecedentes(true);
     try {
-      const results = await api.searchCompanyAntecedentes(licitacion.id);
+      const [results, sectors] = await Promise.all([
+        api.searchCompanyAntecedentes(licitacion.id, undefined, sector || undefined),
+        companyAntSectors.length ? Promise.resolve(companyAntSectors) : api.getCompanyAntecedenteSectors(),
+      ]);
       setCompanyAntecedentes(results);
+      if (!companyAntSectors.length && sectors.length) setCompanyAntSectors(sectors);
     } catch (e) {
       setErrorMsg(e instanceof Error ? e.message : 'Error buscando antecedentes empresa');
     } finally {
       setLoadingCompanyAntecedentes(false);
     }
-  }, [licitacion.id, companyAntecedentes.length]);
+  }, [licitacion.id, companyAntecedentes.length, selectedCompanyAntSector, companyAntSectors.length]);
+
+  const handleSectorFilter = useCallback(async (sector: string) => {
+    const newSector = sector === selectedCompanyAntSector ? '' : sector;
+    setSelectedCompanyAntSector(newSector);
+    setLoadingCompanyAntecedentes(true);
+    try {
+      const results = await api.searchCompanyAntecedentes(licitacion.id, undefined, newSector || undefined);
+      setCompanyAntecedentes(results);
+    } catch (e) {
+      setErrorMsg(e instanceof Error ? e.message : 'Error');
+    } finally {
+      setLoadingCompanyAntecedentes(false);
+    }
+  }, [licitacion.id, selectedCompanyAntSector]);
 
   const handleVincular = useCallback(async (antId: string) => {
     try {
@@ -928,14 +951,36 @@ export default function OfertaEditor({ licitacion, onSaved }: Props) {
 
           {/* Company Antecedentes (Ultima Milla) */}
           <div className="border-t border-gray-100 pt-4">
-            <button onClick={handleLoadCompanyAntecedentes} className="flex items-center gap-2 text-sm text-gray-600 hover:text-gray-800 transition-colors">
+            <button onClick={() => handleLoadCompanyAntecedentes()} className="flex items-center gap-2 text-sm text-gray-600 hover:text-gray-800 transition-colors">
               <span className={`transition-transform ${showCompanyAntecedentes ? 'rotate-90' : ''}`}>▶</span>
               Antecedentes de la Empresa (Ultima Milla)
               {companyAntecedentes.length > 0 && <span className="text-xs bg-blue-100 text-blue-600 px-1.5 py-0.5 rounded-full">{companyAntecedentes.length}</span>}
             </button>
 
             {showCompanyAntecedentes && (
-              <div className="mt-3 space-y-2">
+              <div className="mt-3 space-y-3">
+                {/* Sector filter chips */}
+                {companyAntSectors.length > 0 && (
+                  <div className="flex flex-wrap gap-1.5">
+                    {companyAntSectors.slice(0, 10).map(s => (
+                      <button
+                        key={s.sector}
+                        onClick={() => handleSectorFilter(s.sector)}
+                        className={`text-xs px-2 py-1 rounded-full border transition-colors ${
+                          selectedCompanyAntSector === s.sector
+                            ? 'bg-blue-600 text-white border-blue-600'
+                            : 'bg-white text-gray-600 border-gray-200 hover:border-blue-300 hover:text-blue-600'
+                        }`}
+                      >
+                        {s.sector} <span className="opacity-60">({s.count})</span>
+                      </button>
+                    ))}
+                    {selectedCompanyAntSector && (
+                      <button onClick={() => handleSectorFilter(selectedCompanyAntSector)} className="text-xs text-gray-400 hover:text-gray-600 px-1">✕ limpiar</button>
+                    )}
+                  </div>
+                )}
+
                 {loadingCompanyAntecedentes ? (
                   <div className="flex items-center gap-2 text-sm text-gray-400 py-4">
                     <div className="w-4 h-4 border-2 border-gray-200 border-t-blue-500 rounded-full animate-spin" />
@@ -946,21 +991,58 @@ export default function OfertaEditor({ licitacion, onSaved }: Props) {
                 ) : (
                   companyAntecedentes.map(ant => (
                     <div key={ant.id} className="bg-blue-50/50 rounded-lg p-3 text-sm">
-                      <div className="flex items-start justify-between gap-2">
-                        <div className="flex-1 min-w-0">
-                          <p className="font-medium text-gray-800 line-clamp-1">{ant.title}</p>
-                          {ant.objeto && <p className="text-xs text-gray-500 mt-0.5 line-clamp-2">{ant.objeto}</p>}
-                        </div>
-                        {ant.url && (
-                          <a href={ant.url} target="_blank" rel="noopener noreferrer" className="text-xs text-blue-600 hover:text-blue-800 shrink-0 border border-blue-200 px-2 py-0.5 rounded-full transition-colors">
-                            Ver
-                          </a>
+                      <div className="flex items-start gap-3">
+                        {/* Thumbnail */}
+                        {ant.image_url && (
+                          <img
+                            src={ant.image_url}
+                            alt=""
+                            className="w-20 h-14 object-cover rounded-md shrink-0 bg-gray-200"
+                            onError={e => { (e.target as HTMLImageElement).style.display = 'none'; }}
+                          />
                         )}
-                      </div>
-                      <div className="flex items-center gap-3 mt-1 text-xs text-gray-500 flex-wrap">
-                        {ant.organization && <span>{ant.organization}</span>}
-                        {ant.category && <span className="bg-gray-100 px-1.5 py-0.5 rounded">{ant.category}</span>}
-                        <span className="text-blue-400">ultimamilla.com.ar</span>
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-start justify-between gap-2">
+                            <p className="font-medium text-gray-800 line-clamp-1">{ant.title}</p>
+                            {ant.url && (
+                              <a href={ant.url} target="_blank" rel="noopener noreferrer" className="text-xs text-blue-600 hover:text-blue-800 shrink-0 border border-blue-200 px-2 py-0.5 rounded-full transition-colors">
+                                Ver
+                              </a>
+                            )}
+                          </div>
+                          {ant.objeto && <p className="text-xs text-gray-500 mt-0.5 line-clamp-2">{ant.objeto}</p>}
+                          <div className="flex items-center gap-2 mt-1.5 flex-wrap">
+                            {ant.category && (
+                              <span className="text-xs bg-blue-100 text-blue-700 px-1.5 py-0.5 rounded font-medium">{ant.category}</span>
+                            )}
+                            {ant.organization && <span className="text-xs text-gray-500">{ant.organization}</span>}
+                            {ant.estado_sgi === 3 && <span className="text-xs bg-green-100 text-green-700 px-1.5 py-0.5 rounded">Finalizado</span>}
+                            {ant.estado_sgi === 2 && <span className="text-xs bg-sky-100 text-sky-700 px-1.5 py-0.5 rounded">En Progreso</span>}
+                          </div>
+                          {/* Financial info */}
+                          {(ant.budget || ant.budget_adjusted || ant.certificado_total) && (
+                            <div className="flex items-center gap-3 mt-1 text-xs text-gray-500 flex-wrap">
+                              {ant.budget != null && ant.budget > 0 && (
+                                <span title="Presupuesto original">
+                                  ${ant.budget.toLocaleString('es-AR')}
+                                  {ant.budget_adjusted != null && ant.budget_adjusted > ant.budget && (
+                                    <span className="text-amber-600 ml-1" title={`Ajustado por IPC (×${ant.ipc_coefficient?.toFixed(1)})`}>
+                                      → ${ant.budget_adjusted >= 1e9
+                                        ? `${(ant.budget_adjusted / 1e9).toFixed(1)}B`
+                                        : ant.budget_adjusted >= 1e6
+                                        ? `${(ant.budget_adjusted / 1e6).toFixed(1)}M`
+                                        : ant.budget_adjusted.toLocaleString('es-AR')
+                                      }
+                                    </span>
+                                  )}
+                                </span>
+                              )}
+                              {ant.certificado_total != null && ant.certificado_total > 0 && (
+                                <span title="Certificado total">Cert: ${ant.certificado_total.toLocaleString('es-AR')}</span>
+                              )}
+                            </div>
+                          )}
+                        </div>
                       </div>
                     </div>
                   ))

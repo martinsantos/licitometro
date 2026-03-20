@@ -326,9 +326,19 @@ async def extract_pliego_info(body: Dict[str, Any], request: Request):
     return await groq.extract_pliego_info(text)
 
 
+@router.get("/company-antecedentes/sectors")
+async def get_company_antecedentes_sectors(request: Request):
+    """Get available sectors with counts from UM antecedentes."""
+    db = _get_db(request)
+    from services.um_antecedentes import get_um_antecedente_service
+    service = get_um_antecedente_service(db)
+    await service.ensure_indexes()
+    return await service.get_sectors()
+
+
 @router.post("/search-company-antecedentes")
 async def search_company_antecedentes(body: Dict[str, Any], request: Request):
-    """Search Ultima Milla company antecedentes from ultimamilla.com.ar."""
+    """Search Ultima Milla company antecedentes from ultimamilla.com.ar + SGI."""
     db = _get_db(request)
     licitacion_id = body.get("licitacion_id")
     keywords = body.get("keywords")

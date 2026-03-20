@@ -49,14 +49,25 @@ export interface Antecedente {
   objeto: string;
   organization: string;
   budget: number | null;
+  budget_adjusted?: number | null;
+  ipc_coefficient?: number | null;
   publication_date: string;
   category?: string;
+  unidad_negocio?: string;
+  image_url?: string;
+  detail_url?: string;
   tipo_procedimiento?: string;
   items?: Array<{ descripcion: string; cantidad: number; unidad: string; precio_unitario?: number }>;
   relevance_score?: number;
   price_ratio?: number | null;
   source?: string;
   url?: string;
+  certificado_total?: number;
+  estado_sgi?: number;
+  fecha_inicio?: string;
+  fecha_cierre?: string;
+  sgi_id?: string;
+  project_id?: string;
 }
 
 export interface CompanyProfile {
@@ -387,6 +398,10 @@ export function useCotizarAPI() {
         method: 'POST',
         body: JSON.stringify({ licitacion_id: licitacionId, keywords, sector }),
       });
+    },
+
+    async getCompanyAntecedenteSectors(): Promise<Array<{ sector: string; count: number }>> {
+      return apiFetchMain('/cotizar-ai/company-antecedentes/sectors');
     },
 
     // --- Company Context ---
