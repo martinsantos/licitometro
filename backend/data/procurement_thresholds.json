@@ -1,0 +1,10 @@
+{
+  "modulo_value": 44000,
+  "modulo_year": 2025,
+  "note": "Resolución ONC - Módulo actualizado",
+  "thresholds": {
+    "contratacion_directa": {"modulos": 1500, "max_ars": 66000000, "label": "Contratación Directa"},
+    "licitacion_privada": {"modulos": 4500, "max_ars": 198000000, "label": "Licitación Privada"},
+    "licitacion_publica": {"modulos": null, "max_ars": null, "label": "Licitación Pública (sin tope)"}
+  }
+}

@@ -14,7 +14,7 @@ import uvicorn
 sys.path.insert(0, str(Path(__file__).parent))
 
 # Import routers directly (not as relative imports)
-from routers import licitaciones, licitaciones_ar, scraper_configs, comprar, scheduler, workflow, offer_templates, auth, public, nodos
+from routers import licitaciones, licitaciones_ar, scraper_configs, comprar, scheduler, workflow, offer_templates, auth, public, nodos, cotizar_ai
 from services.auth_service import verify_token
 
 # Load environment variables
@@ -105,6 +105,15 @@ async def auth_middleware(request: Request, call_next):
     if request.method == "GET" and (path.startswith("/api/licitaciones") or path.startswith("/api/licitaciones-ar")):
         return await call_next(request)
 
+    # Allow reader access to cotizar-ai endpoints (read-only AI analysis, no data mutation)
+    if path.startswith("/api/cotizar-ai/"):
+        token = request.cookies.get("access_token")
+        if token:
+            token_data = verify_token(token)
+            if token_data["valid"]:
+                request.state.user_role = token_data.get("role", "reader")
+                return await call_next(request)
+
     token = request.cookies.get("access_token")
     if not token:
         return JSONResponse(status_code=401, content={"detail": "Not authenticated"})
@@ -142,6 +151,7 @@ app.include_router(scheduler.router)
 app.include_router(workflow.router)
 app.include_router(offer_templates.router)
 app.include_router(nodos.router)
+app.include_router(cotizar_ai.router)
 app.include_router(public.router)
 
 @app.on_event("startup")

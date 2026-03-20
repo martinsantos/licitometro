@@ -57,6 +57,50 @@ export interface InflationData {
   period: string;
 }
 
+export interface AIAnalysisResult {
+  precio: { score: number; color: string; detail: string };
+  metodologia: { score: number; color: string; detail: string };
+  empresa: { score: number; color: string; detail: string };
+  cronograma: { score: number; color: string; detail: string };
+  win_probability: number;
+  riesgos: Array<{ tipo: string; nivel: string; detalle: string }>;
+  recomendaciones: string[];
+  veredicto: string;
+  resumen: string;
+}
+
+export interface BudgetHints {
+  budget: number | null;
+  budget_source: string;
+  threshold_label: string | null;
+  range_min: number | null;
+  range_max: number | null;
+  items_from_pliego: Array<{ descripcion: string; cantidad: number; unidad: string }>;
+  enrichment_level: number;
+}
+
+export interface Antecedente {
+  id: string;
+  title: string;
+  objeto: string;
+  organization: string;
+  budget: number | null;
+  publication_date: string;
+}
+
+async function apiFetchMain<T>(path: string, options?: RequestInit): Promise<T> {
+  const res = await fetch(`/api${path}`, {
+    credentials: 'include',
+    headers: { 'Content-Type': 'application/json', ...(options?.headers || {}) },
+    ...options,
+  });
+  if (!res.ok) {
+    const text = await res.text().catch(() => '');
+    throw new Error(`api ${res.status}: ${text.slice(0, 200)}`);
+  }
+  return res.json();
+}
+
 async function apiFetch<T>(path: string, options?: RequestInit): Promise<T> {
   const res = await fetch(`${COTIZAR_API}${path}`, {
     credentials: 'include',
@@ -201,6 +245,37 @@ export function useCotizarAPI() {
 
     async getInflation(): Promise<InflationData> {
       return apiFetch<InflationData>('/market/inflation');
+    },
+
+    // --- AI endpoints (main Licitometro API) ---
+
+    async suggestPropuesta(licitacionId: string): Promise<{
+      metodologia: string; plazo: string; lugar: string; notas: string; error?: string;
+    }> {
+      return apiFetchMain('/cotizar-ai/suggest-propuesta', {
+        method: 'POST',
+        body: JSON.stringify({ licitacion_id: licitacionId }),
+      });
+    },
+
+    async searchAntecedentes(licitacionId: string): Promise<Antecedente[]> {
+      return apiFetchMain('/cotizar-ai/search-antecedentes', {
+        method: 'POST',
+        body: JSON.stringify({ licitacion_id: licitacionId }),
+      });
+    },
+
+    async analyzeBidAI(licitacionId: string, data: {
+      items: CotizarItem[]; total: number; metodologia: string; empresa_nombre: string;
+    }): Promise<AIAnalysisResult> {
+      return apiFetchMain('/cotizar-ai/analyze-bid', {
+        method: 'POST',
+        body: JSON.stringify({ licitacion_id: licitacionId, ...data }),
+      });
+    },
+
+    async getBudgetHints(licitacionId: string): Promise<BudgetHints> {
+      return apiFetchMain(`/licitaciones/${licitacionId}/budget-hints`);
     },
   };
 }

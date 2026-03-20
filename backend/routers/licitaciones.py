@@ -1477,6 +1477,82 @@ async def enrich_licitacion_universal(
         })
 
 
+@router.get("/{licitacion_id}/budget-hints")
+async def get_budget_hints(licitacion_id: str, request: Request):
+    """Budget suggestions based on official budget + procurement type + pliego items."""
+    db = request.app.mongodb
+    try:
+        lic = await db.licitaciones.find_one({"_id": ObjectId(licitacion_id)})
+    except Exception:
+        lic = None
+    if not lic:
+        raise HTTPException(status_code=404, detail="Licitación not found")
+
+    # Load thresholds
+    import json as _json
+    thresholds_path = Path(__file__).parent.parent / "data" / "procurement_thresholds.json"
+    thresholds_data = {}
+    try:
+        with open(thresholds_path) as f:
+            thresholds_data = _json.load(f)
+    except Exception:
+        pass
+
+    budget = lic.get("budget")
+    tipo = (lic.get("tipo_procedimiento") or "").lower().strip()
+
+    # Normalize tipo to threshold key
+    tipo_key = None
+    range_min = None
+    range_max = None
+    threshold_label = None
+    if "directa" in tipo:
+        tipo_key = "contratacion_directa"
+    elif "privada" in tipo:
+        tipo_key = "licitacion_privada"
+    elif "publica" in tipo or "pública" in tipo:
+        tipo_key = "licitacion_publica"
+
+    thresholds = thresholds_data.get("thresholds", {})
+    if tipo_key and tipo_key in thresholds:
+        th = thresholds[tipo_key]
+        threshold_label = th.get("label")
+        if th.get("max_ars"):
+            range_max = th["max_ars"]
+            # Estimate range_min from previous tier
+            keys = list(thresholds.keys())
+            idx = keys.index(tipo_key)
+            if idx > 0:
+                prev = thresholds[keys[idx - 1]]
+                range_min = prev.get("max_ars", 0)
+            else:
+                range_min = 0
+
+    # Extract items from pliego if enrichment level >= 3
+    items_from_pliego = []
+    enrichment_level = lic.get("enrichment_level", 1)
+    if enrichment_level >= 2 and lic.get("description"):
+        try:
+            from services.groq_enrichment import get_groq_enrichment_service
+            groq = get_groq_enrichment_service()
+            items_from_pliego = await groq.extract_items_from_pliego(
+                lic["description"][:3000]
+            )
+        except Exception as e:
+            logger.warning(f"Failed to extract pliego items: {e}")
+
+    return {
+        "budget": budget,
+        "budget_source": "oficial" if budget else "estimado",
+        "tipo_procedimiento": lic.get("tipo_procedimiento"),
+        "range_min": range_min,
+        "range_max": range_max,
+        "threshold_label": threshold_label,
+        "items_from_pliego": items_from_pliego or [],
+        "enrichment_level": enrichment_level,
+    }
+
+
 @router.get("/{licitacion_id}", response_model=Licitacion)
 async def get_licitacion(
     licitacion_id: str,

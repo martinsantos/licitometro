@@ -7,9 +7,10 @@ Falls back silently if key not set or quota exceeded.
 """
 
 import asyncio
+import json
 import logging
 import os
-from typing import List, Optional
+from typing import Any, Dict, List, Optional
 
 logger = logging.getLogger("groq_enrichment")
 
@@ -31,6 +32,20 @@ Texto:
 {text}
 
 JSON:"""
+
+PROMPT_PROPUESTA = """Eres un consultor experto en licitaciones públicas argentinas. Genera una propuesta técnica para la siguiente licitación:
+
+{context}
+
+Responde SOLO con JSON válido (sin markdown, sin backticks):
+{{"metodologia": "Descripción de la metodología de ejecución (3-4 párrafos, español formal)", "plazo": "Plazo estimado de ejecución (ej: 30 días hábiles)", "lugar": "Lugar de entrega/prestación inferido", "notas": "Condiciones especiales o recomendaciones"}}"""
+
+PROMPT_ANALYZE = """Eres un experto en licitaciones públicas argentinas. Analiza esta cotización y evalúa si conviene presentarse:
+
+{context}
+
+Responde SOLO con JSON válido (sin markdown, sin backticks):
+{{"precio": {{"score": 75, "color": "green", "detail": "El precio es competitivo..."}}, "metodologia": {{"score": 60, "color": "yellow", "detail": "La metodología..."}}, "empresa": {{"score": 80, "color": "green", "detail": "La empresa..."}}, "cronograma": {{"score": 70, "color": "green", "detail": "El plazo..."}}, "win_probability": 65, "riesgos": [{{"tipo": "Precio", "nivel": "medio", "detalle": "Descripción del riesgo..."}}], "recomendaciones": ["Recomendación 1", "Recomendación 2"], "veredicto": "Recomendado", "resumen": "Explicación breve de si conviene presentarse"}}"""
 
 
 class GroqEnrichmentService:
@@ -97,7 +112,6 @@ class GroqEnrichmentService:
             return []
 
         try:
-            import json
             text = pliego_text[:3000]  # Limit to avoid token overflow
             prompt = PROMPT_ITEMS.format(text=text)
 
@@ -130,6 +144,66 @@ class GroqEnrichmentService:
         except Exception as e:
             logger.warning(f"Groq extract_items_from_pliego failed: {e}")
             return []
+
+
+    async def suggest_propuesta(self, context: str) -> Dict[str, Any]:
+        """Generate a technical proposal suggestion using AI."""
+        client = self._get_client()
+        if not client:
+            return {"metodologia": "", "plazo": "", "lugar": "", "notas": "", "error": "IA no disponible"}
+
+        try:
+            response = await asyncio.to_thread(
+                client.chat.completions.create,
+                model=GROQ_MODEL,
+                messages=[{"role": "user", "content": PROMPT_PROPUESTA.format(context=context)}],
+                max_tokens=800,
+                temperature=0.3,
+            )
+            content = response.choices[0].message.content.strip()
+            # Extract JSON from response
+            start = content.find("{")
+            end = content.rfind("}") + 1
+            if start >= 0 and end > start:
+                return json.loads(content[start:end])
+            return {"metodologia": content, "plazo": "", "lugar": "", "notas": ""}
+        except Exception as e:
+            logger.warning(f"Groq suggest_propuesta failed: {e}")
+            return {"metodologia": "", "plazo": "", "lugar": "", "notas": "", "error": str(e)}
+
+    async def analyze_bid(self, context: str) -> Dict[str, Any]:
+        """Run comprehensive AI analysis on a bid."""
+        client = self._get_client()
+        if not client:
+            return {
+                "precio": {"score": 0, "color": "red", "detail": "IA no disponible"},
+                "metodologia": {"score": 0, "color": "red", "detail": "IA no disponible"},
+                "empresa": {"score": 0, "color": "red", "detail": "IA no disponible"},
+                "cronograma": {"score": 0, "color": "red", "detail": "IA no disponible"},
+                "win_probability": 0,
+                "riesgos": [],
+                "recomendaciones": ["Configurar GROQ_API_KEY para habilitar análisis IA"],
+                "veredicto": "No disponible",
+                "resumen": "El servicio de IA no está configurado.",
+            }
+
+        try:
+            response = await asyncio.to_thread(
+                client.chat.completions.create,
+                model=GROQ_MODEL,
+                messages=[{"role": "user", "content": PROMPT_ANALYZE.format(context=context)}],
+                max_tokens=1000,
+                temperature=0.3,
+            )
+            content = response.choices[0].message.content.strip()
+            start = content.find("{")
+            end = content.rfind("}") + 1
+            if start >= 0 and end > start:
+                return json.loads(content[start:end])
+            return {"error": "Respuesta IA no válida", "raw": content[:500]}
+        except Exception as e:
+            logger.warning(f"Groq analyze_bid failed: {e}")
+            return {"error": str(e), "veredicto": "Error", "resumen": f"Error en análisis: {e}"}
 
 
 _groq_service: Optional[GroqEnrichmentService] = None

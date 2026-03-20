@@ -1,13 +1,5 @@
 import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
-import { useCotizarAPI, CotizarItem, CotizarBid } from '../../hooks/useCotizarAPI';
-
-interface AnalysisResult {
-  strengths: string[];
-  weaknesses: string[];
-  risks: Array<{ description: string; severity: string; probability: number; mitigation?: string }>;
-  recommendations: string[];
-  winProbability: number;
-}
+import { useCotizarAPI, CotizarItem, CotizarBid, AIAnalysisResult, BudgetHints, Antecedente } from '../../hooks/useCotizarAPI';
 
 interface Licitacion {
   id: string;
@@ -164,9 +156,18 @@ export default function OfertaEditor({ licitacion, onBidSaved }: Props) {
     telefono: '',
     domicilio: '',
   });
-  const [analysis, setAnalysis] = useState<AnalysisResult | null>(null);
+  const [analysis, setAnalysis] = useState<AIAnalysisResult | null>(null);
   const [analyzing, setAnalyzing] = useState(false);
   const [analyzeError, setAnalyzeError] = useState('');
+  // AI state
+  const [budgetHints, setBudgetHints] = useState<BudgetHints | null>(null);
+  const [loadingHints, setLoadingHints] = useState(false);
+  const [suggestingPropuesta, setSuggestingPropuesta] = useState(false);
+  const [antecedentes, setAntecedentes] = useState<Antecedente[]>([]);
+  const [loadingAntecedentes, setLoadingAntecedentes] = useState(false);
+  const [showAntecedentes, setShowAntecedentes] = useState(false);
+  const [companyProfiles, setCompanyProfiles] = useState<CompanyData[]>([]);
+  const [selectedProfile, setSelectedProfile] = useState(-1);
   const [saving, setSaving] = useState(false);
   const [savedAt, setSavedAt] = useState<string | null>(null);
   const [generatingPDF, setGeneratingPDF] = useState(false);
@@ -193,6 +194,8 @@ export default function OfertaEditor({ licitacion, onBidSaved }: Props) {
         if (activeBid.items?.length > 0) setItems(activeBid.items);
         setIvaRate(activeBid.iva_rate ?? 21);
         setPhase('ready');
+        // Fetch budget hints in background
+        api.getBudgetHints(licitacion.id).then(h => { if (!cancelled) setBudgetHints(h); }).catch(() => {});
       } catch (e: unknown) {
         if (!cancelled) {
           setErrorMsg(e instanceof Error ? e.message : 'Error conectando con cotizar-api');
@@ -262,6 +265,131 @@ export default function OfertaEditor({ licitacion, onBidSaved }: Props) {
     debounceRef.current = setTimeout(() => doSave(true), 2500);
     return () => { if (debounceRef.current) clearTimeout(debounceRef.current); };
   }, [items, ivaRate, phase, bid]);
+
+  // Load company profiles from localStorage
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem('cotizar_empresas');
+      if (saved) {
+        const profiles = JSON.parse(saved) as CompanyData[];
+        setCompanyProfiles(profiles);
+        if (profiles.length > 0 && !companyData.nombre) {
+          setCompanyData(profiles[profiles.length - 1]);
+          setSelectedProfile(profiles.length - 1);
+        }
+      }
+    } catch { /* ignore */ }
+  }, []);
+
+  const handleSuggestPropuesta = useCallback(async () => {
+    setSuggestingPropuesta(true);
+    try {
+      const result = await api.suggestPropuesta(licitacion.id);
+      if (!result.error) {
+        setTechData(prev => ({
+          ...prev,
+          methodology: result.metodologia || prev.methodology,
+          plazo: result.plazo || prev.plazo,
+          lugar: result.lugar || prev.lugar,
+          notas: result.notas || prev.notas,
+        }));
+      }
+    } catch (e) {
+      console.error('Error suggesting propuesta:', e);
+    } finally {
+      setSuggestingPropuesta(false);
+    }
+  }, [licitacion.id]);
+
+  const handleLoadAntecedentes = useCallback(async () => {
+    if (antecedentes.length > 0) { setShowAntecedentes(p => !p); return; }
+    setLoadingAntecedentes(true);
+    setShowAntecedentes(true);
+    try {
+      const results = await api.searchAntecedentes(licitacion.id);
+      setAntecedentes(results);
+    } catch (e) {
+      console.error('Error loading antecedentes:', e);
+    } finally {
+      setLoadingAntecedentes(false);
+    }
+  }, [licitacion.id, antecedentes.length]);
+
+  const handleImportAIItems = useCallback(async () => {
+    if (budgetHints?.items_from_pliego?.length) {
+      setItems(budgetHints.items_from_pliego.map(it => ({
+        descripcion: it.descripcion,
+        cantidad: it.cantidad,
+        unidad: it.unidad,
+        precio_unitario: 0,
+      })));
+    } else {
+      setLoadingHints(true);
+      try {
+        const hints = await api.getBudgetHints(licitacion.id);
+        setBudgetHints(hints);
+        if (hints.items_from_pliego?.length) {
+          setItems(hints.items_from_pliego.map(it => ({
+            descripcion: it.descripcion,
+            cantidad: it.cantidad,
+            unidad: it.unidad,
+            precio_unitario: 0,
+          })));
+        }
+      } catch (e) {
+        console.error('Error loading budget hints:', e);
+      } finally {
+        setLoadingHints(false);
+      }
+    }
+  }, [licitacion.id, budgetHints]);
+
+  const handleAnalyze = useCallback(async () => {
+    setAnalyzing(true);
+    setAnalyzeError('');
+    try {
+      const result = await api.analyzeBidAI(licitacion.id, {
+        items, total, metodologia: techData.methodology, empresa_nombre: companyData.nombre,
+      });
+      setAnalysis(result);
+    } catch (e) {
+      setAnalyzeError(e instanceof Error ? e.message : 'Error al analizar');
+    } finally {
+      setAnalyzing(false);
+    }
+  }, [licitacion.id, items, total, techData.methodology, companyData.nombre]);
+
+  const handleSaveProfile = useCallback(() => {
+    if (!companyData.nombre) return;
+    const existing = companyProfiles.findIndex(p => p.cuit === companyData.cuit && p.nombre === companyData.nombre);
+    let updated: CompanyData[];
+    if (existing >= 0) {
+      updated = [...companyProfiles];
+      updated[existing] = companyData;
+    } else {
+      updated = [...companyProfiles, companyData];
+    }
+    setCompanyProfiles(updated);
+    setSelectedProfile(existing >= 0 ? existing : updated.length - 1);
+    localStorage.setItem('cotizar_empresas', JSON.stringify(updated));
+  }, [companyData, companyProfiles]);
+
+  const handleDeleteProfile = useCallback(() => {
+    if (selectedProfile < 0) return;
+    const updated = companyProfiles.filter((_, i) => i !== selectedProfile);
+    setCompanyProfiles(updated);
+    setSelectedProfile(-1);
+    localStorage.setItem('cotizar_empresas', JSON.stringify(updated));
+  }, [selectedProfile, companyProfiles]);
+
+  const competitiveness = useMemo(() => {
+    if (!budgetHints?.budget || total <= 0) return null;
+    const ratio = total / budgetHints.budget;
+    if (ratio < 0.6) return { label: 'Muy bajo', color: 'text-orange-600 bg-orange-50', hint: 'Podría parecer poco serio' };
+    if (ratio < 0.85) return { label: 'Competitivo', color: 'text-emerald-600 bg-emerald-50', hint: 'Buen rango' };
+    if (ratio <= 1.0) return { label: 'Ajustado', color: 'text-yellow-600 bg-yellow-50', hint: 'Cerca del tope' };
+    return { label: 'Excede PO', color: 'text-red-600 bg-red-50', hint: 'Supera presupuesto oficial' };
+  }, [total, budgetHints]);
 
   const handleGeneratePDF = useCallback(async () => {
     if (!bid) return;
@@ -359,16 +487,49 @@ export default function OfertaEditor({ licitacion, onBidSaved }: Props) {
       {/* Step 1: Items */}
       {step === 1 && (
         <div className="space-y-4">
-          <div className="flex items-center justify-between">
+          {/* Budget banner */}
+          {budgetHints && budgetHints.budget ? (
+            <div className={`rounded-xl px-4 py-3 text-sm flex items-center justify-between ${
+              budgetHints.budget_source === 'official' ? 'bg-emerald-50 border border-emerald-200' :
+              budgetHints.budget_source === 'estimated_from_pliego' ? 'bg-yellow-50 border border-yellow-200' :
+              'bg-gray-50 border border-gray-200'
+            }`}>
+              <div>
+                <span className="text-xs font-semibold uppercase tracking-wide text-gray-500">
+                  {budgetHints.budget_source === 'official' ? 'Presupuesto Oficial' :
+                   budgetHints.budget_source === 'estimated_from_pliego' ? 'Presupuesto Estimado' : 'Referencia'}
+                </span>
+                <p className="font-bold text-gray-800 mt-0.5">{formatARS(budgetHints.budget)}</p>
+              </div>
+              {budgetHints.threshold_label && (
+                <span className="text-xs px-2 py-1 rounded-full bg-white/70 text-gray-600">{budgetHints.threshold_label}</span>
+              )}
+              {budgetHints.range_min && budgetHints.range_max && (
+                <span className="text-xs text-gray-500">Rango: {formatARS(budgetHints.range_min)} – {formatARS(budgetHints.range_max)}</span>
+              )}
+            </div>
+          ) : null}
+
+          <div className="flex items-center justify-between gap-2 flex-wrap">
             <h3 className="font-semibold text-gray-800">Items de la Oferta</h3>
-            {hasPliegoItems && (
+            <div className="flex gap-2">
+              {hasPliegoItems && (
+                <button
+                  onClick={importFromPliego}
+                  className="text-xs text-blue-600 hover:text-blue-800 border border-blue-200 hover:border-blue-400 px-3 py-1.5 rounded-lg transition-colors"
+                >
+                  Importar del pliego
+                </button>
+              )}
               <button
-                onClick={importFromPliego}
-                className="text-xs text-blue-600 hover:text-blue-800 border border-blue-200 hover:border-blue-400 px-3 py-1.5 rounded-lg transition-colors"
+                onClick={handleImportAIItems}
+                disabled={loadingHints}
+                className="text-xs text-purple-600 hover:text-purple-800 border border-purple-200 hover:border-purple-400 px-3 py-1.5 rounded-lg transition-colors disabled:opacity-50 flex items-center gap-1"
               >
-                Importar ítems del pliego
+                {loadingHints ? <span className="w-3 h-3 border border-purple-400 border-t-transparent rounded-full animate-spin" /> : '✨'}
+                Cargar items con IA
               </button>
-            )}
+            </div>
           </div>
 
           {/* Mobile: card per item */}
@@ -549,6 +710,14 @@ export default function OfertaEditor({ licitacion, onBidSaved }: Props) {
             </div>
           </div>
 
+          {/* Competitiveness indicator */}
+          {competitiveness && (
+            <div className={`rounded-lg px-3 py-2 text-xs font-medium flex items-center justify-between ${competitiveness.color}`}>
+              <span>Tu oferta vs PO: <strong>{competitiveness.label}</strong></span>
+              <span>{competitiveness.hint}</span>
+            </div>
+          )}
+
           <div className="flex justify-between items-center pt-2">
             <div>
               {savedAt && <p className="text-xs text-gray-400">Guardado {savedAt}</p>}
@@ -577,7 +746,17 @@ export default function OfertaEditor({ licitacion, onBidSaved }: Props) {
       {/* Step 2: Propuesta Técnica */}
       {step === 2 && (
         <div className="space-y-5">
-          <h3 className="font-semibold text-gray-800">Propuesta Técnica</h3>
+          <div className="flex items-center justify-between">
+            <h3 className="font-semibold text-gray-800">Propuesta Técnica</h3>
+            <button
+              onClick={handleSuggestPropuesta}
+              disabled={suggestingPropuesta}
+              className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg border border-purple-200 text-purple-600 hover:text-purple-800 hover:border-purple-400 transition-colors disabled:opacity-50"
+            >
+              {suggestingPropuesta ? <span className="w-3 h-3 border border-purple-400 border-t-transparent rounded-full animate-spin" /> : '✨'}
+              Sugerir con IA
+            </button>
+          </div>
           <p className="text-sm text-gray-500">Completá los datos técnicos de tu oferta. Estos campos aparecerán en el documento PDF.</p>
 
           <div className="space-y-4">
@@ -648,6 +827,41 @@ export default function OfertaEditor({ licitacion, onBidSaved }: Props) {
             </div>
           </div>
 
+          {/* Antecedentes section */}
+          <div className="border-t border-gray-100 pt-4">
+            <button
+              onClick={handleLoadAntecedentes}
+              className="flex items-center gap-2 text-sm text-gray-600 hover:text-gray-800 transition-colors"
+            >
+              <span className={`transition-transform ${showAntecedentes ? 'rotate-90' : ''}`}>▶</span>
+              Antecedentes similares
+              {antecedentes.length > 0 && <span className="text-xs bg-gray-100 px-1.5 py-0.5 rounded-full">{antecedentes.length}</span>}
+            </button>
+            {showAntecedentes && (
+              <div className="mt-3 space-y-2">
+                {loadingAntecedentes ? (
+                  <div className="flex items-center gap-2 text-sm text-gray-400 py-4">
+                    <div className="w-4 h-4 border-2 border-gray-200 border-t-purple-500 rounded-full animate-spin" />
+                    Buscando licitaciones similares...
+                  </div>
+                ) : antecedentes.length === 0 ? (
+                  <p className="text-sm text-gray-400 py-2">No se encontraron antecedentes similares.</p>
+                ) : (
+                  antecedentes.slice(0, 5).map(ant => (
+                    <div key={ant.id} className="bg-gray-50 rounded-lg p-3 text-sm">
+                      <p className="font-medium text-gray-800 line-clamp-1">{ant.objeto || ant.title}</p>
+                      <div className="flex items-center gap-3 mt-1 text-xs text-gray-500">
+                        <span>{ant.organization}</span>
+                        {ant.budget && <span className="font-medium">{formatARS(ant.budget)}</span>}
+                        {ant.publication_date && <span>{new Date(ant.publication_date).toLocaleDateString('es-AR')}</span>}
+                      </div>
+                    </div>
+                  ))
+                )}
+              </div>
+            )}
+          </div>
+
           <div className="flex justify-between pt-2">
             <button
               onClick={() => setStep(1)}
@@ -670,6 +884,42 @@ export default function OfertaEditor({ licitacion, onBidSaved }: Props) {
         <div className="space-y-5">
           <h3 className="font-semibold text-gray-800">Datos de la Empresa</h3>
           <p className="text-sm text-gray-500">Estos datos identifican al oferente en el documento oficial.</p>
+
+          {/* Company profiles */}
+          {companyProfiles.length > 0 && (
+            <div className="bg-gray-50 rounded-xl p-3 flex items-center gap-2 flex-wrap">
+              <span className="text-xs font-medium text-gray-500">Perfil:</span>
+              <select
+                value={selectedProfile}
+                onChange={e => {
+                  const idx = parseInt(e.target.value);
+                  setSelectedProfile(idx);
+                  if (idx >= 0) setCompanyData(companyProfiles[idx]);
+                }}
+                className="text-sm border border-gray-200 rounded-lg px-2 py-1 bg-white focus:outline-none focus:ring-1 focus:ring-blue-400"
+              >
+                <option value={-1}>— Nuevo —</option>
+                {companyProfiles.map((p, i) => (
+                  <option key={i} value={i}>{p.nombre} ({p.cuit})</option>
+                ))}
+              </select>
+              <button
+                onClick={handleSaveProfile}
+                disabled={!companyData.nombre}
+                className="text-xs px-2 py-1 rounded-lg bg-blue-50 text-blue-600 hover:bg-blue-100 disabled:opacity-40 transition-colors"
+              >
+                Guardar
+              </button>
+              {selectedProfile >= 0 && (
+                <button
+                  onClick={handleDeleteProfile}
+                  className="text-xs px-2 py-1 rounded-lg bg-red-50 text-red-600 hover:bg-red-100 transition-colors"
+                >
+                  Eliminar
+                </button>
+              )}
+            </div>
+          )}
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div className="sm:col-span-2">
@@ -735,14 +985,164 @@ export default function OfertaEditor({ licitacion, onBidSaved }: Props) {
               onClick={() => { doSave(true); setStep(4); }}
               className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold rounded-xl transition-colors"
             >
+              Siguiente <span>→</span>
+            </button>
+          </div>
+          {/* Save profile hint */}
+          {companyData.nombre && companyProfiles.findIndex(p => p.cuit === companyData.cuit && p.nombre === companyData.nombre) < 0 && (
+            <button
+              onClick={handleSaveProfile}
+              className="text-xs text-blue-500 hover:text-blue-700 transition-colors"
+            >
+              Guardar este perfil para próximas cotizaciones
+            </button>
+          )}
+        </div>
+      )}
+
+      {/* Step 4: Análisis IA */}
+      {step === 4 && (
+        <div className="space-y-5">
+          <h3 className="font-semibold text-gray-800">Análisis IA</h3>
+          <p className="text-sm text-gray-500">Evaluación automática de tu oferta usando inteligencia artificial.</p>
+
+          {!analysis && !analyzing && (
+            <div className="text-center py-8">
+              <div className="text-5xl mb-4">🤖</div>
+              <p className="text-gray-600 text-sm mb-4">
+                Analizamos tus items, propuesta técnica y datos de empresa contra la licitación.
+              </p>
+              <button
+                onClick={handleAnalyze}
+                disabled={items.length === 0 || total <= 0}
+                className="px-6 py-3 bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700 text-white font-semibold rounded-xl text-sm transition-all disabled:opacity-40 disabled:cursor-not-allowed shadow-lg shadow-purple-200"
+              >
+                Ejecutar Análisis IA
+              </button>
+              {(items.length === 0 || total <= 0) && (
+                <p className="text-xs text-gray-400 mt-2">Necesitás al menos 1 item con precio para analizar.</p>
+              )}
+            </div>
+          )}
+
+          {analyzing && (
+            <div className="flex flex-col items-center py-12 gap-3">
+              <div className="w-10 h-10 border-3 border-purple-200 border-t-purple-600 rounded-full animate-spin" />
+              <p className="text-sm text-gray-500">Analizando tu oferta...</p>
+            </div>
+          )}
+
+          {analyzeError && (
+            <div className="bg-red-50 border border-red-200 rounded-xl p-4 text-sm text-red-700">
+              <strong>Error:</strong> {analyzeError}
+              <button onClick={handleAnalyze} className="ml-3 text-red-600 underline hover:no-underline">Reintentar</button>
+            </div>
+          )}
+
+          {analysis && (
+            <div className="space-y-4">
+              {/* Verdict banner */}
+              <div className={`rounded-xl p-4 ${
+                analysis.win_probability >= 70 ? 'bg-emerald-50 border border-emerald-200' :
+                analysis.win_probability >= 40 ? 'bg-yellow-50 border border-yellow-200' :
+                'bg-red-50 border border-red-200'
+              }`}>
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-xs font-semibold uppercase tracking-wide text-gray-500">Veredicto</span>
+                  <span className={`text-2xl font-bold ${
+                    analysis.win_probability >= 70 ? 'text-emerald-600' :
+                    analysis.win_probability >= 40 ? 'text-yellow-600' :
+                    'text-red-600'
+                  }`}>
+                    {analysis.win_probability}%
+                  </span>
+                </div>
+                <p className="font-semibold text-gray-800">{analysis.veredicto}</p>
+                <p className="text-sm text-gray-600 mt-1">{analysis.resumen}</p>
+              </div>
+
+              {/* Score cards 2x2 */}
+              <div className="grid grid-cols-2 gap-3">
+                {(['precio', 'metodologia', 'empresa', 'cronograma'] as const).map(key => {
+                  const s = analysis[key];
+                  const label = key === 'precio' ? 'Precio' : key === 'metodologia' ? 'Metodología' : key === 'empresa' ? 'Empresa' : 'Cronograma';
+                  return (
+                    <div key={key} className="border border-gray-200 rounded-xl p-3">
+                      <div className="flex items-center justify-between mb-1">
+                        <span className="text-xs font-semibold text-gray-500 uppercase">{label}</span>
+                        <span className={`text-lg font-bold ${
+                          s.score >= 7 ? 'text-emerald-600' : s.score >= 4 ? 'text-yellow-600' : 'text-red-600'
+                        }`}>{s.score}/10</span>
+                      </div>
+                      <p className="text-xs text-gray-600 line-clamp-2">{s.detail}</p>
+                    </div>
+                  );
+                })}
+              </div>
+
+              {/* Risks */}
+              {analysis.riesgos?.length > 0 && (
+                <div>
+                  <h4 className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Riesgos</h4>
+                  <div className="space-y-2">
+                    {analysis.riesgos.map((r, i) => (
+                      <div key={i} className="flex items-start gap-2 text-sm">
+                        <span className={`px-1.5 py-0.5 rounded text-xs font-medium shrink-0 ${
+                          r.nivel === 'alto' ? 'bg-red-100 text-red-700' :
+                          r.nivel === 'medio' ? 'bg-yellow-100 text-yellow-700' :
+                          'bg-gray-100 text-gray-600'
+                        }`}>{r.nivel}</span>
+                        <span className="text-gray-700">{r.detalle}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Recommendations */}
+              {analysis.recomendaciones?.length > 0 && (
+                <div>
+                  <h4 className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Recomendaciones</h4>
+                  <ul className="space-y-1.5">
+                    {analysis.recomendaciones.map((r, i) => (
+                      <li key={i} className="flex items-start gap-2 text-sm text-gray-700">
+                        <span className="text-emerald-500 mt-0.5">•</span>
+                        {r}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+
+              {/* Re-run button */}
+              <button
+                onClick={handleAnalyze}
+                className="text-xs text-purple-600 hover:text-purple-800 transition-colors"
+              >
+                Volver a analizar
+              </button>
+            </div>
+          )}
+
+          <div className="flex justify-between pt-2">
+            <button
+              onClick={() => setStep(3)}
+              className="flex items-center gap-2 px-4 py-2 text-gray-600 hover:text-gray-800 text-sm font-medium rounded-xl hover:bg-gray-100 transition-colors"
+            >
+              <span>←</span> Anterior
+            </button>
+            <button
+              onClick={() => setStep(5)}
+              className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold rounded-xl transition-colors"
+            >
               Ver resumen <span>→</span>
             </button>
           </div>
         </div>
       )}
 
-      {/* Step 4: Resumen */}
-      {step === 4 && (
+      {/* Step 5: Resumen */}
+      {step === 5 && (
         <div className="space-y-5">
           <h3 className="font-semibold text-gray-800">Resumen de la Oferta</h3>
 
@@ -818,9 +1218,27 @@ export default function OfertaEditor({ licitacion, onBidSaved }: Props) {
             <p className="text-xs text-gray-400">Guardado automáticamente {savedAt}</p>
           )}
 
+          {/* Analysis summary if available */}
+          {analysis && (
+            <div className={`border rounded-xl p-4 text-sm ${
+              analysis.win_probability >= 70 ? 'border-emerald-200 bg-emerald-50' :
+              analysis.win_probability >= 40 ? 'border-yellow-200 bg-yellow-50' :
+              'border-red-200 bg-red-50'
+            }`}>
+              <span className="text-xs font-semibold text-gray-500 uppercase tracking-wide block mb-1">Análisis IA</span>
+              <div className="flex items-center justify-between">
+                <span className="font-medium text-gray-800">{analysis.veredicto}</span>
+                <span className={`text-lg font-bold ${
+                  analysis.win_probability >= 70 ? 'text-emerald-600' :
+                  analysis.win_probability >= 40 ? 'text-yellow-600' : 'text-red-600'
+                }`}>{analysis.win_probability}% prob.</span>
+              </div>
+            </div>
+          )}
+
           <div className="flex flex-col sm:flex-row gap-3 pt-2">
             <button
-              onClick={() => setStep(3)}
+              onClick={() => setStep(1)}
               className="flex items-center justify-center gap-2 px-4 py-2 text-gray-600 hover:text-gray-800 text-sm font-medium rounded-xl hover:bg-gray-100 border border-gray-200 transition-colors"
             >
               <span>←</span> Editar

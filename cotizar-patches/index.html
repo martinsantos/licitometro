@@ -7,6 +7,7 @@
     <meta http-equiv="Pragma" content="no-cache">
     <meta http-equiv="Expires" content="0">
     <title>cotizAR - Licitometro.ar | Armador de Cotizaciones</title>
+    <!-- COTIZAR_VERSION: 9 -->
     <!-- __BASE_PATH__ -->
     <meta name="description" content="Armador de cotizaciones para licitaciones publicas argentinas. Genera ofertas competitivas con datos de LICITOMETRO.AR">
     <meta name="keywords" content="cotizaciones, licitaciones, Argentina, compras publicas, licitometro">
@@ -255,6 +256,96 @@
 
         /* Star favorite button */
         .btn-fav { background: none; border: none; font-size: 18px; cursor: pointer; padding: 2px 6px; color: var(--text-muted); line-height: 1; }
+
+        /* ====== WIZARD ====== */
+        .wizard-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.6); z-index: 2000; justify-content: center; align-items: flex-start; padding-top: 30px; overflow-y: auto; }
+        .wizard-overlay.active { display: flex; }
+        .wizard-container { background: var(--card-bg); border-radius: 12px; max-width: 900px; width: 95%; max-height: 90vh; overflow-y: auto; box-shadow: 0 20px 60px rgba(0,0,0,0.4); margin-bottom: 30px; }
+        .wizard-header { padding: 16px 24px; border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center; position: sticky; top: 0; background: var(--card-bg); z-index: 1; border-radius: 12px 12px 0 0; }
+        .wizard-header h3 { font-size: 18px; margin: 0; }
+        .wizard-steps-nav { display: flex; gap: 0; padding: 0 24px; background: #f8f9fa; border-bottom: 1px solid var(--border); }
+        .wizard-step-btn { padding: 12px 16px; cursor: pointer; border: none; background: none; font-size: 13px; color: var(--text-muted); border-bottom: 2px solid transparent; transition: all 0.2s; white-space: nowrap; }
+        .wizard-step-btn:hover { color: var(--text); }
+        .wizard-step-btn.active { color: var(--primary); border-bottom-color: var(--primary); font-weight: 600; }
+        .wizard-step-btn.completed { color: var(--success); }
+        .wizard-step-btn .step-num { display: inline-block; width: 22px; height: 22px; line-height: 22px; text-align: center; border-radius: 50%; background: var(--border); color: var(--text-muted); font-size: 11px; font-weight: 700; margin-right: 6px; }
+        .wizard-step-btn.active .step-num { background: var(--primary); color: #fff; }
+        .wizard-step-btn.completed .step-num { background: var(--success); color: #fff; }
+        .wizard-body { padding: 24px; }
+        .wizard-step { display: none; }
+        .wizard-step.active { display: block; }
+        .wizard-footer { padding: 16px 24px; border-top: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center; }
+
+        /* Budget banner */
+        .budget-banner { padding: 12px 16px; border-radius: 8px; margin-bottom: 16px; display: flex; align-items: center; gap: 10px; font-size: 13px; }
+        .budget-banner.official { background: #d4edda; color: #155724; border: 1px solid #c3e6cb; }
+        .budget-banner.estimated { background: #fff3cd; color: #856404; border: 1px solid #ffeaa7; }
+        .budget-banner.unknown { background: #e2e3e5; color: #383d41; border: 1px solid #d6d8db; }
+
+        /* Competitiveness indicator */
+        .competitiveness { padding: 8px 14px; border-radius: 6px; font-size: 12px; font-weight: 500; display: inline-flex; align-items: center; gap: 6px; margin-top: 8px; }
+        .competitiveness.low { background: #f8d7da; color: #721c24; }
+        .competitiveness.good { background: #d4edda; color: #155724; }
+        .competitiveness.tight { background: #fff3cd; color: #856404; }
+        .competitiveness.over { background: #f8d7da; color: #721c24; }
+
+        /* Items table in wizard */
+        .wizard-items-table { width: 100%; border-collapse: collapse; margin-bottom: 12px; }
+        .wizard-items-table th { background: #f8f9fa; padding: 8px 10px; font-size: 11px; text-transform: uppercase; text-align: left; }
+        .wizard-items-table td { padding: 6px 10px; border-bottom: 1px solid #f0f0f0; }
+        .wizard-items-table input { width: 100%; padding: 6px 8px; border: 1px solid var(--border); border-radius: 4px; font-size: 13px; }
+        .wizard-items-table input[type="number"] { text-align: right; }
+
+        /* AI badge */
+        .ai-badge { display: inline-flex; align-items: center; gap: 4px; padding: 2px 8px; border-radius: 10px; background: #e8f4f8; color: #0c5460; font-size: 11px; font-weight: 500; }
+
+        /* Score cards (analysis) */
+        .score-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 16px; margin-bottom: 20px; }
+        .score-card { padding: 16px; border-radius: 10px; border: 1px solid var(--border); text-align: center; }
+        .score-card .score-circle { width: 60px; height: 60px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 20px; font-weight: 700; color: #fff; margin: 0 auto 8px; }
+        .score-card .score-label { font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; color: var(--text-muted); }
+        .score-card .score-detail { font-size: 12px; color: var(--text-light); margin-top: 6px; line-height: 1.4; }
+        .score-green { background: var(--success); }
+        .score-yellow { background: var(--warning); }
+        .score-red { background: var(--danger); }
+
+        /* Verdict banner */
+        .verdict-banner { padding: 16px 20px; border-radius: 10px; text-align: center; margin-bottom: 20px; }
+        .verdict-banner h4 { font-size: 18px; margin-bottom: 4px; }
+        .verdict-banner p { font-size: 13px; opacity: 0.9; }
+        .verdict-Recomendado { background: #d4edda; color: #155724; border: 2px solid var(--success); }
+        .verdict-Revisar { background: #fff3cd; color: #856404; border: 2px solid var(--warning); }
+        .verdict-No { background: #f8d7da; color: #721c24; border: 2px solid var(--danger); }
+
+        /* Gauge */
+        .gauge-container { text-align: center; margin: 16px 0; }
+        .gauge-value { font-size: 48px; font-weight: 800; color: var(--primary); }
+        .gauge-label { font-size: 13px; color: var(--text-muted); }
+
+        /* Risk list */
+        .risk-item { display: flex; align-items: flex-start; gap: 8px; padding: 8px 0; border-bottom: 1px solid #f0f0f0; }
+        .risk-badge { padding: 2px 8px; border-radius: 10px; font-size: 11px; font-weight: 600; white-space: nowrap; }
+        .risk-alto { background: #f8d7da; color: #721c24; }
+        .risk-medio { background: #fff3cd; color: #856404; }
+        .risk-bajo { background: #d4edda; color: #155724; }
+
+        /* Antecedentes cards */
+        .antecedente-card { padding: 12px; border: 1px solid var(--border); border-radius: 8px; margin-bottom: 10px; cursor: pointer; transition: border-color 0.2s; }
+        .antecedente-card:hover { border-color: var(--primary); }
+        .antecedente-card h5 { font-size: 13px; margin-bottom: 4px; }
+        .antecedente-card .meta { font-size: 11px; color: var(--text-muted); display: flex; gap: 12px; flex-wrap: wrap; }
+
+        /* Company profile selector */
+        .profile-selector { display: flex; gap: 8px; align-items: center; margin-bottom: 16px; }
+        .profile-selector select { flex: 1; padding: 8px 12px; border: 1px solid var(--border); border-radius: 6px; font-size: 13px; }
+
+        @media (max-width: 768px) {
+            .wizard-overlay { padding-top: 0; }
+            .wizard-container { max-height: 100vh; border-radius: 0; }
+            .wizard-steps-nav { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+            .score-grid { grid-template-columns: 1fr; }
+            .wizard-footer { flex-wrap: wrap; gap: 8px; }
+        }
         .btn-fav.active { color: #f5a623; }
         .btn-fav:hover { color: #f5a623; }
 
@@ -801,6 +892,157 @@
         </div>
     </div>
 
+    <!-- ====== BID WIZARD ====== -->
+    <div class="wizard-overlay" id="bid-wizard">
+        <div class="wizard-container">
+            <div class="wizard-header">
+                <h3 id="wizard-title">Nueva Cotizacion</h3>
+                <button class="modal-close" onclick="closeWizard()">&times;</button>
+            </div>
+            <div class="wizard-steps-nav">
+                <button class="wizard-step-btn active" onclick="goToWizardStep(0)"><span class="step-num">1</span> Items</button>
+                <button class="wizard-step-btn" onclick="goToWizardStep(1)"><span class="step-num">2</span> Propuesta</button>
+                <button class="wizard-step-btn" onclick="goToWizardStep(2)"><span class="step-num">3</span> Empresa</button>
+                <button class="wizard-step-btn" onclick="goToWizardStep(3)"><span class="step-num">4</span> Analisis IA</button>
+                <button class="wizard-step-btn" onclick="goToWizardStep(4)"><span class="step-num">5</span> Resumen</button>
+            </div>
+            <div class="wizard-body">
+                <!-- STEP 1: Items -->
+                <div class="wizard-step active" id="wiz-step-0">
+                    <div id="wiz-budget-banner"></div>
+                    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
+                        <h4 style="font-size:15px;">Items de la Cotizacion</h4>
+                        <div style="display:flex; gap:6px;">
+                            <button class="btn btn-sm btn-outline" id="wiz-load-pliego-btn" onclick="loadPliegoItems()" style="display:none;">Cargar items del pliego</button>
+                            <button class="btn btn-sm btn-primary" onclick="addWizardItem()">+ Agregar Item</button>
+                        </div>
+                    </div>
+                    <div class="table-scroll">
+                    <table class="wizard-items-table">
+                        <thead>
+                            <tr>
+                                <th style="width:40%">Descripcion</th>
+                                <th style="width:12%">Cantidad</th>
+                                <th style="width:10%">Unidad</th>
+                                <th style="width:18%">Precio Unit.</th>
+                                <th style="width:15%">Subtotal</th>
+                                <th style="width:5%"></th>
+                            </tr>
+                        </thead>
+                        <tbody id="wiz-items-tbody"></tbody>
+                        <tfoot>
+                            <tr style="font-weight:700; background:#f8f9fa;">
+                                <td colspan="4" style="text-align:right; padding-right:10px;">TOTAL</td>
+                                <td id="wiz-items-total">$0</td>
+                                <td></td>
+                            </tr>
+                        </tfoot>
+                    </table>
+                    </div>
+                    <div id="wiz-competitiveness"></div>
+                </div>
+
+                <!-- STEP 2: Propuesta -->
+                <div class="wizard-step" id="wiz-step-1">
+                    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
+                        <h4 style="font-size:15px;">Propuesta Tecnica</h4>
+                        <button class="btn btn-sm btn-primary" onclick="suggestPropuesta()">Sugerir con IA</button>
+                    </div>
+                    <div class="form-group">
+                        <label>Metodologia de Ejecucion</label>
+                        <textarea id="wiz-metodologia" rows="6" placeholder="Describa la metodologia de trabajo..."></textarea>
+                        <span id="wiz-metodologia-badge" class="ai-badge" style="display:none; margin-top:4px;">Generado por IA</span>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label>Plazo de Ejecucion</label>
+                            <input type="text" id="wiz-plazo" placeholder="Ej: 30 dias habiles">
+                        </div>
+                        <div class="form-group">
+                            <label>Lugar de Entrega / Prestacion</label>
+                            <input type="text" id="wiz-lugar" placeholder="Ej: Deposito central, Mendoza">
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label>Notas / Condiciones Especiales</label>
+                        <textarea id="wiz-notas" rows="3" placeholder="Condiciones adicionales..."></textarea>
+                    </div>
+                    <div style="margin-top:16px;">
+                        <div style="display:flex; justify-content:space-between; align-items:center; cursor:pointer;" onclick="toggleAntecedentes()">
+                            <h4 style="font-size:14px;">Antecedentes Similares</h4>
+                            <span id="wiz-antecedentes-toggle" style="font-size:12px; color:var(--text-muted);">&#9660; Expandir</span>
+                        </div>
+                        <div id="wiz-antecedentes" style="display:none; margin-top:10px;">
+                            <div id="wiz-antecedentes-list"><div class="loading"><div class="spinner"></div>Buscando antecedentes...</div></div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- STEP 3: Empresa -->
+                <div class="wizard-step" id="wiz-step-2">
+                    <h4 style="font-size:15px; margin-bottom:12px;">Datos de la Empresa</h4>
+                    <div class="profile-selector">
+                        <select id="wiz-empresa-select" onchange="selectCompanyProfile(this.value)">
+                            <option value="">— Seleccionar empresa guardada —</option>
+                        </select>
+                        <button class="btn btn-sm btn-primary" onclick="saveCompanyProfile()">Guardar</button>
+                        <button class="btn btn-sm btn-outline" onclick="deleteCompanyProfile()" title="Eliminar perfil">&#128465;</button>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label>Nombre de la Empresa</label>
+                            <input type="text" id="wiz-empresa-nombre" placeholder="Razon social...">
+                        </div>
+                        <div class="form-group">
+                            <label>CUIT</label>
+                            <input type="text" id="wiz-empresa-cuit" placeholder="XX-XXXXXXXX-X">
+                        </div>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label>Email</label>
+                            <input type="email" id="wiz-empresa-email" placeholder="contacto@empresa.com">
+                        </div>
+                        <div class="form-group">
+                            <label>Telefono</label>
+                            <input type="text" id="wiz-empresa-telefono" placeholder="+54 261 ...">
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label>Domicilio Legal</label>
+                        <input type="text" id="wiz-empresa-domicilio" placeholder="Calle, Ciudad, Provincia">
+                    </div>
+                </div>
+
+                <!-- STEP 4: Analisis IA -->
+                <div class="wizard-step" id="wiz-step-3">
+                    <div id="wiz-analysis-placeholder" style="text-align:center; padding:40px 0;">
+                        <div style="font-size:48px; margin-bottom:12px;">&#129302;</div>
+                        <h4 style="margin-bottom:8px;">Analisis Inteligente</h4>
+                        <p style="color:var(--text-muted); font-size:13px; margin-bottom:20px;">
+                            Evalua tu cotizacion con IA: probabilidad de ganar, riesgos, precio competitivo y recomendaciones.
+                        </p>
+                        <button class="btn btn-primary btn-lg" id="wiz-run-analysis-btn" onclick="runAIAnalysis()">Ejecutar Analisis IA</button>
+                        <p id="wiz-analysis-reqs" style="color:var(--text-muted); font-size:11px; margin-top:8px;"></p>
+                    </div>
+                    <div id="wiz-analysis-results" style="display:none;"></div>
+                </div>
+
+                <!-- STEP 5: Resumen -->
+                <div class="wizard-step" id="wiz-step-4">
+                    <h4 style="font-size:15px; margin-bottom:16px;">Resumen de la Cotizacion</h4>
+                    <div id="wiz-summary"></div>
+                </div>
+            </div>
+            <div class="wizard-footer">
+                <button class="btn btn-outline" id="wiz-prev-btn" onclick="wizardPrev()" style="display:none;">&#8592; Anterior</button>
+                <div style="flex:1;"></div>
+                <button class="btn btn-primary" id="wiz-next-btn" onclick="wizardNext()">Siguiente &#8594;</button>
+                <button class="btn btn-success" id="wiz-finish-btn" onclick="finishWizard()" style="display:none;">Guardar Cotizacion</button>
+            </div>
+        </div>
+    </div>
+
     <!-- Toast container -->
     <div class="toast-container" id="toast-container"></div>
 
@@ -1243,8 +1485,9 @@
                         <td>${b.commercialOffer?.total ? '$' + b.commercialOffer.total.toLocaleString('es-AR') : '-'}</td>
                         <td>${b.competitivenessScore ? b.competitivenessScore + '%' : '-'}</td>
                         <td style="font-size: 12px;">${new Date(b.createdAt).toLocaleDateString('es-AR')}</td>
-                        <td>
-                            <button class="btn btn-sm btn-primary" onclick="openAnalysisModal('${b.id}')">Analizar</button>
+                        <td style="white-space:nowrap;">
+                            <button class="btn btn-sm btn-primary" onclick="openWizard('${b.tenderId}')">Editar</button>
+                            <button class="btn btn-sm btn-outline" onclick="openAnalysisModal('${b.id}')">Analizar</button>
                             <button class="btn btn-sm btn-outline" onclick="openCalculateModal('${b.id}')">Calcular</button>
                         </td>
                     </tr>
@@ -1269,14 +1512,91 @@
                 const cached = tendersCache.find(t => t.id === tenderId);
                 if (cached) {
                     await apiFetch('/tenders', { method: 'POST', body: JSON.stringify(cached) });
+                } else if (tenderId.startsWith('lm-')) {
+                    // Not in cache — fetch from Licitometro API directly
+                    const rawId = tenderId.replace('lm-', '');
+                    await syncAndCreateBid(rawId);
+                    return; // syncAndCreateBid handles everything
                 }
                 // Step 2: Create the bid
                 await apiFetch('/bids', { method: 'POST', body: JSON.stringify({ tenderId }) });
-                showToast('Cotizacion creada exitosamente', 'success');
+                showToast('Cotizacion creada — abriendo wizard', 'success');
                 loadBids();
-                showSection('bids');
+                // Open wizard for detailed editing
+                openWizard(tenderId);
             } catch (error) {
                 showToast('Error creando cotizacion: ' + (error.message || 'Intente de nuevo'), 'error');
+            }
+        }
+
+        function _mapEstadoToStatus(estado) {
+            if (['vigente', 'abierta'].includes(estado)) return 'abierta';
+            if (['vencida', 'cerrada', 'archivada'].includes(estado)) return 'cerrada';
+            return 'abierta';
+        }
+
+        async function syncAndCreateBid(licitacionId) {
+            const tenderId = 'lm-' + licitacionId;
+            // Overlay bloqueante (DOM methods, no innerHTML)
+            var overlay = document.createElement('div');
+            overlay.id = 'sync-overlay';
+            overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:10000;display:flex;align-items:center;justify-content:center;';
+            var box = document.createElement('div');
+            box.style.cssText = 'background:white;padding:2rem;border-radius:12px;text-align:center;max-width:400px;';
+            var h = document.createElement('div');
+            h.style.cssText = 'font-size:1.1rem;font-weight:bold;margin-bottom:0.5rem;';
+            h.textContent = 'Creando cotización...';
+            var p = document.createElement('div');
+            p.style.cssText = 'color:#666;font-size:0.9rem;';
+            p.textContent = 'Sincronizando licitación desde Licitometro';
+            box.appendChild(h);
+            box.appendChild(p);
+            overlay.appendChild(box);
+            document.body.appendChild(overlay);
+
+            try {
+                console.log('[CotizAR v8] syncAndCreateBid:', licitacionId, 'API_URL:', API_URL);
+
+                var res = await fetch('/api/licitaciones/' + licitacionId);
+                console.log('[CotizAR v8] GET licitacion:', res.status);
+                if (!res.ok) throw new Error('Licitacion no encontrada (HTTP ' + res.status + ')');
+                var lt = await res.json();
+                console.log('[CotizAR v8] titulo:', lt.title);
+
+                var tender = {
+                    id: tenderId,
+                    number: lt.licitacion_number || lt.id || '',
+                    title: lt.title || '',
+                    description: lt.objeto || lt.title || '',
+                    agency: lt.organization || '',
+                    region: lt.jurisdiccion || '',
+                    category: lt.category || '',
+                    status: _mapEstadoToStatus(lt.estado || lt.status || ''),
+                    openingDate: lt.publication_date || new Date().toISOString(),
+                    closingDate: lt.expiration_date || lt.opening_date || new Date().toISOString(),
+                    budget: lt.budget || 0,
+                    currency: 'ARS',
+                    requirements: [],
+                    documents: [],
+                    terms: { deliveryTime: '', placeOfDelivery: '', warranty: '', validityOfOffer: 60 }
+                };
+
+                console.log('[CotizAR v8] POST /tenders');
+                await apiFetch('/tenders', { method: 'POST', body: JSON.stringify(tender) });
+
+                console.log('[CotizAR v8] POST /bids');
+                await apiFetch('/bids', { method: 'POST', body: JSON.stringify({ tenderId: tenderId }) });
+
+                console.log('[CotizAR v8] SUCCESS');
+                overlay.remove();
+                showToast('Cotización creada: ' + (lt.objeto || lt.title || '').substring(0, 60), 'success');
+                loadBids();
+                // Open wizard for detailed editing
+                openWizard(tenderId);
+            } catch (error) {
+                console.error('[CotizAR v8] FAILED:', error);
+                overlay.remove();
+                alert('Error creando cotización:\n\n' + (error.message || String(error)) + '\n\nAPI_URL: ' + API_URL + '\nVersion: 8');
             }
         }
 
@@ -1659,6 +1979,594 @@
             showToast('Parametros de cotizacion guardados', 'success');
         });
 
+        // === BID WIZARD ===
+        let wizardState = {
+            step: 0,
+            tenderId: null,
+            licitacionId: null,
+            tender: null,
+            budgetHints: null,
+            items: [],
+            propuesta: { metodologia: '', plazo: '', lugar: '', notas: '' },
+            empresa: { nombre: '', cuit: '', email: '', telefono: '', domicilio: '' },
+            analysis: null,
+            antecedentes: []
+        };
+
+        // Note: innerHTML usage below only renders data from our own API (trusted backend)
+        // and user-provided form input that is escaped via escHtml(). External user input
+        // is never rendered unescaped.
+
+        function openWizard(tenderId) {
+            wizardState = {
+                step: 0, tenderId: tenderId, licitacionId: null, tender: null,
+                budgetHints: null, items: [], propuesta: { metodologia: '', plazo: '', lugar: '', notas: '' },
+                empresa: { nombre: '', cuit: '', email: '', telefono: '', domicilio: '' },
+                analysis: null, antecedentes: []
+            };
+
+            // Find tender in cache
+            const t = tendersCache.find(x => x.id === tenderId);
+            if (t) {
+                wizardState.tender = t;
+                wizardState.licitacionId = tenderId.startsWith('lm-') ? tenderId.replace('lm-', '') : null;
+                document.getElementById('wizard-title').textContent = 'Cotizar: ' + (t.title || '').substring(0, 60);
+            }
+
+            // Add one empty item row
+            wizardState.items = [{ descripcion: '', cantidad: 1, unidad: 'u.', precio: 0 }];
+
+            // Load company profiles and auto-select last used
+            loadCompanyProfiles();
+            autoSelectLastCompany();
+
+            // Show wizard
+            goToWizardStep(0);
+            document.getElementById('bid-wizard').classList.add('active');
+
+            // Fetch budget hints if we have a licitacion ID
+            if (wizardState.licitacionId) {
+                fetchBudgetHints(wizardState.licitacionId);
+            }
+        }
+
+        function closeWizard() {
+            document.getElementById('bid-wizard').classList.remove('active');
+        }
+
+        function goToWizardStep(step) {
+            wizardState.step = step;
+            // Save current step data before switching
+            saveCurrentStepData();
+
+            document.querySelectorAll('.wizard-step').forEach(function(el, i) {
+                el.classList.toggle('active', i === step);
+            });
+            document.querySelectorAll('.wizard-step-btn').forEach(function(btn, i) {
+                btn.classList.toggle('active', i === step);
+            });
+
+            // Footer buttons
+            document.getElementById('wiz-prev-btn').style.display = step > 0 ? '' : 'none';
+            document.getElementById('wiz-next-btn').style.display = step < 4 ? '' : 'none';
+            document.getElementById('wiz-finish-btn').style.display = step === 4 ? '' : 'none';
+
+            // Render step
+            switch(step) {
+                case 0: renderWizardItems(); break;
+                case 1: loadAntecedentes(); break;
+                case 3: updateAnalysisRequirements(); break;
+                case 4: renderWizardSummary(); break;
+            }
+        }
+
+        function wizardNext() { if (wizardState.step < 4) goToWizardStep(wizardState.step + 1); }
+        function wizardPrev() { if (wizardState.step > 0) goToWizardStep(wizardState.step - 1); }
+
+        function saveCurrentStepData() {
+            // Save items from DOM
+            if (wizardState.step === 0) {
+                var rows = document.querySelectorAll('#wiz-items-tbody tr');
+                wizardState.items = [];
+                rows.forEach(function(row) {
+                    var inputs = row.querySelectorAll('input');
+                    if (inputs.length >= 4) {
+                        wizardState.items.push({
+                            descripcion: inputs[0].value,
+                            cantidad: parseFloat(inputs[1].value) || 0,
+                            unidad: inputs[2].value || 'u.',
+                            precio: parseFloat(inputs[3].value) || 0
+                        });
+                    }
+                });
+            }
+            // Save propuesta
+            if (wizardState.step === 1) {
+                wizardState.propuesta = {
+                    metodologia: document.getElementById('wiz-metodologia').value,
+                    plazo: document.getElementById('wiz-plazo').value,
+                    lugar: document.getElementById('wiz-lugar').value,
+                    notas: document.getElementById('wiz-notas').value
+                };
+            }
+            // Save empresa
+            if (wizardState.step === 2) {
+                wizardState.empresa = {
+                    nombre: document.getElementById('wiz-empresa-nombre').value,
+                    cuit: document.getElementById('wiz-empresa-cuit').value,
+                    email: document.getElementById('wiz-empresa-email').value,
+                    telefono: document.getElementById('wiz-empresa-telefono').value,
+                    domicilio: document.getElementById('wiz-empresa-domicilio').value
+                };
+            }
+        }
+
+        // HTML escaping for safe rendering of user/API data
+        function escHtml(s) { return (s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+
+        // -- STEP 1: Items --
+        function renderWizardItems() {
+            var tbody = document.getElementById('wiz-items-tbody');
+            tbody.innerHTML = wizardState.items.map(function(item, i) {
+                return '<tr>'
+                    + '<td><input type="text" value="' + escHtml(item.descripcion) + '" onchange="updateWizItem(' + i + ',\'descripcion\',this.value)" placeholder="Descripcion del item"></td>'
+                    + '<td><input type="number" value="' + item.cantidad + '" min="0" step="1" onchange="updateWizItem(' + i + ',\'cantidad\',this.value)"></td>'
+                    + '<td><input type="text" value="' + escHtml(item.unidad) + '" onchange="updateWizItem(' + i + ',\'unidad\',this.value)" style="width:60px;"></td>'
+                    + '<td><input type="number" value="' + item.precio + '" min="0" step="0.01" onchange="updateWizItem(' + i + ',\'precio\',this.value)" placeholder="0.00"></td>'
+                    + '<td style="font-weight:600;">$' + (item.cantidad * item.precio).toLocaleString('es-AR', {minimumFractionDigits: 2}) + '</td>'
+                    + '<td><button class="btn btn-sm" style="color:var(--danger);padding:2px 6px;" onclick="removeWizItem(' + i + ')">&times;</button></td>'
+                    + '</tr>';
+            }).join('');
+            updateWizTotal();
+        }
+
+        function addWizardItem() {
+            saveCurrentStepData();
+            wizardState.items.push({ descripcion: '', cantidad: 1, unidad: 'u.', precio: 0 });
+            renderWizardItems();
+        }
+
+        function removeWizItem(i) {
+            saveCurrentStepData();
+            wizardState.items.splice(i, 1);
+            renderWizardItems();
+        }
+
+        function updateWizItem(i, field, val) {
+            if (field === 'cantidad' || field === 'precio') val = parseFloat(val) || 0;
+            wizardState.items[i][field] = val;
+            // Re-render subtotal for this row
+            var rows = document.querySelectorAll('#wiz-items-tbody tr');
+            if (rows[i]) {
+                var cells = rows[i].querySelectorAll('td');
+                var it = wizardState.items[i];
+                cells[4].textContent = '$' + (it.cantidad * it.precio).toLocaleString('es-AR', {minimumFractionDigits: 2});
+            }
+            updateWizTotal();
+        }
+
+        function getWizTotal() {
+            return wizardState.items.reduce(function(sum, it) { return sum + (it.cantidad * it.precio); }, 0);
+        }
+
+        function updateWizTotal() {
+            var total = getWizTotal();
+            document.getElementById('wiz-items-total').textContent = '$' + total.toLocaleString('es-AR', {minimumFractionDigits: 2});
+            updateCompetitiveness(total);
+        }
+
+        function updateCompetitiveness(total) {
+            var el = document.getElementById('wiz-competitiveness');
+            var bh = wizardState.budgetHints;
+            if (!bh || !bh.budget || total === 0) { el.textContent = ''; return; }
+            var ratio = total / bh.budget;
+            var cls, text;
+            if (ratio < 0.5) { cls = 'low'; text = 'Muy bajo \u2014 puede generar desconfianza'; }
+            else if (ratio <= 0.9) { cls = 'good'; text = 'Competitivo'; }
+            else if (ratio <= 1.1) { cls = 'tight'; text = 'Ajustado al presupuesto'; }
+            else { cls = 'over'; text = 'Excede presupuesto oficial (' + Math.round(ratio * 100) + '%)'; }
+            var div = document.createElement('div');
+            div.className = 'competitiveness ' + cls;
+            div.textContent = text + ' \u2014 Tu oferta: $' + total.toLocaleString('es-AR') + ' vs Presupuesto: $' + bh.budget.toLocaleString('es-AR');
+            el.innerHTML = '';
+            el.appendChild(div);
+        }
+
+        async function fetchBudgetHints(licitacionId) {
+            try {
+                var res = await fetch('/api/licitaciones/' + licitacionId + '/budget-hints');
+                if (!res.ok) return;
+                var hints = await res.json();
+                wizardState.budgetHints = hints;
+
+                // Budget banner
+                var banner = document.getElementById('wiz-budget-banner');
+                var div = document.createElement('div');
+                if (hints.budget) {
+                    div.className = 'budget-banner official';
+                    div.textContent = '\uD83D\uDCB0 Presupuesto oficial: $' + hints.budget.toLocaleString('es-AR')
+                        + (hints.threshold_label ? ' (' + hints.threshold_label + ')' : '');
+                } else if (hints.range_min != null && hints.range_max != null) {
+                    div.className = 'budget-banner estimated';
+                    div.textContent = '\uD83D\uDCCA Rango estimado (' + (hints.threshold_label || '') + '): $'
+                        + hints.range_min.toLocaleString('es-AR') + ' - $' + hints.range_max.toLocaleString('es-AR');
+                } else {
+                    div.className = 'budget-banner unknown';
+                    div.textContent = '\u26A0 Sin presupuesto de referencia';
+                }
+                banner.innerHTML = '';
+                banner.appendChild(div);
+
+                // Show load pliego button if enriched
+                if (hints.enrichment_level >= 2) {
+                    document.getElementById('wiz-load-pliego-btn').style.display = '';
+                }
+
+                // If pliego items came with hints, pre-load them
+                if (hints.items_from_pliego && hints.items_from_pliego.length > 0
+                    && wizardState.items.length <= 1 && !wizardState.items[0].descripcion) {
+                    wizardState.items = hints.items_from_pliego.map(function(it) {
+                        return { descripcion: it.descripcion, cantidad: it.cantidad || 1, unidad: it.unidad || 'u.', precio: 0 };
+                    });
+                    renderWizardItems();
+                    showToast(hints.items_from_pliego.length + ' items cargados del pliego', 'success');
+                }
+            } catch (e) {
+                console.warn('Budget hints error:', e);
+            }
+        }
+
+        async function loadPliegoItems() {
+            if (!wizardState.licitacionId) { showToast('Sin licitacion vinculada', 'error'); return; }
+            var btn = document.getElementById('wiz-load-pliego-btn');
+            btn.disabled = true; btn.textContent = 'Cargando...';
+            try {
+                var res = await fetch('/api/licitaciones/' + wizardState.licitacionId + '/budget-hints');
+                var hints = await res.json();
+                if (hints.items_from_pliego && hints.items_from_pliego.length > 0) {
+                    saveCurrentStepData();
+                    wizardState.items = wizardState.items.filter(function(it) { return it.descripcion; });
+                    hints.items_from_pliego.forEach(function(it) {
+                        wizardState.items.push({ descripcion: it.descripcion, cantidad: it.cantidad || 1, unidad: it.unidad || 'u.', precio: 0 });
+                    });
+                    renderWizardItems();
+                    showToast(hints.items_from_pliego.length + ' items del pliego cargados', 'success');
+                } else {
+                    showToast('No se encontraron items en el pliego', 'info');
+                }
+            } catch (e) {
+                showToast('Error cargando items del pliego', 'error');
+            } finally {
+                btn.disabled = false; btn.textContent = 'Cargar items del pliego';
+            }
+        }
+
+        // -- STEP 2: Propuesta IA --
+        async function suggestPropuesta() {
+            if (!wizardState.licitacionId) { showToast('Sin licitacion vinculada para IA', 'error'); return; }
+            var btn = document.querySelector('#wiz-step-1 .btn-primary');
+            btn.disabled = true; btn.textContent = 'Generando...';
+            try {
+                var res = await fetch('/api/cotizar-ai/suggest-propuesta', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({ licitacion_id: wizardState.licitacionId })
+                });
+                var data = await res.json();
+                if (data.error) { showToast('IA: ' + data.error, 'error'); return; }
+                if (data.metodologia) {
+                    document.getElementById('wiz-metodologia').value = data.metodologia;
+                    document.getElementById('wiz-metodologia-badge').style.display = '';
+                }
+                if (data.plazo) document.getElementById('wiz-plazo').value = data.plazo;
+                if (data.lugar) document.getElementById('wiz-lugar').value = data.lugar;
+                if (data.notas) document.getElementById('wiz-notas').value = data.notas;
+                showToast('Propuesta generada por IA', 'success');
+            } catch (e) {
+                showToast('Error generando propuesta: ' + e.message, 'error');
+            } finally {
+                btn.disabled = false; btn.textContent = 'Sugerir con IA';
+            }
+        }
+
+        function toggleAntecedentes() {
+            var el = document.getElementById('wiz-antecedentes');
+            var toggle = document.getElementById('wiz-antecedentes-toggle');
+            if (el.style.display === 'none') {
+                el.style.display = 'block';
+                toggle.textContent = '\u25B2 Colapsar';
+            } else {
+                el.style.display = 'none';
+                toggle.textContent = '\u25BC Expandir';
+            }
+        }
+
+        async function loadAntecedentes() {
+            if (!wizardState.licitacionId || wizardState.antecedentes.length > 0) return;
+            var listEl = document.getElementById('wiz-antecedentes-list');
+            try {
+                var res = await fetch('/api/cotizar-ai/search-antecedentes', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({ licitacion_id: wizardState.licitacionId })
+                });
+                var data = await res.json();
+                wizardState.antecedentes = data;
+                if (!data.length) {
+                    listEl.textContent = 'Sin antecedentes similares encontrados.';
+                    listEl.style.color = 'var(--text-muted)';
+                    listEl.style.fontSize = '13px';
+                    return;
+                }
+                listEl.innerHTML = data.map(function(a) {
+                    return '<div class="antecedente-card">'
+                        + '<h5>' + escHtml(a.objeto || a.title || 'Sin titulo') + '</h5>'
+                        + '<div class="meta">'
+                        + '<span>' + escHtml(a.organization || '') + '</span>'
+                        + (a.budget ? '<span>$' + a.budget.toLocaleString('es-AR') + '</span>' : '')
+                        + (a.publication_date ? '<span>' + escHtml(a.publication_date.substring(0, 10)) + '</span>' : '')
+                        + '</div></div>';
+                }).join('');
+            } catch (e) {
+                listEl.textContent = 'Error buscando antecedentes.';
+                listEl.style.color = 'var(--text-muted)';
+            }
+        }
+
+        // -- STEP 3: Empresa (localStorage profiles) --
+        function loadCompanyProfiles() {
+            var profiles = JSON.parse(localStorage.getItem('cotizar_empresas') || '[]');
+            var sel = document.getElementById('wiz-empresa-select');
+            sel.innerHTML = '<option value="">\u2014 Seleccionar empresa guardada \u2014</option>'
+                + profiles.map(function(p, i) {
+                    return '<option value="' + i + '">' + escHtml(p.nombre) + ' (' + escHtml(p.cuit || '') + ')</option>';
+                }).join('');
+        }
+
+        function selectCompanyProfile(idx) {
+            if (idx === '') return;
+            var profiles = JSON.parse(localStorage.getItem('cotizar_empresas') || '[]');
+            var p = profiles[parseInt(idx)];
+            if (!p) return;
+            document.getElementById('wiz-empresa-nombre').value = p.nombre || '';
+            document.getElementById('wiz-empresa-cuit').value = p.cuit || '';
+            document.getElementById('wiz-empresa-email').value = p.email || '';
+            document.getElementById('wiz-empresa-telefono').value = p.telefono || '';
+            document.getElementById('wiz-empresa-domicilio').value = p.domicilio || '';
+            localStorage.setItem('cotizar_last_empresa', p.nombre);
+            showToast('Perfil cargado: ' + p.nombre, 'info');
+        }
+
+        function saveCompanyProfile() {
+            var nombre = document.getElementById('wiz-empresa-nombre').value.trim();
+            if (!nombre) { showToast('Ingrese el nombre de la empresa', 'error'); return; }
+            var profile = {
+                nombre: nombre,
+                cuit: document.getElementById('wiz-empresa-cuit').value.trim(),
+                email: document.getElementById('wiz-empresa-email').value.trim(),
+                telefono: document.getElementById('wiz-empresa-telefono').value.trim(),
+                domicilio: document.getElementById('wiz-empresa-domicilio').value.trim(),
+                created_at: new Date().toISOString()
+            };
+            var profiles = JSON.parse(localStorage.getItem('cotizar_empresas') || '[]');
+            var existingIdx = profiles.findIndex(function(p) { return p.nombre === nombre; });
+            if (existingIdx >= 0) {
+                profiles[existingIdx] = profile;
+            } else {
+                profiles.push(profile);
+            }
+            localStorage.setItem('cotizar_empresas', JSON.stringify(profiles));
+            localStorage.setItem('cotizar_last_empresa', nombre);
+            loadCompanyProfiles();
+            showToast('Perfil guardado: ' + nombre, 'success');
+        }
+
+        function deleteCompanyProfile() {
+            var sel = document.getElementById('wiz-empresa-select');
+            var idx = parseInt(sel.value);
+            if (isNaN(idx)) { showToast('Seleccione un perfil primero', 'error'); return; }
+            var profiles = JSON.parse(localStorage.getItem('cotizar_empresas') || '[]');
+            var name = profiles[idx] ? profiles[idx].nombre : '';
+            if (!confirm('Eliminar perfil "' + name + '"?')) return;
+            profiles.splice(idx, 1);
+            localStorage.setItem('cotizar_empresas', JSON.stringify(profiles));
+            loadCompanyProfiles();
+            showToast('Perfil eliminado', 'info');
+        }
+
+        function autoSelectLastCompany() {
+            var lastUsed = localStorage.getItem('cotizar_last_empresa');
+            if (!lastUsed) return;
+            var profiles = JSON.parse(localStorage.getItem('cotizar_empresas') || '[]');
+            var idx = profiles.findIndex(function(p) { return p.nombre === lastUsed; });
+            if (idx >= 0) {
+                document.getElementById('wiz-empresa-select').value = String(idx);
+                selectCompanyProfile(String(idx));
+            }
+        }
+
+        // -- STEP 4: AI Analysis --
+        function updateAnalysisRequirements() {
+            var hasItems = wizardState.items.some(function(it) { return it.descripcion && it.precio > 0; });
+            var hasEmpresa = wizardState.empresa.nombre;
+            var btn = document.getElementById('wiz-run-analysis-btn');
+            var reqs = document.getElementById('wiz-analysis-reqs');
+            var missing = [];
+            if (!hasItems) missing.push('items con precio');
+            if (!hasEmpresa) missing.push('datos de empresa');
+            btn.disabled = missing.length > 0;
+            reqs.textContent = missing.length > 0 ? 'Faltan: ' + missing.join(', ') : '';
+        }
+
+        async function runAIAnalysis() {
+            if (!wizardState.licitacionId) { showToast('Sin licitacion vinculada', 'error'); return; }
+            saveCurrentStepData();
+
+            var placeholder = document.getElementById('wiz-analysis-placeholder');
+            var results = document.getElementById('wiz-analysis-results');
+            placeholder.innerHTML = '<div class="loading"><div class="spinner"></div>Analizando cotizacion con IA...</div>';
+
+            try {
+                var res = await fetch('/api/cotizar-ai/analyze-bid', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({
+                        licitacion_id: wizardState.licitacionId,
+                        items: wizardState.items,
+                        total: getWizTotal(),
+                        metodologia: wizardState.propuesta.metodologia,
+                        empresa_nombre: wizardState.empresa.nombre
+                    })
+                });
+                var data = await res.json();
+                wizardState.analysis = data;
+                placeholder.style.display = 'none';
+                results.style.display = 'block';
+                renderAnalysisResults(data);
+            } catch (e) {
+                placeholder.innerHTML = '<div class="alert alert-danger">Error ejecutando analisis: ' + escHtml(e.message) + '</div>';
+            }
+        }
+
+        function renderAnalysisResults(data) {
+            var el = document.getElementById('wiz-analysis-results');
+            function scoreColor(c) { return c === 'green' ? 'score-green' : c === 'yellow' ? 'score-yellow' : 'score-red'; }
+            var verdictIcon = data.veredicto === 'Recomendado' ? '\u2705' : data.veredicto === 'Revisar' ? '\u26A0' : '\u274C';
+            var verdictClass = data.veredicto ? 'verdict-' + data.veredicto.split(' ')[0] : 'verdict-Revisar';
+
+            var html = '';
+
+            // Verdict banner
+            if (data.veredicto) {
+                html += '<div class="verdict-banner ' + escHtml(verdictClass) + '">'
+                    + '<h4>' + verdictIcon + ' ' + escHtml(data.veredicto) + '</h4>'
+                    + '<p>' + escHtml(data.resumen || '') + '</p></div>';
+            }
+
+            // Win probability gauge
+            if (data.win_probability != null) {
+                html += '<div class="gauge-container"><div class="gauge-value">'
+                    + data.win_probability + '%</div><div class="gauge-label">Probabilidad de Ganar</div></div>';
+            }
+
+            // Score cards
+            html += '<div class="score-grid">';
+            ['precio', 'metodologia', 'empresa', 'cronograma'].forEach(function(key) {
+                var s = data[key];
+                if (!s) return;
+                html += '<div class="score-card">'
+                    + '<div class="score-circle ' + scoreColor(s.color) + '">' + s.score + '</div>'
+                    + '<div class="score-label">' + escHtml(key) + '</div>'
+                    + '<div class="score-detail">' + escHtml(s.detail || '') + '</div></div>';
+            });
+            html += '</div>';
+
+            // Risks
+            if (data.riesgos && data.riesgos.length) {
+                html += '<div class="card" style="margin-bottom:16px;">'
+                    + '<div class="card-title" style="margin-bottom:8px;">Riesgos Identificados</div>';
+                data.riesgos.forEach(function(r) {
+                    html += '<div class="risk-item">'
+                        + '<span class="risk-badge risk-' + escHtml(r.nivel || 'medio') + '">' + escHtml(r.nivel || 'medio') + '</span>'
+                        + '<div><strong>' + escHtml(r.tipo || '') + '</strong><br>'
+                        + '<span style="font-size:12px;color:var(--text-light);">' + escHtml(r.detalle || '') + '</span></div></div>';
+                });
+                html += '</div>';
+            }
+
+            // Recommendations
+            if (data.recomendaciones && data.recomendaciones.length) {
+                html += '<div class="card"><div class="card-title" style="margin-bottom:8px;">Recomendaciones</div>';
+                data.recomendaciones.forEach(function(r) {
+                    html += '<div class="alert alert-info">' + escHtml(r) + '</div>';
+                });
+                html += '</div>';
+            }
+
+            el.innerHTML = html;
+        }
+
+        // -- STEP 5: Summary --
+        function renderWizardSummary() {
+            saveCurrentStepData();
+            var t = wizardState.tender;
+            var total = getWizTotal();
+            var validItems = wizardState.items.filter(function(it) { return it.descripcion; });
+            var itemRows = validItems.map(function(it) {
+                return '<tr><td>' + escHtml(it.descripcion) + '</td>'
+                    + '<td>' + it.cantidad + ' ' + escHtml(it.unidad) + '</td>'
+                    + '<td style="text-align:right;">$' + (it.cantidad * it.precio).toLocaleString('es-AR') + '</td></tr>';
+            }).join('');
+
+            var a = wizardState.analysis;
+            var analysisHtml = a && a.veredicto
+                ? '<div class="card" style="margin-top:16px;"><div class="card-title">Analisis IA</div>'
+                    + '<div style="margin-top:8px;"><strong>Veredicto:</strong> ' + escHtml(a.veredicto)
+                    + ' \u2014 ' + escHtml(a.resumen || '') + '<br><strong>Probabilidad:</strong> '
+                    + (a.win_probability || 0) + '%</div></div>'
+                : '<p style="color:var(--text-muted); font-size:12px; margin-top:12px;">Analisis IA no ejecutado.</p>';
+
+            var metodTrunc = wizardState.propuesta.metodologia
+                ? escHtml(wizardState.propuesta.metodologia.substring(0, 200)) + (wizardState.propuesta.metodologia.length > 200 ? '...' : '')
+                : '';
+
+            document.getElementById('wiz-summary').innerHTML =
+                '<div class="card"><div class="card-title">Licitacion</div>'
+                + '<div style="margin-top:8px; font-size:13px;">'
+                + '<strong>' + escHtml(t ? t.title : '') + '</strong><br>'
+                + escHtml(t ? t.agency : '') + (t && t.budget ? ' \u00B7 Presupuesto: $' + t.budget.toLocaleString('es-AR') : '')
+                + '</div></div>'
+
+                + '<div class="card" style="margin-top:16px;"><div class="card-title">Items (' + validItems.length + ')</div>'
+                + '<table style="width:100%; margin-top:8px;"><thead><tr><th>Descripcion</th><th>Cantidad</th><th style="text-align:right;">Subtotal</th></tr></thead>'
+                + '<tbody>' + (itemRows || '<tr><td colspan="3" style="color:var(--text-muted);">Sin items</td></tr>') + '</tbody>'
+                + '<tfoot><tr style="font-weight:700;"><td colspan="2">TOTAL</td><td style="text-align:right;">$' + total.toLocaleString('es-AR') + '</td></tr></tfoot></table></div>'
+
+                + '<div class="grid-2" style="margin-top:16px;">'
+                + '<div class="card"><div class="card-title">Propuesta</div><div style="margin-top:8px; font-size:13px;">'
+                + (metodTrunc ? '<p>' + metodTrunc + '</p>' : '<p style="color:var(--text-muted);">No completada</p>')
+                + (wizardState.propuesta.plazo ? '<div style="margin-top:4px;"><strong>Plazo:</strong> ' + escHtml(wizardState.propuesta.plazo) + '</div>' : '')
+                + '</div></div>'
+                + '<div class="card"><div class="card-title">Empresa</div><div style="margin-top:8px; font-size:13px;">'
+                + (wizardState.empresa.nombre ? '<strong>' + escHtml(wizardState.empresa.nombre) + '</strong>' : '<p style="color:var(--text-muted);">No completada</p>')
+                + (wizardState.empresa.cuit ? '<br>CUIT: ' + escHtml(wizardState.empresa.cuit) : '')
+                + (wizardState.empresa.email ? '<br>' + escHtml(wizardState.empresa.email) : '')
+                + '</div></div></div>'
+
+                + analysisHtml;
+        }
+
+        async function finishWizard() {
+            saveCurrentStepData();
+            try {
+                var bidData = {
+                    tenderId: wizardState.tenderId,
+                    commercialOffer: {
+                        items: wizardState.items.filter(function(it) { return it.descripcion; }),
+                        total: getWizTotal(),
+                        currency: 'ARS'
+                    },
+                    technicalProposal: wizardState.propuesta,
+                    company: wizardState.empresa,
+                    analysis: wizardState.analysis
+                };
+
+                var existingBid = bidsCache.find(function(b) { return b.tenderId === wizardState.tenderId; });
+                if (existingBid) {
+                    await apiFetch('/bids/' + existingBid.id, { method: 'PUT', body: JSON.stringify(bidData) });
+                } else {
+                    await apiFetch('/bids', { method: 'POST', body: JSON.stringify(bidData) });
+                }
+
+                closeWizard();
+                showToast('Cotizacion guardada exitosamente', 'success');
+                loadBids();
+                showSection('bids');
+            } catch (e) {
+                showToast('Error guardando cotizacion: ' + e.message, 'error');
+            }
+        }
+
         // === SCRAPERS ===
         const KNOWN_SCRAPERS = [
             { name: 'ComprasApps Mendoza', key: 'comprasapps_mendoza' },
@@ -1801,21 +2709,13 @@
         const initialSection = window.location.hash.replace('#', '') || 'dashboard';
         showSection(initialSection);
 
-        // If licitacion_id param present, wait for favorites to load then auto-create bid
+        // If licitacion_id param present, fetch from Licitometro API directly and create bid
         if (_pendingLicitacionId) {
-            const targetTenderId = 'lm-' + _pendingLicitacionId;
-            // Poll until tendersCache has the favorite (loadFavorites adds them)
-            const _waitForFavorite = setInterval(() => {
-                const found = tendersCache.find(t => t.id === targetTenderId);
-                if (found) {
-                    clearInterval(_waitForFavorite);
-                    // Clean URL to prevent re-trigger on refresh
-                    history.replaceState(null, '', window.location.pathname + window.location.hash);
-                    createBidDirect(targetTenderId);
-                }
-            }, 500);
-            // Stop polling after 15s
-            setTimeout(() => clearInterval(_waitForFavorite), 15000);
+            console.log('[CotizAR v8] INIT: licitacion_id detected:', _pendingLicitacionId);
+            history.replaceState(null, '', window.location.pathname + window.location.hash);
+            syncAndCreateBid(_pendingLicitacionId);
+        } else {
+            console.log('[CotizAR v8] INIT: no licitacion_id param');
         }
     </script>
 </body>
