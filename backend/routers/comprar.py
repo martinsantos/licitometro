@@ -317,42 +317,140 @@ async def _search_and_resolve_pliego(numero: str, list_url: str) -> Optional[str
         logger.error(f"Error resolving PLIEGO for {numero}: {e}")
         return None
 
-async def _enrich_via_browser_fallback(numero: str) -> Optional[Dict[str, Any]]:
+def _resolve_pliego_url_selenium(numero: str, list_url: str, max_pages: int = 15) -> Optional[str]:
     """
-    Ejecuta el scraper de navegador (Playwright) como fallback.
+    Use Selenium to navigate COMPR.AR list pages, find a process by number,
+    click into its detail page, and extract the stable VistaPreviaPliegoCiudadano URL.
+
+    This is a synchronous function (Selenium is blocking). Run in a thread from async code.
     """
+    import time
+    from selenium import webdriver
+    from selenium.webdriver.chrome.options import Options
+    from selenium.webdriver.common.by import By
+    from selenium.webdriver.support.ui import WebDriverWait
+    from selenium.webdriver.support import expected_conditions as EC
+    from selenium.common.exceptions import TimeoutException
+
+    options = Options()
+    options.add_argument("--headless=new")
+    options.add_argument("--no-sandbox")
+    options.add_argument("--disable-dev-shm-usage")
+    options.add_argument("--disable-gpu")
+    options.add_argument("--window-size=1920,1080")
+
     try:
-        script_path = os.path.join(os.path.dirname(__file__), "..", "scrapers", "browser_scraper.py")
-        
-        proc = await asyncio.create_subprocess_exec(
-            sys.executable, script_path, numero,
-            stdout=asyncio.subprocess.PIPE,
-            stderr=asyncio.subprocess.PIPE
+        driver = webdriver.Chrome(options=options)
+    except Exception as e:
+        logger.error(f"Selenium not available: {e}")
+        return None
+
+    try:
+        logger.info(f"Selenium: searching for {numero} in {list_url}")
+        driver.get(list_url)
+
+        WebDriverWait(driver, 20).until(
+            EC.presence_of_element_located((By.CSS_SELECTOR, "#ctl00_CPH1_GridListaPliegosAperturaProxima"))
         )
-        
-        stdout, stderr = await proc.communicate()
-        
-        if proc.returncode != 0:
-            logger.error(f"Browser scraper failed: {stderr.decode()}")
-            return None
-            
-        output = stdout.decode().strip()
-        # El output puede contener logs de warnings de libs, buscar el ultimo JSON valido o limpiar
-        # Asumimos que el script solo imprime JSON en stdout
-        
-        try:
-            return json.loads(output)
-        except json.JSONDecodeError:
-            # Try to find JSON block if there is garbage
-            m = re.search(r'(\{.*\})', output, re.DOTALL)
-            if m:
-                return json.loads(m.group(1))
-            logger.error(f"Failed to parse browser scraper output: {output[:200]}...")
-            return None
+
+        numero_upper = numero.strip().upper()
+
+        for page in range(1, max_pages + 1):
+            logger.info(f"Selenium: scanning page {page}")
+            rows = driver.find_elements(By.CSS_SELECTOR, "#ctl00_CPH1_GridListaPliegosAperturaProxima tr")
+
+            for row in rows:
+                try:
+                    cells = row.find_elements(By.TAG_NAME, "td")
+                    if len(cells) < 3:
+                        continue
+                    cell_text = (cells[0].text or "").strip().upper()
+                    if numero_upper not in cell_text:
+                        continue
+
+                    # Found the process — click into it
+                    link = cells[0].find_element(By.TAG_NAME, "a")
+                    prev_url = driver.current_url
+                    driver.execute_script("arguments[0].scrollIntoView({block:'center'});", link)
+                    time.sleep(0.3)
+                    driver.execute_script("arguments[0].click();", link)
+
+                    try:
+                        WebDriverWait(driver, 15).until(EC.url_changes(prev_url))
+                    except TimeoutException:
+                        link.click()
+                        WebDriverWait(driver, 15).until(EC.url_changes(prev_url))
+
+                    time.sleep(1)
+
+                    # Check browser URL first
+                    current_url = driver.current_url
+                    if "VistaPreviaPliegoCiudadano" in current_url:
+                        logger.info(f"Selenium: direct pliego URL for {numero}: {current_url}")
+                        return current_url
+
+                    # Search the rendered page for VistaPreviaPliegoCiudadano link
+                    page_html = driver.page_source
+                    match = re.search(
+                        r'href="([^"]*VistaPreviaPliegoCiudadano\.aspx\?qs=[^"]+)"',
+                        page_html
+                    )
+                    if match:
+                        href = match.group(1)
+                        if not href.startswith("http"):
+                            href = f"https://comprar.mendoza.gov.ar{href}"
+                        logger.info(f"Selenium: found pliego link for {numero}: {href}")
+                        return href
+
+                    # If we got ComprasElectronicas with content, extract pliego URL
+                    if "ComprasElectronicas" in current_url:
+                        # Try extracting from the full page source
+                        pliego_match = re.search(
+                            r'((?:PLIEGO/)?VistaPreviaPliego(?:Ciudadano)?\.aspx\?qs=[^\s"\'<>]+)',
+                            page_html
+                        )
+                        if pliego_match:
+                            pliego_url = pliego_match.group(1)
+                            if "VistaPreviaPliego.aspx" in pliego_url:
+                                pliego_url = pliego_url.replace("VistaPreviaPliego.aspx", "VistaPreviaPliegoCiudadano.aspx")
+                            if not pliego_url.startswith("http"):
+                                pliego_url = f"https://comprar.mendoza.gov.ar/{pliego_url}"
+                            logger.info(f"Selenium: extracted pliego from ComprasElectronicas for {numero}: {pliego_url}")
+                            return pliego_url
+
+                    # Last resort: return ComprasElectronicas URL (has session-dependent content)
+                    if "ComprasElectronicas" in current_url and "CPH1" in page_html:
+                        logger.warning(f"Selenium: returning ComprasElectronicas (with content) for {numero}")
+                        return current_url
+
+                    logger.warning(f"Selenium: no pliego URL found on detail page for {numero}")
+                    return None
+
+                except Exception as e:
+                    logger.warning(f"Selenium: error clicking {numero}: {e}")
+                    continue
+
+            # Navigate to next page
+            try:
+                next_link = driver.find_element(By.LINK_TEXT, str(page + 1))
+                driver.execute_script("arguments[0].scrollIntoView(true);", next_link)
+                driver.execute_script("arguments[0].click();", next_link)
+                WebDriverWait(driver, 15).until(
+                    EC.presence_of_element_located((By.CSS_SELECTOR, "#ctl00_CPH1_GridListaPliegosAperturaProxima"))
+                )
+                time.sleep(1)
+            except Exception:
+                logger.info(f"Selenium: no page {page + 1}, stopping search")
+                break
+
+        logger.warning(f"Selenium: {numero} not found after {max_pages} pages")
+        return None
 
     except Exception as e:
-        logger.error(f"Error running browser fallback: {e}")
+        logger.error(f"Selenium search error: {e}")
         return None
+    finally:
+        driver.quit()
 
 
 
@@ -713,21 +811,26 @@ async def enrich_licitacion(
 
 
 
-        # Si fallaron las URLs directas, intentar búsqueda por número
+        # Si fallaron las URLs directas, intentar búsqueda por número via Selenium
         if not page_html:
-            logger.info(f"Direct URLs failed, trying search by number: {numero}")
+            logger.info(f"Direct URLs failed, trying Selenium search for: {numero}")
             if numero:
-                # URL de la lista para buscar (usar la de metadata o default)
-                list_url = metadata.get('comprar_list_url') or "https://comprar.mendoza.gov.ar/Compras.aspx"
-                
+                list_url = metadata.get('comprar_list_url') or "https://comprar.mendoza.gov.ar/Compras.aspx?qs=W1HXHGHtH10="
+
                 try:
-                    found_url = await _search_and_resolve_pliego(numero, list_url)
+                    # Run Selenium in a thread (it's synchronous/blocking)
+                    import concurrent.futures
+                    loop = asyncio.get_event_loop()
+                    with concurrent.futures.ThreadPoolExecutor() as pool:
+                        found_url = await loop.run_in_executor(
+                            pool, _resolve_pliego_url_selenium, numero, list_url
+                        )
+
                     if found_url:
-                        logger.info(f"Found new URL via search: {found_url}")
-                        # Cachear para la próxima
+                        logger.info(f"Selenium found URL: {found_url}")
                         _cache_pliego_url(numero, found_url)
-                        
-                        # Intentar fetchear esta nueva URL
+
+                        # Fetch the found URL to get page HTML
                         async with aiohttp.ClientSession(headers=headers) as session:
                             async with session.get(found_url, timeout=aiohttp.ClientTimeout(total=30), ssl=False) as resp:
                                 if resp.status == 200:
@@ -735,10 +838,31 @@ async def enrich_licitacion(
                                     if len(html) > 1000:
                                         page_html = html
                                         successful_url = found_url
-                                        url_type = "search_fallback"
+                                        url_type = "selenium_resolved"
+
+                        # Also update the licitacion with the new stable URL
+                        if found_url and "VistaPreviaPliego" in found_url:
+                            try:
+                                from bson import ObjectId
+                                from dependencies import database as db_ref
+                                if db_ref is not None:
+                                    await db_ref.licitaciones.update_one(
+                                        {"_id": ObjectId(licitacion_id)},
+                                        {"$set": {
+                                            "source_url": found_url,
+                                            "canonical_url": found_url,
+                                            "url_quality": "direct",
+                                            "metadata.comprar_pliego_url": found_url,
+                                            "source_urls.comprar_pliego": found_url,
+                                        }}
+                                    )
+                                    logger.info(f"Updated source_url to stable pliego URL for {licitacion_id}")
+                            except Exception as url_update_err:
+                                logger.warning(f"Could not update source_url: {url_update_err}")
+
                 except Exception as e:
-                    logger.error(f"Error in search fallback: {e}")
-                    errors_log.append(f"search_fallback: {str(e)}")
+                    logger.error(f"Error in Selenium fallback: {e}")
+                    errors_log.append(f"selenium_fallback: {str(e)}")
 
         if not page_html:
             logger.error(f"Could not fetch any URL for {licitacion_id} even after search: {errors_log}")
