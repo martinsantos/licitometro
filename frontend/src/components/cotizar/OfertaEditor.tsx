@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import {
   useCotizarAPI, CotizarItem, AIAnalysisResult, BudgetHints, Antecedente,
-  PliegoInfo, MarcoLegal, PriceIntelligence, MongoCotizacion,
+  PliegoInfo, MarcoLegal, PriceIntelligence, MongoCotizacion, Documento,
 } from '../../hooks/useCotizarAPI';
 import DocumentRepository from './DocumentRepository';
 
@@ -158,6 +158,7 @@ export default function OfertaEditor({ licitacion, onSaved }: Props) {
   const [priceIntelligence, setPriceIntelligence] = useState<PriceIntelligence | null>(null);
   const [loadingPrices, setLoadingPrices] = useState(false);
   const [showDocRepo, setShowDocRepo] = useState(false);
+  const [companyDocs, setCompanyDocs] = useState<Documento[]>([]);
   const [companyAntecedentes, setCompanyAntecedentes] = useState<Antecedente[]>([]);
   const [loadingCompanyAntecedentes, setLoadingCompanyAntecedentes] = useState(false);
   const [showCompanyAntecedentes, setShowCompanyAntecedentes] = useState(false);
@@ -253,6 +254,7 @@ export default function OfertaEditor({ licitacion, onSaved }: Props) {
         // Fetch enrichments in background
         api.getBudgetHints(licitacion.id).then(h => { if (!cancelled) setBudgetHints(h); }).catch(() => {});
         api.extractPliegoInfo(licitacion.id).then(p => { if (!cancelled && !p.error) setPliegoInfo(p); }).catch(() => {});
+        api.listDocuments().then(d => { if (!cancelled) setCompanyDocs(d); }).catch(() => {});
       } catch (e: unknown) {
         if (!cancelled) {
           if (licitacion.items && licitacion.items.length > 0) {
@@ -1129,26 +1131,68 @@ export default function OfertaEditor({ licitacion, onSaved }: Props) {
                 </div>
               )}
 
-              {/* Documentacion obligatoria */}
+              {/* Documentacion obligatoria — with company doc cross-reference */}
               {marcoLegal.documentacion_obligatoria && marcoLegal.documentacion_obligatoria.length > 0 && (
                 <div>
-                  <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Documentacion Obligatoria</p>
+                  <div className="flex items-center justify-between mb-2">
+                    <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Documentacion Obligatoria</p>
+                    <a href="/empresa" className="text-xs text-blue-600 hover:text-blue-800 transition-colors">Repositorio</a>
+                  </div>
                   <div className="space-y-2">
-                    {marcoLegal.documentacion_obligatoria.map((doc, i) => (
-                      <label key={i} className="flex items-start gap-2 text-sm bg-gray-50 rounded-lg p-2.5 cursor-pointer">
-                        <input
-                          type="checkbox"
-                          checked={marcoLegalChecks[`doc-${i}`] || false}
-                          onChange={e => setMarcoLegalChecks(prev => ({ ...prev, [`doc-${i}`]: e.target.checked }))}
-                          className="mt-0.5 rounded border-gray-300"
-                        />
-                        <div className={marcoLegalChecks[`doc-${i}`] ? 'text-gray-400' : ''}>
-                          <span className="font-medium text-gray-800">{doc.documento}</span>
-                          {doc.descripcion && <p className="text-xs text-gray-500 mt-0.5">{doc.descripcion}</p>}
-                          {doc.donde_obtener && <p className="text-xs text-blue-500 mt-0.5">Obtener en: {doc.donde_obtener}</p>}
-                        </div>
-                      </label>
-                    ))}
+                    {marcoLegal.documentacion_obligatoria.map((doc, i) => {
+                      // Cross-reference: find matching company doc by category or filename keyword
+                      const docName = doc.documento.toLowerCase();
+                      const matchingDoc = companyDocs.find(cd =>
+                        docName.includes(cd.category.toLowerCase()) ||
+                        cd.category.toLowerCase().includes(docName.slice(0, 10)) ||
+                        cd.filename.toLowerCase().includes(docName.slice(0, 10))
+                      );
+                      const isExpired = matchingDoc?.expiration_date
+                        ? new Date(matchingDoc.expiration_date) < new Date()
+                        : false;
+                      const docStatus = matchingDoc
+                        ? isExpired ? 'expired' : 'available'
+                        : 'missing';
+
+                      return (
+                        <label key={i} className={`flex items-start gap-2 text-sm rounded-lg p-2.5 cursor-pointer ${
+                          docStatus === 'available' ? 'bg-emerald-50' :
+                          docStatus === 'expired' ? 'bg-red-50' : 'bg-gray-50'
+                        }`}>
+                          <input
+                            type="checkbox"
+                            checked={marcoLegalChecks[`doc-${i}`] || docStatus === 'available'}
+                            onChange={e => setMarcoLegalChecks(prev => ({ ...prev, [`doc-${i}`]: e.target.checked }))}
+                            className="mt-0.5 rounded border-gray-300"
+                          />
+                          <div className={`flex-1 ${marcoLegalChecks[`doc-${i}`] ? 'text-gray-400' : ''}`}>
+                            <div className="flex items-center gap-2">
+                              <span className="font-medium text-gray-800">{doc.documento}</span>
+                              {docStatus === 'available' && (
+                                <span className="text-xs bg-emerald-100 text-emerald-700 px-1.5 py-0.5 rounded-full">En repositorio</span>
+                              )}
+                              {docStatus === 'expired' && (
+                                <span className="text-xs bg-red-100 text-red-700 px-1.5 py-0.5 rounded-full">Vencido</span>
+                              )}
+                              {docStatus === 'missing' && (
+                                <span className="text-xs bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded-full">Falta</span>
+                              )}
+                            </div>
+                            {doc.descripcion && <p className="text-xs text-gray-500 mt-0.5">{doc.descripcion}</p>}
+                            {doc.donde_obtener && <p className="text-xs text-blue-500 mt-0.5">Obtener en: {doc.donde_obtener}</p>}
+                            {matchingDoc && (
+                              <a
+                                href={`/api/documentos/${matchingDoc.id}/download`}
+                                target="_blank" rel="noopener noreferrer"
+                                className="text-xs text-blue-600 hover:text-blue-800 mt-0.5 inline-block"
+                              >
+                                Descargar: {matchingDoc.filename}
+                              </a>
+                            )}
+                          </div>
+                        </label>
+                      );
+                    })}
                   </div>
                 </div>
               )}

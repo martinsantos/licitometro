@@ -59,6 +59,54 @@ export interface Antecedente {
   url?: string;
 }
 
+export interface CompanyProfile {
+  id?: string | null;
+  company_id: string;
+  nombre: string;
+  cuit: string;
+  email: string;
+  telefono: string;
+  domicilio: string;
+  numero_proveedor_estado: string;
+  rubros_inscriptos: string[];
+  representante_legal: string;
+  cargo_representante: string;
+  onboarding_completed: boolean;
+}
+
+export interface AntecedenteRef {
+  id: string;
+  source: string;
+  relevance: string;
+  title?: string;
+}
+
+export interface CompanyContext {
+  id: string;
+  company_id: string;
+  zona: string;
+  tipo_proceso: string;
+  documentos_requeridos: string[];
+  documentos_disponibles: string[];
+  normativa: string;
+  garantia_oferta: string;
+  garantia_cumplimiento: string;
+  plazo_mantenimiento_oferta: string;
+  vigencia_contrato_tipo: string;
+  monto_minimo?: number | null;
+  monto_maximo?: number | null;
+  contacto_nombre: string;
+  contacto_tel: string;
+  contacto_email: string;
+  horario_mesa: string;
+  tips: string[];
+  errores_comunes: string[];
+  antecedentes: AntecedenteRef[];
+  notas: string;
+  created_at?: string;
+  updated_at?: string;
+}
+
 export interface MarcoLegalDoc {
   documento: string;
   descripcion: string;
@@ -339,6 +387,68 @@ export function useCotizarAPI() {
         method: 'POST',
         body: JSON.stringify({ licitacion_id: licitacionId, keywords, sector }),
       });
+    },
+
+    // --- Company Context ---
+
+    async getCompanyProfile(): Promise<CompanyProfile> {
+      return apiFetchMain('/company-context/profile');
+    },
+
+    async saveCompanyProfile(data: Partial<CompanyProfile>): Promise<CompanyProfile> {
+      return apiFetchMain('/company-context/profile', {
+        method: 'PUT',
+        body: JSON.stringify({ company_id: 'default', ...data }),
+      });
+    },
+
+    async patchCompanyProfile(data: Partial<CompanyProfile>): Promise<CompanyProfile> {
+      return apiFetchMain('/company-context/profile', {
+        method: 'PATCH',
+        body: JSON.stringify(data),
+      });
+    },
+
+    async getOnboardingStatus(): Promise<{ completed: boolean }> {
+      return apiFetchMain('/company-context/onboarding-status');
+    },
+
+    async getTiposProceso(): Promise<string[]> {
+      return apiFetchMain('/company-context/tipos-proceso');
+    },
+
+    async listZoneContexts(): Promise<CompanyContext[]> {
+      return apiFetchMain('/company-context/zones');
+    },
+
+    async getAvailableZones(): Promise<string[]> {
+      return apiFetchMain('/company-context/zones/available');
+    },
+
+    async createZoneContext(data: Partial<CompanyContext>): Promise<CompanyContext> {
+      return apiFetchMain('/company-context/zones', {
+        method: 'POST',
+        body: JSON.stringify({ company_id: 'default', ...data }),
+      });
+    },
+
+    async updateZoneContext(id: string, data: Partial<CompanyContext>): Promise<CompanyContext> {
+      return apiFetchMain(`/company-context/zones/${id}`, {
+        method: 'PUT',
+        body: JSON.stringify(data),
+      });
+    },
+
+    async deleteZoneContext(id: string): Promise<void> {
+      await apiFetchMain(`/company-context/zones/${id}`, { method: 'DELETE' });
+    },
+
+    async matchZoneContext(organization: string, tipo?: string): Promise<CompanyContext | null> {
+      const qs = new URLSearchParams({ organization });
+      if (tipo) qs.set('tipo', tipo);
+      try {
+        return await apiFetchMain<CompanyContext>(`/company-context/zones/match?${qs}`);
+      } catch { return null; }
     },
   };
 }

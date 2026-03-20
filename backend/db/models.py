@@ -225,6 +225,55 @@ def user_entity(user) -> dict:
     }
 
 
+def company_profile_entity(doc) -> dict:
+    """Convert MongoDB company_profile document to dict"""
+    return {
+        "id": str(doc["_id"]),
+        "company_id": doc.get("company_id", "default"),
+        "nombre": doc.get("nombre", ""),
+        "cuit": doc.get("cuit", ""),
+        "email": doc.get("email", ""),
+        "telefono": doc.get("telefono", ""),
+        "domicilio": doc.get("domicilio", ""),
+        "numero_proveedor_estado": doc.get("numero_proveedor_estado", ""),
+        "rubros_inscriptos": doc.get("rubros_inscriptos", []),
+        "representante_legal": doc.get("representante_legal", ""),
+        "cargo_representante": doc.get("cargo_representante", ""),
+        "onboarding_completed": doc.get("onboarding_completed", False),
+        "created_at": doc.get("created_at", datetime.utcnow()),
+        "updated_at": doc.get("updated_at", datetime.utcnow()),
+    }
+
+
+def company_context_entity(doc) -> dict:
+    """Convert MongoDB company_context document to dict"""
+    return {
+        "id": str(doc["_id"]),
+        "company_id": doc.get("company_id", "default"),
+        "zona": doc.get("zona", ""),
+        "tipo_proceso": doc.get("tipo_proceso", "Otro"),
+        "documentos_requeridos": doc.get("documentos_requeridos", []),
+        "documentos_disponibles": doc.get("documentos_disponibles", []),
+        "normativa": doc.get("normativa", ""),
+        "garantia_oferta": doc.get("garantia_oferta", ""),
+        "garantia_cumplimiento": doc.get("garantia_cumplimiento", ""),
+        "plazo_mantenimiento_oferta": doc.get("plazo_mantenimiento_oferta", ""),
+        "vigencia_contrato_tipo": doc.get("vigencia_contrato_tipo", ""),
+        "monto_minimo": doc.get("monto_minimo"),
+        "monto_maximo": doc.get("monto_maximo"),
+        "contacto_nombre": doc.get("contacto_nombre", ""),
+        "contacto_tel": doc.get("contacto_tel", ""),
+        "contacto_email": doc.get("contacto_email", ""),
+        "horario_mesa": doc.get("horario_mesa", ""),
+        "tips": doc.get("tips", []),
+        "errores_comunes": doc.get("errores_comunes", []),
+        "antecedentes": doc.get("antecedentes", []),
+        "notas": doc.get("notas", ""),
+        "created_at": doc.get("created_at", datetime.utcnow()),
+        "updated_at": doc.get("updated_at", datetime.utcnow()),
+    }
+
+
 def documento_entity(doc) -> dict:
     """Convert MongoDB documento document to dict"""
     return {

@@ -14,7 +14,7 @@ import uvicorn
 sys.path.insert(0, str(Path(__file__).parent))
 
 # Import routers directly (not as relative imports)
-from routers import licitaciones, licitaciones_ar, scraper_configs, comprar, scheduler, workflow, offer_templates, auth, public, nodos, cotizar_ai, cotizaciones, market_data, documentos
+from routers import licitaciones, licitaciones_ar, scraper_configs, comprar, scheduler, workflow, offer_templates, auth, public, nodos, cotizar_ai, cotizaciones, market_data, documentos, company_context
 from services.auth_service import verify_token
 
 # Load environment variables
@@ -114,6 +114,15 @@ async def auth_middleware(request: Request, call_next):
                 request.state.user_role = token_data.get("role", "reader")
                 return await call_next(request)
 
+    # Allow reader access to company-context endpoints
+    if path.startswith("/api/company-context"):
+        token = request.cookies.get("access_token")
+        if token:
+            token_data = verify_token(token)
+            if token_data["valid"]:
+                request.state.user_role = token_data.get("role", "reader")
+                return await call_next(request)
+
     # Allow reader access to documentos endpoints
     if path.startswith("/api/documentos"):
         token = request.cookies.get("access_token")
@@ -173,6 +182,7 @@ app.include_router(cotizar_ai.router)
 app.include_router(cotizaciones.router)
 app.include_router(market_data.router)
 app.include_router(documentos.router)
+app.include_router(company_context.router)
 app.include_router(public.router)
 
 @app.on_event("startup")
@@ -254,6 +264,13 @@ async def startup_db_client():
         # Cotizaciones indexes
         await database.cotizaciones.create_index("licitacion_id", unique=True)
         await database.cotizaciones.create_index("updated_at")
+
+        # Company context indexes
+        await database.company_profiles.create_index("company_id", unique=True)
+        await database.company_contexts.create_index(
+            [("company_id", 1), ("zona", 1), ("tipo_proceso", 1)], unique=True
+        )
+        await database.company_contexts.create_index("zona")
 
         # Documentos indexes
         await database.documentos.create_index("category")

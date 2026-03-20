@@ -25,6 +25,80 @@ def _get_db(request: Request):
     return request.app.mongodb
 
 
+async def _get_company_context_str(db, organization: str = "", tipo_procedimiento: str = "") -> str:
+    """Build company context string for AI prompts from company_profiles + company_contexts."""
+    parts = []
+
+    # Company profile
+    profile = await db.company_profiles.find_one({"company_id": "default"})
+    if profile and profile.get("nombre"):
+        p_parts = [f"Empresa: {profile['nombre']}"]
+        if profile.get("cuit"):
+            p_parts.append(f"CUIT: {profile['cuit']}")
+        if profile.get("numero_proveedor_estado"):
+            p_parts.append(f"Proveedor Estado N°: {profile['numero_proveedor_estado']}")
+        if profile.get("rubros_inscriptos"):
+            p_parts.append(f"Rubros: {', '.join(profile['rubros_inscriptos'])}")
+        parts.append("DATOS EMPRESA: " + " | ".join(p_parts))
+
+    # Zone context matching
+    if organization:
+        org_lower = organization.lower()
+        all_ctx = await db.company_contexts.find({"company_id": "default"}).to_list(200)
+        best = None
+        best_score = 0
+        for ctx in all_ctx:
+            zona_lower = (ctx.get("zona") or "").lower()
+            if not zona_lower:
+                continue
+            if zona_lower in org_lower or org_lower in zona_lower:
+                score = len(zona_lower)
+                if tipo_procedimiento and ctx.get("tipo_proceso", "").lower() in tipo_procedimiento.lower():
+                    score += 100
+                if score > best_score:
+                    best = ctx
+                    best_score = score
+        if not best:
+            best = await db.company_contexts.find_one({"company_id": "default", "zona": "General"})
+
+        if best:
+            if best.get("documentos_requeridos"):
+                # Check which docs are available
+                doc_ids = best.get("documentos_disponibles", [])
+                available_cats = set()
+                if doc_ids:
+                    from bson import ObjectId as ObjId
+                    docs = await db.documentos.find(
+                        {"_id": {"$in": [ObjId(d) for d in doc_ids if len(d) == 24]}}
+                    ).to_list(50)
+                    available_cats = {d.get("category", "") for d in docs}
+                required = best["documentos_requeridos"]
+                available = [r for r in required if r in available_cats]
+                missing = [r for r in required if r not in available_cats]
+                if available:
+                    parts.append(f"DOCS DISPONIBLES ({best.get('zona', '')}): {', '.join(available)}")
+                if missing:
+                    parts.append(f"DOCS FALTANTES ({best.get('zona', '')}): {', '.join(missing)}")
+
+            if best.get("tips"):
+                parts.append(f"TIPS ({best.get('zona', '')}): {'; '.join(best['tips'][:5])}")
+            if best.get("errores_comunes"):
+                parts.append(f"ERRORES COMUNES: {'; '.join(best['errores_comunes'][:5])}")
+            if best.get("normativa"):
+                parts.append(f"NORMATIVA: {best['normativa']}")
+            if best.get("garantia_oferta"):
+                parts.append(f"GARANTIA OFERTA: {best['garantia_oferta']}")
+
+            # Count antecedentes
+            ant_count = len(best.get("antecedentes", []))
+            if ant_count:
+                parts.append(f"ANTECEDENTES EMPRESA EN ZONA: {ant_count} proyectos previos")
+
+    if not parts:
+        return ""
+    return "\n".join(parts)
+
+
 @router.post("/suggest-propuesta")
 async def suggest_propuesta(body: Dict[str, Any], request: Request):
     """Generate AI-powered technical proposal suggestion."""
@@ -45,6 +119,12 @@ Descripción: {(lic.get('description') or '')[:2000]}
 Categoría: {lic.get('category', 'N/A')}
 Organismo: {lic.get('organization', 'N/A')}
 Presupuesto: ${lic.get('budget', 'N/A')}"""
+
+    company_ctx = await _get_company_context_str(
+        db, lic.get("organization", ""), lic.get("tipo_procedimiento", "")
+    )
+    if company_ctx:
+        context += f"\n\n{company_ctx}"
 
     groq = get_groq_enrichment_service()
     result = await groq.suggest_propuesta(context)
@@ -172,6 +252,12 @@ Items: {items_str}
 Metodología: {body.get('metodologia', 'N/A')[:300]}
 Empresa: {body.get('empresa_nombre', 'N/A')}"""
 
+    company_ctx = await _get_company_context_str(
+        db, lic.get("organization", ""), lic.get("tipo_procedimiento", "")
+    )
+    if company_ctx:
+        context += f"\n\n{company_ctx}"
+
     groq = get_groq_enrichment_service()
     return await groq.analyze_bid(context)
 
@@ -229,6 +315,12 @@ async def extract_pliego_info(body: Dict[str, Any], request: Request):
     text = "\n".join(parts)
     if len(text) < 20:
         return {"error": "Información insuficiente en la licitación", "items": [], "info_faltante": ["Sin descripción disponible"]}
+
+    company_ctx = await _get_company_context_str(
+        db, lic.get("organization", ""), lic.get("tipo_procedimiento", "")
+    )
+    if company_ctx:
+        text += f"\n\n{company_ctx}"
 
     groq = get_groq_enrichment_service()
     return await groq.extract_pliego_info(text)
@@ -375,6 +467,12 @@ async def extract_marco_legal(body: Dict[str, Any], request: Request):
                         context += f" (hasta {threshold_info['modulos']} módulos, módulo = ${threshold_info['modulo_value']})"
         except Exception as e:
             logger.warning(f"Could not load procurement thresholds: {e}")
+
+    company_ctx = await _get_company_context_str(
+        db, lic.get("organization", ""), lic.get("tipo_procedimiento", "")
+    )
+    if company_ctx:
+        context += f"\n\n{company_ctx}"
 
     groq = get_groq_enrichment_service()
     result = await groq.extract_marco_legal(context)
