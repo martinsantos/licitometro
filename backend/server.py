@@ -14,7 +14,7 @@ import uvicorn
 sys.path.insert(0, str(Path(__file__).parent))
 
 # Import routers directly (not as relative imports)
-from routers import licitaciones, licitaciones_ar, scraper_configs, comprar, scheduler, workflow, offer_templates, auth, public, nodos, cotizar_ai
+from routers import licitaciones, licitaciones_ar, scraper_configs, comprar, scheduler, workflow, offer_templates, auth, public, nodos, cotizar_ai, cotizaciones, market_data
 from services.auth_service import verify_token
 
 # Load environment variables
@@ -101,12 +101,21 @@ async def auth_middleware(request: Request, call_next):
     if not path.startswith("/api") or path in AUTH_EXEMPT_PATHS or path.startswith("/api/public/"):
         return await call_next(request)
 
-    # Allow public GET access to licitaciones endpoints (both main and AR)
-    if request.method == "GET" and (path.startswith("/api/licitaciones") or path.startswith("/api/licitaciones-ar")):
+    # Allow public GET access to licitaciones and market data endpoints
+    if request.method == "GET" and (path.startswith("/api/licitaciones") or path.startswith("/api/licitaciones-ar") or path.startswith("/api/market/")):
         return await call_next(request)
 
     # Allow reader access to cotizar-ai endpoints (read-only AI analysis, no data mutation)
     if path.startswith("/api/cotizar-ai/"):
+        token = request.cookies.get("access_token")
+        if token:
+            token_data = verify_token(token)
+            if token_data["valid"]:
+                request.state.user_role = token_data.get("role", "reader")
+                return await call_next(request)
+
+    # Allow reader access to cotizaciones endpoints
+    if path.startswith("/api/cotizaciones"):
         token = request.cookies.get("access_token")
         if token:
             token_data = verify_token(token)
@@ -152,6 +161,8 @@ app.include_router(workflow.router)
 app.include_router(offer_templates.router)
 app.include_router(nodos.router)
 app.include_router(cotizar_ai.router)
+app.include_router(cotizaciones.router)
+app.include_router(market_data.router)
 app.include_router(public.router)
 
 @app.on_event("startup")
@@ -229,6 +240,15 @@ async def startup_db_client():
         scraper_repo = ScraperConfigRepository(database)
         await lic_repo.ensure_indexes()
         await scraper_repo.ensure_indexes()
+
+        # Cotizaciones indexes
+        await database.cotizaciones.create_index("licitacion_id", unique=True)
+        await database.cotizaciones.create_index("updated_at")
+
+        # AI cache with TTL (24 hours)
+        await database.ai_cache.create_index("prompt_hash")
+        await database.ai_cache.create_index("created_at", expireAfterSeconds=86400)
+
         logger.info("MongoDB indexes ensured")
     except Exception as e:
         logger.error(f"Failed to create indexes: {e}")

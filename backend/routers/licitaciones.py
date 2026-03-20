@@ -1543,7 +1543,7 @@ async def get_budget_hints(licitacion_id: str, request: Request):
 
     return {
         "budget": budget,
-        "budget_source": "oficial" if budget else "estimado",
+        "budget_source": "official" if budget else "estimated_from_pliego",
         "tipo_procedimiento": lic.get("tipo_procedimiento"),
         "range_min": range_min,
         "range_max": range_max,

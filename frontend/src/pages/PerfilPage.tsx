@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import axios from 'axios';
-import { useCotizarAPI, CotizarBid } from '../hooks/useCotizarAPI';
+import { useCotizarAPI, MongoCotizacion } from '../hooks/useCotizarAPI';
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL || '';
 
@@ -46,7 +46,7 @@ function DeadlineCountdown({ days }: { days: number | null }) {
 export default function PerfilPage() {
   const api = useCotizarAPI();
   const [savedLics, setSavedLics] = useState<SavedLicitacion[]>([]);
-  const [bids, setBids] = useState<CotizarBid[]>([]);
+  const [bids, setBids] = useState<MongoCotizacion[]>([]);
   const [nodos, setNodos] = useState<NodoSummary[]>([]);
   const [loadingLics, setLoadingLics] = useState(true);
   const [loadingBids, setLoadingBids] = useState(true);
@@ -69,9 +69,9 @@ export default function PerfilPage() {
     });
   }, []);
 
-  // Load bids
+  // Load cotizaciones from MongoDB
   useEffect(() => {
-    api.listBids()
+    api.listCotizacionesFromMongo()
       .then(setBids)
       .catch(() => setBids([]))
       .finally(() => setLoadingBids(false));
@@ -161,14 +161,14 @@ export default function PerfilPage() {
                 <div key={bid.id} className="px-4 py-3 hover:bg-gray-50 transition-colors">
                   <div className="flex items-center justify-between gap-2">
                     <Link
-                      to={bid.licitometroId ? `/cotizar?licitacion_id=${bid.licitometroId}` : '/cotizar'}
+                      to={`/cotizar?licitacion_id=${bid.licitacion_id}`}
                       className="text-xs font-medium text-gray-700 hover:text-blue-600 truncate flex-1"
                     >
-                      {bid.licitometroId || 'Cotización'}
+                      {bid.licitacion_objeto || bid.licitacion_title || 'Cotizacion'}
                     </Link>
                     <span className="text-xs font-semibold text-gray-900 whitespace-nowrap">
-                      {(bid.commercialOffer?.total || bid.total)
-                        ? new Intl.NumberFormat('es-AR', { style: 'currency', currency: 'ARS', maximumFractionDigits: 0 }).format(bid.commercialOffer?.total || bid.total)
+                      {bid.total
+                        ? new Intl.NumberFormat('es-AR', { style: 'currency', currency: 'ARS', maximumFractionDigits: 0 }).format(bid.total)
                         : '–'}
                     </span>
                   </div>

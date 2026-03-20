@@ -223,3 +223,29 @@ def user_entity(user) -> dict:
         "created_at": user.get("created_at", datetime.utcnow()),
         "updated_at": user.get("updated_at", datetime.utcnow()),
     }
+
+
+def cotizacion_entity(doc) -> dict:
+    """Convert MongoDB cotizacion document to dict"""
+    return {
+        "id": str(doc["_id"]),
+        "licitacion_id": doc.get("licitacion_id", ""),
+        "licitacion_title": doc.get("licitacion_title", ""),
+        "licitacion_objeto": doc.get("licitacion_objeto"),
+        "organization": doc.get("organization"),
+        "items": doc.get("items", []),
+        "iva_rate": doc.get("iva_rate", 21),
+        "subtotal": doc.get("subtotal", 0),
+        "iva_amount": doc.get("iva_amount", 0),
+        "total": doc.get("total", 0),
+        "tech_data": doc.get("tech_data", {}),
+        "company_data": doc.get("company_data", {}),
+        "analysis": doc.get("analysis"),
+        "pliego_info": doc.get("pliego_info"),
+        "marco_legal": doc.get("marco_legal"),
+        "antecedentes_vinculados": doc.get("antecedentes_vinculados", []),
+        "price_intelligence": doc.get("price_intelligence"),
+        "status": doc.get("status", "borrador"),
+        "created_at": doc.get("created_at", datetime.utcnow()),
+        "updated_at": doc.get("updated_at", datetime.utcnow()),
+    }

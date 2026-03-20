@@ -1,5 +1,3 @@
-const COTIZAR_API = '/cotizar/api';
-
 export interface CotizarItem {
   id?: string;
   descripcion: string;
@@ -9,47 +7,10 @@ export interface CotizarItem {
   subtotal?: number;
 }
 
-export interface CommercialOffer {
-  basePrice?: number;
-  taxRate?: number;
-  total?: number;
-  subtotal?: number;
-  taxAmount?: number;
-}
-
-export interface CotizarBid {
-  id: string;
-  tenderId: string;
-  licitometroId?: string;
-  items: CotizarItem[];
-  iva_rate: number;
-  subtotal: number;
-  iva_amount: number;
-  total: number;
-  company_name?: string;
-  commercialOffer?: CommercialOffer;
-  created_at?: string;
-  updated_at?: string;
-}
-
-export interface CotizarTender {
-  id: string;
-  licitometroId: string;
-  title?: string;
-  organization?: string;
-}
-
 export interface MarketRates {
   usd: number;
   eur?: number;
   updated_at: string;
-}
-
-export interface CurrencyRate {
-  pair: string;
-  buy?: number;
-  sell?: number;
-  value?: number;
 }
 
 export interface InflationData {
@@ -86,6 +47,96 @@ export interface Antecedente {
   organization: string;
   budget: number | null;
   publication_date: string;
+  category?: string;
+  tipo_procedimiento?: string;
+  items?: Array<{ descripcion: string; cantidad: number; unidad: string; precio_unitario?: number }>;
+  relevance_score?: number;
+  price_ratio?: number | null;
+}
+
+export interface MarcoLegalDoc {
+  documento: string;
+  descripcion: string;
+  donde_obtener?: string;
+}
+
+export interface MarcoLegalGarantia {
+  tipo: string;
+  porcentaje?: string;
+  monto_estimado?: number | null;
+  forma?: string;
+}
+
+export interface MarcoLegal {
+  encuadre_legal?: string;
+  tipo_procedimiento_explicado?: string;
+  requisitos_habilitacion?: string[];
+  documentacion_obligatoria?: MarcoLegalDoc[];
+  garantias_requeridas?: MarcoLegalGarantia[];
+  plazos_legales?: Array<{ concepto: string; plazo: string }>;
+  normativa_aplicable?: string[];
+  guia_paso_a_paso?: string[];
+  error?: string;
+}
+
+export interface PriceIntelligence {
+  price_range?: {
+    min: number;
+    median: number;
+    max: number;
+    sample_size: number;
+    confidence: string;
+  };
+  sources?: Array<{ source: string; count: number; details?: string }>;
+  adjustment_coefficient?: number;
+  your_offer_position?: string | null;
+  item_level_prices?: Array<{
+    descripcion: string;
+    ref_price_min?: number;
+    ref_price_max?: number;
+  }>;
+  error?: string;
+}
+
+export interface MongoCotizacion {
+  id: string;
+  licitacion_id: string;
+  licitacion_title: string;
+  licitacion_objeto?: string | null;
+  organization?: string | null;
+  items: CotizarItem[];
+  iva_rate: number;
+  subtotal: number;
+  iva_amount: number;
+  total: number;
+  tech_data: Record<string, string>;
+  company_data: Record<string, string>;
+  analysis?: AIAnalysisResult | null;
+  pliego_info?: PliegoInfo | null;
+  marco_legal?: MarcoLegal | null;
+  antecedentes_vinculados?: string[];
+  price_intelligence?: PriceIntelligence | null;
+  status: string;
+  created_at?: string;
+  updated_at?: string;
+  // Enriched fields (from ?enrich=true)
+  opening_date?: string | null;
+  budget?: number | null;
+  estado?: string;
+}
+
+export interface PliegoInfo {
+  items?: Array<{ descripcion: string; cantidad: number; unidad: string }>;
+  requisitos_tecnicos?: string[];
+  documentacion_requerida?: string[];
+  plazo_ejecucion?: string | null;
+  lugar_entrega?: string | null;
+  garantias?: { oferta?: string; cumplimiento?: string } | null;
+  presupuesto_oficial?: number | null;
+  fecha_apertura?: string | null;
+  condiciones_especiales?: string[];
+  info_faltante?: string[];
+  error?: string;
 }
 
 async function apiFetchMain<T>(path: string, options?: RequestInit): Promise<T> {
@@ -101,150 +152,16 @@ async function apiFetchMain<T>(path: string, options?: RequestInit): Promise<T> 
   return res.json();
 }
 
-async function apiFetch<T>(path: string, options?: RequestInit): Promise<T> {
-  const res = await fetch(`${COTIZAR_API}${path}`, {
-    credentials: 'include',
-    headers: { 'Content-Type': 'application/json', ...(options?.headers || {}) },
-    ...options,
-  });
-  if (!res.ok) {
-    const text = await res.text().catch(() => '');
-    throw new Error(`cotizar-api ${res.status}: ${text.slice(0, 200)}`);
-  }
-  return res.json();
-}
-
-function parseCurrenciesToRates(currencies: CurrencyRate[]): MarketRates {
-  const usdEntry = currencies.find(c =>
-    c.pair?.toLowerCase().includes('usd') &&
-    c.pair?.toLowerCase().includes('ars') &&
-    c.pair?.toLowerCase().includes('oficial')
-  ) || currencies.find(c =>
-    c.pair?.toLowerCase().includes('usd')
-  );
-  return {
-    usd: usdEntry?.sell ?? usdEntry?.value ?? usdEntry?.buy ?? 0,
-    updated_at: new Date().toISOString(),
-  };
-}
-
 export function useCotizarAPI() {
   return {
-    async syncLicitacion(licitacion: {
-      id: string;
-      title: string;
-      objeto?: string | null;
-      organization?: string;
-      opening_date?: string | null;
-      budget?: number | null;
-      items?: Array<Record<string, unknown>>;
-    }): Promise<CotizarTender> {
-      const tenderId = `lm-${licitacion.id}`;
-      // Upsert the tender — POST /api/tenders creates or updates
-      return apiFetch<CotizarTender>('/tenders', {
-        method: 'POST',
-        body: JSON.stringify({
-          id: tenderId,
-          title: licitacion.objeto || licitacion.title,
-          agency: licitacion.organization || '',
-          region: 'Mendoza',
-          budget: licitacion.budget || 0,
-          closingDate: licitacion.opening_date || null,
-          status: 'abierta',
-          licitometroId: licitacion.id,
-        }),
-      });
-    },
-
-    async listBids(tenderId?: string): Promise<CotizarBid[]> {
-      const qs = tenderId ? `?tenderId=${encodeURIComponent(tenderId)}` : '';
-      return apiFetch<CotizarBid[]>(`/bids${qs}`);
-    },
-
-    async createBid(tenderId: string): Promise<CotizarBid> {
-      return apiFetch<CotizarBid>('/bids', {
-        method: 'POST',
-        body: JSON.stringify({ tenderId }),
-      });
-    },
-
-    async updateBid(id: string, data: {
-      items?: CotizarItem[];
-      commercialOffer?: { basePrice: number; taxRate: number };
-      company_name?: string;
-    }): Promise<CotizarBid> {
-      // PUT /bids/:id doesn't exist — use calculate endpoint with basePrice
-      const basePrice = data.commercialOffer?.basePrice ?? 0;
-      return apiFetch<CotizarBid>(`/bids/${id}/calculate`, {
-        method: 'POST',
-        body: JSON.stringify({
-          labor: basePrice,
-          materials: 0,
-          equipment: 0,
-          overhead: 0,
-          other: 0,
-        }),
-      });
-    },
-
-    async updateBidData(id: string, data: Record<string, unknown>): Promise<CotizarBid> {
-      return apiFetch<CotizarBid>(`/bids/${id}`, {
-        method: 'PUT',
-        body: JSON.stringify(data),
-      });
-    },
-
-    async analyzeBid(id: string): Promise<{
-      strengths: string[];
-      weaknesses: string[];
-      risks: Array<{ description: string; severity: string; probability: number; mitigation?: string }>;
-      recommendations: string[];
-      winProbability: number;
-    }> {
-      return apiFetch(`/bids/${id}/analyze`, { method: 'POST' });
-    },
-
-    async calculateBid(id: string, costs?: {
-      labor?: number;
-      materials?: number;
-      equipment?: number;
-      overhead?: number;
-      other?: number;
-    }): Promise<CotizarBid> {
-      return apiFetch<CotizarBid>(`/bids/${id}/calculate`, {
-        method: 'POST',
-        body: costs ? JSON.stringify(costs) : undefined,
-      });
-    },
-
-    async generatePDF(id: string): Promise<Blob | string> {
-      const res = await fetch(`${COTIZAR_API}/bids/${id}/documents`, {
-        method: 'POST',
-        credentials: 'include',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ type: 'pdf' }),
-      });
-      if (!res.ok) throw new Error(`PDF generation failed: ${res.status}`);
-      const ct = res.headers.get('content-type') || '';
-      if (ct.includes('application/json')) {
-        const json = await res.json();
-        return json.url || json.download_url || '';
-      }
-      return res.blob();
-    },
+    // --- Market data (from FastAPI backend) ---
 
     async getMarketRates(): Promise<MarketRates> {
-      try {
-        const currencies = await apiFetch<CurrencyRate[]>('/market/currencies');
-        return parseCurrenciesToRates(currencies);
-      } catch {
-        // Fallback: try legacy endpoint
-        return apiFetch<MarketRates>('/market/rates');
-      }
+      return apiFetchMain<MarketRates>('/market/rates');
     },
 
     async getInflation(): Promise<InflationData> {
-      return apiFetch<InflationData>('/market/inflation');
+      return apiFetchMain<InflationData>('/market/inflation');
     },
 
     // --- AI endpoints (main Licitometro API) ---
@@ -276,6 +193,87 @@ export function useCotizarAPI() {
 
     async getBudgetHints(licitacionId: string): Promise<BudgetHints> {
       return apiFetchMain(`/licitaciones/${licitacionId}/budget-hints`);
+    },
+
+    // --- Marco Legal ---
+
+    async extractMarcoLegal(licitacionId: string): Promise<MarcoLegal> {
+      return apiFetchMain('/cotizar-ai/extract-marco-legal', {
+        method: 'POST',
+        body: JSON.stringify({ licitacion_id: licitacionId }),
+      });
+    },
+
+    // --- Price Intelligence ---
+
+    async getPriceIntelligence(licitacionId: string): Promise<PriceIntelligence> {
+      return apiFetchMain(`/cotizaciones/${licitacionId}/price-intelligence`);
+    },
+
+    // --- Antecedentes vinculados ---
+
+    async vincularAntecedente(licitacionId: string, antecedenteId: string): Promise<void> {
+      await apiFetchMain(`/cotizaciones/${licitacionId}/vincular-antecedente`, {
+        method: 'POST',
+        body: JSON.stringify({ antecedente_id: antecedenteId }),
+      });
+    },
+
+    async desvincularAntecedente(licitacionId: string, antecedenteId: string): Promise<void> {
+      await apiFetchMain(`/cotizaciones/${licitacionId}/vincular-antecedente/${antecedenteId}`, {
+        method: 'DELETE',
+      });
+    },
+
+    // --- MongoDB persistence (reliable storage) ---
+
+    async saveCotizacionToMongo(licitacionId: string, data: {
+      licitacion_title: string;
+      licitacion_objeto?: string | null;
+      organization?: string | null;
+      items: CotizarItem[];
+      iva_rate: number;
+      subtotal: number;
+      iva_amount: number;
+      total: number;
+      tech_data: Record<string, string>;
+      company_data: Record<string, string>;
+      analysis?: AIAnalysisResult | null;
+      pliego_info?: PliegoInfo | null;
+      marco_legal?: MarcoLegal | null;
+      antecedentes_vinculados?: string[];
+      price_intelligence?: PriceIntelligence | null;
+      status?: string;
+    }): Promise<MongoCotizacion> {
+      return apiFetchMain(`/cotizaciones/${licitacionId}`, {
+        method: 'PUT',
+        body: JSON.stringify({ licitacion_id: licitacionId, ...data }),
+      });
+    },
+
+    async listCotizacionesFromMongo(enrich = false): Promise<MongoCotizacion[]> {
+      return apiFetchMain(`/cotizaciones/${enrich ? '?enrich=true' : ''}`);
+    },
+
+    async getCotizacionFromMongo(licitacionId: string): Promise<MongoCotizacion | null> {
+      try {
+        return await apiFetchMain<MongoCotizacion>(`/cotizaciones/${licitacionId}`);
+      } catch {
+        return null;
+      }
+    },
+
+    async deleteCotizacionFromMongo(licitacionId: string): Promise<void> {
+      await apiFetchMain(`/cotizaciones/${licitacionId}`, { method: 'DELETE' });
+    },
+
+    // --- Pliego intelligence ---
+
+    async extractPliegoInfo(licitacionId: string): Promise<PliegoInfo> {
+      return apiFetchMain('/cotizar-ai/extract-pliego-info', {
+        method: 'POST',
+        body: JSON.stringify({ licitacion_id: licitacionId }),
+      });
     },
   };
 }

@@ -1,5 +1,8 @@
 import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
-import { useCotizarAPI, CotizarItem, CotizarBid, AIAnalysisResult, BudgetHints, Antecedente } from '../../hooks/useCotizarAPI';
+import {
+  useCotizarAPI, CotizarItem, AIAnalysisResult, BudgetHints, Antecedente,
+  PliegoInfo, MarcoLegal, PriceIntelligence, MongoCotizacion,
+} from '../../hooks/useCotizarAPI';
 
 interface Licitacion {
   id: string;
@@ -8,13 +11,13 @@ interface Licitacion {
   organization?: string;
   opening_date?: string | null;
   budget?: number | null;
-  items?: Array<{ description?: string; unit?: string; quantity?: number }>;
+  items?: Array<Record<string, unknown>>;
   workflow_state?: string;
 }
 
 interface Props {
   licitacion: Licitacion;
-  onBidSaved?: (bid: CotizarBid) => void;
+  onSaved?: () => void;
 }
 
 interface TechnicalData {
@@ -46,8 +49,9 @@ const STEPS = [
   { id: 1, label: 'Items', icon: '📋' },
   { id: 2, label: 'Propuesta', icon: '📝' },
   { id: 3, label: 'Empresa', icon: '🏢' },
-  { id: 4, label: 'Análisis IA', icon: '🤖' },
-  { id: 5, label: 'Resumen', icon: '✅' },
+  { id: 4, label: 'Marco Legal', icon: '⚖️' },
+  { id: 5, label: 'Análisis IA', icon: '🤖' },
+  { id: 6, label: 'Oferta', icon: '📄' },
 ];
 
 function formatARS(n: number) {
@@ -58,67 +62,29 @@ function emptyItem(): CotizarItem {
   return { descripcion: '', cantidad: 1, unidad: 'u.', precio_unitario: 0 };
 }
 
-// Parse a number string tolerating both "." and "," as decimal separator
 function parseNumber(raw: string): number {
   const clean = raw.trim().replace(/\s/g, '').replace(',', '.');
   const n = parseFloat(clean);
   return isNaN(n) ? 0 : n;
 }
 
-// Parse an integer string
 function parseInteger(raw: string): number {
   const n = parseInt(raw.trim(), 10);
   return isNaN(n) || n < 0 ? 0 : n;
 }
 
-type Phase = 'syncing' | 'loading' | 'ready' | 'error';
-
 // NumericInput that stores a raw string locally and only parses on blur
 function NumericInput({
-  value,
-  onChange,
-  integer = false,
-  min = 0,
-  placeholder = '0',
-  className = '',
+  value, onChange, integer = false, min = 0, placeholder = '0', className = '',
 }: {
-  value: number;
-  onChange: (n: number) => void;
-  integer?: boolean;
-  min?: number;
-  placeholder?: string;
-  className?: string;
+  value: number; onChange: (n: number) => void; integer?: boolean; min?: number; placeholder?: string; className?: string;
 }) {
-  const [raw, setRaw] = useState(
-    integer ? String(Math.round(value)) : (value === 0 ? '' : String(value))
-  );
+  const [raw, setRaw] = useState(integer ? String(Math.round(value)) : (value === 0 ? '' : String(value)));
   const [focused, setFocused] = useState(false);
 
-  // Sync when value changes externally (not while focused)
   useEffect(() => {
-    if (!focused) {
-      setRaw(integer ? String(Math.round(value)) : (value === 0 ? '' : String(value)));
-    }
+    if (!focused) setRaw(integer ? String(Math.round(value)) : (value === 0 ? '' : String(value)));
   }, [value, focused, integer]);
-
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const v = e.target.value;
-    // Only allow digits, dot, comma, minus
-    if (integer) {
-      if (!/^\d*$/.test(v)) return;
-    } else {
-      if (!/^[\d.,]*$/.test(v)) return;
-    }
-    setRaw(v);
-  };
-
-  const handleBlur = () => {
-    setFocused(false);
-    const parsed = integer ? parseInteger(raw) : parseNumber(raw);
-    const clamped = Math.max(min, parsed);
-    setRaw(integer ? String(clamped) : (clamped === 0 ? '' : String(clamped)));
-    onChange(clamped);
-  };
 
   return (
     <input
@@ -126,80 +92,131 @@ function NumericInput({
       inputMode={integer ? 'numeric' : 'decimal'}
       value={raw}
       placeholder={placeholder}
-      onChange={handleChange}
+      onChange={e => {
+        const v = e.target.value;
+        if (integer ? !/^\d*$/.test(v) : !/^[\d.,]*$/.test(v)) return;
+        setRaw(v);
+      }}
       onFocus={() => setFocused(true)}
-      onBlur={handleBlur}
+      onBlur={() => {
+        setFocused(false);
+        const parsed = integer ? parseInteger(raw) : parseNumber(raw);
+        const clamped = Math.max(min, parsed);
+        setRaw(integer ? String(clamped) : (clamped === 0 ? '' : String(clamped)));
+        onChange(clamped);
+      }}
       className={className}
     />
   );
 }
 
-export default function OfertaEditor({ licitacion, onBidSaved }: Props) {
+// Error banner with retry
+function ErrorBanner({ message, onRetry, onDismiss }: { message: string; onRetry?: () => void; onDismiss: () => void }) {
+  return (
+    <div className="bg-red-50 border border-red-200 rounded-xl p-3 flex items-center gap-3 text-sm">
+      <span className="text-red-500 shrink-0">⚠</span>
+      <span className="flex-1 text-red-700">{message}</span>
+      {onRetry && (
+        <button onClick={onRetry} className="text-red-600 hover:text-red-800 text-xs font-medium underline">
+          Reintentar
+        </button>
+      )}
+      <button onClick={onDismiss} className="text-red-400 hover:text-red-600 text-xs">✕</button>
+    </div>
+  );
+}
+
+export default function OfertaEditor({ licitacion, onSaved }: Props) {
   const api = useCotizarAPI();
-  const [phase, setPhase] = useState<Phase>('syncing');
+  const [phase, setPhase] = useState<'loading' | 'ready'>('loading');
   const [errorMsg, setErrorMsg] = useState('');
-  const [bid, setBid] = useState<CotizarBid | null>(null);
   const [step, setStep] = useState(1);
   const [items, setItems] = useState<CotizarItem[]>([emptyItem()]);
   const [ivaRate, setIvaRate] = useState(21);
-  const [techData, setTechData] = useState<TechnicalData>({
-    methodology: '',
-    plazo: '',
-    lugar: '',
-    validez: '30',
-    notas: '',
-  });
-  const [companyData, setCompanyData] = useState<CompanyData>({
-    nombre: '',
-    cuit: '',
-    email: '',
-    telefono: '',
-    domicilio: '',
-  });
+  const [techData, setTechData] = useState<TechnicalData>({ methodology: '', plazo: '', lugar: '', validez: '30', notas: '' });
+  const [companyData, setCompanyData] = useState<CompanyData>({ nombre: '', cuit: '', email: '', telefono: '', domicilio: '' });
   const [analysis, setAnalysis] = useState<AIAnalysisResult | null>(null);
   const [analyzing, setAnalyzing] = useState(false);
   const [analyzeError, setAnalyzeError] = useState('');
-  // AI state
   const [budgetHints, setBudgetHints] = useState<BudgetHints | null>(null);
   const [loadingHints, setLoadingHints] = useState(false);
   const [suggestingPropuesta, setSuggestingPropuesta] = useState(false);
   const [antecedentes, setAntecedentes] = useState<Antecedente[]>([]);
   const [loadingAntecedentes, setLoadingAntecedentes] = useState(false);
   const [showAntecedentes, setShowAntecedentes] = useState(false);
+  const [vinculados, setVinculados] = useState<string[]>([]);
   const [companyProfiles, setCompanyProfiles] = useState<CompanyData[]>([]);
   const [selectedProfile, setSelectedProfile] = useState(-1);
   const [saving, setSaving] = useState(false);
   const [savedAt, setSavedAt] = useState<string | null>(null);
-  const [generatingPDF, setGeneratingPDF] = useState(false);
+  const [pliegoInfo, setPliegoInfo] = useState<PliegoInfo | null>(null);
+  const [marcoLegal, setMarcoLegal] = useState<MarcoLegal | null>(null);
+  const [loadingMarcoLegal, setLoadingMarcoLegal] = useState(false);
+  const [marcoLegalChecks, setMarcoLegalChecks] = useState<Record<string, boolean>>({});
+  const [priceIntelligence, setPriceIntelligence] = useState<PriceIntelligence | null>(null);
+  const [loadingPrices, setLoadingPrices] = useState(false);
+  const offerRef = useRef<HTMLDivElement>(null);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // Mount: sync + load/create bid
+  // Normalize licitacion items
+  const normalizeLicItems = useCallback((rawItems: Array<Record<string, unknown>>): CotizarItem[] => {
+    return rawItems
+      .filter(it => it.descripcion || it.description)
+      .map(it => ({
+        descripcion: String(it.descripcion || it.description || ''),
+        cantidad: Number(it.cantidad || it.quantity || 1) || 1,
+        unidad: String(it.unidad || it.unit || 'u.'),
+        precio_unitario: Number(it.precio_unitario || 0),
+      }));
+  }, []);
+
+  // Mount: load from MongoDB or auto-import
   useEffect(() => {
     let cancelled = false;
     async function init() {
       try {
-        const t = await api.syncLicitacion(licitacion);
-        if (cancelled) return;
         setPhase('loading');
-        const bids = await api.listBids(t.id);
+        const mongoCot = await api.getCotizacionFromMongo(licitacion.id);
         if (cancelled) return;
-        let activeBid: CotizarBid;
-        if (bids.length > 0) {
-          activeBid = bids[bids.length - 1];
-        } else {
-          activeBid = await api.createBid(t.id);
+
+        if (mongoCot && mongoCot.items?.length > 0) {
+          setItems(mongoCot.items);
+          setIvaRate(mongoCot.iva_rate ?? 21);
+          if (mongoCot.tech_data) {
+            setTechData(prev => ({
+              ...prev,
+              methodology: mongoCot.tech_data.methodology || prev.methodology,
+              plazo: mongoCot.tech_data.plazo || prev.plazo,
+              lugar: mongoCot.tech_data.lugar || prev.lugar,
+              validez: mongoCot.tech_data.validez || prev.validez,
+              notas: mongoCot.tech_data.notas || prev.notas,
+            }));
+          }
+          if (mongoCot.company_data?.nombre) setCompanyData(mongoCot.company_data as unknown as CompanyData);
+          if (mongoCot.analysis) setAnalysis(mongoCot.analysis);
+          if (mongoCot.pliego_info) setPliegoInfo(mongoCot.pliego_info);
+          if (mongoCot.marco_legal) setMarcoLegal(mongoCot.marco_legal);
+          if (mongoCot.antecedentes_vinculados) setVinculados(mongoCot.antecedentes_vinculados);
+          if (mongoCot.price_intelligence) setPriceIntelligence(mongoCot.price_intelligence);
+        } else if (licitacion.items && licitacion.items.length > 0) {
+          const normalized = normalizeLicItems(licitacion.items as Array<Record<string, unknown>>);
+          if (normalized.length > 0) setItems(normalized);
         }
+
         if (cancelled) return;
-        setBid(activeBid);
-        if (activeBid.items?.length > 0) setItems(activeBid.items);
-        setIvaRate(activeBid.iva_rate ?? 21);
         setPhase('ready');
-        // Fetch budget hints in background
+
+        // Fetch enrichments in background
         api.getBudgetHints(licitacion.id).then(h => { if (!cancelled) setBudgetHints(h); }).catch(() => {});
+        api.extractPliegoInfo(licitacion.id).then(p => { if (!cancelled && !p.error) setPliegoInfo(p); }).catch(() => {});
       } catch (e: unknown) {
         if (!cancelled) {
-          setErrorMsg(e instanceof Error ? e.message : 'Error conectando con cotizar-api');
-          setPhase('error');
+          if (licitacion.items && licitacion.items.length > 0) {
+            const normalized = normalizeLicItems(licitacion.items as Array<Record<string, unknown>>);
+            if (normalized.length > 0) setItems(normalized);
+          }
+          setErrorMsg(e instanceof Error ? e.message : 'Error al cargar');
+          setPhase('ready');
         }
       }
     }
@@ -214,57 +231,62 @@ export default function OfertaEditor({ licitacion, onBidSaved }: Props) {
   }, [items, ivaRate]);
 
   const handleItemChange = useCallback((idx: number, field: keyof CotizarItem, value: string | number) => {
-    setItems(prev => {
-      const next = [...prev];
-      next[idx] = { ...next[idx], [field]: value };
-      return next;
-    });
+    setItems(prev => { const next = [...prev]; next[idx] = { ...next[idx], [field]: value }; return next; });
   }, []);
 
   const addItem = useCallback(() => setItems(prev => [...prev, emptyItem()]), []);
-
-  const removeItem = useCallback((idx: number) => {
-    setItems(prev => prev.length > 1 ? prev.filter((_, i) => i !== idx) : prev);
-  }, []);
+  const removeItem = useCallback((idx: number) => setItems(prev => prev.length > 1 ? prev.filter((_, i) => i !== idx) : prev), []);
 
   const importFromPliego = useCallback(() => {
-    const pItems = (licitacion.items || []).map(it => ({
-      descripcion: it.description || '',
-      cantidad: it.quantity || 1,
-      unidad: it.unit || 'u.',
-      precio_unitario: 0,
-    }));
-    if (pItems.length > 0) setItems(pItems);
-  }, [licitacion.items]);
+    if (!licitacion.items?.length) return;
+    const normalized = normalizeLicItems(licitacion.items as Array<Record<string, unknown>>);
+    if (normalized.length > 0) setItems(normalized);
+  }, [licitacion.items, normalizeLicItems]);
 
   const doSave = useCallback(async (silent = false) => {
-    if (!bid) return null;
     if (!silent) setSaving(true);
     try {
-      const basePrice = items.reduce((s, i) => s + (i.cantidad || 0) * (i.precio_unitario || 0), 0);
-      await api.updateBid(bid.id, { items, commercialOffer: { basePrice, taxRate: ivaRate } });
-      const updated = await api.calculateBid(bid.id, {
-        labor: basePrice, materials: 0, equipment: 0, overhead: 0, other: 0,
+      const sub = items.reduce((s, i) => s + (i.cantidad || 0) * (i.precio_unitario || 0), 0);
+      const iva = sub * (ivaRate / 100);
+      const tot = sub + iva;
+
+      await api.saveCotizacionToMongo(licitacion.id, {
+        licitacion_title: licitacion.title,
+        licitacion_objeto: licitacion.objeto,
+        organization: licitacion.organization,
+        items,
+        iva_rate: ivaRate,
+        subtotal: sub,
+        iva_amount: iva,
+        total: tot,
+        tech_data: techData as unknown as Record<string, string>,
+        company_data: companyData as unknown as Record<string, string>,
+        analysis,
+        pliego_info: pliegoInfo,
+        marco_legal: marcoLegal,
+        antecedentes_vinculados: vinculados,
+        price_intelligence: priceIntelligence,
+        status: 'borrador',
       });
-      setBid(updated);
+
       setSavedAt(new Date().toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' }));
-      onBidSaved?.(updated);
-      return updated;
+      setErrorMsg('');
+      onSaved?.();
     } catch (e) {
-      console.error('Error saving bid:', e);
-      return null;
+      const msg = e instanceof Error ? e.message : 'Error al guardar';
+      if (!silent) setErrorMsg(msg);
     } finally {
       if (!silent) setSaving(false);
     }
-  }, [bid, items, ivaRate, onBidSaved]);
+  }, [items, ivaRate, techData, companyData, analysis, pliegoInfo, marcoLegal, vinculados, priceIntelligence, licitacion, onSaved]);
 
-  // Auto-save on items change
+  // Auto-save debounced
   useEffect(() => {
-    if (phase !== 'ready' || !bid) return;
+    if (phase !== 'ready') return;
     if (debounceRef.current) clearTimeout(debounceRef.current);
     debounceRef.current = setTimeout(() => doSave(true), 2500);
     return () => { if (debounceRef.current) clearTimeout(debounceRef.current); };
-  }, [items, ivaRate, phase, bid]);
+  }, [items, ivaRate, techData, companyData, phase]);
 
   // Load company profiles from localStorage
   useEffect(() => {
@@ -295,7 +317,7 @@ export default function OfertaEditor({ licitacion, onBidSaved }: Props) {
         }));
       }
     } catch (e) {
-      console.error('Error suggesting propuesta:', e);
+      setErrorMsg(e instanceof Error ? e.message : 'Error al sugerir propuesta');
     } finally {
       setSuggestingPropuesta(false);
     }
@@ -309,19 +331,30 @@ export default function OfertaEditor({ licitacion, onBidSaved }: Props) {
       const results = await api.searchAntecedentes(licitacion.id);
       setAntecedentes(results);
     } catch (e) {
-      console.error('Error loading antecedentes:', e);
+      setErrorMsg(e instanceof Error ? e.message : 'Error buscando antecedentes');
     } finally {
       setLoadingAntecedentes(false);
     }
   }, [licitacion.id, antecedentes.length]);
 
+  const handleVincular = useCallback(async (antId: string) => {
+    try {
+      await api.vincularAntecedente(licitacion.id, antId);
+      setVinculados(prev => prev.includes(antId) ? prev : [...prev, antId]);
+    } catch { /* silent */ }
+  }, [licitacion.id]);
+
+  const handleDesvincular = useCallback(async (antId: string) => {
+    try {
+      await api.desvincularAntecedente(licitacion.id, antId);
+      setVinculados(prev => prev.filter(id => id !== antId));
+    } catch { /* silent */ }
+  }, [licitacion.id]);
+
   const handleImportAIItems = useCallback(async () => {
     if (budgetHints?.items_from_pliego?.length) {
       setItems(budgetHints.items_from_pliego.map(it => ({
-        descripcion: it.descripcion,
-        cantidad: it.cantidad,
-        unidad: it.unidad,
-        precio_unitario: 0,
+        descripcion: it.descripcion, cantidad: it.cantidad, unidad: it.unidad, precio_unitario: 0,
       })));
     } else {
       setLoadingHints(true);
@@ -330,19 +363,38 @@ export default function OfertaEditor({ licitacion, onBidSaved }: Props) {
         setBudgetHints(hints);
         if (hints.items_from_pliego?.length) {
           setItems(hints.items_from_pliego.map(it => ({
-            descripcion: it.descripcion,
-            cantidad: it.cantidad,
-            unidad: it.unidad,
-            precio_unitario: 0,
+            descripcion: it.descripcion, cantidad: it.cantidad, unidad: it.unidad, precio_unitario: 0,
           })));
         }
       } catch (e) {
-        console.error('Error loading budget hints:', e);
+        setErrorMsg(e instanceof Error ? e.message : 'Error cargando items');
       } finally {
         setLoadingHints(false);
       }
     }
   }, [licitacion.id, budgetHints]);
+
+  const handleLoadMarcoLegal = useCallback(async () => {
+    setLoadingMarcoLegal(true);
+    try {
+      const result = await api.extractMarcoLegal(licitacion.id);
+      if (!result.error) setMarcoLegal(result);
+      else setErrorMsg(result.error);
+    } catch (e) {
+      setErrorMsg(e instanceof Error ? e.message : 'Error al extraer marco legal');
+    } finally {
+      setLoadingMarcoLegal(false);
+    }
+  }, [licitacion.id]);
+
+  const handleLoadPriceIntelligence = useCallback(async () => {
+    setLoadingPrices(true);
+    try {
+      const result = await api.getPriceIntelligence(licitacion.id);
+      if (!result.error) setPriceIntelligence(result);
+    } catch { /* silent */ }
+    finally { setLoadingPrices(false); }
+  }, [licitacion.id]);
 
   const handleAnalyze = useCallback(async () => {
     setAnalyzing(true);
@@ -363,12 +415,8 @@ export default function OfertaEditor({ licitacion, onBidSaved }: Props) {
     if (!companyData.nombre) return;
     const existing = companyProfiles.findIndex(p => p.cuit === companyData.cuit && p.nombre === companyData.nombre);
     let updated: CompanyData[];
-    if (existing >= 0) {
-      updated = [...companyProfiles];
-      updated[existing] = companyData;
-    } else {
-      updated = [...companyProfiles, companyData];
-    }
+    if (existing >= 0) { updated = [...companyProfiles]; updated[existing] = companyData; }
+    else { updated = [...companyProfiles, companyData]; }
     setCompanyProfiles(updated);
     setSelectedProfile(existing >= 0 ? existing : updated.length - 1);
     localStorage.setItem('cotizar_empresas', JSON.stringify(updated));
@@ -385,48 +433,17 @@ export default function OfertaEditor({ licitacion, onBidSaved }: Props) {
   const competitiveness = useMemo(() => {
     if (!budgetHints?.budget || total <= 0) return null;
     const ratio = total / budgetHints.budget;
-    if (ratio < 0.6) return { label: 'Muy bajo', color: 'text-orange-600 bg-orange-50', hint: 'Podría parecer poco serio' };
+    if (ratio < 0.6) return { label: 'Muy bajo', color: 'text-orange-600 bg-orange-50', hint: 'Podria parecer poco serio' };
     if (ratio < 0.85) return { label: 'Competitivo', color: 'text-emerald-600 bg-emerald-50', hint: 'Buen rango' };
     if (ratio <= 1.0) return { label: 'Ajustado', color: 'text-yellow-600 bg-yellow-50', hint: 'Cerca del tope' };
     return { label: 'Excede PO', color: 'text-red-600 bg-red-50', hint: 'Supera presupuesto oficial' };
   }, [total, budgetHints]);
 
-  const handleGeneratePDF = useCallback(async () => {
-    if (!bid) return;
-    setGeneratingPDF(true);
-    try {
-      await doSave(true);
-      const result = await api.generatePDF(bid.id);
-      if (typeof result === 'string' && result.startsWith('http')) {
-        window.open(result, '_blank');
-      } else if (result instanceof Blob) {
-        const url = URL.createObjectURL(result);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = `oferta-${licitacion.id}.pdf`;
-        a.click();
-        setTimeout(() => URL.revokeObjectURL(url), 5000);
-      }
-    } catch (e) {
-      console.error('Error generating PDF:', e);
-    } finally {
-      setGeneratingPDF(false);
-    }
-  }, [bid, licitacion.id, doSave]);
-
-  if (phase === 'syncing' || phase === 'loading') {
+  if (phase === 'loading') {
     return (
       <div className="flex items-center gap-3 py-8 text-gray-500 text-sm">
         <div className="w-5 h-5 border-2 border-gray-200 border-t-blue-500 rounded-full animate-spin" />
-        {phase === 'syncing' ? 'Sincronizando con el cotizador…' : 'Cargando cotización…'}
-      </div>
-    );
-  }
-
-  if (phase === 'error') {
-    return (
-      <div className="p-4 bg-red-50 border border-red-200 rounded-xl text-sm text-red-700">
-        <strong>Error al conectar con cotizar-api:</strong> {errorMsg}
+        Cargando cotizacion…
       </div>
     );
   }
@@ -438,6 +455,9 @@ export default function OfertaEditor({ licitacion, onBidSaved }: Props) {
 
   return (
     <div className="space-y-6">
+      {/* Error banner */}
+      {errorMsg && <ErrorBanner message={errorMsg} onDismiss={() => setErrorMsg('')} />}
+
       {/* Licitacion header */}
       <div className="bg-gray-50 rounded-xl p-4 grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
         <div>
@@ -460,13 +480,33 @@ export default function OfertaEditor({ licitacion, onBidSaved }: Props) {
         ) : null}
       </div>
 
+      {/* Pliego Intelligence Banner */}
+      {pliegoInfo && pliegoInfo.info_faltante && pliegoInfo.info_faltante.length > 0 && (
+        <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 text-sm">
+          <div className="flex items-start gap-2">
+            <span className="text-amber-500 text-lg leading-none mt-0.5">!</span>
+            <div className="flex-1">
+              <p className="font-semibold text-amber-800 mb-1">Informacion faltante del pliego</p>
+              <ul className="space-y-1">
+                {pliegoInfo.info_faltante.map((info, i) => (
+                  <li key={i} className="text-amber-700 flex items-start gap-1.5">
+                    <span className="text-amber-400 mt-0.5">-</span>
+                    <span>{info}</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Step navigator */}
-      <div className="flex items-center gap-0">
+      <div className="flex items-center gap-0 overflow-x-auto">
         {STEPS.map((s, i) => (
           <React.Fragment key={s.id}>
             <button
               onClick={() => setStep(s.id)}
-              className={`flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
+              className={`flex items-center gap-1.5 px-2.5 py-2 rounded-lg text-sm font-medium transition-colors shrink-0 ${
                 step === s.id
                   ? 'bg-blue-600 text-white'
                   : step > s.id
@@ -478,13 +518,13 @@ export default function OfertaEditor({ licitacion, onBidSaved }: Props) {
               <span className="hidden sm:inline">{s.label}</span>
             </button>
             {i < STEPS.length - 1 && (
-              <div className={`flex-1 h-0.5 mx-1 ${step > s.id ? 'bg-emerald-300' : 'bg-gray-200'}`} />
+              <div className={`flex-1 h-0.5 mx-0.5 min-w-[8px] ${step > s.id ? 'bg-emerald-300' : 'bg-gray-200'}`} />
             )}
           </React.Fragment>
         ))}
       </div>
 
-      {/* Step 1: Items */}
+      {/* ─── Step 1: Items ─── */}
       {step === 1 && (
         <div className="space-y-4">
           {/* Budget banner */}
@@ -504,20 +544,62 @@ export default function OfertaEditor({ licitacion, onBidSaved }: Props) {
               {budgetHints.threshold_label && (
                 <span className="text-xs px-2 py-1 rounded-full bg-white/70 text-gray-600">{budgetHints.threshold_label}</span>
               )}
-              {budgetHints.range_min && budgetHints.range_max && (
-                <span className="text-xs text-gray-500">Rango: {formatARS(budgetHints.range_min)} – {formatARS(budgetHints.range_max)}</span>
-              )}
             </div>
           ) : null}
+
+          {/* Price Intelligence Panel */}
+          {priceIntelligence && priceIntelligence.price_range && (
+            <div className="bg-indigo-50 border border-indigo-200 rounded-xl p-4 text-sm space-y-2">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-semibold uppercase tracking-wide text-indigo-600">Inteligencia de Precios</span>
+                <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${
+                  priceIntelligence.price_range.confidence === 'alta' ? 'bg-emerald-100 text-emerald-700' :
+                  priceIntelligence.price_range.confidence === 'media' ? 'bg-yellow-100 text-yellow-700' :
+                  'bg-gray-100 text-gray-600'
+                }`}>
+                  Confianza {priceIntelligence.price_range.confidence} ({priceIntelligence.price_range.sample_size} refs)
+                </span>
+              </div>
+              <div className="flex items-center gap-4">
+                <span className="text-xs text-gray-500">Min: {formatARS(priceIntelligence.price_range.min)}</span>
+                <div className="flex-1 h-2 bg-indigo-100 rounded-full relative">
+                  <div className="absolute left-[25%] right-[25%] h-full bg-indigo-300 rounded-full" />
+                  {total > 0 && priceIntelligence.price_range.max > 0 && (
+                    <div
+                      className="absolute w-3 h-3 bg-indigo-600 rounded-full -mt-0.5 border-2 border-white"
+                      style={{ left: `${Math.min(100, Math.max(0, (total / priceIntelligence.price_range.max) * 100))}%` }}
+                      title={`Tu oferta: ${formatARS(total)}`}
+                    />
+                  )}
+                </div>
+                <span className="text-xs text-gray-500">Max: {formatARS(priceIntelligence.price_range.max)}</span>
+              </div>
+              {priceIntelligence.your_offer_position && total > 0 && (
+                <p className="text-xs text-indigo-700">
+                  Tu oferta esta <strong>{priceIntelligence.your_offer_position === 'below' ? 'por debajo' : priceIntelligence.your_offer_position === 'above' ? 'por encima' : 'dentro'}</strong> del rango de mercado
+                </p>
+              )}
+              {priceIntelligence.adjustment_coefficient && priceIntelligence.adjustment_coefficient !== 1 && (
+                <p className="text-xs text-gray-500">Coeficiente IPC aplicado: {priceIntelligence.adjustment_coefficient.toFixed(2)}</p>
+              )}
+            </div>
+          )}
 
           <div className="flex items-center justify-between gap-2 flex-wrap">
             <h3 className="font-semibold text-gray-800">Items de la Oferta</h3>
             <div className="flex gap-2">
-              {hasPliegoItems && (
+              {!priceIntelligence && (
                 <button
-                  onClick={importFromPliego}
-                  className="text-xs text-blue-600 hover:text-blue-800 border border-blue-200 hover:border-blue-400 px-3 py-1.5 rounded-lg transition-colors"
+                  onClick={handleLoadPriceIntelligence}
+                  disabled={loadingPrices}
+                  className="text-xs text-indigo-600 hover:text-indigo-800 border border-indigo-200 hover:border-indigo-400 px-3 py-1.5 rounded-lg transition-colors disabled:opacity-50 flex items-center gap-1"
                 >
+                  {loadingPrices ? <span className="w-3 h-3 border border-indigo-400 border-t-transparent rounded-full animate-spin" /> : '📊'}
+                  Precios ref.
+                </button>
+              )}
+              {hasPliegoItems && (
+                <button onClick={importFromPliego} className="text-xs text-blue-600 hover:text-blue-800 border border-blue-200 hover:border-blue-400 px-3 py-1.5 rounded-lg transition-colors">
                   Importar del pliego
                 </button>
               )}
@@ -537,63 +619,39 @@ export default function OfertaEditor({ licitacion, onBidSaved }: Props) {
             {items.map((item, idx) => (
               <div key={idx} className="border border-gray-200 rounded-xl p-3 space-y-2 bg-white">
                 <div className="flex items-center justify-between">
-                  <span className="text-xs font-semibold text-gray-400">ÍTEM {idx + 1}</span>
+                  <span className="text-xs font-semibold text-gray-400">ITEM {idx + 1}</span>
                   {items.length > 1 && (
-                    <button onClick={() => removeItem(idx)} className="text-red-400 hover:text-red-600 text-xs">
-                      Eliminar
-                    </button>
+                    <button onClick={() => removeItem(idx)} className="text-red-400 hover:text-red-600 text-xs">Eliminar</button>
                   )}
                 </div>
                 <div>
-                  <label className="text-xs text-gray-500 mb-1 block">Descripción</label>
-                  <input
-                    type="text"
-                    value={item.descripcion}
-                    onChange={e => handleItemChange(idx, 'descripcion', e.target.value)}
-                    placeholder="Descripción del ítem"
-                    className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400"
-                  />
+                  <label className="text-xs text-gray-500 mb-1 block">Descripcion</label>
+                  <input type="text" value={item.descripcion} onChange={e => handleItemChange(idx, 'descripcion', e.target.value)} placeholder="Descripcion del item" className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400" />
                 </div>
                 <div className="grid grid-cols-2 gap-2">
                   <div>
                     <label className="text-xs text-gray-500 mb-1 block">Cantidad</label>
-                    <NumericInput
-                      value={item.cantidad}
-                      onChange={v => handleItemChange(idx, 'cantidad', v)}
-                      integer
-                      min={1}
-                      placeholder="1"
-                      className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm text-right focus:outline-none focus:ring-2 focus:ring-blue-400"
-                    />
+                    <NumericInput value={item.cantidad} onChange={v => handleItemChange(idx, 'cantidad', v)} integer min={1} placeholder="1" className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm text-right focus:outline-none focus:ring-2 focus:ring-blue-400" />
                   </div>
                   <div>
                     <label className="text-xs text-gray-500 mb-1 block">Unidad</label>
-                    <input
-                      list={`units-m-${idx}`}
-                      value={item.unidad}
-                      onChange={e => handleItemChange(idx, 'unidad', e.target.value)}
-                      className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400"
-                    />
-                    <datalist id={`units-m-${idx}`}>
-                      {UNIT_OPTIONS.map(u => <option key={u} value={u} />)}
-                    </datalist>
+                    <input list={`units-m-${idx}`} value={item.unidad} onChange={e => handleItemChange(idx, 'unidad', e.target.value)} className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400" />
+                    <datalist id={`units-m-${idx}`}>{UNIT_OPTIONS.map(u => <option key={u} value={u} />)}</datalist>
                   </div>
                 </div>
                 <div>
                   <label className="text-xs text-gray-500 mb-1 block">Precio unitario (ARS)</label>
-                  <NumericInput
-                    value={item.precio_unitario}
-                    onChange={v => handleItemChange(idx, 'precio_unitario', v)}
-                    min={0}
-                    placeholder="0.00"
-                    className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm text-right focus:outline-none focus:ring-2 focus:ring-blue-400"
-                  />
+                  <NumericInput value={item.precio_unitario} onChange={v => handleItemChange(idx, 'precio_unitario', v)} min={0} placeholder="0.00" className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm text-right focus:outline-none focus:ring-2 focus:ring-blue-400" />
                 </div>
+                {/* Item-level price reference */}
+                {priceIntelligence?.item_level_prices?.find(p => item.descripcion && p.descripcion.toLowerCase().includes(item.descripcion.toLowerCase().slice(0, 20))) && (
+                  <p className="text-xs text-indigo-500">
+                    Ref: {formatARS(priceIntelligence.item_level_prices.find(p => p.descripcion.toLowerCase().includes(item.descripcion.toLowerCase().slice(0, 20)))?.ref_price_min || 0)} - {formatARS(priceIntelligence.item_level_prices.find(p => p.descripcion.toLowerCase().includes(item.descripcion.toLowerCase().slice(0, 20)))?.ref_price_max || 0)}
+                  </p>
+                )}
                 <div className="flex justify-between text-sm pt-1 border-t border-gray-100">
                   <span className="text-gray-500">Subtotal</span>
-                  <span className="font-semibold text-gray-800">
-                    {formatARS((item.cantidad || 0) * (item.precio_unitario || 0))}
-                  </span>
+                  <span className="font-semibold text-gray-800">{formatARS((item.cantidad || 0) * (item.precio_unitario || 0))}</span>
                 </div>
               </div>
             ))}
@@ -605,7 +663,7 @@ export default function OfertaEditor({ licitacion, onBidSaved }: Props) {
               <thead>
                 <tr className="border-b-2 border-gray-200 text-xs font-semibold text-gray-500 uppercase tracking-wide">
                   <th className="text-left py-2 pr-2 w-6">#</th>
-                  <th className="text-left py-2 pr-3">Descripción</th>
+                  <th className="text-left py-2 pr-3">Descripcion</th>
                   <th className="text-right py-2 pr-3 w-24">Cantidad</th>
                   <th className="text-left py-2 pr-3 w-24">Unidad</th>
                   <th className="text-right py-2 pr-3 w-40">P.Unit (ARS)</th>
@@ -618,56 +676,23 @@ export default function OfertaEditor({ licitacion, onBidSaved }: Props) {
                   <tr key={idx} className="border-b border-gray-100 hover:bg-blue-50/30 group">
                     <td className="py-2.5 pr-2 text-gray-400 text-xs font-mono">{idx + 1}</td>
                     <td className="py-2.5 pr-3">
-                      <input
-                        type="text"
-                        value={item.descripcion}
-                        onChange={e => handleItemChange(idx, 'descripcion', e.target.value)}
-                        placeholder="Descripción del ítem…"
-                        className="w-full bg-transparent border-b border-transparent focus:border-blue-400 outline-none text-gray-800 placeholder-gray-300 py-0.5"
-                      />
+                      <input type="text" value={item.descripcion} onChange={e => handleItemChange(idx, 'descripcion', e.target.value)} placeholder="Descripcion del item…" className="w-full bg-transparent border-b border-transparent focus:border-blue-400 outline-none text-gray-800 placeholder-gray-300 py-0.5" />
                     </td>
                     <td className="py-2.5 pr-3">
-                      <NumericInput
-                        value={item.cantidad}
-                        onChange={v => handleItemChange(idx, 'cantidad', v)}
-                        integer
-                        min={1}
-                        placeholder="1"
-                        className="w-full text-right bg-transparent border-b border-transparent focus:border-blue-400 outline-none text-gray-800 py-0.5"
-                      />
+                      <NumericInput value={item.cantidad} onChange={v => handleItemChange(idx, 'cantidad', v)} integer min={1} placeholder="1" className="w-full text-right bg-transparent border-b border-transparent focus:border-blue-400 outline-none text-gray-800 py-0.5" />
                     </td>
                     <td className="py-2.5 pr-3">
-                      <input
-                        list={`units-${idx}`}
-                        value={item.unidad}
-                        onChange={e => handleItemChange(idx, 'unidad', e.target.value)}
-                        className="w-full bg-transparent border-b border-transparent focus:border-blue-400 outline-none text-gray-800 py-0.5"
-                      />
-                      <datalist id={`units-${idx}`}>
-                        {UNIT_OPTIONS.map(u => <option key={u} value={u} />)}
-                      </datalist>
+                      <input list={`units-${idx}`} value={item.unidad} onChange={e => handleItemChange(idx, 'unidad', e.target.value)} className="w-full bg-transparent border-b border-transparent focus:border-blue-400 outline-none text-gray-800 py-0.5" />
+                      <datalist id={`units-${idx}`}>{UNIT_OPTIONS.map(u => <option key={u} value={u} />)}</datalist>
                     </td>
                     <td className="py-2.5 pr-3">
-                      <NumericInput
-                        value={item.precio_unitario}
-                        onChange={v => handleItemChange(idx, 'precio_unitario', v)}
-                        min={0}
-                        placeholder="0.00"
-                        className="w-full text-right bg-transparent border-b border-transparent focus:border-blue-400 outline-none text-gray-800 py-0.5"
-                      />
+                      <NumericInput value={item.precio_unitario} onChange={v => handleItemChange(idx, 'precio_unitario', v)} min={0} placeholder="0.00" className="w-full text-right bg-transparent border-b border-transparent focus:border-blue-400 outline-none text-gray-800 py-0.5" />
                     </td>
                     <td className="py-2.5 pr-3 text-right text-gray-700 font-medium whitespace-nowrap">
                       {formatARS((item.cantidad || 0) * (item.precio_unitario || 0))}
                     </td>
                     <td className="py-2.5">
-                      <button
-                        onClick={() => removeItem(idx)}
-                        disabled={items.length === 1}
-                        className="opacity-0 group-hover:opacity-100 text-red-400 hover:text-red-600 disabled:opacity-0 transition-all p-1 rounded text-xs"
-                        title="Eliminar ítem"
-                      >
-                        ✕
-                      </button>
+                      <button onClick={() => removeItem(idx)} disabled={items.length === 1} className="opacity-0 group-hover:opacity-100 text-red-400 hover:text-red-600 disabled:opacity-0 transition-all p-1 rounded text-xs" title="Eliminar item">✕</button>
                     </td>
                   </tr>
                 ))}
@@ -675,15 +700,12 @@ export default function OfertaEditor({ licitacion, onBidSaved }: Props) {
             </table>
           </div>
 
-          <button
-            onClick={addItem}
-            className="flex items-center gap-2 text-sm text-blue-600 hover:text-blue-800 transition-colors font-medium"
-          >
+          <button onClick={addItem} className="flex items-center gap-2 text-sm text-blue-600 hover:text-blue-800 transition-colors font-medium">
             <span className="w-6 h-6 rounded-full border-2 border-current flex items-center justify-center text-xs font-bold leading-none">+</span>
-            Agregar ítem
+            Agregar item
           </button>
 
-          {/* Subtotals preview */}
+          {/* Subtotals */}
           <div className="bg-gray-50 rounded-xl p-4 space-y-2 text-sm mt-2">
             <div className="flex justify-between text-gray-600">
               <span>Subtotal sin IVA</span>
@@ -692,14 +714,8 @@ export default function OfertaEditor({ licitacion, onBidSaved }: Props) {
             <div className="flex items-center justify-between gap-3">
               <div className="flex items-center gap-2 text-gray-600">
                 <span>IVA</span>
-                <select
-                  value={ivaRate}
-                  onChange={e => setIvaRate(parseFloat(e.target.value))}
-                  className="border border-gray-200 rounded-lg px-2 py-1 text-xs bg-white focus:outline-none focus:ring-1 focus:ring-blue-400"
-                >
-                  {IVA_OPTIONS.map(o => (
-                    <option key={o.value} value={o.value}>{o.label}</option>
-                  ))}
+                <select value={ivaRate} onChange={e => setIvaRate(parseFloat(e.target.value))} className="border border-gray-200 rounded-lg px-2 py-1 text-xs bg-white focus:outline-none focus:ring-1 focus:ring-blue-400">
+                  {IVA_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
                 </select>
               </div>
               <span className="font-medium tabular-nums">{formatARS(ivaAmount)}</span>
@@ -710,7 +726,6 @@ export default function OfertaEditor({ licitacion, onBidSaved }: Props) {
             </div>
           </div>
 
-          {/* Competitiveness indicator */}
           {competitiveness && (
             <div className={`rounded-lg px-3 py-2 text-xs font-medium flex items-center justify-between ${competitiveness.color}`}>
               <span>Tu oferta vs PO: <strong>{competitiveness.label}</strong></span>
@@ -719,124 +734,79 @@ export default function OfertaEditor({ licitacion, onBidSaved }: Props) {
           )}
 
           <div className="flex justify-between items-center pt-2">
-            <div>
-              {savedAt && <p className="text-xs text-gray-400">Guardado {savedAt}</p>}
-            </div>
+            <div>{savedAt && <p className="text-xs text-gray-400">Guardado {savedAt}</p>}</div>
             <div className="flex gap-3">
-              <button
-                onClick={() => doSave()}
-                disabled={saving}
-                className="flex items-center gap-2 px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 text-sm font-medium rounded-xl disabled:opacity-60 transition-colors"
-              >
-                {saving ? <div className="w-4 h-4 border-2 border-gray-400/40 border-t-gray-600 rounded-full animate-spin" /> : '💾'}
+              <button onClick={() => doSave()} disabled={saving} className="flex items-center gap-2 px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 text-sm font-medium rounded-xl disabled:opacity-60 transition-colors">
+                {saving ? <div className="w-4 h-4 border-2 border-gray-400/40 border-t-gray-600 rounded-full animate-spin" /> : null}
                 Guardar
               </button>
-              <button
-                onClick={() => { doSave(true); setStep(2); }}
-                className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold rounded-xl transition-colors"
-              >
-                Siguiente
-                <span>→</span>
+              <button onClick={() => { doSave(true); setStep(2); }} className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold rounded-xl transition-colors">
+                Siguiente <span>→</span>
               </button>
             </div>
           </div>
         </div>
       )}
 
-      {/* Step 2: Propuesta Técnica */}
+      {/* ─── Step 2: Propuesta Tecnica ─── */}
       {step === 2 && (
         <div className="space-y-5">
           <div className="flex items-center justify-between">
-            <h3 className="font-semibold text-gray-800">Propuesta Técnica</h3>
-            <button
-              onClick={handleSuggestPropuesta}
-              disabled={suggestingPropuesta}
-              className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg border border-purple-200 text-purple-600 hover:text-purple-800 hover:border-purple-400 transition-colors disabled:opacity-50"
-            >
+            <h3 className="font-semibold text-gray-800">Propuesta Tecnica</h3>
+            <button onClick={handleSuggestPropuesta} disabled={suggestingPropuesta} className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg border border-purple-200 text-purple-600 hover:text-purple-800 hover:border-purple-400 transition-colors disabled:opacity-50">
               {suggestingPropuesta ? <span className="w-3 h-3 border border-purple-400 border-t-transparent rounded-full animate-spin" /> : '✨'}
               Sugerir con IA
             </button>
           </div>
-          <p className="text-sm text-gray-500">Completá los datos técnicos de tu oferta. Estos campos aparecerán en el documento PDF.</p>
 
           <div className="space-y-4">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1.5">
-                Metodología / Descripción del servicio
-              </label>
-              <textarea
-                value={techData.methodology}
-                onChange={e => setTechData(p => ({ ...p, methodology: e.target.value }))}
-                placeholder="Describí cómo vas a ejecutar el contrato, qué incluye la propuesta…"
-                rows={4}
-                className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400 resize-none"
-              />
+              <label className="block text-sm font-medium text-gray-700 mb-1.5">Metodologia / Descripcion del servicio</label>
+              <textarea value={techData.methodology} onChange={e => setTechData(p => ({ ...p, methodology: e.target.value }))} placeholder="Describi como vas a ejecutar el contrato…" rows={4} className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400 resize-none" />
             </div>
-
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1.5">
-                  Plazo de ejecución
-                </label>
-                <input
-                  type="text"
-                  value={techData.plazo}
-                  onChange={e => setTechData(p => ({ ...p, plazo: e.target.value }))}
-                  placeholder="Ej: 30 días hábiles"
-                  className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400"
-                />
+                <label className="block text-sm font-medium text-gray-700 mb-1.5">Plazo de ejecucion</label>
+                <input type="text" value={techData.plazo} onChange={e => setTechData(p => ({ ...p, plazo: e.target.value }))} placeholder="Ej: 30 dias habiles" className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400" />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1.5">
-                  Lugar de entrega / prestación
-                </label>
-                <input
-                  type="text"
-                  value={techData.lugar}
-                  onChange={e => setTechData(p => ({ ...p, lugar: e.target.value }))}
-                  placeholder="Ej: Sede del organismo, Mendoza"
-                  className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400"
-                />
+                <label className="block text-sm font-medium text-gray-700 mb-1.5">Lugar de entrega</label>
+                <input type="text" value={techData.lugar} onChange={e => setTechData(p => ({ ...p, lugar: e.target.value }))} placeholder="Ej: Sede del organismo" className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400" />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1.5">
-                  Validez de la oferta (días)
-                </label>
-                <NumericInput
-                  value={parseInt(techData.validez) || 30}
-                  onChange={v => setTechData(p => ({ ...p, validez: String(v) }))}
-                  integer
-                  min={1}
-                  placeholder="30"
-                  className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400"
-                />
+                <label className="block text-sm font-medium text-gray-700 mb-1.5">Validez de la oferta (dias)</label>
+                <NumericInput value={parseInt(techData.validez) || 30} onChange={v => setTechData(p => ({ ...p, validez: String(v) }))} integer min={1} placeholder="30" className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400" />
               </div>
             </div>
-
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1.5">
-                Notas adicionales
-              </label>
-              <textarea
-                value={techData.notas}
-                onChange={e => setTechData(p => ({ ...p, notas: e.target.value }))}
-                placeholder="Condiciones especiales, garantías, observaciones…"
-                rows={3}
-                className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400 resize-none"
-              />
+              <label className="block text-sm font-medium text-gray-700 mb-1.5">Notas adicionales</label>
+              <textarea value={techData.notas} onChange={e => setTechData(p => ({ ...p, notas: e.target.value }))} placeholder="Condiciones especiales, garantias, observaciones…" rows={3} className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400 resize-none" />
             </div>
           </div>
 
           {/* Antecedentes section */}
           <div className="border-t border-gray-100 pt-4">
-            <button
-              onClick={handleLoadAntecedentes}
-              className="flex items-center gap-2 text-sm text-gray-600 hover:text-gray-800 transition-colors"
-            >
+            <button onClick={handleLoadAntecedentes} className="flex items-center gap-2 text-sm text-gray-600 hover:text-gray-800 transition-colors">
               <span className={`transition-transform ${showAntecedentes ? 'rotate-90' : ''}`}>▶</span>
               Antecedentes similares
               {antecedentes.length > 0 && <span className="text-xs bg-gray-100 px-1.5 py-0.5 rounded-full">{antecedentes.length}</span>}
             </button>
+
+            {/* Vinculados badges */}
+            {vinculados.length > 0 && (
+              <div className="flex flex-wrap gap-1.5 mt-2">
+                {vinculados.map(id => {
+                  const ant = antecedentes.find(a => a.id === id);
+                  return (
+                    <span key={id} className="inline-flex items-center gap-1 text-xs bg-blue-50 text-blue-700 px-2 py-1 rounded-full">
+                      {ant ? (ant.objeto || ant.title).slice(0, 30) : id.slice(0, 8)}...
+                      <button onClick={() => handleDesvincular(id)} className="text-blue-400 hover:text-blue-600">✕</button>
+                    </span>
+                  );
+                })}
+              </div>
+            )}
+
             {showAntecedentes && (
               <div className="mt-3 space-y-2">
                 {loadingAntecedentes ? (
@@ -847,13 +817,30 @@ export default function OfertaEditor({ licitacion, onBidSaved }: Props) {
                 ) : antecedentes.length === 0 ? (
                   <p className="text-sm text-gray-400 py-2">No se encontraron antecedentes similares.</p>
                 ) : (
-                  antecedentes.slice(0, 5).map(ant => (
+                  antecedentes.map(ant => (
                     <div key={ant.id} className="bg-gray-50 rounded-lg p-3 text-sm">
-                      <p className="font-medium text-gray-800 line-clamp-1">{ant.objeto || ant.title}</p>
-                      <div className="flex items-center gap-3 mt-1 text-xs text-gray-500">
+                      <div className="flex items-start justify-between gap-2">
+                        <p className="font-medium text-gray-800 line-clamp-1 flex-1">{ant.objeto || ant.title}</p>
+                        {vinculados.includes(ant.id) ? (
+                          <span className="text-xs text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-full shrink-0">Vinculado</span>
+                        ) : (
+                          <button onClick={() => handleVincular(ant.id)} className="text-xs text-blue-600 hover:text-blue-800 border border-blue-200 px-2 py-0.5 rounded-full shrink-0 transition-colors">
+                            Vincular
+                          </button>
+                        )}
+                      </div>
+                      <div className="flex items-center gap-3 mt-1 text-xs text-gray-500 flex-wrap">
                         <span>{ant.organization}</span>
-                        {ant.budget && <span className="font-medium">{formatARS(ant.budget)}</span>}
+                        {ant.budget != null && <span className="font-medium">{formatARS(ant.budget)}</span>}
+                        {ant.price_ratio != null && (
+                          <span className={`font-medium ${ant.price_ratio > 1.2 ? 'text-red-500' : ant.price_ratio < 0.8 ? 'text-emerald-500' : 'text-gray-600'}`}>
+                            {(ant.price_ratio * 100).toFixed(0)}% vs actual
+                          </span>
+                        )}
                         {ant.publication_date && <span>{new Date(ant.publication_date).toLocaleDateString('es-AR')}</span>}
+                        {ant.relevance_score != null && (
+                          <span className="text-purple-500">Rel: {ant.relevance_score.toFixed(1)}</span>
+                        )}
                       </div>
                     </div>
                   ))
@@ -863,164 +850,243 @@ export default function OfertaEditor({ licitacion, onBidSaved }: Props) {
           </div>
 
           <div className="flex justify-between pt-2">
-            <button
-              onClick={() => setStep(1)}
-              className="flex items-center gap-2 px-4 py-2 text-gray-600 hover:text-gray-800 text-sm font-medium rounded-xl hover:bg-gray-100 transition-colors"
-            >
+            <button onClick={() => setStep(1)} className="flex items-center gap-2 px-4 py-2 text-gray-600 hover:text-gray-800 text-sm font-medium rounded-xl hover:bg-gray-100 transition-colors">
               <span>←</span> Anterior
             </button>
-            <button
-              onClick={() => setStep(3)}
-              className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold rounded-xl transition-colors"
-            >
+            <button onClick={() => setStep(3)} className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold rounded-xl transition-colors">
               Siguiente <span>→</span>
             </button>
           </div>
         </div>
       )}
 
-      {/* Step 3: Empresa */}
+      {/* ─── Step 3: Empresa ─── */}
       {step === 3 && (
         <div className="space-y-5">
           <h3 className="font-semibold text-gray-800">Datos de la Empresa</h3>
-          <p className="text-sm text-gray-500">Estos datos identifican al oferente en el documento oficial.</p>
 
-          {/* Company profiles */}
           {companyProfiles.length > 0 && (
             <div className="bg-gray-50 rounded-xl p-3 flex items-center gap-2 flex-wrap">
               <span className="text-xs font-medium text-gray-500">Perfil:</span>
-              <select
-                value={selectedProfile}
-                onChange={e => {
-                  const idx = parseInt(e.target.value);
-                  setSelectedProfile(idx);
-                  if (idx >= 0) setCompanyData(companyProfiles[idx]);
-                }}
-                className="text-sm border border-gray-200 rounded-lg px-2 py-1 bg-white focus:outline-none focus:ring-1 focus:ring-blue-400"
-              >
+              <select value={selectedProfile} onChange={e => { const idx = parseInt(e.target.value); setSelectedProfile(idx); if (idx >= 0) setCompanyData(companyProfiles[idx]); }} className="text-sm border border-gray-200 rounded-lg px-2 py-1 bg-white focus:outline-none focus:ring-1 focus:ring-blue-400">
                 <option value={-1}>— Nuevo —</option>
-                {companyProfiles.map((p, i) => (
-                  <option key={i} value={i}>{p.nombre} ({p.cuit})</option>
-                ))}
+                {companyProfiles.map((p, i) => <option key={i} value={i}>{p.nombre} ({p.cuit})</option>)}
               </select>
-              <button
-                onClick={handleSaveProfile}
-                disabled={!companyData.nombre}
-                className="text-xs px-2 py-1 rounded-lg bg-blue-50 text-blue-600 hover:bg-blue-100 disabled:opacity-40 transition-colors"
-              >
-                Guardar
-              </button>
+              <button onClick={handleSaveProfile} disabled={!companyData.nombre} className="text-xs px-2 py-1 rounded-lg bg-blue-50 text-blue-600 hover:bg-blue-100 disabled:opacity-40 transition-colors">Guardar</button>
               {selectedProfile >= 0 && (
-                <button
-                  onClick={handleDeleteProfile}
-                  className="text-xs px-2 py-1 rounded-lg bg-red-50 text-red-600 hover:bg-red-100 transition-colors"
-                >
-                  Eliminar
-                </button>
+                <button onClick={handleDeleteProfile} className="text-xs px-2 py-1 rounded-lg bg-red-50 text-red-600 hover:bg-red-100 transition-colors">Eliminar</button>
               )}
             </div>
           )}
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div className="sm:col-span-2">
-              <label className="block text-sm font-medium text-gray-700 mb-1.5">Razón social / Nombre</label>
-              <input
-                type="text"
-                value={companyData.nombre}
-                onChange={e => setCompanyData(p => ({ ...p, nombre: e.target.value }))}
-                placeholder="Nombre de la empresa o persona"
-                className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400"
-              />
+              <label className="block text-sm font-medium text-gray-700 mb-1.5">Razon social / Nombre</label>
+              <input type="text" value={companyData.nombre} onChange={e => setCompanyData(p => ({ ...p, nombre: e.target.value }))} placeholder="Nombre de la empresa" className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400" />
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1.5">CUIT</label>
-              <input
-                type="text"
-                value={companyData.cuit}
-                onChange={e => setCompanyData(p => ({ ...p, cuit: e.target.value }))}
-                placeholder="20-12345678-9"
-                className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400"
-              />
+              <input type="text" value={companyData.cuit} onChange={e => setCompanyData(p => ({ ...p, cuit: e.target.value }))} placeholder="20-12345678-9" className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400" />
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1.5">Email</label>
-              <input
-                type="email"
-                value={companyData.email}
-                onChange={e => setCompanyData(p => ({ ...p, email: e.target.value }))}
-                placeholder="contacto@empresa.com"
-                className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400"
-              />
+              <input type="email" value={companyData.email} onChange={e => setCompanyData(p => ({ ...p, email: e.target.value }))} placeholder="contacto@empresa.com" className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400" />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1.5">Teléfono</label>
-              <input
-                type="tel"
-                value={companyData.telefono}
-                onChange={e => setCompanyData(p => ({ ...p, telefono: e.target.value }))}
-                placeholder="+54 261 4000000"
-                className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400"
-              />
+              <label className="block text-sm font-medium text-gray-700 mb-1.5">Telefono</label>
+              <input type="tel" value={companyData.telefono} onChange={e => setCompanyData(p => ({ ...p, telefono: e.target.value }))} placeholder="+54 261 4000000" className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400" />
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1.5">Domicilio legal</label>
-              <input
-                type="text"
-                value={companyData.domicilio}
-                onChange={e => setCompanyData(p => ({ ...p, domicilio: e.target.value }))}
-                placeholder="Calle, Número, Ciudad"
-                className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400"
-              />
+              <input type="text" value={companyData.domicilio} onChange={e => setCompanyData(p => ({ ...p, domicilio: e.target.value }))} placeholder="Calle, Numero, Ciudad" className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400" />
             </div>
           </div>
 
           <div className="flex justify-between pt-2">
-            <button
-              onClick={() => setStep(2)}
-              className="flex items-center gap-2 px-4 py-2 text-gray-600 hover:text-gray-800 text-sm font-medium rounded-xl hover:bg-gray-100 transition-colors"
-            >
-              <span>←</span> Anterior
-            </button>
-            <button
-              onClick={() => { doSave(true); setStep(4); }}
-              className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold rounded-xl transition-colors"
-            >
-              Siguiente <span>→</span>
-            </button>
+            <button onClick={() => setStep(2)} className="flex items-center gap-2 px-4 py-2 text-gray-600 hover:text-gray-800 text-sm font-medium rounded-xl hover:bg-gray-100 transition-colors"><span>←</span> Anterior</button>
+            <button onClick={() => { doSave(true); setStep(4); }} className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold rounded-xl transition-colors">Siguiente <span>→</span></button>
           </div>
-          {/* Save profile hint */}
+
           {companyData.nombre && companyProfiles.findIndex(p => p.cuit === companyData.cuit && p.nombre === companyData.nombre) < 0 && (
-            <button
-              onClick={handleSaveProfile}
-              className="text-xs text-blue-500 hover:text-blue-700 transition-colors"
-            >
-              Guardar este perfil para próximas cotizaciones
+            <button onClick={handleSaveProfile} className="text-xs text-blue-500 hover:text-blue-700 transition-colors">
+              Guardar este perfil para proximas cotizaciones
             </button>
           )}
         </div>
       )}
 
-      {/* Step 4: Análisis IA */}
+      {/* ─── Step 4: Marco Legal ─── */}
       {step === 4 && (
         <div className="space-y-5">
-          <h3 className="font-semibold text-gray-800">Análisis IA</h3>
-          <p className="text-sm text-gray-500">Evaluación automática de tu oferta usando inteligencia artificial.</p>
+          <h3 className="font-semibold text-gray-800">Marco Legal</h3>
+          <p className="text-sm text-gray-500">Analisis del encuadre legal de la licitacion y requisitos para participar.</p>
+
+          {/* Static info from licitacion */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            {licitacion.budget && budgetHints?.threshold_label && (
+              <div className="bg-gray-50 rounded-lg p-3">
+                <span className="text-xs font-semibold text-gray-400 uppercase">Umbral</span>
+                <p className="text-sm text-gray-800 font-medium mt-0.5">{budgetHints.threshold_label}</p>
+              </div>
+            )}
+          </div>
+
+          {!marcoLegal && !loadingMarcoLegal && (
+            <div className="text-center py-8">
+              <div className="text-5xl mb-4">⚖️</div>
+              <p className="text-gray-600 text-sm mb-4">
+                Analizamos el tipo de procedimiento, requisitos legales y documentacion obligatoria.
+              </p>
+              <button
+                onClick={handleLoadMarcoLegal}
+                className="px-6 py-3 bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 text-white font-semibold rounded-xl text-sm transition-all shadow-lg shadow-amber-200"
+              >
+                Analizar marco legal con IA
+              </button>
+            </div>
+          )}
+
+          {loadingMarcoLegal && (
+            <div className="flex flex-col items-center py-12 gap-3">
+              <div className="w-10 h-10 border-3 border-amber-200 border-t-amber-600 rounded-full animate-spin" />
+              <p className="text-sm text-gray-500">Analizando marco legal...</p>
+            </div>
+          )}
+
+          {marcoLegal && !marcoLegal.error && (
+            <div className="space-y-4">
+              {/* Encuadre legal */}
+              {marcoLegal.encuadre_legal && (
+                <div className="bg-amber-50 border border-amber-200 rounded-xl p-4">
+                  <p className="text-xs font-semibold text-amber-700 uppercase mb-1">Encuadre Legal</p>
+                  <p className="text-sm text-gray-800">{marcoLegal.encuadre_legal}</p>
+                </div>
+              )}
+
+              {/* Tipo procedimiento explicado */}
+              {marcoLegal.tipo_procedimiento_explicado && (
+                <div className="bg-blue-50 border border-blue-200 rounded-xl p-4">
+                  <p className="text-xs font-semibold text-blue-700 uppercase mb-1">Tipo de Procedimiento</p>
+                  <p className="text-sm text-gray-800">{marcoLegal.tipo_procedimiento_explicado}</p>
+                </div>
+              )}
+
+              {/* Requisitos habilitacion - interactive checklist */}
+              {marcoLegal.requisitos_habilitacion && marcoLegal.requisitos_habilitacion.length > 0 && (
+                <div>
+                  <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Requisitos de Habilitacion</p>
+                  <div className="space-y-1.5">
+                    {marcoLegal.requisitos_habilitacion.map((req, i) => (
+                      <label key={i} className="flex items-start gap-2 text-sm cursor-pointer group">
+                        <input
+                          type="checkbox"
+                          checked={marcoLegalChecks[`req-${i}`] || false}
+                          onChange={e => setMarcoLegalChecks(prev => ({ ...prev, [`req-${i}`]: e.target.checked }))}
+                          className="mt-0.5 rounded border-gray-300"
+                        />
+                        <span className={marcoLegalChecks[`req-${i}`] ? 'text-gray-400 line-through' : 'text-gray-700'}>{req}</span>
+                      </label>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Documentacion obligatoria */}
+              {marcoLegal.documentacion_obligatoria && marcoLegal.documentacion_obligatoria.length > 0 && (
+                <div>
+                  <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Documentacion Obligatoria</p>
+                  <div className="space-y-2">
+                    {marcoLegal.documentacion_obligatoria.map((doc, i) => (
+                      <label key={i} className="flex items-start gap-2 text-sm bg-gray-50 rounded-lg p-2.5 cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={marcoLegalChecks[`doc-${i}`] || false}
+                          onChange={e => setMarcoLegalChecks(prev => ({ ...prev, [`doc-${i}`]: e.target.checked }))}
+                          className="mt-0.5 rounded border-gray-300"
+                        />
+                        <div className={marcoLegalChecks[`doc-${i}`] ? 'text-gray-400' : ''}>
+                          <span className="font-medium text-gray-800">{doc.documento}</span>
+                          {doc.descripcion && <p className="text-xs text-gray-500 mt-0.5">{doc.descripcion}</p>}
+                          {doc.donde_obtener && <p className="text-xs text-blue-500 mt-0.5">Obtener en: {doc.donde_obtener}</p>}
+                        </div>
+                      </label>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Garantias */}
+              {marcoLegal.garantias_requeridas && marcoLegal.garantias_requeridas.length > 0 && (
+                <div>
+                  <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Garantias Requeridas</p>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                    {marcoLegal.garantias_requeridas.map((g, i) => (
+                      <div key={i} className="border border-gray-200 rounded-lg p-3">
+                        <p className="font-medium text-gray-800 text-sm">{g.tipo}</p>
+                        {g.porcentaje && <p className="text-xs text-gray-500">Porcentaje: {g.porcentaje}</p>}
+                        {g.monto_estimado && <p className="text-xs text-gray-500">Monto est.: {formatARS(g.monto_estimado)}</p>}
+                        {g.forma && <p className="text-xs text-gray-500">Forma: {g.forma}</p>}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Guia paso a paso */}
+              {marcoLegal.guia_paso_a_paso && marcoLegal.guia_paso_a_paso.length > 0 && (
+                <div>
+                  <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Guia Paso a Paso</p>
+                  <ol className="space-y-1.5">
+                    {marcoLegal.guia_paso_a_paso.map((paso, i) => (
+                      <li key={i} className="flex items-start gap-2 text-sm text-gray-700">
+                        <span className="bg-amber-100 text-amber-700 rounded-full w-5 h-5 flex items-center justify-center text-xs font-bold shrink-0">{i + 1}</span>
+                        {paso}
+                      </li>
+                    ))}
+                  </ol>
+                </div>
+              )}
+
+              {/* Normativa aplicable */}
+              {marcoLegal.normativa_aplicable && marcoLegal.normativa_aplicable.length > 0 && (
+                <div>
+                  <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">Normativa Aplicable</p>
+                  <div className="flex flex-wrap gap-1.5">
+                    {marcoLegal.normativa_aplicable.map((n, i) => (
+                      <span key={i} className="text-xs bg-gray-100 text-gray-600 px-2 py-1 rounded-full">{n}</span>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              <button onClick={handleLoadMarcoLegal} className="text-xs text-amber-600 hover:text-amber-800 transition-colors">
+                Volver a analizar
+              </button>
+            </div>
+          )}
+
+          <div className="flex justify-between pt-2">
+            <button onClick={() => setStep(3)} className="flex items-center gap-2 px-4 py-2 text-gray-600 hover:text-gray-800 text-sm font-medium rounded-xl hover:bg-gray-100 transition-colors"><span>←</span> Anterior</button>
+            <button onClick={() => { doSave(true); setStep(5); }} className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold rounded-xl transition-colors">Siguiente <span>→</span></button>
+          </div>
+        </div>
+      )}
+
+      {/* ─── Step 5: Analisis IA ─── */}
+      {step === 5 && (
+        <div className="space-y-5">
+          <h3 className="font-semibold text-gray-800">Analisis IA</h3>
+          <p className="text-sm text-gray-500">Evaluacion automatica de tu oferta usando inteligencia artificial.</p>
 
           {!analysis && !analyzing && (
             <div className="text-center py-8">
               <div className="text-5xl mb-4">🤖</div>
-              <p className="text-gray-600 text-sm mb-4">
-                Analizamos tus items, propuesta técnica y datos de empresa contra la licitación.
-              </p>
-              <button
-                onClick={handleAnalyze}
-                disabled={items.length === 0 || total <= 0}
-                className="px-6 py-3 bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700 text-white font-semibold rounded-xl text-sm transition-all disabled:opacity-40 disabled:cursor-not-allowed shadow-lg shadow-purple-200"
-              >
-                Ejecutar Análisis IA
+              <p className="text-gray-600 text-sm mb-4">Analizamos tus items, propuesta tecnica y datos de empresa contra la licitacion.</p>
+              <button onClick={handleAnalyze} disabled={items.length === 0 || total <= 0} className="px-6 py-3 bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700 text-white font-semibold rounded-xl text-sm transition-all disabled:opacity-40 disabled:cursor-not-allowed shadow-lg shadow-purple-200">
+                Ejecutar Analisis IA
               </button>
               {(items.length === 0 || total <= 0) && (
-                <p className="text-xs text-gray-400 mt-2">Necesitás al menos 1 item con precio para analizar.</p>
+                <p className="text-xs text-gray-400 mt-2">Necesitas al menos 1 item con precio para analizar.</p>
               )}
             </div>
           )}
@@ -1033,15 +1099,11 @@ export default function OfertaEditor({ licitacion, onBidSaved }: Props) {
           )}
 
           {analyzeError && (
-            <div className="bg-red-50 border border-red-200 rounded-xl p-4 text-sm text-red-700">
-              <strong>Error:</strong> {analyzeError}
-              <button onClick={handleAnalyze} className="ml-3 text-red-600 underline hover:no-underline">Reintentar</button>
-            </div>
+            <ErrorBanner message={analyzeError} onRetry={handleAnalyze} onDismiss={() => setAnalyzeError('')} />
           )}
 
           {analysis && (
             <div className="space-y-4">
-              {/* Verdict banner */}
               <div className={`rounded-xl p-4 ${
                 analysis.win_probability >= 70 ? 'bg-emerald-50 border border-emerald-200' :
                 analysis.win_probability >= 40 ? 'bg-yellow-50 border border-yellow-200' :
@@ -1049,11 +1111,7 @@ export default function OfertaEditor({ licitacion, onBidSaved }: Props) {
               }`}>
                 <div className="flex items-center justify-between mb-2">
                   <span className="text-xs font-semibold uppercase tracking-wide text-gray-500">Veredicto</span>
-                  <span className={`text-2xl font-bold ${
-                    analysis.win_probability >= 70 ? 'text-emerald-600' :
-                    analysis.win_probability >= 40 ? 'text-yellow-600' :
-                    'text-red-600'
-                  }`}>
+                  <span className={`text-2xl font-bold ${analysis.win_probability >= 70 ? 'text-emerald-600' : analysis.win_probability >= 40 ? 'text-yellow-600' : 'text-red-600'}`}>
                     {analysis.win_probability}%
                   </span>
                 </div>
@@ -1061,18 +1119,15 @@ export default function OfertaEditor({ licitacion, onBidSaved }: Props) {
                 <p className="text-sm text-gray-600 mt-1">{analysis.resumen}</p>
               </div>
 
-              {/* Score cards 2x2 */}
               <div className="grid grid-cols-2 gap-3">
                 {(['precio', 'metodologia', 'empresa', 'cronograma'] as const).map(key => {
                   const s = analysis[key];
-                  const label = key === 'precio' ? 'Precio' : key === 'metodologia' ? 'Metodología' : key === 'empresa' ? 'Empresa' : 'Cronograma';
+                  const label = key === 'precio' ? 'Precio' : key === 'metodologia' ? 'Metodologia' : key === 'empresa' ? 'Empresa' : 'Cronograma';
                   return (
                     <div key={key} className="border border-gray-200 rounded-xl p-3">
                       <div className="flex items-center justify-between mb-1">
                         <span className="text-xs font-semibold text-gray-500 uppercase">{label}</span>
-                        <span className={`text-lg font-bold ${
-                          s.score >= 7 ? 'text-emerald-600' : s.score >= 4 ? 'text-yellow-600' : 'text-red-600'
-                        }`}>{s.score}/10</span>
+                        <span className={`text-lg font-bold ${s.score >= 7 ? 'text-emerald-600' : s.score >= 4 ? 'text-yellow-600' : 'text-red-600'}`}>{s.score}/10</span>
                       </div>
                       <p className="text-xs text-gray-600 line-clamp-2">{s.detail}</p>
                     </div>
@@ -1080,18 +1135,13 @@ export default function OfertaEditor({ licitacion, onBidSaved }: Props) {
                 })}
               </div>
 
-              {/* Risks */}
               {analysis.riesgos?.length > 0 && (
                 <div>
                   <h4 className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Riesgos</h4>
                   <div className="space-y-2">
                     {analysis.riesgos.map((r, i) => (
                       <div key={i} className="flex items-start gap-2 text-sm">
-                        <span className={`px-1.5 py-0.5 rounded text-xs font-medium shrink-0 ${
-                          r.nivel === 'alto' ? 'bg-red-100 text-red-700' :
-                          r.nivel === 'medio' ? 'bg-yellow-100 text-yellow-700' :
-                          'bg-gray-100 text-gray-600'
-                        }`}>{r.nivel}</span>
+                        <span className={`px-1.5 py-0.5 rounded text-xs font-medium shrink-0 ${r.nivel === 'alto' ? 'bg-red-100 text-red-700' : r.nivel === 'medio' ? 'bg-yellow-100 text-yellow-700' : 'bg-gray-100 text-gray-600'}`}>{r.nivel}</span>
                         <span className="text-gray-700">{r.detalle}</span>
                       </div>
                     ))}
@@ -1099,169 +1149,280 @@ export default function OfertaEditor({ licitacion, onBidSaved }: Props) {
                 </div>
               )}
 
-              {/* Recommendations */}
               {analysis.recomendaciones?.length > 0 && (
                 <div>
                   <h4 className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Recomendaciones</h4>
                   <ul className="space-y-1.5">
                     {analysis.recomendaciones.map((r, i) => (
                       <li key={i} className="flex items-start gap-2 text-sm text-gray-700">
-                        <span className="text-emerald-500 mt-0.5">•</span>
-                        {r}
+                        <span className="text-emerald-500 mt-0.5">•</span>{r}
                       </li>
                     ))}
                   </ul>
                 </div>
               )}
 
-              {/* Re-run button */}
-              <button
-                onClick={handleAnalyze}
-                className="text-xs text-purple-600 hover:text-purple-800 transition-colors"
-              >
-                Volver a analizar
-              </button>
+              <button onClick={handleAnalyze} className="text-xs text-purple-600 hover:text-purple-800 transition-colors">Volver a analizar</button>
             </div>
           )}
 
           <div className="flex justify-between pt-2">
-            <button
-              onClick={() => setStep(3)}
-              className="flex items-center gap-2 px-4 py-2 text-gray-600 hover:text-gray-800 text-sm font-medium rounded-xl hover:bg-gray-100 transition-colors"
-            >
-              <span>←</span> Anterior
-            </button>
-            <button
-              onClick={() => setStep(5)}
-              className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold rounded-xl transition-colors"
-            >
-              Ver resumen <span>→</span>
-            </button>
+            <button onClick={() => setStep(4)} className="flex items-center gap-2 px-4 py-2 text-gray-600 hover:text-gray-800 text-sm font-medium rounded-xl hover:bg-gray-100 transition-colors"><span>←</span> Anterior</button>
+            <button onClick={() => setStep(6)} className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold rounded-xl transition-colors">Ver resumen <span>→</span></button>
           </div>
         </div>
       )}
 
-      {/* Step 5: Resumen */}
-      {step === 5 && (
+      {/* ─── Step 6: Nota de Cotizacion ─── */}
+      {step === 6 && (
         <div className="space-y-5">
-          <h3 className="font-semibold text-gray-800">Resumen de la Oferta</h3>
+          <div className="flex items-center justify-between">
+            <h3 className="font-semibold text-gray-800">Nota de Cotizacion</h3>
+            <div className="flex gap-2">
+              <button
+                onClick={() => {
+                  if (!offerRef.current) return;
+                  const range = document.createRange();
+                  range.selectNodeContents(offerRef.current);
+                  const sel = window.getSelection();
+                  sel?.removeAllRanges();
+                  sel?.addRange(range);
+                  document.execCommand('copy');
+                  sel?.removeAllRanges();
+                }}
+                className="text-xs px-3 py-1.5 border border-gray-200 rounded-lg text-gray-600 hover:bg-gray-100 transition-colors"
+              >
+                Copiar texto
+              </button>
+              <button onClick={() => window.print()} className="text-xs px-3 py-1.5 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 transition-colors">
+                Imprimir / PDF
+              </button>
+            </div>
+          </div>
 
-          {/* Items summary */}
-          <div className="border border-gray-200 rounded-xl overflow-hidden">
-            <div className="bg-gray-50 px-4 py-2 border-b border-gray-200">
-              <span className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Items ({items.length})</span>
+          {/* Formal offer document */}
+          <div ref={offerRef} className="bg-white border border-gray-300 rounded-xl p-8 text-sm leading-relaxed print:border-none print:shadow-none print:p-0" style={{ fontFamily: 'Georgia, serif' }}>
+            <div className="text-center border-b-2 border-gray-800 pb-4 mb-6">
+              <h2 className="text-lg font-bold tracking-wide uppercase" style={{ letterSpacing: '0.15em' }}>NOTA DE COTIZACION</h2>
             </div>
-            <div className="divide-y divide-gray-100">
-              {items.map((item, idx) => (
-                <div key={idx} className="px-4 py-3 flex items-center justify-between text-sm">
-                  <div className="flex-1 min-w-0">
-                    <span className="text-gray-400 text-xs mr-2">#{idx + 1}</span>
-                    <span className="text-gray-800">{item.descripcion || <em className="text-gray-400">Sin descripción</em>}</span>
-                    <span className="text-gray-400 text-xs ml-2">{item.cantidad} {item.unidad}</span>
+
+            <div className="mb-6 space-y-3">
+              <p className="text-right text-gray-600">Mendoza, {new Date().toLocaleDateString('es-AR', { day: 'numeric', month: 'long', year: 'numeric' })}</p>
+              <div>
+                <p className="font-semibold">Senores:</p>
+                <p>{licitacion.organization || 'Organismo licitante'}</p>
+                <p className="text-gray-600 mt-1">Ref: {licitacion.title}</p>
+                {licitacion.objeto && <p className="text-gray-600">Objeto: {licitacion.objeto}</p>}
+              </div>
+            </div>
+
+            <div className="mb-6 space-y-3">
+              <p>De nuestra mayor consideracion:</p>
+              <p className="text-justify">
+                Por medio de la presente, <strong>{companyData.nombre || '[EMPRESA]'}</strong>
+                {companyData.cuit ? ` (CUIT: ${companyData.cuit})` : ''}
+                {companyData.domicilio ? `, con domicilio en ${companyData.domicilio}` : ''}
+                , tiene el agrado de cotizar lo siguiente:
+              </p>
+            </div>
+
+            {/* Items table */}
+            <div className="mb-6">
+              <p className="font-bold uppercase text-xs tracking-wide mb-2" style={{ letterSpacing: '0.1em' }}>DETALLE DE LA OFERTA</p>
+              <table className="w-full border-collapse border border-gray-400 text-sm">
+                <thead>
+                  <tr className="bg-gray-100">
+                    <th className="border border-gray-400 px-2 py-1.5 text-center w-8">#</th>
+                    <th className="border border-gray-400 px-2 py-1.5 text-left">Descripcion</th>
+                    <th className="border border-gray-400 px-2 py-1.5 text-center w-16">Cant.</th>
+                    <th className="border border-gray-400 px-2 py-1.5 text-center w-14">Ud.</th>
+                    <th className="border border-gray-400 px-2 py-1.5 text-right w-28">P.Unitario</th>
+                    <th className="border border-gray-400 px-2 py-1.5 text-right w-28">Subtotal</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {items.map((item, idx) => (
+                    <tr key={idx}>
+                      <td className="border border-gray-400 px-2 py-1 text-center text-gray-500">{idx + 1}</td>
+                      <td className="border border-gray-400 px-2 py-1">{item.descripcion || '-'}</td>
+                      <td className="border border-gray-400 px-2 py-1 text-center tabular-nums">{item.cantidad}</td>
+                      <td className="border border-gray-400 px-2 py-1 text-center">{item.unidad}</td>
+                      <td className="border border-gray-400 px-2 py-1 text-right tabular-nums">{formatARS(item.precio_unitario || 0)}</td>
+                      <td className="border border-gray-400 px-2 py-1 text-right tabular-nums">{formatARS((item.cantidad || 0) * (item.precio_unitario || 0))}</td>
+                    </tr>
+                  ))}
+                </tbody>
+                <tfoot>
+                  <tr>
+                    <td colSpan={4} />
+                    <td className="border border-gray-400 px-2 py-1 text-right font-medium">Subtotal</td>
+                    <td className="border border-gray-400 px-2 py-1 text-right tabular-nums">{formatARS(subtotal)}</td>
+                  </tr>
+                  <tr>
+                    <td colSpan={4} />
+                    <td className="border border-gray-400 px-2 py-1 text-right font-medium">IVA ({ivaRate}%)</td>
+                    <td className="border border-gray-400 px-2 py-1 text-right tabular-nums">{formatARS(ivaAmount)}</td>
+                  </tr>
+                  <tr className="bg-gray-100 font-bold">
+                    <td colSpan={4} />
+                    <td className="border border-gray-400 px-2 py-2 text-right">TOTAL</td>
+                    <td className="border border-gray-400 px-2 py-2 text-right tabular-nums">{formatARS(total)}</td>
+                  </tr>
+                </tfoot>
+              </table>
+            </div>
+
+            {/* Marco Legal section in document */}
+            {marcoLegal && (
+              <div className="mb-6">
+                <p className="font-bold uppercase text-xs tracking-wide mb-2" style={{ letterSpacing: '0.1em' }}>MARCO LEGAL</p>
+                {marcoLegal.encuadre_legal && <p className="mb-1"><span className="text-gray-600 text-xs font-semibold">Encuadre:</span> {marcoLegal.encuadre_legal}</p>}
+                {marcoLegal.tipo_procedimiento_explicado && <p className="mb-1"><span className="text-gray-600 text-xs font-semibold">Procedimiento:</span> {marcoLegal.tipo_procedimiento_explicado}</p>}
+                {marcoLegal.normativa_aplicable && marcoLegal.normativa_aplicable.length > 0 && (
+                  <p className="text-xs text-gray-600">Normativa: {marcoLegal.normativa_aplicable.join(', ')}</p>
+                )}
+              </div>
+            )}
+
+            {/* Documentacion presentada */}
+            {marcoLegal?.documentacion_obligatoria && marcoLegal.documentacion_obligatoria.length > 0 && (
+              <div className="mb-6">
+                <p className="font-bold uppercase text-xs tracking-wide mb-2" style={{ letterSpacing: '0.1em' }}>DOCUMENTACION ADJUNTA</p>
+                <ul className="space-y-0.5">
+                  {marcoLegal.documentacion_obligatoria.map((doc, i) => (
+                    <li key={i} className="text-sm flex items-center gap-2">
+                      <span>{marcoLegalChecks[`doc-${i}`] ? '☑' : '☐'}</span>
+                      {doc.documento}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+
+            {/* Garantias */}
+            {marcoLegal?.garantias_requeridas && marcoLegal.garantias_requeridas.length > 0 && (
+              <div className="mb-6">
+                <p className="font-bold uppercase text-xs tracking-wide mb-2" style={{ letterSpacing: '0.1em' }}>GARANTIAS</p>
+                {marcoLegal.garantias_requeridas.map((g, i) => (
+                  <p key={i} className="text-sm">{g.tipo}: {g.porcentaje || 'Segun pliego'}{g.forma ? ` (${g.forma})` : ''}</p>
+                ))}
+              </div>
+            )}
+
+            {/* Technical proposal */}
+            {(techData.methodology || techData.plazo || techData.lugar) && (
+              <div className="mb-6">
+                <p className="font-bold uppercase text-xs tracking-wide mb-2" style={{ letterSpacing: '0.1em' }}>PROPUESTA TECNICA</p>
+                {techData.methodology && (
+                  <div className="mb-2">
+                    <p className="text-gray-600 text-xs font-semibold">Metodologia:</p>
+                    <p className="text-justify whitespace-pre-line">{techData.methodology}</p>
                   </div>
-                  <div className="text-right ml-4">
-                    <div className="font-medium text-gray-800 tabular-nums">
-                      {formatARS((item.cantidad || 0) * (item.precio_unitario || 0))}
-                    </div>
-                    <div className="text-xs text-gray-400 tabular-nums">
-                      {formatARS(item.precio_unitario || 0)}/u.
-                    </div>
-                  </div>
+                )}
+                <div className="grid grid-cols-2 gap-x-6 gap-y-1 text-sm">
+                  {techData.plazo && <p><span className="text-gray-600 font-semibold text-xs">Plazo:</span> {techData.plazo}</p>}
+                  {techData.lugar && <p><span className="text-gray-600 font-semibold text-xs">Lugar:</span> {techData.lugar}</p>}
+                  {techData.validez && <p><span className="text-gray-600 font-semibold text-xs">Validez:</span> {techData.validez} dias</p>}
                 </div>
-              ))}
-            </div>
-            <div className="bg-gray-50 px-4 py-3 border-t border-gray-200 space-y-1">
-              <div className="flex justify-between text-sm text-gray-600">
-                <span>Subtotal</span>
-                <span className="tabular-nums">{formatARS(subtotal)}</span>
+                {techData.notas && (
+                  <div className="mt-2">
+                    <p className="text-gray-600 text-xs font-semibold">Condiciones:</p>
+                    <p className="text-justify">{techData.notas}</p>
+                  </div>
+                )}
               </div>
-              <div className="flex justify-between text-sm text-gray-600">
-                <span>IVA ({ivaRate}%)</span>
-                <span className="tabular-nums">{formatARS(ivaAmount)}</span>
+            )}
+
+            {/* Price fundamentation */}
+            {priceIntelligence && priceIntelligence.price_range && (
+              <div className="mb-6">
+                <p className="font-bold uppercase text-xs tracking-wide mb-2" style={{ letterSpacing: '0.1em' }}>FUNDAMENTACION DE PRECIOS</p>
+                <p className="text-sm text-justify">
+                  Los precios ofertados se fundamentan en el analisis de {priceIntelligence.price_range.sample_size} antecedentes
+                  de contrataciones similares, con un rango de referencia entre {formatARS(priceIntelligence.price_range.min)} y {formatARS(priceIntelligence.price_range.max)}
+                  (mediana: {formatARS(priceIntelligence.price_range.median)}).
+                  {priceIntelligence.adjustment_coefficient && priceIntelligence.adjustment_coefficient !== 1 && (
+                    ` Se aplico un coeficiente de ajuste IPC de ${priceIntelligence.adjustment_coefficient.toFixed(2)}.`
+                  )}
+                </p>
+                {priceIntelligence.sources && priceIntelligence.sources.length > 0 && (
+                  <p className="text-xs text-gray-600 mt-1">
+                    Fuentes: {priceIntelligence.sources.map(s => `${s.source} (${s.count})`).join(', ')}
+                  </p>
+                )}
+                {vinculados.length > 0 && (
+                  <p className="text-xs text-gray-600 mt-1">Antecedentes vinculados: {vinculados.length}</p>
+                )}
               </div>
-              <div className="flex justify-between font-bold text-gray-900 text-base pt-1 border-t border-gray-200">
-                <span>TOTAL</span>
-                <span className="tabular-nums">{formatARS(total)}</span>
+            )}
+
+            {/* Company data */}
+            {companyData.nombre && (
+              <div className="mb-6">
+                <p className="font-bold uppercase text-xs tracking-wide mb-2" style={{ letterSpacing: '0.1em' }}>DATOS DEL OFERENTE</p>
+                <p className="font-semibold">{companyData.nombre}</p>
+                {companyData.cuit && <p>CUIT: {companyData.cuit}</p>}
+                {companyData.domicilio && <p>{companyData.domicilio}</p>}
+                <div className="flex gap-6 flex-wrap">
+                  {companyData.telefono && <p>{companyData.telefono}</p>}
+                  {companyData.email && <p>{companyData.email}</p>}
+                </div>
+              </div>
+            )}
+
+            {/* Signature */}
+            <div className="mt-12 pt-4">
+              <p className="text-sm text-gray-500 mb-1">Sin otro particular, saludamos atentamente.</p>
+              <div className="mt-10 w-64">
+                <div className="border-t border-gray-800" />
+                <p className="text-center mt-1 text-xs text-gray-600">Firma y sello</p>
+                {companyData.nombre && <p className="text-center text-xs font-medium">{companyData.nombre}</p>}
               </div>
             </div>
           </div>
 
-          {/* Tech summary */}
-          {(techData.methodology || techData.plazo || techData.lugar) && (
-            <div className="border border-gray-200 rounded-xl p-4 text-sm space-y-2">
-              <span className="text-xs font-semibold text-gray-500 uppercase tracking-wide block mb-2">Propuesta Técnica</span>
-              {techData.methodology && (
-                <p className="text-gray-700 line-clamp-3">{techData.methodology}</p>
-              )}
-              <div className="flex gap-6 text-gray-500 text-xs flex-wrap">
-                {techData.plazo && <span>⏱ Plazo: {techData.plazo}</span>}
-                {techData.lugar && <span>📍 Lugar: {techData.lugar}</span>}
-                {techData.validez && <span>📅 Validez: {techData.validez} días</span>}
-              </div>
-            </div>
-          )}
-
-          {/* Company summary */}
-          {companyData.nombre && (
-            <div className="border border-gray-200 rounded-xl p-4 text-sm">
-              <span className="text-xs font-semibold text-gray-500 uppercase tracking-wide block mb-2">Empresa</span>
-              <p className="font-medium text-gray-800">{companyData.nombre}</p>
-              <div className="text-gray-500 text-xs flex gap-4 flex-wrap mt-1">
-                {companyData.cuit && <span>CUIT: {companyData.cuit}</span>}
-                {companyData.email && <span>{companyData.email}</span>}
-                {companyData.telefono && <span>{companyData.telefono}</span>}
-              </div>
-            </div>
-          )}
-
-          {savedAt && (
-            <p className="text-xs text-gray-400">Guardado automáticamente {savedAt}</p>
-          )}
-
-          {/* Analysis summary if available */}
+          {/* Analysis summary */}
           {analysis && (
-            <div className={`border rounded-xl p-4 text-sm ${
+            <div className={`border rounded-xl p-4 text-sm print:hidden ${
               analysis.win_probability >= 70 ? 'border-emerald-200 bg-emerald-50' :
               analysis.win_probability >= 40 ? 'border-yellow-200 bg-yellow-50' :
               'border-red-200 bg-red-50'
             }`}>
-              <span className="text-xs font-semibold text-gray-500 uppercase tracking-wide block mb-1">Análisis IA</span>
+              <span className="text-xs font-semibold text-gray-500 uppercase tracking-wide block mb-1">Analisis IA</span>
               <div className="flex items-center justify-between">
                 <span className="font-medium text-gray-800">{analysis.veredicto}</span>
-                <span className={`text-lg font-bold ${
-                  analysis.win_probability >= 70 ? 'text-emerald-600' :
-                  analysis.win_probability >= 40 ? 'text-yellow-600' : 'text-red-600'
-                }`}>{analysis.win_probability}% prob.</span>
+                <span className={`text-lg font-bold ${analysis.win_probability >= 70 ? 'text-emerald-600' : analysis.win_probability >= 40 ? 'text-yellow-600' : 'text-red-600'}`}>{analysis.win_probability}% prob.</span>
               </div>
             </div>
           )}
 
-          <div className="flex flex-col sm:flex-row gap-3 pt-2">
-            <button
-              onClick={() => setStep(1)}
-              className="flex items-center justify-center gap-2 px-4 py-2 text-gray-600 hover:text-gray-800 text-sm font-medium rounded-xl hover:bg-gray-100 border border-gray-200 transition-colors"
-            >
-              <span>←</span> Editar
+          {savedAt && <p className="text-xs text-gray-400 print:hidden">Guardado {savedAt}</p>}
+
+          <div className="flex flex-col sm:flex-row gap-3 pt-2 print:hidden">
+            <button onClick={() => setStep(1)} className="flex items-center justify-center gap-2 px-4 py-2 text-gray-600 hover:text-gray-800 text-sm font-medium rounded-xl hover:bg-gray-100 border border-gray-200 transition-colors">
+              Editar
             </button>
-            <button
-              onClick={() => doSave()}
-              disabled={saving}
-              className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 bg-gray-800 hover:bg-gray-900 text-white text-sm font-semibold rounded-xl disabled:opacity-60 transition-colors"
-            >
-              {saving ? <div className="w-4 h-4 border-2 border-white/40 border-t-white rounded-full animate-spin" /> : '💾'}
+            <button onClick={() => doSave()} disabled={saving} className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 bg-gray-800 hover:bg-gray-900 text-white text-sm font-semibold rounded-xl disabled:opacity-60 transition-colors">
+              {saving ? <div className="w-4 h-4 border-2 border-white/40 border-t-white rounded-full animate-spin" /> : null}
               Guardar oferta
             </button>
-            <button
-              onClick={handleGeneratePDF}
-              disabled={generatingPDF || !bid}
-              className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-semibold rounded-xl disabled:opacity-60 transition-colors"
-            >
-              {generatingPDF ? <div className="w-4 h-4 border-2 border-white/40 border-t-white rounded-full animate-spin" /> : '📄'}
-              Generar PDF
+            <button onClick={() => window.print()} className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-semibold rounded-xl transition-colors">
+              Imprimir / Generar PDF
             </button>
           </div>
         </div>
       )}
+
+      {/* Print styles */}
+      <style>{`
+        @media print {
+          body * { visibility: hidden; }
+          .print\\:border-none, .print\\:border-none * { visibility: visible; }
+          .print\\:hidden { display: none !important; }
+          @page { margin: 2cm; }
+          table { page-break-inside: avoid; }
+        }
+      `}</style>
     </div>
   );
 }

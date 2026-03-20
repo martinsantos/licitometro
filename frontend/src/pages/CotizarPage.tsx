@@ -3,7 +3,7 @@ import { useSearchParams, Link, useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import MarketDataBanner from '../components/cotizar/MarketDataBanner';
 import OfertaEditor from '../components/cotizar/OfertaEditor';
-import { useCotizarAPI, CotizarBid } from '../hooks/useCotizarAPI';
+import { useCotizarAPI, MongoCotizacion } from '../hooks/useCotizarAPI';
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL || '';
 
@@ -16,7 +16,7 @@ interface Licitacion {
   budget?: number | null;
   estado?: string;
   workflow_state?: string;
-  items?: Array<{ description?: string; unit?: string; quantity?: number }>;
+  items?: Array<Record<string, unknown>>;
 }
 
 function formatARS(n: number) {
@@ -90,32 +90,16 @@ function LicitacionCard({
   );
 }
 
-// ── Tab: Mis Cotizaciones ─────────────────────────────────────────────────────
+// ── Tab: Mis Cotizaciones (reads from MongoDB) ────────────────────────────────
 function MisCotizacionesTab({ onSelect }: { onSelect: (id: string) => void }) {
   const api = useCotizarAPI();
-  const [bids, setBids] = useState<CotizarBid[]>([]);
-  const [licitaciones, setLicitaciones] = useState<Record<string, Licitacion>>({});
+  const [cotizaciones, setCotizaciones] = useState<MongoCotizacion[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    api.listBids()
-      .then(async bs => {
-        setBids(bs);
-        // Fetch licitacion details for each bid
-        const ids = Array.from(new Set(bs.map(b => b.licitometroId).filter(Boolean) as string[]));
-        const results = await Promise.allSettled(
-          ids.map(id =>
-            axios.get<Licitacion>(`${BACKEND_URL}/api/licitaciones/${id}`, { withCredentials: true })
-              .then(r => r.data)
-          )
-        );
-        const map: Record<string, Licitacion> = {};
-        results.forEach((r, i) => {
-          if (r.status === 'fulfilled') map[ids[i]] = r.value;
-        });
-        setLicitaciones(map);
-      })
-      .catch(() => setBids([]))
+    api.listCotizacionesFromMongo(true)
+      .then(cs => setCotizaciones(cs))
+      .catch(() => setCotizaciones([]))
       .finally(() => setLoading(false));
   }, []);
 
@@ -128,13 +112,13 @@ function MisCotizacionesTab({ onSelect }: { onSelect: (id: string) => void }) {
     );
   }
 
-  if (bids.length === 0) {
+  if (cotizaciones.length === 0) {
     return (
       <div className="text-center py-14 space-y-3">
         <div className="text-5xl">📋</div>
-        <h3 className="font-semibold text-gray-700">Sin cotizaciones aún</h3>
+        <h3 className="font-semibold text-gray-700">Sin cotizaciones aun</h3>
         <p className="text-sm text-gray-400 max-w-xs mx-auto">
-          Encontrá una licitación activa o en favoritos y presioná "Cotizar".
+          Encontra una licitacion activa o en favoritos y presiona "Cotizar".
         </p>
       </div>
     );
@@ -142,50 +126,54 @@ function MisCotizacionesTab({ onSelect }: { onSelect: (id: string) => void }) {
 
   return (
     <div className="space-y-3">
-      {bids.map(bid => {
-        const lic = bid.licitometroId ? licitaciones[bid.licitometroId] : undefined;
-        const total = bid.commercialOffer?.total || bid.total || 0;
-        return (
-          <div
-            key={bid.id}
-            className="flex items-start gap-3 p-4 bg-white rounded-xl border border-gray-100 hover:border-blue-200 hover:shadow-sm transition-all group"
-          >
-            <div className="flex-1 min-w-0">
-              <p className="font-medium text-gray-800 text-sm line-clamp-2">
-                {lic ? (lic.objeto || lic.title) : (bid.licitometroId || 'Cotización sin título')}
-              </p>
-              <div className="flex items-center gap-3 mt-1.5 flex-wrap">
-                {lic?.organization && (
-                  <span className="text-xs text-gray-500">{lic.organization}</span>
-                )}
-                {lic?.opening_date && (
-                  <UrgencyBadge opening_date={lic.opening_date} />
-                )}
-                {total > 0 && (
-                  <span className="text-xs font-semibold text-gray-700 tabular-nums">
-                    {formatARS(total)}
-                  </span>
-                )}
-                {bid.updated_at && (
-                  <span className="text-xs text-gray-400">
-                    Editado {new Date(bid.updated_at).toLocaleDateString('es-AR')}
-                  </span>
-                )}
-              </div>
-            </div>
-            <div className="shrink-0">
-              {bid.licitometroId && (
-                <button
-                  onClick={() => onSelect(bid.licitometroId!)}
-                  className="text-xs font-semibold px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors"
-                >
-                  Continuar →
-                </button>
+      {cotizaciones.map(cot => (
+        <div
+          key={cot.id}
+          className="flex items-start gap-3 p-4 bg-white rounded-xl border border-gray-100 hover:border-blue-200 hover:shadow-sm transition-all group"
+        >
+          <div className="flex-1 min-w-0">
+            <p className="font-medium text-gray-800 text-sm line-clamp-2">
+              {cot.licitacion_objeto || cot.licitacion_title || 'Cotizacion sin titulo'}
+            </p>
+            <div className="flex items-center gap-3 mt-1.5 flex-wrap">
+              {cot.organization && (
+                <span className="text-xs text-gray-500">{cot.organization}</span>
+              )}
+              {cot.total > 0 && (
+                <span className="text-xs font-semibold text-gray-700 tabular-nums">
+                  {formatARS(cot.total)}
+                </span>
+              )}
+              {cot.budget != null && cot.budget > 0 && (
+                <span className="text-xs text-gray-400">PO: {formatARS(cot.budget)}</span>
+              )}
+              <UrgencyBadge opening_date={cot.opening_date} />
+              {cot.status && (
+                <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${
+                  cot.status === 'completada' ? 'bg-emerald-50 text-emerald-700' :
+                  cot.status === 'enviada' ? 'bg-blue-50 text-blue-700' :
+                  'bg-gray-100 text-gray-600'
+                }`}>
+                  {cot.status === 'borrador' ? 'En proceso' : cot.status}
+                </span>
+              )}
+              {cot.updated_at && (
+                <span className="text-xs text-gray-400">
+                  Editado {new Date(cot.updated_at).toLocaleDateString('es-AR')}
+                </span>
               )}
             </div>
           </div>
-        );
-      })}
+          <div className="shrink-0">
+            <button
+              onClick={() => onSelect(cot.licitacion_id)}
+              className="text-xs font-semibold px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors"
+            >
+              Continuar
+            </button>
+          </div>
+        </div>
+      ))}
     </div>
   );
 }
@@ -322,22 +310,31 @@ function FavoritosTab({
 }) {
   const [licitaciones, setLicitaciones] = useState<Licitacion[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
 
   useEffect(() => {
-    const saved = JSON.parse(localStorage.getItem('savedLicitaciones') || '[]') as string[];
-    if (saved.length === 0) { setLoading(false); return; }
+    const raw = localStorage.getItem('savedLicitaciones');
+    let saved: string[] = [];
+    try { saved = JSON.parse(raw || '[]'); } catch { saved = []; }
+    if (!Array.isArray(saved) || saved.length === 0) { setLoading(false); return; }
 
     Promise.allSettled(
       saved.map(id =>
-        axios.get<Licitacion>(`${BACKEND_URL}/api/licitaciones/${id}`, { withCredentials: true })
-          .then(r => r.data)
+        axios.get(`${BACKEND_URL}/api/licitaciones/${id}`, { withCredentials: true })
+          .then(r => {
+            const d = r.data;
+            // Ensure id field is present (API returns it from licitacion_entity)
+            return { ...d, id: d.id || id } as Licitacion;
+          })
       )
     ).then(results => {
-      setLicitaciones(
-        results
-          .filter((r): r is PromiseFulfilledResult<Licitacion> => r.status === 'fulfilled')
-          .map(r => r.value)
-      );
+      const loaded = results
+        .filter((r): r is PromiseFulfilledResult<Licitacion> => r.status === 'fulfilled')
+        .map(r => r.value);
+      setLicitaciones(loaded);
+      if (loaded.length === 0 && saved.length > 0) {
+        setError('No se pudieron cargar los favoritos. Verificá tu conexión.');
+      }
     }).finally(() => setLoading(false));
   }, []);
 
@@ -350,16 +347,27 @@ function FavoritosTab({
     );
   }
 
+  if (error) {
+    return (
+      <div className="text-center py-14 space-y-3">
+        <p className="text-sm text-red-500">{error}</p>
+        <Link to="/licitaciones" className="text-sm text-blue-600 hover:underline">
+          Ir a licitaciones
+        </Link>
+      </div>
+    );
+  }
+
   if (licitaciones.length === 0) {
     return (
       <div className="text-center py-14 space-y-3">
         <div className="text-5xl">⭐</div>
         <h3 className="font-semibold text-gray-700">Sin favoritos</h3>
         <p className="text-sm text-gray-400 max-w-xs mx-auto">
-          Guardá licitaciones con el ícono de estrella para acceder rápido desde acá.
+          Guarda licitaciones con el icono de estrella para acceder rapido desde aca.
         </p>
         <Link to="/licitaciones" className="text-sm text-blue-600 hover:underline">
-          Ver licitaciones →
+          Ver licitaciones
         </Link>
       </div>
     );
@@ -384,21 +392,17 @@ function FavoritosTab({
 function CotizarHome({ onSelect }: { onSelect: (id: string) => void }) {
   const api = useCotizarAPI();
   const [tab, setTab] = useState<'cotizaciones' | 'activas' | 'favoritos'>('favoritos');
-  const [bids, setBids] = useState<CotizarBid[]>([]);
+  const [cotCount, setCotCount] = useState(0);
+  const [bidIds, setBidIds] = useState<Set<string>>(new Set());
 
-  // Load bids once to mark which licitaciones are in-progress
-  // If there are active bids, switch default tab to cotizaciones
+  // Load cotizaciones count from MongoDB + bid IDs for marking active
   useEffect(() => {
-    api.listBids().then(bs => {
-      setBids(bs);
-      if (bs.length > 0) setTab(t => t === 'favoritos' ? 'cotizaciones' : t);
+    api.listCotizacionesFromMongo().then(cs => {
+      setCotCount(cs.length);
+      setBidIds(new Set(cs.map(c => c.licitacion_id)));
+      if (cs.length > 0) setTab(t => t === 'favoritos' ? 'cotizaciones' : t);
     }).catch(() => {});
   }, []);
-
-  const bidIds = useMemo(
-    () => new Set(bids.map(b => b.licitometroId).filter(Boolean) as string[]),
-    [bids]
-  );
 
   const TABS = [
     { id: 'favoritos' as const, label: 'Favoritos', icon: '⭐' },
@@ -422,9 +426,9 @@ function CotizarHome({ onSelect }: { onSelect: (id: string) => void }) {
           >
             <span className="hidden sm:inline">{t.icon}</span>
             <span className="truncate">{t.label}</span>
-            {t.id === 'cotizaciones' && bids.length > 0 && (
+            {t.id === 'cotizaciones' && cotCount > 0 && (
               <span className="bg-blue-100 text-blue-700 text-xs px-1.5 py-0.5 rounded-full font-semibold min-w-[20px] text-center">
-                {bids.length}
+                {cotCount}
               </span>
             )}
           </button>

@@ -23,7 +23,7 @@ Texto:
 
 Objeto:"""
 
-PROMPT_ITEMS = """Dado el siguiente texto de un pliego de licitación pública argentina, extrae los items o renglones solicitados. Para cada item devuelve: descripcion, cantidad (número), unidad (u./kg/m/m²/m³/hs/gl/l/tn).
+PROMPT_ITEMS = """Dado el siguiente texto de un pliego de licitación pública argentina, extrae los items o renglones que el organismo solicita y que la empresa oferente deberá cotizar. Para cada item devuelve: descripcion, cantidad (número), unidad (u./kg/m/m²/m³/hs/gl/l/tn).
 
 Responde SOLO con JSON válido, array de objetos con campos: descripcion, cantidad, unidad.
 Si no hay items claros, responde con [].
@@ -33,19 +33,31 @@ Texto:
 
 JSON:"""
 
-PROMPT_PROPUESTA = """Eres un consultor experto en licitaciones públicas argentinas. Genera una propuesta técnica para la siguiente licitación:
+PROMPT_PROPUESTA = """Eres un consultor que redacta propuestas técnicas para empresas que VENDEN servicios al Estado argentino. Redactá la propuesta DESDE EL PUNTO DE VISTA DEL OFERENTE (la empresa que se presenta a licitar), NO del organismo que licita.
+
+Usá primera persona plural: "Proponemos...", "Nuestra metodología...", "Contamos con experiencia en..."
+El tono debe ser profesional, persuasivo y orientado a ganar la licitación.
+
+Licitación:
+{context}
+
+Responde SOLO con JSON válido (sin markdown, sin backticks):
+{{"metodologia": "Propuesta de metodología desde el POV del oferente (3-4 párrafos, español formal, primera persona plural)", "plazo": "Plazo de ejecución que nos comprometemos a cumplir", "lugar": "Lugar de entrega/prestación comprometido", "notas": "Condiciones comerciales que ofrecemos como empresa"}}"""
+
+PROMPT_MARCO_LEGAL = """Eres un experto en contrataciones públicas argentinas. Analiza el siguiente contexto de una licitación y extrae el marco legal completo para que una empresa pueda preparar su oferta correctamente.
+
+Contexto:
+{context}
+
+Responde SOLO con JSON válido (sin markdown, sin backticks):
+{{"encuadre_legal": "Ley/decreto que encuadra la contratación", "tipo_procedimiento_explicado": "Explicación del tipo de procedimiento y sus implicancias", "requisitos_habilitacion": ["Requisito 1", "Requisito 2"], "documentacion_obligatoria": [{{"documento": "Certificado fiscal", "descripcion": "...", "donde_obtener": "AFIP"}}], "garantias_requeridas": [{{"tipo": "Garantía de oferta", "porcentaje": "5%", "monto_estimado": null, "forma": "Póliza de caución o depósito bancario"}}], "plazos_legales": [{{"concepto": "Mantenimiento de oferta", "plazo": "30 días"}}], "normativa_aplicable": ["Ley 8706 de Mendoza", "Decreto 1000/15"], "guia_paso_a_paso": ["1. Obtener el pliego", "2. Constituir garantía de oferta", "3. Preparar documentación"]}}"""
+
+PROMPT_ANALYZE = """Eres un consultor experto que asesora empresas que se presentan a licitaciones públicas argentinas. Evaluá esta cotización desde la perspectiva del oferente para maximizar sus chances de ganar.
 
 {context}
 
 Responde SOLO con JSON válido (sin markdown, sin backticks):
-{{"metodologia": "Descripción de la metodología de ejecución (3-4 párrafos, español formal)", "plazo": "Plazo estimado de ejecución (ej: 30 días hábiles)", "lugar": "Lugar de entrega/prestación inferido", "notas": "Condiciones especiales o recomendaciones"}}"""
-
-PROMPT_ANALYZE = """Eres un experto en licitaciones públicas argentinas. Analiza esta cotización y evalúa si conviene presentarse:
-
-{context}
-
-Responde SOLO con JSON válido (sin markdown, sin backticks):
-{{"precio": {{"score": 75, "color": "green", "detail": "El precio es competitivo..."}}, "metodologia": {{"score": 60, "color": "yellow", "detail": "La metodología..."}}, "empresa": {{"score": 80, "color": "green", "detail": "La empresa..."}}, "cronograma": {{"score": 70, "color": "green", "detail": "El plazo..."}}, "win_probability": 65, "riesgos": [{{"tipo": "Precio", "nivel": "medio", "detalle": "Descripción del riesgo..."}}], "recomendaciones": ["Recomendación 1", "Recomendación 2"], "veredicto": "Recomendado", "resumen": "Explicación breve de si conviene presentarse"}}"""
+{{"precio": {{"score": 75, "color": "green", "detail": "Evaluación del precio ofertado vs presupuesto oficial..."}}, "metodologia": {{"score": 60, "color": "yellow", "detail": "Evaluación de la propuesta técnica del oferente..."}}, "empresa": {{"score": 80, "color": "green", "detail": "Evaluación del perfil de la empresa oferente..."}}, "cronograma": {{"score": 70, "color": "green", "detail": "Evaluación del plazo comprometido..."}}, "win_probability": 65, "riesgos": [{{"tipo": "Precio", "nivel": "medio", "detalle": "Riesgo identificado para el oferente..."}}], "recomendaciones": ["Qué debería mejorar el oferente para ganar..."], "veredicto": "Recomendado/No recomendado presentarse", "resumen": "Resumen ejecutivo para el oferente sobre si conviene presentarse y por qué"}}"""
 
 
 class GroqEnrichmentService:
@@ -70,6 +82,24 @@ class GroqEnrichmentService:
                 self.enabled = False
                 return None
         return self._client
+
+    def _extract_json(self, content: str, expect_array: bool = False):
+        """Extract JSON object or array from LLM response text.
+
+        Returns parsed dict/list on success, None on failure.
+        """
+        try:
+            if expect_array:
+                start = content.find("[")
+                end = content.rfind("]") + 1
+            else:
+                start = content.find("{")
+                end = content.rfind("}") + 1
+            if start >= 0 and end > start:
+                return json.loads(content[start:end])
+        except (json.JSONDecodeError, ValueError) as e:
+            logger.debug(f"JSON extraction failed: {e}")
+        return None
 
     async def extract_objeto(self, title: str, description: str) -> Optional[str]:
         """Extract objeto from title + description using Groq LLM.
@@ -124,12 +154,8 @@ class GroqEnrichmentService:
             )
             content = response.choices[0].message.content.strip()
 
-            # Extract JSON from response
-            start = content.find("[")
-            end = content.rfind("]") + 1
-            if start >= 0 and end > start:
-                items_json = content[start:end]
-                items = json.loads(items_json)
+            items = self._extract_json(content, expect_array=True)
+            if items and isinstance(items, list):
                 # Validate and normalize
                 result = []
                 for item in items:
@@ -161,11 +187,9 @@ class GroqEnrichmentService:
                 temperature=0.3,
             )
             content = response.choices[0].message.content.strip()
-            # Extract JSON from response
-            start = content.find("{")
-            end = content.rfind("}") + 1
-            if start >= 0 and end > start:
-                return json.loads(content[start:end])
+            result = self._extract_json(content)
+            if result and isinstance(result, dict) and "metodologia" in result:
+                return result
             return {"metodologia": content, "plazo": "", "lugar": "", "notas": ""}
         except Exception as e:
             logger.warning(f"Groq suggest_propuesta failed: {e}")
@@ -196,14 +220,121 @@ class GroqEnrichmentService:
                 temperature=0.3,
             )
             content = response.choices[0].message.content.strip()
-            start = content.find("{")
-            end = content.rfind("}") + 1
-            if start >= 0 and end > start:
-                return json.loads(content[start:end])
+            result = self._extract_json(content)
+            if result and isinstance(result, dict) and any(
+                k in result for k in ("precio", "win_probability", "veredicto")
+            ):
+                return result
             return {"error": "Respuesta IA no válida", "raw": content[:500]}
         except Exception as e:
             logger.warning(f"Groq analyze_bid failed: {e}")
             return {"error": str(e), "veredicto": "Error", "resumen": f"Error en análisis: {e}"}
+
+    async def extract_marco_legal(self, context: str) -> Dict[str, Any]:
+        """Extract legal framework analysis for bidding preparation."""
+        client = self._get_client()
+        if not client:
+            return {"error": "IA no disponible"}
+
+        try:
+            response = await asyncio.to_thread(
+                client.chat.completions.create,
+                model=GROQ_MODEL,
+                messages=[{"role": "user", "content": PROMPT_MARCO_LEGAL.format(context=context)}],
+                max_tokens=1200,
+                temperature=0.2,
+            )
+            content = response.choices[0].message.content.strip()
+            result = self._extract_json(content)
+            if result and isinstance(result, dict):
+                return result
+            return {"error": "Respuesta IA no válida", "raw": content[:500]}
+        except Exception as e:
+            logger.warning(f"Groq extract_marco_legal failed: {e}")
+            return {"error": str(e)}
+
+    async def extract_pliego_info(self, pliego_text: str) -> Dict[str, Any]:
+        """Deep extraction of pliego information for bidders."""
+        client = self._get_client()
+        if not client:
+            return {"error": "IA no disponible", "items": [], "info_faltante": []}
+
+        prompt = f"""Analiza este pliego/descripción de licitación pública argentina y extrae TODA la información relevante para que una empresa pueda cotizar:
+
+{pliego_text[:4000]}
+
+Responde SOLO con JSON válido (sin markdown, sin backticks):
+{{"items": [{{"descripcion": "...", "cantidad": 1, "unidad": "u."}}], "requisitos_tecnicos": ["Requisito 1"], "documentacion_requerida": ["Doc 1"], "plazo_ejecucion": "30 días hábiles", "lugar_entrega": "...", "garantias": {{"oferta": "5%", "cumplimiento": "10%"}}, "presupuesto_oficial": null, "fecha_apertura": null, "condiciones_especiales": [], "info_faltante": ["Lista de datos que NO se encontraron y habría que consultar al organismo"]}}"""
+
+        try:
+            response = await asyncio.to_thread(
+                client.chat.completions.create,
+                model=GROQ_MODEL,
+                messages=[{"role": "user", "content": prompt}],
+                max_tokens=1200,
+                temperature=0.2,
+            )
+            content = response.choices[0].message.content.strip()
+            result = self._extract_json(content)
+            if result and isinstance(result, dict):
+                # Normalize items
+                if "items" in result:
+                    result["items"] = [
+                        {
+                            "descripcion": str(it.get("descripcion", ""))[:200],
+                            "cantidad": float(it.get("cantidad", 1) or 1),
+                            "unidad": str(it.get("unidad", "u."))[:20],
+                        }
+                        for it in result["items"]
+                        if isinstance(it, dict) and it.get("descripcion")
+                    ][:50]
+                return result
+            return {"error": "Respuesta IA no válida", "items": [], "info_faltante": []}
+        except Exception as e:
+            logger.warning(f"Groq extract_pliego_info failed: {e}")
+            return {"error": str(e), "items": [], "info_faltante": []}
+
+
+    async def _cached_call(self, db, prompt: str, max_tokens: int = 800, temperature: float = 0.3) -> Optional[str]:
+        """Call Groq with optional DB-backed cache. Returns raw content string."""
+        import hashlib
+        prompt_hash = hashlib.md5(prompt.encode()).hexdigest()
+
+        # Check cache
+        if db is not None:
+            try:
+                cached = await db.ai_cache.find_one({"prompt_hash": prompt_hash})
+                if cached:
+                    return cached.get("content")
+            except Exception:
+                pass
+
+        client = self._get_client()
+        if not client:
+            return None
+
+        response = await asyncio.to_thread(
+            client.chat.completions.create,
+            model=GROQ_MODEL,
+            messages=[{"role": "user", "content": prompt}],
+            max_tokens=max_tokens,
+            temperature=temperature,
+        )
+        content = response.choices[0].message.content.strip()
+
+        # Store in cache
+        if db is not None and content:
+            try:
+                from datetime import datetime, timezone
+                await db.ai_cache.update_one(
+                    {"prompt_hash": prompt_hash},
+                    {"$set": {"prompt_hash": prompt_hash, "content": content, "created_at": datetime.now(timezone.utc)}},
+                    upsert=True,
+                )
+            except Exception:
+                pass
+
+        return content
 
 
 _groq_service: Optional[GroqEnrichmentService] = None
