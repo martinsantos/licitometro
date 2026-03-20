@@ -87,7 +87,7 @@ class UMAntecedenteService:
         needs_refresh = (
             not latest
             or not latest.get("cached_at")
-            or (datetime.now(timezone.utc) - latest["cached_at"]) > timedelta(hours=CACHE_TTL_HOURS)
+            or (datetime.utcnow() - latest["cached_at"]) > timedelta(hours=CACHE_TTL_HOURS)
         )
         if needs_refresh:
             try:
@@ -133,7 +133,7 @@ class UMAntecedenteService:
 
     async def _refresh_from_website(self) -> int:
         """Primary: scrape ultimamilla.com.ar/antecedentes (26 pages × 20 items)."""
-        now = datetime.now(timezone.utc)
+        now = datetime.utcnow()
         total = 0
 
         async with aiohttp.ClientSession(
@@ -366,7 +366,7 @@ class UMAntecedenteService:
 
     async def _refresh_from_sgi_only(self) -> int:
         """Fallback: populate cache from SGI API only (when website is down)."""
-        now = datetime.now(timezone.utc)
+        now = datetime.utcnow()
         total = 0
 
         try:
