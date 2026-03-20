@@ -456,25 +456,45 @@ class MendozaCompraScraperV2(BaseScraper):
                         
                         # Give it a moment to settle
                         time.sleep(0.5)
-                        
+
                         current_url = driver.current_url
-                        
+
                         # Check if we got a good URL
                         if current_url and "comprar.mendoza.gov.ar" in current_url:
                             if "Compras.aspx?qs=" not in current_url:
-                                # Good URL!
+                                best_url = current_url
                                 url_type = "unknown"
+
                                 if "VistaPreviaPliegoCiudadano" in current_url:
                                     url_type = "pliego"
                                 elif "ComprasElectronicas" in current_url:
+                                    # ComprasElectronicas is session-dependent.
+                                    # Search the rendered page for a stable VistaPreviaPliegoCiudadano link.
                                     url_type = "electronicas"
-                                
-                                mapping[numero] = current_url
-                                self.url_cache.set(numero, current_url, url_type)
+                                    try:
+                                        pliego_links = driver.find_elements(By.PARTIAL_LINK_TEXT, "")
+                                        page_html = driver.page_source
+                                        pliego_match = re.search(
+                                            r'href="([^"]*VistaPreviaPliegoCiudadano\.aspx\?qs=[^"]+)"',
+                                            page_html
+                                        )
+                                        if pliego_match:
+                                            pliego_href = pliego_match.group(1)
+                                            if not pliego_href.startswith("http"):
+                                                pliego_href = f"https://comprar.mendoza.gov.ar{pliego_href}"
+                                            best_url = pliego_href
+                                            url_type = "pliego"
+                                            if idx < 3:
+                                                logger.info(f"Upgraded {numero}: ComprasElectronicas → VistaPreviaPliego")
+                                    except Exception as e2:
+                                        logger.debug(f"Pliego link search failed for {numero}: {e2}")
+
+                                mapping[numero] = best_url
+                                self.url_cache.set(numero, best_url, url_type)
                                 self.stats['pliego_urls_found'] += 1
-                                
+
                                 if idx < 3:
-                                    logger.info(f"Found URL via navigation for {numero}: {current_url}")
+                                    logger.info(f"Found URL via navigation for {numero}: {best_url}")
                         
                         # Go back to list
                         driver.get(list_url)
@@ -700,7 +720,21 @@ class MendozaCompraScraperV2(BaseScraper):
                     pliego_html = await self.fetch_page(pliego_url)
                     if pliego_html:
                         soup = BeautifulSoup(pliego_html, 'html.parser')
-                        for lab in soup.find_all('label'):
+                        labels = soup.find_all('label')
+
+                        # If no labels found AND URL is ComprasElectronicas (session-expired),
+                        # try to find a VistaPreviaPliegoCiudadano link on the page
+                        if not labels and "ComprasElectronicas" in pliego_url:
+                            pliego_link = self._extract_pliego_url_from_detail(pliego_html, pliego_url)
+                            if pliego_link and "VistaPreviaPliegoCiudadano" in pliego_link:
+                                logger.info(f"Found VistaPreviaPliego link in ComprasElectronicas page for {numero}")
+                                pliego_url = pliego_link
+                                pliego_html = await self.fetch_page(pliego_url)
+                                if pliego_html:
+                                    soup = BeautifulSoup(pliego_html, 'html.parser')
+                                    labels = soup.find_all('label')
+
+                        for lab in labels:
                             key = lab.get_text(' ', strip=True)
                             if not key:
                                 continue

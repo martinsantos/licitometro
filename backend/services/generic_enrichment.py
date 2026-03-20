@@ -251,6 +251,174 @@ class GenericEnrichmentService:
 
         return updates
 
+    # ---- COMPR.AR enrichment ----
+
+    async def _enrich_comprar(self, lic_doc: dict, source_url: str) -> Dict[str, Any]:
+        """Enrich COMPR.AR items using label-based extraction from pliego pages.
+
+        VistaPreviaPliegoCiudadano URLs are stable and contain label/sibling pairs.
+        ComprasElectronicas URLs are session-dependent — try metadata for a better URL.
+        """
+        # Determine the best URL to fetch
+        fetch_url = source_url
+        meta = lic_doc.get("metadata", {}) or {}
+
+        if "VistaPreviaPliegoCiudadano" not in source_url:
+            # source_url is ComprasElectronicas (session-dependent, useless).
+            # Check metadata for a stable pliego URL.
+            pliego_url = meta.get("comprar_pliego_url", "")
+            if pliego_url and "VistaPreviaPliegoCiudadano" in pliego_url:
+                fetch_url = pliego_url
+            else:
+                # No stable URL available — do title-only enrichment
+                logger.debug(f"COMPR.AR: no stable pliego URL for {source_url[:60]}")
+                return self._enrich_comprar_title_only(lic_doc)
+
+        try:
+            html = await self.http.fetch(fetch_url)
+        except Exception as e:
+            logger.warning(f"COMPR.AR fetch failed: {e}")
+            return self._enrich_comprar_title_only(lic_doc)
+
+        if not html:
+            return self._enrich_comprar_title_only(lic_doc)
+
+        soup = BeautifulSoup(html, "html.parser")
+        labels = soup.find_all("label")
+        if not labels:
+            # Page didn't render properly (portal homepage instead of detail)
+            logger.warning(f"COMPR.AR: no labels found at {fetch_url[:60]} — portal page?")
+            return self._enrich_comprar_title_only(lic_doc)
+
+        # Extract label → value pairs
+        fields: Dict[str, str] = {}
+        for lab in labels:
+            key = lab.get_text(" ", strip=True)
+            if not key:
+                continue
+            nxt = lab.find_next_sibling()
+            val = nxt.get_text(" ", strip=True) if nxt else ""
+            if val:
+                fields[key] = val
+
+        if not fields:
+            return self._enrich_comprar_title_only(lic_doc)
+
+        updates: Dict[str, Any] = {}
+
+        # Extract structured fields
+        description = fields.get("Objeto de la contratación") or fields.get("Objeto")
+        if description:
+            current_desc = lic_doc.get("description", "") or ""
+            if len(description) > len(current_desc) + 10:
+                updates["description"] = description[:MAX_DESCRIPTION_LEN]
+            if not lic_doc.get("objeto"):
+                updates["objeto"] = description[:200]
+
+        nombre = fields.get("Nombre descriptivo del proceso") or fields.get("Nombre descriptivo de proceso")
+        if nombre and len(nombre.strip()) > 10:
+            from utils.object_extractor import is_poor_title
+            if is_poor_title(lic_doc.get("title", "")):
+                updates["title"] = nombre.strip()
+
+        exp = fields.get("Número de expediente") or fields.get("Número de Expediente")
+        if exp and not lic_doc.get("expedient_number"):
+            updates["expedient_number"] = exp.replace("&nbsp", " ").strip()
+
+        contact = fields.get("Lugar de recepción de documentación física")
+        if contact and not lic_doc.get("contact"):
+            updates["contact"] = contact
+
+        currency = fields.get("Moneda")
+        if currency and not lic_doc.get("currency"):
+            updates["currency"] = currency
+
+        # Budget from pliego fields
+        for budget_key in ["Presupuesto oficial", "Monto estimado", "Presupuesto"]:
+            raw = fields.get(budget_key, "")
+            if raw:
+                budget_val, _ = self._extract_budget_from_text(f"presupuesto: {raw}")
+                if budget_val and not lic_doc.get("budget"):
+                    updates["budget"] = budget_val
+                    if not lic_doc.get("currency"):
+                        updates["currency"] = currency or "ARS"
+                    break
+
+        # Opening date from pliego (if missing)
+        if not lic_doc.get("opening_date"):
+            raw_apertura = fields.get("Fecha y hora acto de apertura") or fields.get("Fecha de Apertura")
+            if raw_apertura:
+                dt = parse_date_guess(raw_apertura)
+                if dt:
+                    updates["opening_date"] = dt
+
+        # Publication date from pliego (if missing)
+        if not lic_doc.get("publication_date"):
+            raw_pub = fields.get("Fecha y hora estimada de publicación en el portal") or fields.get("Fecha de publicación")
+            if raw_pub:
+                dt = parse_date_guess(raw_pub)
+                if dt:
+                    updates["publication_date"] = dt
+
+        # Store pliego fields in metadata and update source_url if we used a better one
+        meta_updates = dict(meta)
+        meta_updates["comprar_pliego_fields"] = fields
+        if fetch_url != source_url:
+            meta_updates["comprar_pliego_url"] = fetch_url
+            updates["source_url"] = fetch_url
+            updates["canonical_url"] = fetch_url
+            updates["url_quality"] = "direct"
+            source_urls = lic_doc.get("source_urls", {}) or {}
+            source_urls["comprar_pliego"] = fetch_url
+            updates["source_urls"] = source_urls
+        updates["metadata"] = meta_updates
+
+        # Auto-classify category
+        if not lic_doc.get("category"):
+            from services.category_classifier import get_category_classifier
+            classifier = get_category_classifier()
+            title = updates.get("title", lic_doc.get("title", ""))
+            objeto = updates.get("objeto", lic_doc.get("objeto", ""))
+            cat = classifier.classify(title=title, objeto=objeto)
+            if not cat:
+                desc_short = (updates.get("description", lic_doc.get("description", "")) or "")[:500]
+                cat = classifier.classify(title=title, objeto=objeto, description=desc_short)
+            if cat:
+                updates["category"] = cat
+
+        if updates:
+            updates["last_enrichment"] = datetime.utcnow()
+            updates["updated_at"] = datetime.utcnow()
+            logger.info(f"COMPR.AR enrichment: {len(fields)} pliego fields, {len(updates)} updates")
+
+        return updates
+
+    def _enrich_comprar_title_only(self, lic_doc: dict) -> Dict[str, Any]:
+        """Fallback enrichment for COMPR.AR items without stable pliego URL.
+        Extracts objeto and category from existing title/description."""
+        updates: Dict[str, Any] = {}
+
+        if not lic_doc.get("objeto"):
+            from utils.object_extractor import extract_objeto
+            obj = extract_objeto(
+                title=lic_doc.get("title", ""),
+                description=lic_doc.get("description", "") or "",
+                metadata=lic_doc.get("metadata", {}),
+            )
+            if obj:
+                updates["objeto"] = obj
+
+        if not lic_doc.get("category"):
+            from services.category_classifier import get_category_classifier
+            classifier = get_category_classifier()
+            title = lic_doc.get("title", "")
+            objeto = updates.get("objeto", lic_doc.get("objeto", ""))
+            cat = classifier.classify(title=title, objeto=objeto)
+            if cat:
+                updates["category"] = cat
+
+        return updates
+
     # ---- Main enrich method ----
 
     async def enrich(self, lic_doc: dict, selectors: Optional[dict] = None) -> Dict[str, Any]:
@@ -268,13 +436,10 @@ class GenericEnrichmentService:
         if not source_url:
             return {}
 
-        # COMPR.AR URLs with session params (qs=...) expire and redirect to login.
-        # Skip enrichment entirely for COMPR.AR items — they are "good enough" at scrape time
-        # with title, org, dates, tipo from the listings page. Enrichment won't add significant value.
-        is_comprar_session = "comprar.mendoza.gov.ar" in source_url and "qs=" in source_url
-        if is_comprar_session:
-            logger.debug(f"Skipping COMPR.AR session URL (expires, already enriched at scrape): {source_url[:80]}")
-            return {}
+        # COMPR.AR: VistaPreviaPliegoCiudadano URLs are STABLE and contain rich data.
+        # ComprasElectronicas URLs are SESSION-DEPENDENT and resolve to the portal homepage.
+        if "comprar.mendoza.gov.ar" in source_url and "qs=" in source_url:
+            return await self._enrich_comprar(lic_doc, source_url)
 
         # Handle binary URLs (PDF/ZIP) before attempting HTML fetch
         url_lower = source_url.lower().split("?")[0].split("#")[0]
