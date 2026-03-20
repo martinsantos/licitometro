@@ -1386,18 +1386,17 @@ async def enrich_licitacion_universal(
         return await comprar_enrich(licitacion_id, level, repo)
 
     # Generic enrichment for all other sources
-    source_url = lic.get("source_url", "") if isinstance(lic, dict) else getattr(lic, "source_url", "")
-    if not source_url:
-        return JSONResponse(content={
-            "success": False,
-            "message": "Esta licitación no tiene URL de origen para re-consultar",
-        })
+    lic_dict = lic if isinstance(lic, dict) else lic.dict()
+    source_url = lic_dict.get("source_url", "") or ""
 
     try:
-        # Look up scraper config for CSS selectors
         from dependencies import database as db
+        from services.generic_enrichment import GenericEnrichmentService
+        service = GenericEnrichmentService()
+
+        # Look up scraper config for CSS selectors
         selectors = None
-        if db is not None:
+        if db is not None and fuente:
             config_doc = await db.scraper_configs.find_one({
                 "name": {"$regex": re.escape(fuente), "$options": "i"},
                 "active": True,
@@ -1405,10 +1404,15 @@ async def enrich_licitacion_universal(
             if config_doc:
                 selectors = config_doc.get("selectors", {})
 
-        from services.generic_enrichment import GenericEnrichmentService
-        service = GenericEnrichmentService()
-        lic_dict = lic if isinstance(lic, dict) else lic.dict()
-        updates = await service.enrich(lic_dict, selectors)
+        if source_url:
+            updates = await service.enrich(lic_dict, selectors)
+        else:
+            # No source URL — do title-only enrichment (objeto + category)
+            updates = service._enrich_title_only(lic_dict)
+
+        if not updates:
+            # Even with no HTML data, try title-only as fallback
+            updates = service._enrich_title_only(lic_dict)
 
         if not updates:
             return JSONResponse(content={
@@ -1445,6 +1449,27 @@ async def enrich_licitacion_universal(
 
         field_names = list(updates.keys())
         logger.info(f"Enriched {licitacion_id} ({fuente}): {field_names}")
+
+        # Log enrichment attempt in metadata
+        enrichment_log_entry = {
+            "timestamp": datetime.utcnow().isoformat(),
+            "method": "manual",
+            "level": level,
+            "fields_updated": field_names,
+            "source_url": source_url[:100] if source_url else None,
+        }
+        if db is not None:
+            from bson import ObjectId as ObjId
+            try:
+                await db.licitaciones.update_one(
+                    {"_id": ObjId(licitacion_id)},
+                    {"$push": {"metadata.enrichment_log": {
+                        "$each": [enrichment_log_entry],
+                        "$slice": -10,  # Keep last 10 entries
+                    }}}
+                )
+            except Exception:
+                pass
 
         # Re-match nodos after enrichment (description/objeto may have changed)
         try:

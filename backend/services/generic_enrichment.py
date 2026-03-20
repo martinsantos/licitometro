@@ -419,6 +419,9 @@ class GenericEnrichmentService:
 
         return updates
 
+    # Alias: title-only enrichment works the same for any source
+    _enrich_title_only = _enrich_comprar_title_only
+
     # ---- Main enrich method ----
 
     async def enrich(self, lic_doc: dict, selectors: Optional[dict] = None) -> Dict[str, Any]:
@@ -452,15 +455,23 @@ class GenericEnrichmentService:
             if text:
                 return self._analyze_extracted_text(text, lic_doc)
 
+        # Skip broken proxy URLs (e.g., localhost:8001 for OSEP)
+        if "localhost:" in source_url and ":8000" not in source_url:
+            logger.debug(f"Skipping broken proxy URL: {source_url[:60]}")
+            return self._enrich_title_only(lic_doc)
+
         try:
             html = await self.http.fetch(source_url)
         except Exception as e:
             logger.warning(f"Failed to fetch {source_url}: {e}")
-            # Fallback: try attached files if HTML fetch failed
-            return await self._enrich_from_attached_files(lic_doc)
+            # Fallback: try attached files, then title-only
+            result = await self._enrich_from_attached_files(lic_doc)
+            if not result:
+                result = self._enrich_title_only(lic_doc)
+            return result
 
         if not html:
-            return {}
+            return self._enrich_title_only(lic_doc)
 
         soup = BeautifulSoup(html, "html.parser")
         sel = selectors or {}
