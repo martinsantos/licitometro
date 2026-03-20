@@ -451,7 +451,11 @@ Ver documentación completa en `BACKUP_PROTECTION.md`.
 - `react-window` v2 usa `rowComponent` prop (no children render), requiere `rowProps`, exporta `List` (no FixedSizeList)
 - `@types/react-window@1.x` es INCOMPATIBLE con `react-window@2.x`. Borrar @types, usar built-in
 - Config names pueden tener acentos (Guaymallen). Usar regex match
-- COMPR.AR: solo URLs de `VistaPreviaPliegoCiudadano` son estables. Las demas dependen de session state ASP.NET
+- COMPR.AR: solo URLs de `VistaPreviaPliegoCiudadano` son estables. Las demas dependen de session state ASP.NET. `ComprasElectronicas.aspx?qs=...` resuelve al portal homepage cuando se fetch sin sesión.
+- COMPR.AR BuscarAvanzado2.aspx: la página de búsqueda ciudadana NO funciona via HTTP (renderiza portal). Usar Selenium para buscar procesos en la lista `Compras.aspx`
+- COMPR.AR items: `cantidad` viene como `"1,00 UNIDAD/S"` (string con unidad embebida), NO como número. Parsear con regex `^[\d.,]+` para extraer número + sufijo para unidad
+- Enrichment fallback: SIEMPRE garantizar al menos objeto + category (title-only enrichment). Nunca dejar items en `enrichment_level=1` indefinidamente
+- Proxy URLs (`localhost:8001`): algunos items tienen URLs proxy que no funcionan fuera del contexto original. Detectar y hacer title-only enrichment
 - GeneXus apps embeben datos como JSON en hidden inputs, no en tablas HTML
 - Pre-content chrome (headers, filtros, stats) DEBE estar bajo ~150px. Colapsar por defecto
 - BeautifulSoup `select_one` NO soporta `:contains()` (es jQuery only). Usar selectores estructurales como `li.next a`
@@ -478,6 +482,50 @@ descubierta → evaluando → preparando → presentada
 1. **Basic** (scraping): titulo, fecha, fuente, URL
 2. **Detailed** (enrichment): description, opening_date, budget, objeto, category
 3. **Documents** (PDF/ZIP): full pliego text, extracted fields
+
+### Enrichment por Fuente (implementado Mar 20, 2026)
+
+**Botón "Enriquecer datos"**: `POST /api/licitaciones/{id}/enrich` — funciona para TODAS las fuentes.
+
+| Fuente | Estrategia | Datos extraídos |
+|--------|-----------|-----------------|
+| COMPR.AR Mendoza | Label-based extraction de VistaPreviaPliegoCiudadano. Si URL es ComprasElectronicas → **Selenium** busca proceso en lista (hasta 15 páginas) y resuelve URL estable | 27+ campos del pliego: objeto, expediente, cronograma, modalidad, encuadre legal |
+| ComprasApps | Title-only (sin source_url re-fetcheable) | objeto, category |
+| Generic HTML (IPV, COPIG, Maipú, etc.) | CSS selectors del scraper config + fallback patterns | description, opening_date, attachments, objeto, category |
+| Boletín Oficial (PDF) | pypdf extraction | description, apertura, budget, expediente |
+| Maipú (ZIP) | zipfile → pypdf de PDFs internos | description, apertura, budget |
+| Todas las demás | HTTP fetch + fallback title-only | Lo que encuentre + objeto + category garantizados |
+
+**Flujo de fallback universal** (generic_enrichment.py):
+```
+1. Detectar COMPR.AR → _enrich_comprar() con extracción de labels
+2. Detectar PDF/ZIP → descarga + pypdf
+3. Detectar proxy URL roto (localhost:8001) → title-only
+4. Fetch HTML + CSS selectors → description, dates, attachments
+5. Si HTML falla → intentar attached_files (PDFs)
+6. Si todo falla → title-only (objeto + category siempre)
+```
+
+**COMPR.AR URLs (CRÍTICO)**:
+- `VistaPreviaPliegoCiudadano.aspx?qs=...` → ESTABLE, contiene labels con datos ricos
+- `ComprasElectronicas.aspx?qs=...` → SESSION-DEPENDENT, resuelve al portal homepage
+- Cuando el botón "Enriquecer" no encuentra URL estable → Selenium navega `Compras.aspx` lista, pagina hasta encontrar el proceso, clickea, y extrae URL PLIEGO
+- La URL resuelta se guarda en `source_url` + `metadata.comprar_pliego_url` para futuras consultas
+
+**Enrichment log**: Cada enriquecimiento manual se registra en `metadata.enrichment_log[]` (últimos 10 intentos).
+
+### CotizAR: Importación de Ítems del Pliego
+
+**Flujo "Importar del pliego"** (OfertaEditor.tsx):
+1. Lee `licitacion.items[]` del API
+2. Parsea `cantidad`: puede ser número o string `"1,00 UNIDAD/S"` → extrae número + unidad
+3. Parsea `unidad`: del campo `unidad`, del sufijo de `cantidad`, o de `descripcion` ("Presentación: UNIDAD")
+4. Limpia `descripcion`: remueve "Presentación: X  Solicitado: Y"
+
+**Budget hints** (`GET /api/licitaciones/{id}/budget-hints`):
+1. Usa ítems estructurados existentes (`lic.items[]`) como `items_from_pliego`
+2. Solo si no hay ítems → AI extraction vía Groq del `description`
+3. Incluye rangos de tipo de procedimiento (Contratación Directa / Privada / Pública)
 
 ### CRITICAL: Workflow State Transitions Rules
 
