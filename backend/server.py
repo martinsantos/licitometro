@@ -14,7 +14,7 @@ import uvicorn
 sys.path.insert(0, str(Path(__file__).parent))
 
 # Import routers directly (not as relative imports)
-from routers import licitaciones, licitaciones_ar, scraper_configs, comprar, scheduler, workflow, offer_templates, auth, public, nodos, cotizar_ai, cotizaciones, market_data
+from routers import licitaciones, licitaciones_ar, scraper_configs, comprar, scheduler, workflow, offer_templates, auth, public, nodos, cotizar_ai, cotizaciones, market_data, documentos
 from services.auth_service import verify_token
 
 # Load environment variables
@@ -114,6 +114,15 @@ async def auth_middleware(request: Request, call_next):
                 request.state.user_role = token_data.get("role", "reader")
                 return await call_next(request)
 
+    # Allow reader access to documentos endpoints
+    if path.startswith("/api/documentos"):
+        token = request.cookies.get("access_token")
+        if token:
+            token_data = verify_token(token)
+            if token_data["valid"]:
+                request.state.user_role = token_data.get("role", "reader")
+                return await call_next(request)
+
     # Allow reader access to cotizaciones endpoints
     if path.startswith("/api/cotizaciones"):
         token = request.cookies.get("access_token")
@@ -163,6 +172,7 @@ app.include_router(nodos.router)
 app.include_router(cotizar_ai.router)
 app.include_router(cotizaciones.router)
 app.include_router(market_data.router)
+app.include_router(documentos.router)
 app.include_router(public.router)
 
 @app.on_event("startup")
@@ -244,6 +254,10 @@ async def startup_db_client():
         # Cotizaciones indexes
         await database.cotizaciones.create_index("licitacion_id", unique=True)
         await database.cotizaciones.create_index("updated_at")
+
+        # Documentos indexes
+        await database.documentos.create_index("category")
+        await database.documentos.create_index("created_at")
 
         # AI cache with TTL (24 hours)
         await database.ai_cache.create_index("prompt_hash")

@@ -3,6 +3,7 @@ import {
   useCotizarAPI, CotizarItem, AIAnalysisResult, BudgetHints, Antecedente,
   PliegoInfo, MarcoLegal, PriceIntelligence, MongoCotizacion,
 } from '../../hooks/useCotizarAPI';
+import DocumentRepository from './DocumentRepository';
 
 interface Licitacion {
   id: string;
@@ -149,12 +150,17 @@ export default function OfertaEditor({ licitacion, onSaved }: Props) {
   const [selectedProfile, setSelectedProfile] = useState(-1);
   const [saving, setSaving] = useState(false);
   const [savedAt, setSavedAt] = useState<string | null>(null);
+  const [autoSaveFailed, setAutoSaveFailed] = useState(false);
   const [pliegoInfo, setPliegoInfo] = useState<PliegoInfo | null>(null);
   const [marcoLegal, setMarcoLegal] = useState<MarcoLegal | null>(null);
   const [loadingMarcoLegal, setLoadingMarcoLegal] = useState(false);
   const [marcoLegalChecks, setMarcoLegalChecks] = useState<Record<string, boolean>>({});
   const [priceIntelligence, setPriceIntelligence] = useState<PriceIntelligence | null>(null);
   const [loadingPrices, setLoadingPrices] = useState(false);
+  const [showDocRepo, setShowDocRepo] = useState(false);
+  const [companyAntecedentes, setCompanyAntecedentes] = useState<Antecedente[]>([]);
+  const [loadingCompanyAntecedentes, setLoadingCompanyAntecedentes] = useState(false);
+  const [showCompanyAntecedentes, setShowCompanyAntecedentes] = useState(false);
   const offerRef = useRef<HTMLDivElement>(null);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -228,7 +234,9 @@ export default function OfertaEditor({ licitacion, onSaved }: Props) {
               notas: mongoCot.tech_data.notas || prev.notas,
             }));
           }
-          if (mongoCot.company_data?.nombre) setCompanyData(mongoCot.company_data as unknown as CompanyData);
+          if (mongoCot.company_data && Object.keys(mongoCot.company_data).length > 0) {
+            setCompanyData(prev => ({ ...prev, ...mongoCot.company_data as unknown as CompanyData }));
+          }
           if (mongoCot.analysis) setAnalysis(mongoCot.analysis);
           if (mongoCot.pliego_info) setPliegoInfo(mongoCot.pliego_info);
           if (mongoCot.marco_legal) setMarcoLegal(mongoCot.marco_legal);
@@ -310,7 +318,12 @@ export default function OfertaEditor({ licitacion, onSaved }: Props) {
       onSaved?.();
     } catch (e) {
       const msg = e instanceof Error ? e.message : 'Error al guardar';
-      if (!silent) setErrorMsg(msg);
+      if (silent) {
+        setAutoSaveFailed(true);
+        setTimeout(() => setAutoSaveFailed(false), 8000);
+      } else {
+        setErrorMsg(msg);
+      }
     } finally {
       if (!silent) setSaving(false);
     }
@@ -322,7 +335,7 @@ export default function OfertaEditor({ licitacion, onSaved }: Props) {
     if (debounceRef.current) clearTimeout(debounceRef.current);
     debounceRef.current = setTimeout(() => doSave(true), 2500);
     return () => { if (debounceRef.current) clearTimeout(debounceRef.current); };
-  }, [items, ivaRate, techData, companyData, phase]);
+  }, [items, ivaRate, techData, companyData, analysis, pliegoInfo, marcoLegal, vinculados, priceIntelligence, phase]);
 
   // Load company profiles from localStorage
   useEffect(() => {
@@ -372,6 +385,20 @@ export default function OfertaEditor({ licitacion, onSaved }: Props) {
       setLoadingAntecedentes(false);
     }
   }, [licitacion.id, antecedentes.length]);
+
+  const handleLoadCompanyAntecedentes = useCallback(async () => {
+    if (companyAntecedentes.length > 0) { setShowCompanyAntecedentes(p => !p); return; }
+    setLoadingCompanyAntecedentes(true);
+    setShowCompanyAntecedentes(true);
+    try {
+      const results = await api.searchCompanyAntecedentes(licitacion.id);
+      setCompanyAntecedentes(results);
+    } catch (e) {
+      setErrorMsg(e instanceof Error ? e.message : 'Error buscando antecedentes empresa');
+    } finally {
+      setLoadingCompanyAntecedentes(false);
+    }
+  }, [licitacion.id, companyAntecedentes.length]);
 
   const handleVincular = useCallback(async (antId: string) => {
     try {
@@ -775,7 +802,14 @@ export default function OfertaEditor({ licitacion, onSaved }: Props) {
           )}
 
           <div className="flex justify-between items-center pt-2">
-            <div>{savedAt && <p className="text-xs text-gray-400">Guardado {savedAt}</p>}</div>
+            <div className="flex items-center gap-2">
+              {savedAt && <p className="text-xs text-gray-400">Guardado {savedAt}</p>}
+              {autoSaveFailed && (
+                <button onClick={() => { setAutoSaveFailed(false); doSave(false); }} className="text-xs text-red-500 bg-red-50 px-2 py-0.5 rounded-full hover:bg-red-100 transition-colors">
+                  Error al guardar · Reintentar
+                </button>
+              )}
+            </div>
             <div className="flex gap-3">
               <button onClick={() => doSave()} disabled={saving} className="flex items-center gap-2 px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 text-sm font-medium rounded-xl disabled:opacity-60 transition-colors">
                 {saving ? <div className="w-4 h-4 border-2 border-gray-400/40 border-t-gray-600 rounded-full animate-spin" /> : null}
@@ -890,6 +924,49 @@ export default function OfertaEditor({ licitacion, onSaved }: Props) {
             )}
           </div>
 
+          {/* Company Antecedentes (Ultima Milla) */}
+          <div className="border-t border-gray-100 pt-4">
+            <button onClick={handleLoadCompanyAntecedentes} className="flex items-center gap-2 text-sm text-gray-600 hover:text-gray-800 transition-colors">
+              <span className={`transition-transform ${showCompanyAntecedentes ? 'rotate-90' : ''}`}>▶</span>
+              Antecedentes de la Empresa (Ultima Milla)
+              {companyAntecedentes.length > 0 && <span className="text-xs bg-blue-100 text-blue-600 px-1.5 py-0.5 rounded-full">{companyAntecedentes.length}</span>}
+            </button>
+
+            {showCompanyAntecedentes && (
+              <div className="mt-3 space-y-2">
+                {loadingCompanyAntecedentes ? (
+                  <div className="flex items-center gap-2 text-sm text-gray-400 py-4">
+                    <div className="w-4 h-4 border-2 border-gray-200 border-t-blue-500 rounded-full animate-spin" />
+                    Buscando proyectos de Ultima Milla...
+                  </div>
+                ) : companyAntecedentes.length === 0 ? (
+                  <p className="text-sm text-gray-400 py-2">No se encontraron antecedentes de la empresa.</p>
+                ) : (
+                  companyAntecedentes.map(ant => (
+                    <div key={ant.id} className="bg-blue-50/50 rounded-lg p-3 text-sm">
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="flex-1 min-w-0">
+                          <p className="font-medium text-gray-800 line-clamp-1">{ant.title}</p>
+                          {ant.objeto && <p className="text-xs text-gray-500 mt-0.5 line-clamp-2">{ant.objeto}</p>}
+                        </div>
+                        {ant.url && (
+                          <a href={ant.url} target="_blank" rel="noopener noreferrer" className="text-xs text-blue-600 hover:text-blue-800 shrink-0 border border-blue-200 px-2 py-0.5 rounded-full transition-colors">
+                            Ver
+                          </a>
+                        )}
+                      </div>
+                      <div className="flex items-center gap-3 mt-1 text-xs text-gray-500 flex-wrap">
+                        {ant.organization && <span>{ant.organization}</span>}
+                        {ant.category && <span className="bg-gray-100 px-1.5 py-0.5 rounded">{ant.category}</span>}
+                        <span className="text-blue-400">ultimamilla.com.ar</span>
+                      </div>
+                    </div>
+                  ))
+                )}
+              </div>
+            )}
+          </div>
+
           <div className="flex justify-between pt-2">
             <button onClick={() => setStep(1)} className="flex items-center gap-2 px-4 py-2 text-gray-600 hover:text-gray-800 text-sm font-medium rounded-xl hover:bg-gray-100 transition-colors">
               <span>←</span> Anterior
@@ -973,6 +1050,23 @@ export default function OfertaEditor({ licitacion, onSaved }: Props) {
                 )}
               </div>
             )}
+          </div>
+
+          {/* Document Repository + Pagare buttons */}
+          <div className="flex flex-wrap gap-2">
+            <button
+              onClick={() => setShowDocRepo(true)}
+              className="flex items-center gap-1.5 text-xs px-3 py-2 rounded-lg border border-gray-200 text-gray-600 hover:bg-gray-50 hover:border-gray-300 transition-colors"
+            >
+              📁 Repositorio de Documentos
+            </button>
+            <a
+              href={`/api/documentos/pagare/${licitacion.id}`}
+              target="_blank" rel="noopener noreferrer"
+              className="flex items-center gap-1.5 text-xs px-3 py-2 rounded-lg border border-amber-200 text-amber-700 hover:bg-amber-50 hover:border-amber-300 transition-colors"
+            >
+              📄 Generar Pagare Garantia
+            </a>
           </div>
 
           {!marcoLegal && !loadingMarcoLegal && (
@@ -1238,6 +1332,13 @@ export default function OfertaEditor({ licitacion, onSaved }: Props) {
               >
                 Copiar texto
               </button>
+              <a
+                href={`/api/documentos/pagare/${licitacion.id}`}
+                target="_blank" rel="noopener noreferrer"
+                className="text-xs px-3 py-1.5 border border-amber-200 text-amber-700 rounded-lg hover:bg-amber-50 transition-colors"
+              >
+                Pagare
+              </a>
               <button onClick={() => window.print()} className="text-xs px-3 py-1.5 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 transition-colors">
                 Imprimir / PDF
               </button>
@@ -1467,6 +1568,9 @@ export default function OfertaEditor({ licitacion, onSaved }: Props) {
           table { page-break-inside: avoid; }
         }
       `}</style>
+
+      {/* Document Repository Modal */}
+      <DocumentRepository open={showDocRepo} onClose={() => setShowDocRepo(false)} />
     </div>
   );
 }

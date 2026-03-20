@@ -55,6 +55,8 @@ export interface Antecedente {
   items?: Array<{ descripcion: string; cantidad: number; unidad: string; precio_unitario?: number }>;
   relevance_score?: number;
   price_ratio?: number | null;
+  source?: string;
+  url?: string;
 }
 
 export interface MarcoLegalDoc {
@@ -126,6 +128,19 @@ export interface MongoCotizacion {
   opening_date?: string | null;
   budget?: number | null;
   estado?: string;
+}
+
+export interface Documento {
+  id: string;
+  filename: string;
+  category: string;
+  tags: string[];
+  description?: string | null;
+  expiration_date?: string | null;
+  mime_type: string;
+  file_size: number;
+  created_at?: string;
+  updated_at?: string;
 }
 
 export interface PliegoInfo {
@@ -276,6 +291,53 @@ export function useCotizarAPI() {
       return apiFetchMain('/cotizar-ai/extract-pliego-info', {
         method: 'POST',
         body: JSON.stringify({ licitacion_id: licitacionId }),
+      });
+    },
+
+    // --- Document Repository ---
+
+    async uploadDocument(file: File, category: string, tags: string, description: string, expirationDate?: string): Promise<Documento> {
+      const formData = new FormData();
+      formData.append('file', file);
+      formData.append('category', category);
+      formData.append('tags', tags);
+      formData.append('description', description);
+      if (expirationDate) formData.append('expiration_date', expirationDate);
+      const res = await fetch('/api/documentos/upload', {
+        method: 'POST',
+        credentials: 'include',
+        body: formData,
+      });
+      if (!res.ok) throw new Error(`Upload failed: ${res.status}`);
+      return res.json();
+    },
+
+    async listDocuments(category?: string): Promise<Documento[]> {
+      const qs = category ? `?category=${encodeURIComponent(category)}` : '';
+      return apiFetchMain(`/documentos/${qs}`);
+    },
+
+    async deleteDocument(docId: string): Promise<void> {
+      await apiFetchMain(`/documentos/${docId}`, { method: 'DELETE' });
+    },
+
+    async updateDocument(docId: string, data: { category?: string; tags?: string[]; description?: string; expiration_date?: string | null }): Promise<Documento> {
+      return apiFetchMain(`/documentos/${docId}`, {
+        method: 'PUT',
+        body: JSON.stringify(data),
+      });
+    },
+
+    async getDocumentCategories(): Promise<string[]> {
+      return apiFetchMain('/documentos/categories');
+    },
+
+    // --- Company Antecedentes (Ultima Milla) ---
+
+    async searchCompanyAntecedentes(licitacionId?: string, keywords?: string, sector?: string): Promise<Antecedente[]> {
+      return apiFetchMain('/cotizar-ai/search-company-antecedentes', {
+        method: 'POST',
+        body: JSON.stringify({ licitacion_id: licitacionId, keywords, sector }),
       });
     },
   };

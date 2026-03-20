@@ -234,6 +234,37 @@ async def extract_pliego_info(body: Dict[str, Any], request: Request):
     return await groq.extract_pliego_info(text)
 
 
+@router.post("/search-company-antecedentes")
+async def search_company_antecedentes(body: Dict[str, Any], request: Request):
+    """Search Ultima Milla company antecedentes from ultimamilla.com.ar."""
+    db = _get_db(request)
+    licitacion_id = body.get("licitacion_id")
+    keywords = body.get("keywords")
+    sector = body.get("sector")
+
+    # If only licitacion_id, derive keywords from licitacion
+    if licitacion_id and not keywords:
+        try:
+            lic = await db.licitaciones.find_one({"_id": ObjectId(licitacion_id)})
+        except Exception:
+            lic = None
+        if lic:
+            parts = []
+            if lic.get("category"):
+                parts.append(lic["category"])
+            if lic.get("objeto"):
+                parts.append(lic["objeto"][:100])
+            elif lic.get("title"):
+                parts.append(lic["title"][:100])
+            keywords = " ".join(parts) if parts else None
+
+    from services.um_antecedentes import get_um_antecedente_service
+    service = get_um_antecedente_service(db)
+    await service.ensure_indexes()
+    results = await service.search(keywords=keywords, sector=sector, limit=15)
+    return results
+
+
 @router.post("/extract-marco-legal")
 async def extract_marco_legal(body: Dict[str, Any], request: Request):
     """Extract legal framework analysis for bidding preparation."""

@@ -225,6 +225,23 @@ def user_entity(user) -> dict:
     }
 
 
+def documento_entity(doc) -> dict:
+    """Convert MongoDB documento document to dict"""
+    return {
+        "id": str(doc["_id"]),
+        "filename": doc.get("filename", ""),
+        "category": doc.get("category", "Otro"),
+        "tags": doc.get("tags", []),
+        "description": doc.get("description"),
+        "expiration_date": doc.get("expiration_date"),
+        "file_path": doc.get("file_path", ""),
+        "mime_type": doc.get("mime_type", "application/octet-stream"),
+        "file_size": doc.get("file_size", 0),
+        "created_at": doc.get("created_at", datetime.utcnow()),
+        "updated_at": doc.get("updated_at", datetime.utcnow()),
+    }
+
+
 def cotizacion_entity(doc) -> dict:
     """Convert MongoDB cotizacion document to dict"""
     return {
