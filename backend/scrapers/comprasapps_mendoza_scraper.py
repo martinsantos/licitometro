@@ -566,7 +566,7 @@ class ComprasAppsMendozaScraper(BaseScraper):
 
         except Exception as e:
             logger.error(f"Scraper failed: {e}", exc_info=True)
-            return []
+            raise  # Let scheduler handle failure tracking + retry + alert
         finally:
             await self.cleanup()
 

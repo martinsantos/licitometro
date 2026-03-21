@@ -7,10 +7,12 @@ Tracks execution history and provides monitoring capabilities.
 
 import asyncio
 import logging
+import re
 from datetime import datetime, timedelta
 from typing import Optional, List, Dict, Any
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from apscheduler.triggers.cron import CronTrigger
+from apscheduler.triggers.date import DateTrigger
 from apscheduler.triggers.interval import IntervalTrigger
 from apscheduler.events import EVENT_JOB_EXECUTED, EVENT_JOB_ERROR, JobExecutionEvent
 
@@ -231,7 +233,8 @@ class SchedulerService:
         except Exception as e:
             logger.error(f"Error in scraper job {scraper_name}: {e}")
     
-    async def _execute_scraper_with_tracking(self, scraper_name: str, run_id: str):
+    async def _execute_scraper_with_tracking(self, scraper_name: str, run_id: str,
+                                                retry_count: int = 0):
         """Execute a scraper and track its progress"""
         runs_collection = self.db.scraper_runs
         start_time = datetime.utcnow()
@@ -475,7 +478,18 @@ class SchedulerService:
             status = "success"
             if errors:
                 status = "partial" if items_saved > 0 else "failed"
-            
+
+            # Detect silent failure: 0 items found with no errors
+            # A scraper that used to return items but returns 0 is suspicious
+            if status == "success" and items_found == 0:
+                expected_doc = await configs_collection.find_one(
+                    {"name": scraper_name}, {"last_items_found": 1}
+                )
+                last_items = (expected_doc or {}).get("last_items_found", 0)
+                if last_items > 10:
+                    status = "empty_suspicious"
+                    log(f"Suspicious: 0 items found but last successful run had {last_items}", "warning")
+
             # Update run record
             update = ScraperRunUpdate(
                 status=status,
@@ -493,13 +507,13 @@ class SchedulerService:
                 record_errors=record_errors,
                 duplicates_skipped=duplicates_skipped,
             )
-            
+
             # Use default mode (Python) — preserves datetime as BSON Date, not ISO string
             await runs_collection.update_one(
                 {"_id": ObjectId(run_id)},
                 {"$set": update.model_dump(exclude_unset=True)}
             )
-            
+
             # Update scraper config last_run
             await configs_collection.update_one(
                 {"name": scraper_name},
@@ -508,8 +522,25 @@ class SchedulerService:
                     "$inc": {"runs_count": 1}
                 }
             )
-            
+
+            # Track last_items_found for silent failure detection + clear needs_repair
+            if items_found > 0:
+                await configs_collection.update_one(
+                    {"name": scraper_name},
+                    {"$set": {"last_items_found": items_found}}
+                )
+                await configs_collection.update_one(
+                    {"name": scraper_name, "needs_repair": True},
+                    {"$unset": {"needs_repair": "", "needs_repair_since": ""}}
+                )
+
             log(f"Scraper '{scraper_name}' completed. Found: {items_found}, Saved: {items_saved}, Updated: {items_updated}")
+
+            # Handle failures and suspicious empties: alert + retry + escalation
+            if status in ("failed", "empty_suspicious"):
+                await self._handle_scraper_failure(
+                    scraper_name, run_id, errors, config_data, status, retry_count
+                )
 
             # Notify about new licitaciones (skip for AR scope - manual only)
             is_ar_scope = getattr(config, 'scope', None) == "ar_nacional"
@@ -541,21 +572,114 @@ class SchedulerService:
                 }
             )
 
-            # Notify about scraper error
+            # Enhanced failure handling: alert + retry + escalation
             try:
-                from services.notification_service import get_notification_service
-                ns = get_notification_service(self.db)
-                await ns.notify_scraper_error(scraper_name, error_msg)
-            except Exception as notify_err:
-                logger.warning(f"Error notification failed: {notify_err}")
+                configs_collection = self.db.scraper_configs
+                config_data = await configs_collection.find_one({"name": scraper_name})
+                await self._handle_scraper_failure(
+                    scraper_name, run_id, errors + [error_msg], config_data, "failed", retry_count
+                )
+            except Exception as handle_err:
+                logger.warning(f"Failure handler error: {handle_err}")
     
+    async def _handle_scraper_failure(self, scraper_name: str, run_id: str,
+                                       errors: List[str], config_data: Optional[Dict],
+                                       status: str, retry_count: int):
+        """Centralized failure handling: enhanced alert, auto-retry, escalation."""
+        configs_collection = self.db.scraper_configs
+
+        consecutive, last_success = await self._get_consecutive_failures(scraper_name)
+        config_url = str(config_data.get("url", "")) if config_data else ""
+        total_records = await self.db.licitaciones.count_documents(
+            {"fuente": {"$regex": f"^{re.escape(scraper_name)}", "$options": "i"}}
+        )
+
+        # Enhanced alert via Telegram
+        try:
+            from services.notification_service import get_notification_service
+            ns = get_notification_service(self.db)
+            last_items = (config_data or {}).get("last_items_found", 0)
+            error_text = errors[0] if errors else f"0 items returned (expected ~{last_items})"
+            await ns.notify_scraper_error_enhanced(
+                scraper_name=scraper_name,
+                error=error_text,
+                consecutive_failures=consecutive,
+                last_success_at=last_success,
+                total_records=total_records,
+                scraper_url=config_url,
+                retry_count=retry_count,
+            )
+        except Exception as notify_err:
+            logger.warning(f"Enhanced notification failed: {notify_err}")
+
+        # Schedule retry (max 2 retries)
+        if retry_count < 2 and self.scheduler:
+            try:
+                await self._schedule_retry(scraper_name, retry_count, run_id)
+            except Exception as retry_err:
+                logger.warning(f"Retry scheduling failed: {retry_err}")
+
+        # Escalation: mark needs_repair after 10 consecutive failures
+        if consecutive >= 10:
+            await configs_collection.update_one(
+                {"name": scraper_name},
+                {"$set": {"needs_repair": True, "needs_repair_since": datetime.utcnow()}}
+            )
+
+    async def _get_consecutive_failures(self, scraper_name: str) -> tuple:
+        """Count consecutive failures (including empty_suspicious) for a scraper.
+        Returns (count, last_success_at)."""
+        runs = await self.db.scraper_runs.find(
+            {"scraper_name": scraper_name}
+        ).sort("started_at", -1).limit(50).to_list(length=50)
+
+        count = 0
+        last_success_at = None
+        for run in runs:
+            if run.get("status") in ("failed", "empty_suspicious", "partial"):
+                count += 1
+            else:
+                last_success_at = run.get("started_at")
+                break
+        return count, last_success_at
+
+    async def _schedule_retry(self, scraper_name: str, retry_count: int, original_run_id: str):
+        """Schedule a one-shot retry job with escalating delay."""
+        delay_minutes = 15 if retry_count == 0 else 30
+        run_at = datetime.utcnow() + timedelta(minutes=delay_minutes)
+        job_id = f"retry_{scraper_name}_{retry_count + 1}"
+
+        self.scheduler.add_job(
+            func=self._execute_retry_job,
+            trigger=DateTrigger(run_date=run_at),
+            id=job_id,
+            name=f"Retry {scraper_name} #{retry_count + 1}",
+            args=[scraper_name, retry_count + 1, original_run_id],
+            replace_existing=True,
+        )
+        logger.info(f"Scheduled retry #{retry_count + 1} for {scraper_name} in {delay_minutes}min")
+
+    async def _execute_retry_job(self, scraper_name: str, retry_count: int, original_run_id: str):
+        """Execute a retry: create a new run record linked to the original, then run."""
+        try:
+            run_data = ScraperRunCreate(scraper_name=scraper_name, status="running")
+            run_dict = run_data.model_dump()
+            run_dict["metadata"] = {"retry_of": original_run_id, "retry_count": retry_count}
+            result = await self.db.scraper_runs.insert_one(run_dict)
+            run_id = str(result.inserted_id)
+
+            logger.info(f"Starting retry #{retry_count} for '{scraper_name}', run_id: {run_id}")
+            await self._execute_scraper_with_tracking(scraper_name, run_id, retry_count)
+        except Exception as e:
+            logger.error(f"Retry job for {scraper_name} failed: {e}")
+
     def _on_job_executed(self, event: JobExecutionEvent):
         """Handle job execution events"""
         if event.exception:
             logger.error(f"Job {event.job_id} failed: {event.exception}")
         else:
             logger.info(f"Job {event.job_id} completed successfully")
-    
+
     def get_status(self) -> Dict[str, Any]:
         """Get current scheduler status"""
         if not self.scheduler:

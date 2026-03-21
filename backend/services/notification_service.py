@@ -190,7 +190,7 @@ class NotificationService:
         await self.send_telegram(message)
 
     async def notify_scraper_error(self, scraper_name: str, error: str):
-        """Notify about a scraper error (Telegram, immediate)."""
+        """Notify about a scraper error (Telegram, immediate). Legacy — kept for compat."""
         message = (
             f"<b>Error en scraper</b>\n"
             f"Scraper: {scraper_name}\n"
@@ -198,8 +198,54 @@ class NotificationService:
         )
         await self.send_telegram(message)
 
+    async def notify_scraper_error_enhanced(
+        self,
+        scraper_name: str,
+        error: str,
+        consecutive_failures: int = 1,
+        last_success_at: Optional[datetime] = None,
+        total_records: int = 0,
+        scraper_url: str = "",
+        retry_count: int = 0,
+    ):
+        """Enhanced scraper error notification with context and severity levels."""
+        # Severity header
+        if consecutive_failures >= 10:
+            header = "CRITICO: Scraper fuera de servicio"
+        elif consecutive_failures >= 5:
+            header = "ALERTA: Fallas persistentes"
+        else:
+            header = "Error en scraper"
+
+        # Last success relative time
+        if last_success_at:
+            delta = datetime.utcnow() - last_success_at
+            hours = int(delta.total_seconds() / 3600)
+            if hours < 1:
+                last_success_str = f"hace {int(delta.total_seconds() / 60)}min"
+            elif hours < 48:
+                last_success_str = f"hace {hours}h"
+            else:
+                last_success_str = f"hace {hours // 24} dias"
+        else:
+            last_success_str = "nunca"
+
+        lines = [f"<b>{header}</b>"]
+        lines.append(f"Scraper: {scraper_name}")
+        if scraper_url:
+            lines.append(f"URL: {scraper_url[:80]}")
+        lines.append(f"Error: {error[:500]}")
+        lines.append(f"Fallas consecutivas: {consecutive_failures}")
+        lines.append(f"Ultimo exito: {last_success_str}")
+        if total_records > 0:
+            lines.append(f"Records en riesgo: {total_records}")
+        if retry_count > 0:
+            lines.append(f"Reintento: #{retry_count}")
+
+        await self.send_telegram("\n".join(lines))
+
     async def send_daily_digest(self):
-        """Send daily digest with summary of last 24h activity."""
+        """Send daily digest with summary of last 24h activity + per-scraper breakdown."""
         try:
             since = datetime.utcnow() - timedelta(hours=24)
 
@@ -208,13 +254,20 @@ class NotificationService:
                 {"created_at": {"$gte": since}}
             )
 
-            # Count scraper runs
-            runs = await self.db.scraper_runs.find(
-                {"started_at": {"$gte": since}}
-            ).to_list(length=100)
+            # Per-scraper breakdown
+            scraper_stats = await self.db.scraper_runs.aggregate([
+                {"$match": {"started_at": {"$gte": since}}},
+                {"$group": {
+                    "_id": "$scraper_name",
+                    "success": {"$sum": {"$cond": [{"$eq": ["$status", "success"]}, 1, 0]}},
+                    "failed": {"$sum": {"$cond": [{"$in": ["$status", ["failed", "empty_suspicious"]]}, 1, 0]}},
+                    "partial": {"$sum": {"$cond": [{"$eq": ["$status", "partial"]}, 1, 0]}},
+                }},
+                {"$sort": {"failed": -1, "_id": 1}},
+            ]).to_list(length=100)
 
-            success_runs = sum(1 for r in runs if r.get("status") == "success")
-            failed_runs = sum(1 for r in runs if r.get("status") == "failed")
+            total_success = sum(s["success"] for s in scraper_stats)
+            total_failed = sum(s["failed"] for s in scraper_stats)
 
             # Find licitaciones with opening_date in next 48h
             now = datetime.utcnow()
@@ -227,16 +280,47 @@ class NotificationService:
 
             total = await self.db.licitaciones.estimated_document_count()
 
+            # Needs repair scrapers
+            repair_scrapers = await self.db.scraper_configs.find(
+                {"needs_repair": True}
+            ).to_list(length=50)
+
             # Build message
             lines = [
                 "<b>Resumen diario - Licitometro</b>",
                 f"Nuevas licitaciones (24h): {new_count}",
                 f"Total en base: {total}",
-                f"Scraper runs: {success_runs} ok, {failed_runs} fallidos",
+                f"Scraper runs: {total_success} ok, {total_failed} fallidos",
             ]
 
             if upcoming > 0:
                 lines.append(f"<b>Aperturas proximas (48h): {upcoming}</b>")
+
+            # Per-scraper failure details
+            failed_scrapers = [s for s in scraper_stats if s["failed"] > 0]
+            if failed_scrapers:
+                lines.append("")
+                lines.append("<b>Scrapers con fallas:</b>")
+                for s in failed_scrapers:
+                    name = s["_id"]
+                    repair_marker = " REPAIR" if any(r.get("name") == name for r in repair_scrapers) else ""
+                    lines.append(f"  {name}: {s['failed']} fallas, {s['success']} ok{repair_marker}")
+
+            # Needs repair section
+            if repair_scrapers:
+                lines.append("")
+                lines.append("<b>Necesitan reparacion:</b>")
+                for r in repair_scrapers:
+                    since_repair = r.get("needs_repair_since")
+                    if since_repair:
+                        delta = datetime.utcnow() - since_repair
+                        duration = f"hace {delta.days}d" if delta.days > 0 else f"hace {int(delta.total_seconds() / 3600)}h"
+                    else:
+                        duration = "?"
+                    lines.append(f"  {r.get('name')}: desde {duration}")
+
+            if not failed_scrapers and not repair_scrapers:
+                lines.append("\nTodos los scrapers OK")
 
             message = "\n".join(lines)
 

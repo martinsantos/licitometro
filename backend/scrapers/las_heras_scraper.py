@@ -668,7 +668,7 @@ class LasHerasScraper(BaseScraper):
 
         except Exception as e:
             logger.error(f"Las Heras scraper failed: {e}", exc_info=True)
-            return []
+            raise  # Let scheduler handle failure tracking + retry + alert
         finally:
             await self.cleanup()
 

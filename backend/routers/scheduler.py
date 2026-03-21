@@ -222,12 +222,63 @@ async def get_source_health(db: AsyncIOMotorDatabase = Depends(get_db)):
                 "recent_errors": len(recent_errors),
                 "total_records": total_records,
                 "total_runs": len(recent_runs),
+                "needs_repair": config.get("needs_repair", False),
+                "needs_repair_since": config.get("needs_repair_since").isoformat() if config.get("needs_repair_since") else None,
             })
 
         return {"sources": sources}
     except Exception as e:
         logger.error(f"Error getting source health: {e}")
         raise HTTPException(status_code=500, detail=f"Failed to get source health: {str(e)}")
+
+
+@router.get("/needs-repair")
+async def get_needs_repair(db: AsyncIOMotorDatabase = Depends(get_db)):
+    """List scrapers flagged as needing repair (10+ consecutive failures)."""
+    try:
+        configs = await db.scraper_configs.find(
+            {"needs_repair": True}
+        ).to_list(length=50)
+
+        result = []
+        for config in configs:
+            name = config.get("name", "unknown")
+            service = get_scheduler_service(db)
+            consecutive, last_success = await service._get_consecutive_failures(name)
+            total_records = await db.licitaciones.count_documents(
+                {"fuente": {"$regex": f"^{re.escape(name)}", "$options": "i"}}
+            )
+            result.append({
+                "name": name,
+                "needs_repair_since": config.get("needs_repair_since").isoformat() if config.get("needs_repair_since") else None,
+                "consecutive_failures": consecutive,
+                "last_success": last_success.isoformat() if last_success else None,
+                "total_records": total_records,
+                "url": str(config.get("url", "")),
+            })
+
+        return {"scrapers": result}
+    except Exception as e:
+        logger.error(f"Error getting needs-repair: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/repair/{scraper_name}")
+async def clear_repair_flag(scraper_name: str, db: AsyncIOMotorDatabase = Depends(get_db)):
+    """Manually clear the needs_repair flag for a scraper."""
+    try:
+        result = await db.scraper_configs.update_one(
+            {"name": scraper_name},
+            {"$unset": {"needs_repair": "", "needs_repair_since": ""}}
+        )
+        if result.matched_count == 0:
+            raise HTTPException(status_code=404, detail=f"Scraper '{scraper_name}' not found")
+        return {"status": "cleared", "scraper_name": scraper_name}
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error clearing repair flag: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 @router.get("/stats")
