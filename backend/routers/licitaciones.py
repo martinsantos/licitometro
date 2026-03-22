@@ -151,7 +151,11 @@ async def _get_licitaciones_impl(
         if only_national:
             extra_filters["tags"] = "LIC_AR"
         if fuente_exclude:
-            extra_filters["fuente"] = {"$nin": fuente_exclude}
+            if "fuente" in extra_filters:
+                # Combine exact match + exclusion with $and
+                extra_filters.setdefault("$and", []).append({"fuente": {"$nin": fuente_exclude}})
+            else:
+                extra_filters["fuente"] = {"$nin": fuente_exclude}
 
         # Budget range
         if budget_min is not None or budget_max is not None:
@@ -229,7 +233,11 @@ async def _get_licitaciones_impl(
     if only_national:
         filters["tags"] = "LIC_AR"
     if fuente_exclude:
-        filters["fuente"] = {"$nin": fuente_exclude}
+        if "fuente" in filters:
+            # Combine exact match + exclusion with $and
+            filters.setdefault("$and", []).append({"fuente": {"$nin": fuente_exclude}})
+        else:
+            filters["fuente"] = {"$nin": fuente_exclude}
 
     # Budget range filter
     if budget_min is not None or budget_max is not None:
@@ -517,7 +525,10 @@ async def get_facets(
     if only_national:
         base_match["tags"] = "LIC_AR"
     if fuente_exclude:
-        base_match["fuente"] = {"$nin": fuente_exclude}
+        if "fuente" in base_match:
+            base_match.setdefault("$and", []).append({"fuente": {"$nin": fuente_exclude}})
+        else:
+            base_match["fuente"] = {"$nin": fuente_exclude}
 
     # Text search adds $text match
     if q:
