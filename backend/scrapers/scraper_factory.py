@@ -8,6 +8,7 @@ import logging
 from models.scraper_config import ScraperConfig
 from scrapers.base_scraper import BaseScraper
 from scrapers.comprar_gob_ar import ComprarGobArScraper
+from scrapers.comprar_nacional_scraper import ComprarNacionalScraper
 from scrapers.boletin_oficial_mendoza_scraper import BoletinOficialMendozaScraper
 from scrapers.mendoza_compra import MendozaCompraScraper
 
@@ -179,9 +180,10 @@ def create_scraper(config: ScraperConfig) -> Optional[BaseScraper]:
         logger.info(f"Using PbacBuenosAiresScraper for {config.name}")
         return PbacBuenosAiresScraper(config)
 
-    # Comprar.gob.ar (nacional - legacy)
-    if "comprar.gob.ar" in config_url_lower:
-        return ComprarGobArScraper(config)
+    # COMPR.AR Nacional (comprar.gob.ar)
+    if "comprar.gob.ar" in config_url_lower or "comprar_nacional" in config_name_lower:
+        logger.info(f"Using ComprarNacionalScraper for {config.name}")
+        return ComprarNacionalScraper(config)
 
     # No matching scraper found
     logger.warning(f"No specific scraper found for URL {config.url} or name {config.name}")

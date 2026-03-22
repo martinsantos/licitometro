@@ -601,7 +601,10 @@ class GenericEnrichmentService:
             return self._enrich_title_only(lic_doc)
 
         # COMPR.AR: VistaPreviaPliegoCiudadano URLs are STABLE and contain rich data.
-        if source_url and "comprar.mendoza.gov.ar" in source_url and "qs=" in source_url:
+        # Works for both Mendoza (comprar.mendoza.gov.ar) and Nacional (comprar.gob.ar).
+        if source_url and "qs=" in source_url and (
+            "comprar.mendoza.gov.ar" in source_url or "comprar.gob.ar" in source_url
+        ):
             return await self._enrich_comprar(lic_doc, source_url)
 
         # Handle binary URLs (PDF/ZIP) before attempting HTML fetch
