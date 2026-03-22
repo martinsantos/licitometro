@@ -52,14 +52,15 @@ licitometro/
 │   │   ├── scraper_factory.py     # URL/name → scraper class routing
 │   │   ├── resilient_http.py      # Anti-ban: UA rotation, backoff, circuit breaker
 │   │   ├── browser_scraper.py     # Selenium base for JS-heavy sites
-│   │   ├── mendoza_compra_v2.py   # COMPR.AR Mendoza (ASP.NET, pliego parsing)
+│   │   ├── mendoza_compra_v2.py   # COMPR.AR Mendoza (HTTP-only, no Selenium, ASP.NET postback)
 │   │   ├── boletin_oficial_mendoza_scraper.py  # PDF gazette scraper
 │   │   ├── godoy_cruz_scraper.py  # GeneXus JSON grid parser
 │   │   ├── generic_html_scraper.py # Config-driven CSS selector scraper
 │   │   ├── las_heras_scraper.py   # Selenium Oracle APEX
 │   │   ├── emesa_scraper.py       # EMESA with WAF handling
 │   │   ├── epre_scraper.py        # EPRE Flatsome layout
-│   │   ├── comprar_gob_ar.py      # Nacional comprar.gob.ar
+│   │   ├── comprar_gob_ar.py      # Nacional comprar.gob.ar (legacy stub, replaced by comprar_nacional_scraper)
+│   │   ├── comprar_nacional_scraper.py # COMPR.AR Nacional (HTTP-only, fast-fail on 503)
 │   │   ├── comprasapps_mendoza_scraper.py  # hli00049 servlet
 │   │   ├── aysam_scraper.py       # AYSAM
 │   │   ├── osep_scraper.py        # OSEP
@@ -188,6 +189,28 @@ Ver detalle completo en `memory/pliego_budget_pattern.md`.
 ### Objeto vs Title
 El campo `objeto` sintetiza el objeto de la contratacion (max 200 chars). Frontend muestra `objeto || title` como heading principal. `title` puede ser solo un numero de proceso (COMPR.AR) o "Decreto 140" (Boletin). El `objeto` se extrae via `utils/object_extractor.py` con 5 estrategias en cadena de prioridad.
 
+### COMPR.AR Scrapers (Mendoza + Nacional) — HTTP-only Architecture (Mar 2026)
+
+**COMPR.AR Mendoza** (`mendoza_compra_v2.py`): HTTP-only, no Selenium.
+- **Tiempo**: ~82 segundos para ~101 items (antes: 15 min con Selenium)
+- **Flujo**: List postback → paginate → detail postback per row → parallel pliego fetch
+- **Pliego extraction**: 6 strategies (a[href], onclick, hidden inputs, script tags, iframes, raw regex)
+- **Cache**: 7-day TTL en `storage/pliego_url_cache.json`, ~99 cache hits per run
+- **VIEWSTATE**: Cada row guarda los hidden fields de su propia página para detail postbacks correctos
+- **Pager filter**: `_is_pager_row()` filtra rows de paginación ASP.NET ("1 2 3 4 5 6 7 8 9 10")
+
+**COMPR.AR Nacional** (`comprar_nacional_scraper.py`): Mismo approach HTTP postback.
+- **Estado actual**: comprar.gob.ar retorna 503 (Retry-After: 3600) — bloquea datacenter IPs
+- **Fast-fail**: `_quick_fetch()` con timeout 30s, sin reintentos en 503. Retorna [] inmediatamente
+- **Cuando vuelva**: Se activará automáticamente en el próximo cron schedule (8,12,18 hs)
+- **Grid IDs**: Prueba 4 patrones (GridListaPliegos*, grdListadoProcesos, GridListaProcesos)
+
+**ResilientHttpClient**: Retry-After header capeado a `max_delay` (120s). Nunca duerme horas.
+
+**Enrichment**: `generic_enrichment.py` detecta COMPR.AR URLs de ambos portales (mendoza + gob.ar).
+
+**CRÍTICO**: NUNCA reintroducir Selenium. HTTP postback extrae el MISMO HTML que Selenium ve.
+
 ### Encoding de servidores
 Algunos servidores declaran UTF-8 pero envian Latin-1. `ResilientHttpClient.fetch()` lee raw bytes con `response.read()` y decodifica manualmente con fallback UTF-8 → Latin-1. NUNCA usar `response.text()` directamente.
 
@@ -279,7 +302,8 @@ Los 3 pasos son necesarios. Fuentes afectadas: COPIG, La Paz, San Carlos.
 | Fuente | Scraper | Items aprox | Notas |
 |--------|---------|-------------|-------|
 | ComprasApps Mendoza | comprasapps_mendoza | ~2601 | GeneXus servlet, multi-year, estado V+P, 37 CUCs |
-| COMPR.AR Mendoza | mendoza_compra_v2 | ~91 | ASP.NET WebForms, pliego parsing |
+| COMPR.AR Mendoza | mendoza_compra_v2 | ~101 | HTTP-only (no Selenium), ASP.NET postback, 82s, cache 7d |
+| COMPR.AR Nacional | comprar_nacional | ~0 | HTTP-only, fast-fail on 503, comprar.gob.ar currently blocked |
 | Boletin Oficial Mendoza | boletin_oficial_mendoza | ~54 | PDF gazette, pypdf extraction |
 | COPIG Mendoza | generic_html | ~50 | Custom WP, div.item cards, title_selector=h1 only, IPv6 |
 | San Carlos | generic_html | ~50 | WordPress+Elementor, h2 structured fields, IPv6 |
@@ -468,6 +492,10 @@ Ver documentación completa en `BACKUP_PROTECTION.md`.
 - **CRITICAL - Data Loss Prevention**: `docker compose down` elimina volumes y causa pérdida de datos. SIEMPRE usar `docker restart` o el script `deploy-prod.sh` que hace backup automático pre-deploy. Los volumes deben tener nombres explícitos para persistencia.
 - **Cloudflare Flexible SSL + Nginx**: Si Cloudflare está en modo "Flexible SSL" (HTTPS→HTTP al origin), nginx NO debe redirigir HTTP→HTTPS o causa redirect loop infinito. Configurar nginx para servir contenido via HTTP cuando viene de Cloudflare (detectando headers).
 - **Docker Build Cache**: `--no-cache` flag NO es suficiente si hay multi-stage builds. Usar `docker builder prune -af` antes de rebuild para eliminar TODO el cache de layers anteriores.
+- **COMPR.AR Selenium era innecesario**: HTTP postback al mismo URL retorna el MISMO HTML que Selenium renderiza. Selenium solo añadía 12-14 minutos de clicks sin obtener datos distintos. HTTP-only = 82s vs 15 min.
+- **ASP.NET __VIEWSTATE es per-page**: Cada página de paginación tiene su propio __VIEWSTATE. Usar el VIEWSTATE de la última página para detail postbacks de rows de páginas anteriores causa fallos silenciosos. Guardar hidden fields por página.
+- **ASP.NET pager rows parecen data rows**: La fila de paginación del grid (e.g. "1 2 3 4 5 6 7 8 9 10") tiene suficientes `<td>` para pasar filtros de longitud. Filtrar con regex `^[\d\s.…]+$`.
+- **Retry-After de 503 puede ser enorme**: comprar.gob.ar envía `Retry-After: 3600` (1 hora). ResilientHttpClient dormía 1h × 4 retries = 4 horas. Siempre capear Retry-After al max_delay (120s). Para sitios persistentemente caídos, usar fetch directo sin retries.
 
 ---
 

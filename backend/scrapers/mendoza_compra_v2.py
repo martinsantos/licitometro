@@ -325,6 +325,11 @@ class MendozaCompraScraperV2(BaseScraper):
     # ASP.NET postback helpers
     # ------------------------------------------------------------------
 
+    @staticmethod
+    def _is_pager_row(text: str) -> bool:
+        """Detect ASP.NET grid pager rows (e.g. '1 2 3 4 5 6 7 8 9 10')."""
+        return bool(re.match(r'^[\d\s.…]+$', text.strip()))
+
     def _extract_rows_from_list(self, html: str) -> List[Dict[str, Any]]:
         """Extract row data from Compras list table."""
         soup = BeautifulSoup(html, 'html.parser')
@@ -343,6 +348,9 @@ class MendozaCompraScraperV2(BaseScraper):
                 if m:
                     target = m.group(1)
             numero = cols[0].get_text(' ', strip=True)
+            # Skip pager navigation rows (e.g. "1 2 3 4 5 6 7 8 9 10")
+            if self._is_pager_row(numero):
+                continue
             title = cols[1].get_text(' ', strip=True)
             tipo = cols[2].get_text(' ', strip=True)
             apertura = cols[3].get_text(' ', strip=True)
@@ -442,34 +450,34 @@ class MendozaCompraScraperV2(BaseScraper):
                 rows = self._extract_rows_from_list(list_html)
                 logger.info(f"Found {len(rows)} rows on first page")
 
-                list_fields = self._extract_hidden_fields(list_html)
+                page_fields = self._extract_hidden_fields(list_html)
+
+                # Tag each row with its page's hidden fields for detail postbacks
+                all_rows = [(row, dict(page_fields)) for row in rows]
 
                 pager_args = self._extract_pager_args(list_html)
                 grid_targets = list(pager_args.keys())
-
-                all_rows = list(rows)
 
                 if grid_targets and max_pages > 1:
                     grid_target = grid_targets[0]
                     page_args = pager_args.get(grid_target, [])[:max_pages-1]
 
                     for page_arg in page_args:
-                        fields = dict(list_fields)
+                        fields = dict(page_fields)
                         fields["__EVENTTARGET"] = grid_target
                         fields["__EVENTARGUMENT"] = page_arg
 
                         next_html = await self._postback(list_url, fields)
                         if next_html:
                             page_rows = self._extract_rows_from_list(next_html)
-                            all_rows.extend(page_rows)
-                            # Update hidden fields for next postback
-                            list_fields = self._extract_hidden_fields(next_html)
+                            page_fields = self._extract_hidden_fields(next_html)
+                            all_rows.extend((r, dict(page_fields)) for r in page_rows)
                             await asyncio.sleep(self.config.wait_time)
 
                 logger.info(f"Total rows from all pages: {len(all_rows)}")
 
                 # Phase 2: For each row, try to get pliego URL via HTTP detail postback
-                for row in all_rows:
+                for row, row_hidden_fields in all_rows:
                     pliego_url = None
                     numero = row.get("numero", "")
 
@@ -480,8 +488,8 @@ class MendozaCompraScraperV2(BaseScraper):
                         self.stats['cache_hits'] += 1
                     elif row.get("target"):
                         self.stats['cache_misses'] += 1
-                        # POST detail postback to get detail page HTML
-                        detail_fields = dict(list_fields)
+                        # Use the hidden fields from this row's OWN page
+                        detail_fields = dict(row_hidden_fields)
                         detail_fields["__EVENTTARGET"] = row["target"]
                         detail_fields["__EVENTARGUMENT"] = ""
 

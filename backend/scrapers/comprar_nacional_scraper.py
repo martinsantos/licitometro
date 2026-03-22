@@ -113,6 +113,9 @@ class ComprarNacionalScraper(BaseScraper):
                 if m:
                     target = m.group(1)
             numero = cols[0].get_text(' ', strip=True)
+            # Skip pager navigation rows (e.g. "1 2 3 4 5 6 7 8 9 10")
+            if re.match(r'^[\d\s.…]+$', numero.strip()):
+                continue
             title = cols[1].get_text(' ', strip=True) if len(cols) > 1 else ""
             tipo = cols[2].get_text(' ', strip=True) if len(cols) > 2 else ""
             apertura = cols[3].get_text(' ', strip=True) if len(cols) > 3 else ""
@@ -257,6 +260,29 @@ class ComprarNacionalScraper(BaseScraper):
         finally:
             await self.cleanup()
 
+    async def _quick_fetch(self, url: str) -> Optional[str]:
+        """Fetch URL directly via raw session — no retries, fast fail on 503.
+        Used for the initial probe so the scraper doesn't hang for minutes."""
+        try:
+            import aiohttp as _aio
+            headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"}
+            timeout = _aio.ClientTimeout(total=30, connect=10, sock_read=20)
+            async with self.session.get(url, headers=headers, timeout=timeout) as resp:
+                if resp.status == 503:
+                    logger.warning(f"comprar.gob.ar returned 503 — site blocking datacenter IPs or under maintenance")
+                    return None
+                if resp.status != 200:
+                    logger.warning(f"comprar.gob.ar returned HTTP {resp.status}")
+                    return None
+                raw = await resp.read()
+                try:
+                    return raw.decode(resp.charset or "utf-8")
+                except (UnicodeDecodeError, LookupError):
+                    return raw.decode("latin-1", errors="replace")
+        except Exception as e:
+            logger.error(f"comprar.gob.ar connection failed: {e}")
+            return None
+
     async def _scrape_comprar(self) -> List[LicitacionCreate]:
         """Scrape comprar.gob.ar via ASP.NET postback."""
         licitaciones: List[LicitacionCreate] = []
@@ -271,10 +297,10 @@ class ComprarNacionalScraper(BaseScraper):
 
         logger.info(f"Starting ComprarNacionalScraper with URL: {list_url}")
 
-        # Phase 1: Fetch first page
-        list_html = await self.fetch_page(list_url)
+        # Phase 1: Quick probe — fail fast on 503 instead of retrying for minutes
+        list_html = await self._quick_fetch(list_url)
         if not list_html:
-            logger.error("Failed to fetch comprar.gob.ar — site may be down (503) or blocking datacenter IPs")
+            logger.error("comprar.gob.ar inaccessible — skipping this run")
             return []
 
         # Check for error/maintenance page
@@ -290,8 +316,9 @@ class ComprarNacionalScraper(BaseScraper):
         self.stats['pages_fetched'] += 1
         logger.info(f"Found {len(rows)} rows on first page")
 
-        list_fields = self._extract_hidden_fields(list_html)
-        all_rows = list(rows)
+        page_fields = self._extract_hidden_fields(list_html)
+        # Tag each row with its page's hidden fields for correct detail postbacks
+        all_rows = [(row, dict(page_fields)) for row in rows]
 
         # Phase 2: Paginate
         pager_args = self._extract_pager_args(list_html)
@@ -302,15 +329,15 @@ class ComprarNacionalScraper(BaseScraper):
             page_args = pager_args.get(grid_target, [])[:max_pages - 1]
 
             for page_arg in page_args:
-                fields = dict(list_fields)
+                fields = dict(page_fields)
                 fields["__EVENTTARGET"] = grid_target
                 fields["__EVENTARGUMENT"] = page_arg
 
                 next_html = await self._postback(list_url, fields)
                 if next_html:
                     page_rows = self._extract_rows_from_list(next_html)
-                    all_rows.extend(page_rows)
-                    list_fields = self._extract_hidden_fields(next_html)
+                    page_fields = self._extract_hidden_fields(next_html)
+                    all_rows.extend((r, dict(page_fields)) for r in page_rows)
                     self.stats['pages_fetched'] += 1
                     await asyncio.sleep(self.config.wait_time)
 
@@ -320,11 +347,11 @@ class ComprarNacionalScraper(BaseScraper):
         # Phase 3: Detail postback + pliego URL extraction
         row_entries: List[Dict[str, Any]] = []
 
-        for row in all_rows[:max_items]:
+        for row, row_hidden_fields in all_rows[:max_items]:
             pliego_url = None
 
             if row.get("target"):
-                detail_fields = dict(list_fields)
+                detail_fields = dict(row_hidden_fields)
                 detail_fields["__EVENTTARGET"] = row["target"]
                 detail_fields["__EVENTARGUMENT"] = ""
 

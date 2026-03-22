@@ -153,7 +153,10 @@ class ResilientHttpClient:
                     if response.status in (429, 503):
                         retry_after = response.headers.get("Retry-After")
                         if retry_after:
-                            delay = float(retry_after)
+                            try:
+                                delay = min(float(retry_after), self.max_delay)
+                            except (ValueError, TypeError):
+                                delay = self._backoff_delay(attempt)
                         else:
                             delay = self._backoff_delay(attempt)
                         logger.warning(
