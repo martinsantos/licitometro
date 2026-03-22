@@ -54,17 +54,13 @@ export function useFacetedFilters(apiUrl: string, filters: FilterState, fechaCam
       if (filters.nodoFiltro) params.append('nodo', filters.nodoFiltro);
       if (filters.budgetMin) params.append('budget_min', filters.budgetMin);
       if (filters.budgetMax) params.append('budget_max', filters.budgetMax);
-      // Year workspace → fecha_desde/fecha_hasta (only if no explicit date filter)
-      if (filters.fechaDesde) {
-        params.append('fecha_desde', filters.fechaDesde);
-      } else if (filters.yearWorkspace && filters.yearWorkspace !== 'all') {
-        params.append('fecha_desde', `${filters.yearWorkspace}-01-01`);
+      // Year workspace → send 'year' param (same as main listing, always filters publication_date)
+      if (filters.yearWorkspace && filters.yearWorkspace !== 'all') {
+        params.append('year', filters.yearWorkspace);
       }
-      if (filters.fechaHasta) {
-        params.append('fecha_hasta', filters.fechaHasta);
-      } else if (filters.yearWorkspace && filters.yearWorkspace !== 'all') {
-        params.append('fecha_hasta', `${filters.yearWorkspace}-12-31`);
-      }
+      // Explicit date range filters
+      if (filters.fechaDesde) params.append('fecha_desde', filters.fechaDesde);
+      if (filters.fechaHasta) params.append('fecha_hasta', filters.fechaHasta);
       // When nuevasDesde is active, force fecha_campo=fecha_scraping (synchronized filter)
       const effectiveFechaCampo = filters.nuevasDesde ? 'fecha_scraping' : fechaCampo;
       if (effectiveFechaCampo) params.append('fecha_campo', effectiveFechaCampo);

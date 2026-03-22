@@ -478,6 +478,7 @@ async def get_facets(
     fecha_hasta: Optional[date] = None,
     fecha_campo: str = Query("publication_date"),
     nuevas_desde: Optional[date] = Query(None, description="Filter by first_seen_at >= date (truly new items)"),
+    year: Optional[str] = Query(None, description="Filter by publication year (e.g., '2026' or 'all')"),
     only_national: Optional[bool] = Query(False, description="Only Argentina nacional sources (~11 sources)"),
     fuente_exclude: Optional[List[str]] = Query(None, description="Exclude these sources"),
     request: Request = None,
@@ -516,6 +517,23 @@ async def get_facets(
         if fecha_desde: df["$gte"] = datetime.combine(fecha_desde, datetime.min.time())
         if fecha_hasta: df["$lte"] = datetime.combine(fecha_hasta, datetime.max.time())
         if df: base_match[fc] = df
+
+    # Year filter (always uses publication_date, same as main listing)
+    if year and year != "all":
+        try:
+            year_num = int(year)
+            year_start = datetime(year_num, 1, 1)
+            year_end = datetime(year_num, 12, 31, 23, 59, 59)
+            if "publication_date" in base_match:
+                existing = base_match["publication_date"]
+                base_match["publication_date"] = {
+                    "$gte": max(existing.get("$gte", year_start), year_start),
+                    "$lte": min(existing.get("$lte", year_end), year_end)
+                }
+            else:
+                base_match["publication_date"] = {"$gte": year_start, "$lte": year_end}
+        except (ValueError, TypeError):
+            pass
 
     # Filter by first_seen_at for "Nuevas de hoy" functionality
     if nuevas_desde:
