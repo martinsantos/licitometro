@@ -116,6 +116,43 @@ class MendozaCompraScraperV2(BaseScraper):
             'cache_misses': 0,
         }
     
+    async def _fetch_and_parse_pliego(self, pliego_url: str, numero: str) -> tuple:
+        """Fetch pliego page and extract label-value fields in parallel-safe way.
+        Returns (fields_dict, updated_pliego_url)."""
+        if not pliego_url:
+            return {}, pliego_url
+
+        pliego_html = await self.fetch_page(pliego_url)
+        if not pliego_html:
+            return {}, pliego_url
+
+        soup = BeautifulSoup(pliego_html, 'html.parser')
+        labels = soup.find_all('label')
+
+        # If no labels and URL is session-dependent ComprasElectronicas,
+        # try to find stable VistaPreviaPliegoCiudadano link
+        if not labels and "ComprasElectronicas" in pliego_url:
+            pliego_link = self._extract_pliego_url_from_detail(pliego_html, pliego_url)
+            if pliego_link and "VistaPreviaPliegoCiudadano" in pliego_link:
+                logger.info(f"Found VistaPreviaPliego link for {numero}")
+                pliego_url = pliego_link
+                pliego_html = await self.fetch_page(pliego_url)
+                if pliego_html:
+                    soup = BeautifulSoup(pliego_html, 'html.parser')
+                    labels = soup.find_all('label')
+
+        fields = {}
+        for lab in (labels or []):
+            key = lab.get_text(' ', strip=True)
+            if not key:
+                continue
+            nxt = lab.find_next_sibling()
+            val = nxt.get_text(' ', strip=True) if nxt else ''
+            if val:
+                fields[key] = val
+
+        return fields, pliego_url
+
     async def extract_licitacion_data(self, html: str, url: str) -> Optional[LicitacionCreate]:
         """Extract licitacion data from HTML"""
         try:
@@ -676,8 +713,30 @@ class MendozaCompraScraperV2(BaseScraper):
             disable_date_filter = self.config.selectors.get("disable_date_filter", True)
             
             seen_ids = set()
-            
-            for entry in row_entries:
+
+            # Parallel pliego fetching — batch all HTTP requests with concurrency limit
+            pliego_sem = asyncio.Semaphore(5)
+
+            async def _bounded_pliego_fetch(idx, entry):
+                url = entry.get("pliego_url")
+                if url and not url.startswith(("http://", "https://")):
+                    url = None
+                async with pliego_sem:
+                    return idx, await self._fetch_and_parse_pliego(url, entry.get("numero", ""))
+
+            pliego_tasks = [_bounded_pliego_fetch(i, e) for i, e in enumerate(row_entries)]
+            pliego_results = await asyncio.gather(*pliego_tasks, return_exceptions=True)
+            pliego_data = {}
+            for result in pliego_results:
+                if isinstance(result, Exception):
+                    logger.warning(f"Pliego fetch error: {result}")
+                    continue
+                idx, (fields, url) = result
+                pliego_data[idx] = (fields, url)
+
+            logger.info(f"Parallel pliego fetch complete: {len(pliego_data)}/{len(row_entries)} successful")
+
+            for entry_idx, entry in enumerate(row_entries):
                 numero = entry.get("numero")
                 title = entry.get("title") or "Proceso de compra"
                 tipo = entry.get("tipo") or "Proceso de compra"
@@ -710,38 +769,8 @@ class MendozaCompraScraperV2(BaseScraper):
                     attached_files=[]
                 )
                 
-                pliego_url = entry.get("pliego_url")
-                if pliego_url and not pliego_url.startswith(("http://", "https://")):
-                    pliego_url = None
-                
-                # Get PLIEGO fields if we have URL
-                pliego_fields: Dict[str, str] = {}
-                if pliego_url:
-                    pliego_html = await self.fetch_page(pliego_url)
-                    if pliego_html:
-                        soup = BeautifulSoup(pliego_html, 'html.parser')
-                        labels = soup.find_all('label')
-
-                        # If no labels found AND URL is ComprasElectronicas (session-expired),
-                        # try to find a VistaPreviaPliegoCiudadano link on the page
-                        if not labels and "ComprasElectronicas" in pliego_url:
-                            pliego_link = self._extract_pliego_url_from_detail(pliego_html, pliego_url)
-                            if pliego_link and "VistaPreviaPliegoCiudadano" in pliego_link:
-                                logger.info(f"Found VistaPreviaPliego link in ComprasElectronicas page for {numero}")
-                                pliego_url = pliego_link
-                                pliego_html = await self.fetch_page(pliego_url)
-                                if pliego_html:
-                                    soup = BeautifulSoup(pliego_html, 'html.parser')
-                                    labels = soup.find_all('label')
-
-                        for lab in labels:
-                            key = lab.get_text(' ', strip=True)
-                            if not key:
-                                continue
-                            nxt = lab.find_next_sibling()
-                            val = nxt.get_text(' ', strip=True) if nxt else ''
-                            if val:
-                                pliego_fields[key] = val
+                # Use pre-fetched pliego data (parallel batch above)
+                pliego_fields, pliego_url = pliego_data.get(entry_idx, ({}, entry.get("pliego_url")))
                 
                 # Build metadata (store raw apertura for debugging/backfill)
                 meta = {

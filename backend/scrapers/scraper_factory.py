@@ -124,6 +124,12 @@ def create_scraper(config: ScraperConfig) -> Optional[BaseScraper]:
     # EMESA (Empresa Mendocina de Energía) - /concursos page works without Selenium
     # Falls through to GenericHtmlScraper via selectors config
 
+    # Contrataciones Abiertas Mendoza (OCDS JSON downloads)
+    # MUST be before mendoza.gov.ar fallback since URL contains mendoza.gov.ar
+    if "datosabiertos-compras.mendoza" in config_url_lower or "contrataciones_abiertas" in config_name_lower:
+        logger.info(f"Using ContratacionesAbiertasMzaScraper for {config.name}")
+        return ContratacionesAbiertasMzaScraper(config)
+
     # Generic HTML scraper - MUST be before mendoza.gov.ar fallback so configs
     # with explicit scraper_type=generic_html are routed correctly (e.g. IPV at ipvmendoza.gov.ar)
     if config.selectors and (config.selectors.get("scraper_type") == "generic_html" or
@@ -142,11 +148,6 @@ def create_scraper(config: ScraperConfig) -> Optional[BaseScraper]:
     if "datos.gob.ar" in config_url_lower or "datos_argentina" in config_name_lower:
         logger.info(f"Using DatosArgentinaScraper for {config.name}")
         return DatosArgentinaScraper(config)
-
-    # Contrataciones Abiertas Mendoza (OCDS API)
-    if "datosabiertos-compras.mendoza" in config_url_lower or "contrataciones_abiertas" in config_name_lower:
-        logger.info(f"Using ContratacionesAbiertasMzaScraper for {config.name}")
-        return ContratacionesAbiertasMzaScraper(config)
 
     # World Bank Procurement API
     if "worldbank.org" in config_url_lower or "banco_mundial" in config_name_lower:
