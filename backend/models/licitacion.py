@@ -77,6 +77,8 @@ class LicitacionBase(BaseModel):
     
     status: str = Field("active", description="Status of the licitación (active, closed, awarded, etc.)")
     fuente: Optional[str] = Field(None, description="Source of the licitación (scraper name)")
+    fuentes: List[str] = Field(default=[], description="ALL sources that contributed data to this item")
+    proceso_id: Optional[str] = Field(None, description="Canonical process ID for cross-source matching (e.g. EX-2026-12345-MDZ)")
     fecha_scraping: Optional[datetime] = Field(None, description="Date when the licitación was scraped")
     tipo_procedimiento: Optional[str] = Field(None, description="Type of procedure for the licitación")
     tipo_acceso: Optional[str] = Field(None, description="Type of access for the licitación")
@@ -229,6 +231,9 @@ class LicitacionUpdate(BaseModel):
     nodos: Optional[List[str]] = None
     # Tags
     tags: Optional[List[str]] = None
+    # Multi-source
+    fuentes: Optional[List[str]] = None
+    proceso_id: Optional[str] = None
     # Vigencia
     estado: Optional[str] = None
     fecha_prorroga: Optional[datetime] = None

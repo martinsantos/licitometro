@@ -288,12 +288,22 @@ const LicitacionCard: React.FC<LicitacionCardProps> = ({
               <span className="px-2 py-1 bg-violet-50 text-violet-700 rounded text-xs font-bold">
                 {lic.fuente || 'Fuente'}
               </span>
+              {(lic.fuentes?.length ?? 0) > 1 && (
+                <span className="px-1.5 py-1 bg-amber-50 text-amber-700 rounded text-[10px] font-bold" title={lic.fuentes?.join(', ')}>
+                  +{(lic.fuentes?.length ?? 0) - 1} fuente{(lic.fuentes?.length ?? 0) > 2 ? 's' : ''}
+                </span>
+              )}
             </div>
           </div>
 
           {/* Mobile meta row */}
           <div className="flex flex-wrap items-center gap-1.5 mt-2 lg:hidden">
             <span className="px-2 py-0.5 bg-violet-50 text-violet-700 rounded text-[10px] font-bold">{lic.fuente || 'Fuente'}</span>
+            {(lic.fuentes?.length ?? 0) > 1 && (
+              <span className="px-1 py-0.5 bg-amber-50 text-amber-700 rounded text-[10px] font-bold" title={lic.fuentes?.join(', ')}>
+                +{(lic.fuentes?.length ?? 0) - 1}
+              </span>
+            )}
             <span className="px-2 py-0.5 bg-gray-100 text-gray-600 rounded text-[10px] font-bold">{lic.jurisdiccion || 'Argentina'}</span>
             {daysUntil !== null && (
               <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${urgencyClass}`}>

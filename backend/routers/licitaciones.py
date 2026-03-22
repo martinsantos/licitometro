@@ -138,9 +138,9 @@ async def _get_licitaciones_impl(
         if not only_national:
             extra_filters["tags"] = {"$ne": "LIC_AR"}
         if status: extra_filters["status"] = status
-        if organization: extra_filters["organization"] = {"$regex": re.escape(organization), "$options": "i"}
+        if organization: extra_filters["organization"] = {"$regex": f"^{re.escape(organization)}$", "$options": "i"}
         if category: extra_filters["category"] = category
-        if fuente: extra_filters["fuente"] = {"$regex": re.escape(fuente), "$options": "i"}
+        if fuente: extra_filters["fuente"] = {"$regex": f"^{re.escape(fuente)}$", "$options": "i"}
         if workflow_state: extra_filters["workflow_state"] = workflow_state
         if jurisdiccion: extra_filters["jurisdiccion"] = jurisdiccion
         if tipo_procedimiento: extra_filters["tipo_procedimiento"] = tipo_procedimiento
@@ -207,13 +207,13 @@ async def _get_licitaciones_impl(
     if status:
         filters["status"] = status
     if organization:
-        filters["organization"] = {"$regex": re.escape(organization), "$options": "i"}
+        filters["organization"] = {"$regex": f"^{re.escape(organization)}$", "$options": "i"}
     if location:
         filters["location"] = location
     if category:
         filters["category"] = category
     if fuente:
-        filters["fuente"] = {"$regex": re.escape(fuente), "$options": "i"}
+        filters["fuente"] = {"$regex": f"^{re.escape(fuente)}$", "$options": "i"}
     if workflow_state:
         filters["workflow_state"] = workflow_state
     if jurisdiccion:
@@ -431,13 +431,13 @@ async def count_licitaciones(
     if status:
         filters["status"] = status
     if organization:
-        filters["organization"] = organization
+        filters["organization"] = {"$regex": f"^{re.escape(organization)}$", "$options": "i"}
     if location:
         filters["location"] = location
     if category:
         filters["category"] = category
-    if fuente: # Added fuente to filters
-        filters["fuente"] = fuente
+    if fuente:
+        filters["fuente"] = {"$regex": f"^{re.escape(fuente)}$", "$options": "i"}
     
     count = await repo.count(filters=filters)
     return {"count": count}
@@ -488,9 +488,9 @@ async def get_facets(
     # Exclude LIC_AR items from main feed facets
     base_match["tags"] = {"$ne": "LIC_AR"}
     if status: base_match["status"] = status
-    if organization: base_match["organization"] = {"$regex": re.escape(organization), "$options": "i"}
+    if organization: base_match["organization"] = {"$regex": f"^{re.escape(organization)}$", "$options": "i"}
     if category: base_match["category"] = category
-    if fuente: base_match["fuente"] = {"$regex": re.escape(fuente), "$options": "i"}
+    if fuente: base_match["fuente"] = {"$regex": f"^{re.escape(fuente)}$", "$options": "i"}
     if workflow_state: base_match["workflow_state"] = workflow_state
     if jurisdiccion: base_match["jurisdiccion"] = jurisdiccion
     if tipo_procedimiento: base_match["tipo_procedimiento"] = tipo_procedimiento
@@ -603,9 +603,9 @@ async def debug_filters(
     active_filters: Dict[str, Dict] = {}
     if q: active_filters["q"] = {"$text": {"$search": q}}
     if status: active_filters["status"] = {"status": status}
-    if organization: active_filters["organization"] = {"organization": {"$regex": re.escape(organization), "$options": "i"}}
+    if organization: active_filters["organization"] = {"organization": {"$regex": f"^{re.escape(organization)}$", "$options": "i"}}
     if category: active_filters["category"] = {"category": category}
-    if fuente: active_filters["fuente"] = {"fuente": fuente}
+    if fuente: active_filters["fuente"] = {"fuente": {"$regex": f"^{re.escape(fuente)}$", "$options": "i"}}
     if workflow_state: active_filters["workflow_state"] = {"workflow_state": workflow_state}
     if jurisdiccion: active_filters["jurisdiccion"] = {"jurisdiccion": jurisdiccion}
     if tipo_procedimiento: active_filters["tipo_procedimiento"] = {"tipo_procedimiento": tipo_procedimiento}
@@ -1316,6 +1316,54 @@ async def get_estado_distribution(
         "by_year": by_year,
         "vigentes_hoy": vigentes_count
     }
+
+
+@router.get("/{licitacion_id}/related-sources")
+async def get_related_sources(
+    licitacion_id: str,
+    request: Request = None,
+):
+    """Find licitaciones from OTHER sources that match this one (by proceso_id, expedient, or licitacion number)."""
+    from services.cross_source_service import CrossSourceService
+    db = request.app.mongodb
+    cross_svc = CrossSourceService(db)
+    related = await cross_svc.find_related_by_id(licitacion_id, limit=10)
+    return {
+        "licitacion_id": licitacion_id,
+        "related_count": len(related),
+        "related": [
+            {
+                "id": r["id"],
+                "title": r.get("title", ""),
+                "fuente": r.get("fuente", ""),
+                "organization": r.get("organization", ""),
+                "source_url": r.get("source_url"),
+                "publication_date": r.get("publication_date"),
+                "budget": r.get("budget"),
+                "proceso_id": r.get("proceso_id"),
+            }
+            for r in related
+        ],
+    }
+
+
+@router.post("/{licitacion_id}/merge-source")
+async def merge_source(
+    licitacion_id: str,
+    body: Dict[str, Any] = Body(...),
+    request: Request = None,
+):
+    """Merge data from a related item into this one. Requires related_id in body."""
+    from services.cross_source_service import CrossSourceService
+    related_id = body.get("related_id")
+    if not related_id:
+        raise HTTPException(status_code=400, detail="related_id is required")
+    db = request.app.mongodb
+    cross_svc = CrossSourceService(db)
+    result = await cross_svc.merge_source_data(licitacion_id, related_id)
+    if not result:
+        raise HTTPException(status_code=404, detail="Item not found")
+    return result
 
 
 @router.post("/{licitacion_id}/toggle-public")

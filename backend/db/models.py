@@ -81,6 +81,8 @@ def licitacion_entity(licitacion) -> dict:
         "url_quality": licitacion.get("url_quality"),
         "status": licitacion.get("status", "active"),
         "fuente": licitacion.get("fuente"),
+        "fuentes": licitacion.get("fuentes", []),
+        "proceso_id": licitacion.get("proceso_id"),
         "fecha_scraping": licitacion.get("fecha_scraping"),
         "tipo_procedimiento": licitacion.get("tipo_procedimiento"),
         "tipo_acceso": licitacion.get("tipo_acceso"),

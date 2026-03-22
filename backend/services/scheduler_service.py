@@ -27,6 +27,7 @@ from models.scraper_config import ScraperConfig
 from models.scraper_run import ScraperRun, ScraperRunCreate, ScraperRunUpdate
 from scrapers.scraper_factory import create_scraper
 from services.deduplication_service import DeduplicationService
+from utils.proceso_id import normalize_proceso_id
 
 logger = logging.getLogger("scheduler_service")
 
@@ -395,6 +396,22 @@ class SchedulerService:
                                 item_data[url_field] = str(item_data[url_field])
                         item_data["updated_at"] = now
 
+                        # Populate fuentes[] from primary fuente
+                        primary_fuente = item_data.get("fuente") or ""
+                        existing_fuentes = item_data.get("fuentes") or []
+                        if primary_fuente and primary_fuente not in existing_fuentes:
+                            existing_fuentes = [primary_fuente] + existing_fuentes
+                        item_data["fuentes"] = existing_fuentes
+
+                        # Generate proceso_id for cross-source matching
+                        if not item_data.get("proceso_id"):
+                            item_data["proceso_id"] = normalize_proceso_id(
+                                expedient_number=item_data.get("expedient_number"),
+                                licitacion_number=item_data.get("licitacion_number"),
+                                title=item_data.get("title", ""),
+                                fuente=primary_fuente,
+                            )
+
                         # AR scope: add LIC_AR tag
                         if is_ar_scope:
                             tags = item_data.get("tags") or []
@@ -473,7 +490,22 @@ class SchedulerService:
                         await licitaciones_collection.bulk_write(enrich_ops, ordered=False)
                     except Exception as enrich_err:
                         log(f"Enrichment bulk write error: {enrich_err}", "warning")
-            
+
+                # ── Cross-source linking for new items with proceso_id ──
+                if items_saved > 0:
+                    try:
+                        from services.cross_source_service import CrossSourceService
+                        cross_svc = CrossSourceService(self.db)
+                        new_docs = await licitaciones_collection.find(
+                            {"id_licitacion": {"$in": [eu["id_licitacion"] for eu in enrichment_updates]}, "proceso_id": {"$ne": None}}
+                        ).to_list(length=200) if enrichment_updates else []
+                        if new_docs:
+                            linked = await cross_svc.auto_link_after_scrape(new_docs)
+                            if linked:
+                                log(f"Cross-source: linked {linked} items across sources")
+                    except Exception as cs_err:
+                        log(f"Cross-source linking error: {cs_err}", "warning")
+
             # Determine status
             status = "success"
             if errors:
@@ -591,7 +623,7 @@ class SchedulerService:
         consecutive, last_success = await self._get_consecutive_failures(scraper_name)
         config_url = str(config_data.get("url", "")) if config_data else ""
         total_records = await self.db.licitaciones.count_documents(
-            {"fuente": {"$regex": f"^{re.escape(scraper_name)}", "$options": "i"}}
+            {"fuente": {"$regex": f"^{re.escape(scraper_name)}$", "$options": "i"}}
         )
 
         # Enhanced alert via Telegram

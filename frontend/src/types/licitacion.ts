@@ -11,6 +11,8 @@ export interface Licitacion {
   budget?: number;
   currency?: string;
   fuente?: string;
+  fuentes?: string[];
+  proceso_id?: string;
   status?: string;
   jurisdiccion?: string;
   tipo_procedimiento?: string;
