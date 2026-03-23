@@ -302,6 +302,7 @@ class SchedulerService:
             items_saved = 0
             items_duplicated = 0
             items_updated = 0
+            items_unchanged = 0
             duplicates_skipped = 0
             urls_with_pliego = 0
             record_errors: List[Dict] = []
@@ -320,15 +321,17 @@ class SchedulerService:
                 batch_hashes = [i.content_hash for i in items if i.content_hash]
 
                 existing_ids: set = set()
+                existing_id_hashes: Dict[str, Optional[str]] = {}  # id_licitacion → content_hash
                 existing_hashes: Dict[str, str] = {}  # hash → id_licitacion
                 boe_existing_numbers: set = set()
 
                 if batch_ids:
                     existing_docs = await licitaciones_collection.find(
                         {"id_licitacion": {"$in": batch_ids}},
-                        {"id_licitacion": 1}
+                        {"id_licitacion": 1, "content_hash": 1}
                     ).to_list(length=None)
                     existing_ids = {doc["id_licitacion"] for doc in existing_docs}
+                    existing_id_hashes = {doc["id_licitacion"]: doc.get("content_hash") for doc in existing_docs}
 
                 if batch_hashes:
                     hash_docs = await licitaciones_collection.find(
@@ -427,6 +430,15 @@ class SchedulerService:
                                 log(f"Nodo matching failed for {item.id_licitacion}: {nodo_err}", "warning")
 
                         if id_exists:
+                            # Skip items whose content hasn't changed
+                            old_hash = existing_id_hashes.get(item.id_licitacion)
+                            if old_hash and item.content_hash and old_hash == item.content_hash:
+                                items_unchanged += 1
+                                continue
+
+                            # Content changed — preserve immutable timestamps
+                            item_data.pop("first_seen_at", None)
+                            item_data.pop("created_at", None)
                             items_updated += 1
                             bulk_ops.append(UpdateOne(
                                 {"id_licitacion": item.id_licitacion},
@@ -491,20 +503,33 @@ class SchedulerService:
                     except Exception as enrich_err:
                         log(f"Enrichment bulk write error: {enrich_err}", "warning")
 
-                # ── Cross-source linking for new items with proceso_id ──
-                if items_saved > 0:
+                # ── HUNTER cross-source enrichment for new items ──
+                if items_saved > 0 and enrichment_updates:
                     try:
                         from services.cross_source_service import CrossSourceService
                         cross_svc = CrossSourceService(self.db)
+
+                        new_ids = [eu["id_licitacion"] for eu in enrichment_updates]
                         new_docs = await licitaciones_collection.find(
-                            {"id_licitacion": {"$in": [eu["id_licitacion"] for eu in enrichment_updates]}, "proceso_id": {"$ne": None}}
-                        ).to_list(length=200) if enrichment_updates else []
-                        if new_docs:
-                            linked = await cross_svc.auto_link_after_scrape(new_docs)
-                            if linked:
-                                log(f"Cross-source: linked {linked} items across sources")
+                            {"id_licitacion": {"$in": new_ids}}
+                        ).to_list(length=200)
+
+                        cross_enriched = 0
+                        for doc in new_docs:
+                            doc_id = str(doc["_id"])
+                            try:
+                                hunter_result = await cross_svc.hunt_cross_sources(
+                                    doc_id, doc, {}
+                                )
+                                if hunter_result.get("matches_found", 0) > 0:
+                                    cross_enriched += 1
+                            except Exception:
+                                pass
+
+                        if cross_enriched:
+                            log(f"HUNTER: {cross_enriched}/{len(new_docs)} new items enriched from cross-source matches")
                     except Exception as cs_err:
-                        log(f"Cross-source linking error: {cs_err}", "warning")
+                        log(f"Cross-source HUNTER error: {cs_err}", "warning")
 
             # Determine status
             status = "success"
@@ -538,6 +563,7 @@ class SchedulerService:
                 logs=logs,
                 record_errors=record_errors,
                 duplicates_skipped=duplicates_skipped,
+                metadata={"items_unchanged": items_unchanged},
             )
 
             # Use default mode (Python) — preserves datetime as BSON Date, not ISO string
@@ -566,7 +592,7 @@ class SchedulerService:
                     {"$unset": {"needs_repair": "", "needs_repair_since": ""}}
                 )
 
-            log(f"Scraper '{scraper_name}' completed. Found: {items_found}, Saved: {items_saved}, Updated: {items_updated}")
+            log(f"Scraper '{scraper_name}' completed. Found: {items_found}, Saved: {items_saved}, Updated: {items_updated}, Unchanged: {items_unchanged}, Dupes skipped: {duplicates_skipped}")
 
             # Handle failures and suspicious empties: alert + retry + escalation
             if status in ("failed", "empty_suspicious"):
