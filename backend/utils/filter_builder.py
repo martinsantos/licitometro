@@ -116,13 +116,17 @@ def build_base_filters(
         except (ValueError, TypeError):
             pass
 
-    # Auto-filter: when sorting by opening_date, only show future openings
+    # Auto-filter: when sorting by opening_date, only show future openings OR items without opening_date
     if auto_future_opening and not q:
         today = date.today()
         if not fecha_desde or fecha_desde < today:
-            opening_existing = filters.get("opening_date", {})
-            opening_existing["$gte"] = datetime.combine(today, datetime.min.time())
-            filters["opening_date"] = opening_existing
+            today_dt = datetime.combine(today, datetime.min.time())
+            filters.setdefault("$and", []).append({
+                "$or": [
+                    {"opening_date": {"$gte": today_dt}},
+                    {"opening_date": None},
+                ]
+            })
 
     # Nuevas desde (first_seen_at >= date)
     if nuevas_desde:
