@@ -2,6 +2,9 @@
 
 import pytest
 from unittest.mock import MagicMock
+
+bs4 = pytest.importorskip("bs4", reason="bs4 not installed (CI-light env)")
+
 from models.scraper_config import ScraperConfig
 from scrapers.scraper_factory import create_scraper
 

@@ -3,6 +3,8 @@
 import pytest
 from unittest.mock import AsyncMock, MagicMock, patch
 
+bs4 = pytest.importorskip("bs4", reason="bs4 not installed (CI-light env)")
+
 from services.enrichment.orchestrator import GenericEnrichmentService
 from services.enrichment.text_analyzer import enrich_title_only, extract_budget_from_text
 from services.enrichment.url_helpers import is_unfetchable_url, find_best_alt_url

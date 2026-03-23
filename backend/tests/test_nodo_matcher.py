@@ -5,6 +5,8 @@ import sys
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
+apscheduler = pytest.importorskip("apscheduler", reason="apscheduler not installed (CI-light env)")
+
 from services.nodo_matcher import _build_flexible_pattern, _normalize_text, _spanish_stem
 
 

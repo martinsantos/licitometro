@@ -2,6 +2,9 @@
 
 import pytest
 from unittest.mock import MagicMock, patch
+
+apscheduler = pytest.importorskip("apscheduler", reason="apscheduler not installed (CI-light env)")
+
 from services.cron_registry import CRON_JOBS, register_all_crons
 
 

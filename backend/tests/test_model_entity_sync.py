@@ -11,6 +11,9 @@ knows precisely what to add to licitacion_entity().
 import sys
 from pathlib import Path
 from datetime import datetime
+import pytest
+
+bson = pytest.importorskip("bson", reason="bson/pymongo not installed (CI-light env)")
 from bson import ObjectId
 
 # conftest.py already inserts backend/ into sys.path, but be defensive here too.
