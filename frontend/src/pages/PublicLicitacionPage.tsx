@@ -23,6 +23,7 @@ interface Licitacion {
   attached_files?: Array<{ name: string; url: string }>;
   fuente?: string;
   status?: string;
+  estado?: 'vigente' | 'vencida' | 'prorrogada' | 'archivada';
   category?: string;
 }
 
