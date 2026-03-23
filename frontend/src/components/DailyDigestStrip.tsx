@@ -36,11 +36,6 @@ const DailyDigestStrip = ({
         };
         const params = buildFilterParams(strippedFilters);
         params.append('days', '14');
-        // Default exclude vencida/archivada unless user is explicitly filtering by estado
-        if (!filters.estadoFiltro) {
-          params.append('estado_exclude', 'vencida');
-          params.append('estado_exclude', 'archivada');
-        }
 
         const res = await fetch(`${apiUrl}${apiPath}/stats/daily-counts?${params}`, { credentials: 'include' });
         if (res.ok) {
