@@ -11,14 +11,19 @@ Fix: Set publication_date = fecha_scraping for affected items.
 """
 import asyncio
 import os
+import sys
 from datetime import datetime
+from pathlib import Path
 from motor.motor_asyncio import AsyncIOMotorClient
+
+sys.path.insert(0, str(Path(__file__).parent.parent))
+from utils.time import utc_now
 
 
 async def fix():
     db = AsyncIOMotorClient(os.environ["MONGO_URL"])[os.environ["DB_NAME"]]
     col = db.licitaciones
-    now = datetime.utcnow()
+    now = utc_now()
 
     # Find items where publication_date is in the future
     cursor = col.find({"publication_date": {"$gt": now}})

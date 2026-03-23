@@ -65,7 +65,13 @@ def build_base_filters(
     if tipo_procedimiento:
         filters["tipo_procedimiento"] = tipo_procedimiento
     if estado:
-        filters["estado"] = estado
+        if ',' in estado:
+            filters["estado"] = {"$in": [s.strip() for s in estado.split(',')]}
+        else:
+            filters["estado"] = estado
+    else:
+        # Default: excluir archivadas. Usuario puede opt-in via sidebar EstadoFilter.
+        filters["estado"] = {"$ne": "archivada"}
     if location:
         filters["location"] = location
 
@@ -149,16 +155,15 @@ def build_base_filters(
 def build_cross_match(base_filters: Dict[str, Any], exclude_field: str) -> Dict[str, Any]:
     """Remove one logical dimension from filters for facet cross-counting.
 
-    For most fields, simply removes the key. For 'fuente', also removes
-    fuente-related entries from $and array.
+    Removes the top-level key and any $and entries referencing the excluded field.
     """
     cross = {k: v for k, v in base_filters.items() if k != exclude_field}
 
-    # When excluding "fuente", also remove fuente entries from $and
-    if exclude_field == "fuente" and "$and" in cross:
+    # Remove entries for the excluded field from $and (generalised, not just fuente)
+    if "$and" in cross:
         cross["$and"] = [
             cond for cond in cross["$and"]
-            if "fuente" not in cond
+            if exclude_field not in cond
         ]
         if not cross["$and"]:
             del cross["$and"]

@@ -20,7 +20,7 @@ from typing import List, Dict, Any, Optional
 import asyncio
 import logging
 from bs4 import BeautifulSoup
-from datetime import datetime
+from utils.time import utc_now
 import re
 import uuid
 import hashlib
@@ -601,7 +601,7 @@ class LasHerasScraper(BaseScraper):
                 jurisdiccion="Mendoza",
                 tipo_procedimiento=tipo_procedimiento,
                 tipo_acceso="Portal Municipal",
-                fecha_scraping=datetime.utcnow(),
+                fecha_scraping=utc_now(),
                 fuente="Municipalidad de Las Heras",
                 currency=currency if budget else None,
                 budget=budget,

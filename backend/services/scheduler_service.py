@@ -10,6 +10,7 @@ import logging
 import re
 from datetime import datetime, timedelta
 from typing import Optional, List, Dict, Any
+from utils.time import utc_now
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from apscheduler.triggers.cron import CronTrigger
 from apscheduler.triggers.date import DateTrigger
@@ -60,13 +61,13 @@ class SchedulerService:
         """Mark runs stuck in 'running' as failed (from previous crashes/restarts).
         Runs every 10 min via scheduler + on startup."""
         # Only clean up runs older than 15 minutes to avoid killing legitimately running scrapers
-        cutoff = datetime.utcnow() - timedelta(minutes=15)
+        cutoff = utc_now() - timedelta(minutes=15)
         result = await self.db.scraper_runs.update_many(
             {"status": {"$in": ["running", "pending"]}, "started_at": {"$lt": cutoff}},
             {"$set": {
                 "status": "failed",
                 "error_message": "Orphaned run - process restarted",
-                "ended_at": datetime.utcnow(),
+                "ended_at": utc_now(),
             }}
         )
         if result.modified_count:
@@ -238,14 +239,14 @@ class SchedulerService:
                                                 retry_count: int = 0):
         """Execute a scraper and track its progress"""
         runs_collection = self.db.scraper_runs
-        start_time = datetime.utcnow()
+        start_time = utc_now()
         
         logs: List[str] = []
         errors: List[str] = []
         warnings: List[str] = []
         
         def log(msg: str, level: str = "info"):
-            timestamp = datetime.utcnow().isoformat()
+            timestamp = utc_now().isoformat()
             formatted = f"[{timestamp}] [{level.upper()}] {msg}"
             logs.append(formatted)
             if level == "error":
@@ -295,7 +296,7 @@ class SchedulerService:
             except asyncio.TimeoutError:
                 raise TimeoutError(f"Scraper timed out after {timeout_seconds}s")
             
-            duration = (datetime.utcnow() - start_time).total_seconds()
+            duration = (utc_now() - start_time).total_seconds()
             
             # Calculate metrics
             items_found = len(items)
@@ -363,7 +364,7 @@ class SchedulerService:
                 from services.category_classifier import get_category_classifier
                 classifier = get_category_classifier()
 
-                now = datetime.utcnow()
+                now = utc_now()
                 bulk_ops = []
                 enrichment_updates: List[Dict] = []  # list of {id_licitacion, updates}
 
@@ -481,7 +482,7 @@ class SchedulerService:
                         record_errors.append({
                             "id_licitacion": item.id_licitacion,
                             "error": str(e),
-                            "timestamp": datetime.utcnow().isoformat()
+                            "timestamp": utc_now().isoformat()
                         })
                         items_duplicated += 1
 
@@ -557,7 +558,7 @@ class SchedulerService:
                 urls_discovered=items_found,
                 urls_with_pliego=urls_with_pliego,
                 duration_seconds=duration,
-                ended_at=datetime.utcnow(),
+                ended_at=utc_now(),
                 errors=errors,
                 warnings=warnings,
                 logs=logs,
@@ -576,7 +577,7 @@ class SchedulerService:
             await configs_collection.update_one(
                 {"name": scraper_name},
                 {
-                    "$set": {"last_run": datetime.utcnow()},
+                    "$set": {"last_run": utc_now()},
                     "$inc": {"runs_count": 1}
                 }
             )
@@ -612,7 +613,7 @@ class SchedulerService:
                     log(f"Notification failed: {notify_err}", "warning")
 
         except Exception as e:
-            duration = (datetime.utcnow() - start_time).total_seconds()
+            duration = (utc_now() - start_time).total_seconds()
             error_msg = str(e)
             log(f"Scraper failed: {error_msg}", "error")
 
@@ -623,7 +624,7 @@ class SchedulerService:
                         "status": "failed",
                         "error_message": error_msg,
                         "duration_seconds": duration,
-                        "ended_at": datetime.utcnow(),
+                        "ended_at": utc_now(),
                         "errors": errors + [error_msg],
                         "logs": logs,
                     }
@@ -681,7 +682,7 @@ class SchedulerService:
         if consecutive >= 10:
             await configs_collection.update_one(
                 {"name": scraper_name},
-                {"$set": {"needs_repair": True, "needs_repair_since": datetime.utcnow()}}
+                {"$set": {"needs_repair": True, "needs_repair_since": utc_now()}}
             )
 
     async def _get_consecutive_failures(self, scraper_name: str) -> tuple:
@@ -704,7 +705,7 @@ class SchedulerService:
     async def _schedule_retry(self, scraper_name: str, retry_count: int, original_run_id: str):
         """Schedule a one-shot retry job with escalating delay."""
         delay_minutes = 15 if retry_count == 0 else 30
-        run_at = datetime.utcnow() + timedelta(minutes=delay_minutes)
+        run_at = utc_now() + timedelta(minutes=delay_minutes)
         job_id = f"retry_{scraper_name}_{retry_count + 1}"
 
         self.scheduler.add_job(

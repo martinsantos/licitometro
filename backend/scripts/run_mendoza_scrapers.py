@@ -26,6 +26,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 from models.scraper_config import ScraperConfig
 from scrapers.mendoza_compra import MendozaCompraScraper
 from scrapers.boletin_oficial_mendoza_scraper import BoletinOficialMendozaScraper
+from utils.time import utc_now
 
 logging.basicConfig(
     level=logging.INFO,
@@ -95,8 +96,8 @@ async def _save_to_mongodb(licitaciones: list[dict]):
             if existing:
                 skipped += 1
                 continue
-            lic["created_at"] = datetime.utcnow()
-            lic["updated_at"] = datetime.utcnow()
+            lic["created_at"] = utc_now()
+            lic["updated_at"] = utc_now()
             await collection.insert_one(lic)
             inserted += 1
 
@@ -113,7 +114,7 @@ async def run_pipeline(use_selenium: bool = True, output_dir: str = None):
     output_path.mkdir(parents=True, exist_ok=True)
 
     all_licitaciones = []
-    timestamp = datetime.utcnow().strftime("%Y%m%d_%H%M%S")
+    timestamp = utc_now().strftime("%Y%m%d_%H%M%S")
 
     # ── 1. COMPR.AR Mendoza ──
     logger.info("=" * 60)

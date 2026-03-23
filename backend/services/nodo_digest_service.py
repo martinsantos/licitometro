@@ -13,6 +13,7 @@ Sends via enabled nodo actions (telegram, email) with clickable public-access li
 import logging
 from datetime import datetime
 from typing import List, Optional
+from utils.time import utc_now
 
 from motor.motor_asyncio import AsyncIOMotorDatabase
 
@@ -122,7 +123,7 @@ class NodoDigestService:
         # Update last_digest_sent regardless of whether actions existed
         await self.db.nodos.update_one(
             {"_id": nodo["_id"]},
-            {"$set": {"last_digest_sent": datetime.utcnow()}}
+            {"$set": {"last_digest_sent": utc_now()}}
         )
 
     def _build_telegram_digest(self, nodo: dict, items: list, token: str, total: int) -> str:

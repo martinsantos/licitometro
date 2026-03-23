@@ -6,6 +6,7 @@ import re
 import logging
 from datetime import datetime
 from typing import Optional, Dict, Any, List
+from utils.time import utc_now
 
 from fastapi import APIRouter, HTTPException, Query, Request
 from bson import ObjectId
@@ -45,9 +46,9 @@ async def create_nodo(nodo: NodoCreate, request: Request):
     doc = nodo.model_dump()
     doc["slug"] = slug
     doc["matched_count"] = 0
-    doc["last_digest_sent"] = datetime.utcnow()  # Avoid digesting historical items on new nodo
-    doc["created_at"] = datetime.utcnow()
-    doc["updated_at"] = datetime.utcnow()
+    doc["last_digest_sent"] = utc_now()  # Avoid digesting historical items on new nodo
+    doc["created_at"] = utc_now()
+    doc["updated_at"] = utc_now()
 
     result = await db.nodos.insert_one(doc)
     doc["_id"] = result.inserted_id
@@ -112,7 +113,7 @@ async def update_nodo(nodo_id: str, update: NodoUpdate, request: Request):
             for a in update_data["actions"]
         ]
 
-    update_data["updated_at"] = datetime.utcnow()
+    update_data["updated_at"] = utc_now()
 
     result = await db.nodos.update_one({"_id": oid}, {"$set": update_data})
     if result.matched_count == 0:

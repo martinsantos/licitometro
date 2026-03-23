@@ -21,8 +21,12 @@ import logging
 import re
 import sys
 from datetime import datetime
+from pathlib import Path
 from typing import List, Dict, Optional
 from bs4 import BeautifulSoup
+
+sys.path.insert(0, str(Path(__file__).parent.parent))
+from utils.time import utc_now
 
 logging.basicConfig(level=logging.INFO, format="%(levelname)s %(message)s")
 logger = logging.getLogger("discover")
@@ -303,7 +307,7 @@ async def run_discovery(targets: List[Dict]):
 
     # Report
     report = {
-        "timestamp": datetime.utcnow().isoformat(),
+        "timestamp": utc_now().isoformat(),
         "municipalities": all_findings,
         "summary": {
             "total": len(all_findings),

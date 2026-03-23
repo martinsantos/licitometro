@@ -13,6 +13,10 @@ import asyncio
 import os
 from datetime import datetime
 from motor.motor_asyncio import AsyncIOMotorClient
+import sys
+from pathlib import Path
+sys.path.insert(0, str(Path(__file__).parent.parent))
+from utils.time import utc_now
 
 
 async def fix():
@@ -41,7 +45,7 @@ async def fix():
         opening = item.get("opening_date")
         scraping = item.get("fecha_scraping")
         if pub and opening and abs((pub - opening).total_seconds()) < 60:
-            new_pub = scraping or item.get("created_at") or datetime.utcnow()
+            new_pub = scraping or item.get("created_at") or utc_now()
             await col.update_one(
                 {"_id": item["_id"]},
                 {"$set": {"publication_date": new_pub}},
@@ -64,7 +68,7 @@ async def fix():
         opening = item.get("opening_date")
         scraping = item.get("fecha_scraping")
         if pub and opening and abs((pub - opening).total_seconds()) < 60:
-            new_pub = scraping or item.get("created_at") or datetime.utcnow()
+            new_pub = scraping or item.get("created_at") or utc_now()
             await col.update_one(
                 {"_id": item["_id"]},
                 {"$set": {"publication_date": new_pub}},

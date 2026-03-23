@@ -13,6 +13,7 @@ import asyncio
 import logging
 from datetime import datetime
 from typing import Dict, Any, Optional
+from utils.time import utc_now
 
 import sys
 from pathlib import Path
@@ -38,7 +39,7 @@ class EnrichmentCronService:
 
     async def run_enrichment_cycle(self) -> Dict[str, Any]:
         """Main entry point called by APScheduler every 30 min."""
-        start = datetime.utcnow()
+        start = utc_now()
         logger.info("Starting enrichment cycle...")
 
         stats = {
@@ -59,8 +60,8 @@ class EnrichmentCronService:
         except Exception as e:
             logger.error(f"HTTP pass failed: {e}")
 
-        stats["finished_at"] = datetime.utcnow().isoformat()
-        duration = (datetime.utcnow() - start).total_seconds()
+        stats["finished_at"] = utc_now().isoformat()
+        duration = (utc_now() - start).total_seconds()
         stats["duration_seconds"] = round(duration, 1)
 
         logger.info(
@@ -95,7 +96,7 @@ class EnrichmentCronService:
         from pymongo import UpdateOne as MongoUpdateOne
         classifier = get_category_classifier()
 
-        now = datetime.utcnow()
+        now = utc_now()
         bulk_ops = []
 
         for doc in items:
@@ -174,7 +175,7 @@ class EnrichmentCronService:
         try:
             for doc in items:
                 # Safety: check runtime
-                elapsed = (datetime.utcnow() - start).total_seconds()
+                elapsed = (utc_now() - start).total_seconds()
                 if elapsed > MAX_RUNTIME_SECONDS:
                     logger.warning(f"HTTP pass stopped: runtime {elapsed:.0f}s exceeded {MAX_RUNTIME_SECONDS}s cap")
                     break
@@ -191,7 +192,7 @@ class EnrichmentCronService:
                         updates = {}
 
                     updates["enrichment_level"] = 2
-                    updates["updated_at"] = datetime.utcnow()
+                    updates["updated_at"] = utc_now()
                     # DO NOT auto-transition workflow state - must be explicit business logic
 
                     # Re-run nodo matching with enriched data

@@ -35,6 +35,7 @@ import sys
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from dependencies import get_licitacion_repository
+from utils.time import utc_now
 from db.repositories import LicitacionRepository
 
 router = APIRouter(
@@ -86,7 +87,7 @@ def _get_cached_pliego_url(numero: str) -> Optional[str]:
     entry = cache[numero_key]
     cached_time = datetime.fromisoformat(entry['timestamp'])
 
-    if datetime.utcnow() - cached_time > timedelta(hours=PLIEGO_CACHE_TTL_HOURS):
+    if utc_now() - cached_time > timedelta(hours=PLIEGO_CACHE_TTL_HOURS):
         del cache[numero_key]
         _save_pliego_cache(cache)
         return None
@@ -100,7 +101,7 @@ def _cache_pliego_url(numero: str, url: str):
     numero_key = numero.strip().upper()
     cache[numero_key] = {
         'url': url,
-        'timestamp': datetime.utcnow().isoformat()
+        'timestamp': utc_now().isoformat()
     }
     _save_pliego_cache(cache)
     logger.info(f"Cached PLIEGO URL for {numero_key}: {url}")
@@ -999,7 +1000,7 @@ async def enrich_licitacion(
         # Metadata adicional
         update_data["metadata"] = {
             **metadata,
-            "enriched_at": datetime.utcnow().isoformat(),
+            "enriched_at": utc_now().isoformat(),
             "enriched_from_url": successful_url,
             "enriched_url_type": url_type,
             # Asegurar que la URL del pliego esté disponible para el frontend
@@ -1012,7 +1013,7 @@ async def enrich_licitacion(
 
         # Track enrichment level
         update_data["enrichment_level"] = level
-        update_data["last_enrichment"] = datetime.utcnow()
+        update_data["last_enrichment"] = utc_now()
         if update_data.get("attached_files"):
             update_data["document_count"] = len(update_data["attached_files"])
 
@@ -1055,7 +1056,7 @@ async def enrich_licitacion(
 async def get_cache_stats():
     """Obtener estadisticas del cache de URLs PLIEGO"""
     cache = _load_pliego_cache()
-    now = datetime.utcnow()
+    now = utc_now()
 
     valid = 0
     expired = 0

@@ -6,6 +6,7 @@ from fastapi import APIRouter, HTTPException, Request, Body
 from typing import Optional, List
 from datetime import datetime
 from bson import ObjectId
+from utils.time import utc_now
 import sys
 from pathlib import Path
 
@@ -33,8 +34,8 @@ async def create_template(request: Request, body: dict = Body(...)):
     template_data = OfferTemplateCreate(**body)
 
     doc = template_data.dict()
-    doc["created_at"] = datetime.utcnow()
-    doc["updated_at"] = datetime.utcnow()
+    doc["created_at"] = utc_now()
+    doc["updated_at"] = utc_now()
     doc["usage_count"] = 0
 
     result = await db.offer_templates.insert_one(doc)
@@ -111,7 +112,7 @@ async def update_template(
     if not update_dict:
         raise HTTPException(status_code=400, detail="No fields to update")
 
-    update_dict["updated_at"] = datetime.utcnow()
+    update_dict["updated_at"] = utc_now()
 
     # Convert sections to dicts if present
     if "sections" in update_dict:
@@ -211,8 +212,8 @@ async def apply_template(
         "checklist": checklist,
         "progress_percent": 0.0,
         "status": "in_progress",
-        "created_at": datetime.utcnow(),
-        "updated_at": datetime.utcnow(),
+        "created_at": utc_now(),
+        "updated_at": utc_now(),
     }
 
     result = await db.offer_applications.insert_one(application_doc)
@@ -251,7 +252,7 @@ async def update_checklist(
     update_dict = {
         "checklist": checklist_data,
         "progress_percent": round(progress, 1),
-        "updated_at": datetime.utcnow(),
+        "updated_at": utc_now(),
     }
 
     if status:

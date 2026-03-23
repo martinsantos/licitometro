@@ -8,9 +8,14 @@ Strategy:
 """
 
 import asyncio
+import sys
 from datetime import datetime
+from pathlib import Path
 from motor.motor_asyncio import AsyncIOMotorClient
 import os
+
+sys.path.insert(0, str(Path(__file__).parent.parent))
+from utils.time import utc_now
 
 
 async def backfill():
@@ -43,7 +48,7 @@ async def backfill():
     batch = []
     async for doc in cursor:
         # Use created_at as best guess (fallback to now if missing)
-        first_seen = doc.get("created_at", datetime.utcnow())
+        first_seen = doc.get("created_at", utc_now())
 
         batch.append({
             "_id": doc["_id"],

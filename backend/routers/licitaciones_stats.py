@@ -2,6 +2,7 @@ from fastapi import APIRouter, Query, Request
 from typing import List, Optional
 from datetime import date, datetime, timedelta
 import logging
+from utils.time import utc_now
 
 from utils.filter_builder import build_base_filters
 
@@ -217,7 +218,7 @@ async def get_recent_activity(
     db = request.app.mongodb
     collection = db.licitaciones
 
-    since = datetime.utcnow() - timedelta(hours=hours)
+    since = utc_now() - timedelta(hours=hours)
 
     pipeline = [
         {"$match": {"first_seen_at": {"$gte": since}}},
@@ -261,7 +262,7 @@ async def get_scraping_activity(
     db = request.app.mongodb
     collection = db.licitaciones
 
-    since = datetime.utcnow() - timedelta(hours=hours)
+    since = utc_now() - timedelta(hours=hours)
 
     # Build jurisdiction filter
     jurisdiction_filter: dict = {}

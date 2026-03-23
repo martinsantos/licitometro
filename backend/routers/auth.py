@@ -4,6 +4,7 @@ Authentication router - login/logout/check/register endpoints.
 
 from datetime import datetime
 from fastapi import APIRouter, Response, Request
+from utils.time import utc_now
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 from typing import Optional
@@ -163,8 +164,8 @@ async def register(body: RegisterRequest, request: Request):
         "role": body.role,
         "name": body.name,
         "active": True,
-        "created_at": datetime.utcnow(),
-        "updated_at": datetime.utcnow(),
+        "created_at": utc_now(),
+        "updated_at": utc_now(),
     }
     result = await db.users.insert_one(user_doc)
     user_doc["_id"] = result.inserted_id

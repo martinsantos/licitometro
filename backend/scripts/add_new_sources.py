@@ -14,6 +14,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from motor.motor_asyncio import AsyncIOMotorClient
+from utils.time import utc_now
 
 
 NEW_SOURCES = [
@@ -168,7 +169,7 @@ async def main():
             skipped += 1
             continue
 
-        source["created_at"] = datetime.utcnow()
+        source["created_at"] = utc_now()
         source["runs_count"] = 0
         await col.insert_one(source)
         print(f"  ADDED: {source['name']}")

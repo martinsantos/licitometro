@@ -13,6 +13,7 @@ import logging
 import os
 from datetime import datetime
 from typing import List, Optional
+from utils.time import utc_now
 
 from motor.motor_asyncio import AsyncIOMotorDatabase
 
@@ -88,7 +89,7 @@ class EmbeddingService:
                         "vector": vector_list,
                         "model": "multilingual-MiniLM-L12-v2",
                         "text_snippet": text[:200],
-                        "updated_at": datetime.utcnow(),
+                        "updated_at": utc_now(),
                     }
                 },
                 upsert=True,

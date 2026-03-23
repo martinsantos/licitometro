@@ -11,6 +11,7 @@ from typing import Any, Optional
 
 import aiohttp
 from fastapi import APIRouter
+from utils.time import utc_now
 
 logger = logging.getLogger("licitometro.market")
 
@@ -31,13 +32,13 @@ INFLATION_TTL = timedelta(hours=1)
 def _get_cached(key: str, ttl: timedelta) -> Optional[dict]:
     """Return cached data if it exists and hasn't expired."""
     entry = _cache.get(key)
-    if entry and datetime.utcnow() - entry["ts"] < ttl:
+    if entry and utc_now() - entry["ts"] < ttl:
         return entry["data"]
     return None
 
 
 def _set_cached(key: str, data: dict) -> None:
-    _cache[key] = {"data": data, "ts": datetime.utcnow()}
+    _cache[key] = {"data": data, "ts": utc_now()}
 
 
 # ---------------------------------------------------------------------------
@@ -87,7 +88,7 @@ async def get_exchange_rates():
     result = {
         "usd": usd_data.get("venta") or usd_data.get("compra") if usd_data else None,
         "eur": eur_data.get("venta") or eur_data.get("compra") if eur_data else None,
-        "updated_at": datetime.utcnow().isoformat() + "Z",
+        "updated_at": utc_now().isoformat() + "Z",
     }
 
     _set_cached("rates", result)
@@ -138,7 +139,7 @@ async def get_inflation():
     result = {
         "rate": rate,
         "period": period,
-        "updated_at": datetime.utcnow().isoformat() + "Z",
+        "updated_at": utc_now().isoformat() + "Z",
     }
 
     _set_cached("inflation", result)

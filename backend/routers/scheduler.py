@@ -15,6 +15,7 @@ import logging
 import sys
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent))
+from utils.time import utc_now
 
 from services.scheduler_service import get_scheduler_service
 from models.scraper_run import ScraperRun, ScraperRunSummary
@@ -340,7 +341,7 @@ async def get_system_stats(request: Request):
         from datetime import datetime, timedelta
 
         # Scraper health last 24h
-        since = datetime.utcnow() - timedelta(hours=24)
+        since = utc_now() - timedelta(hours=24)
         pipeline_health = [
             {"$match": {"started_at": {"$gte": since}}},
             {
@@ -395,7 +396,7 @@ async def get_system_stats(request: Request):
             "mongo_stats": {
                 "doc_count": total_docs,
             },
-            "generated_at": datetime.utcnow().isoformat(),
+            "generated_at": utc_now().isoformat(),
         }
     except Exception as e:
         return {"error": str(e)}

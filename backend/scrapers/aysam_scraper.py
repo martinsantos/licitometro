@@ -11,7 +11,7 @@ import logging
 import hashlib
 from bs4 import BeautifulSoup
 from urllib.parse import urljoin
-from datetime import datetime
+from utils.time import utc_now
 import re
 import uuid
 import sys
@@ -135,7 +135,7 @@ class AysamScraper(BaseScraper):
                 jurisdiccion="Mendoza",
                 tipo_procedimiento="Licitación Pública",
                 tipo_acceso="Portal Web",
-                fecha_scraping=datetime.utcnow(),
+                fecha_scraping=utc_now(),
                 fuente="AYSAM",
                 estado=estado,
                 fecha_prorroga=None,

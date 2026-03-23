@@ -9,6 +9,7 @@ from dotenv import load_dotenv
 import sys
 from pathlib import Path
 import uvicorn
+from utils.time import utc_now
 
 # Add parent directory to path so we can import modules
 sys.path.insert(0, str(Path(__file__).parent))
@@ -188,7 +189,6 @@ async def startup_db_client():
     # Auto-seed admin user if users collection is empty
     try:
         from services.auth_service import AUTH_PASSWORD_HASH
-        from datetime import datetime
         count = await database.users.count_documents({})
         if count == 0 and AUTH_PASSWORD_HASH:
             await database.users.insert_one({
@@ -197,8 +197,8 @@ async def startup_db_client():
                 "role": "admin",
                 "name": "Martin Santos",
                 "active": True,
-                "created_at": datetime.utcnow(),
-                "updated_at": datetime.utcnow(),
+                "created_at": utc_now(),
+                "updated_at": utc_now(),
             })
             await database.users.create_index("email", unique=True)
             logger.info("Admin user seeded: santosma@gmail.com")
@@ -212,7 +212,6 @@ async def startup_db_client():
 
     # Auto-seed AR national sources (always upsert so missing scope field gets patched)
     try:
-        from datetime import datetime as dt_seed
         AR_SOURCES = [
             {"name": "datos_argentina_contrataciones", "url": "https://datos.gob.ar/dataset?tags=Contrataciones", "active": True, "schedule": "0 8,14 * * 1-5", "selectors": {"dataset_id": "jgm-sistema-contrataciones-electronicas", "scraper_type": "datos_argentina"}, "source_type": "api", "max_items": 200, "wait_time": 1.0, "scope": "ar_nacional"},
             {"name": "datos_argentina_contratar", "url": "https://datos.gob.ar/dataset/jgm-procesos-contratacion-obra-publica-gestionados-plataforma-contratar", "active": True, "schedule": "0 9 * * 1-5", "selectors": {"dataset_id": "jgm-procesos-contratacion-obra-publica-gestionados-plataforma-contratar", "scraper_type": "datos_argentina"}, "source_type": "api", "max_items": 200, "wait_time": 1.0, "scope": "ar_nacional"},
@@ -226,7 +225,7 @@ async def startup_db_client():
             {"name": "pbac_buenos_aires", "url": "https://pbac.cgp.gba.gov.ar/", "active": True, "schedule": "0 8,14 * * 1-5", "selectors": {"scraper_type": "pbac"}, "source_type": "website", "max_items": 100, "wait_time": 3.0, "scope": "ar_nacional"},
             {"name": "gcba_bac_compras", "url": "https://buenosaires.gob.ar/jefaturadegabinete/compras-y-contrataciones", "active": False, "schedule": "0 9,15 * * 1-5", "selectors": {"scraper_type": "generic_html", "links": "a[href*='licitacion'], a[href*='contratacion']", "title": "h1, h2.titulo", "organization": "div.organismo, div.reparticion"}, "source_type": "website", "max_items": 100, "wait_time": 3.0, "scope": "ar_nacional"},
         ]
-        now = dt_seed.utcnow()
+        now = utc_now()
         created_count = 0
         updated_count = 0
         for src in AR_SOURCES:

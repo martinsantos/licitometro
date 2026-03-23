@@ -3,6 +3,7 @@ from typing import Dict, Any
 from datetime import datetime
 from bson import ObjectId
 import logging
+from utils.time import utc_now
 
 logger = logging.getLogger("licitaciones_presets_router")
 
@@ -40,7 +41,7 @@ async def create_preset(body: Dict[str, Any] = Body(...), request: Request = Non
         "sort_by": body.get("sort_by", "publication_date"),
         "sort_order": body.get("sort_order", "desc"),
         "is_default": body.get("is_default", False),
-        "created_at": datetime.utcnow(),
+        "created_at": utc_now(),
     }
     result = await db.filter_presets.insert_one(doc)
     doc["_id"] = str(result.inserted_id)
@@ -76,7 +77,7 @@ async def add_favorite(licitacion_id: str, request: Request):
     db = request.app.mongodb
     await db.favorites.update_one(
         {"licitacion_id": licitacion_id},
-        {"$set": {"licitacion_id": licitacion_id, "created_at": datetime.utcnow()}},
+        {"$set": {"licitacion_id": licitacion_id, "created_at": utc_now()}},
         upsert=True,
     )
     return {"ok": True, "licitacion_id": licitacion_id}

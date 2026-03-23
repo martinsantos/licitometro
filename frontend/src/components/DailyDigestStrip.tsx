@@ -28,15 +28,13 @@ const DailyDigestStrip = ({
       try {
         // Build params from current filters, excluding date range & nuevasDesde
         // (the strip counts the last 14 days itself).
-        // Always exclude vencida/archivada — re-indexed old items are noise.
-        // handleDaySelect sets the same estadoFiltro so listing count matches.
+        // Backend excludes archivadas by default — no override needed here.
         const strippedFilters: FilterState = {
           ...filters,
           fechaDesde: '',
           fechaHasta: '',
           nuevasDesde: '',
           fechaCampo: 'fecha_scraping',
-          estadoFiltro: filters.estadoFiltro || 'vigente,prorrogada',
         };
         const params = buildFilterParams(strippedFilters);
         params.append('days', '14');

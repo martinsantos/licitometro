@@ -10,6 +10,10 @@ import asyncio
 from motor.motor_asyncio import AsyncIOMotorClient
 import os
 from datetime import datetime
+import sys
+from pathlib import Path
+sys.path.insert(0, str(Path(__file__).parent.parent))
+from utils.time import utc_now
 
 ARGENTINA_NODOS = [
     {
@@ -40,7 +44,7 @@ ARGENTINA_NODOS = [
         "active": True,
         "digest_frequency": "daily",
         "matched_count": 0,
-        "last_digest_sent": datetime.utcnow()
+        "last_digest_sent": utc_now()
     },
     {
         "name": "Infraestructura Federal",
@@ -70,7 +74,7 @@ ARGENTINA_NODOS = [
         "active": True,
         "digest_frequency": "daily",
         "matched_count": 0,
-        "last_digest_sent": datetime.utcnow()
+        "last_digest_sent": utc_now()
     },
     {
         "name": "Salud Nacional",
@@ -100,7 +104,7 @@ ARGENTINA_NODOS = [
         "active": True,
         "digest_frequency": "daily",
         "matched_count": 0,
-        "last_digest_sent": datetime.utcnow()
+        "last_digest_sent": utc_now()
     },
     {
         "name": "Tecnología Federal",
@@ -130,7 +134,7 @@ ARGENTINA_NODOS = [
         "active": True,
         "digest_frequency": "daily",
         "matched_count": 0,
-        "last_digest_sent": datetime.utcnow()
+        "last_digest_sent": utc_now()
     },
     {
         "name": "Educación Nacional",
@@ -160,7 +164,7 @@ ARGENTINA_NODOS = [
         "active": True,
         "digest_frequency": "daily",
         "matched_count": 0,
-        "last_digest_sent": datetime.utcnow()
+        "last_digest_sent": utc_now()
     }
 ]
 

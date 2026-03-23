@@ -30,6 +30,7 @@ import asyncio
 import logging
 from bs4 import BeautifulSoup
 from datetime import datetime
+from utils.time import utc_now
 import re
 import uuid
 import sys
@@ -422,7 +423,7 @@ class ComprasAppsMendozaScraper(BaseScraper):
                 jurisdiccion=jurisdiccion,
                 tipo_procedimiento=tipo,
                 tipo_acceso="ComprasApps",
-                fecha_scraping=datetime.utcnow(),
+                fecha_scraping=utc_now(),
                 fuente="ComprasApps Mendoza",
                 metadata=metadata,
                 estado=estado_vigencia,

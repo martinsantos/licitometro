@@ -25,6 +25,7 @@ import hashlib
 import logging
 import re
 from datetime import datetime
+from utils.time import utc_now
 from typing import List, Optional
 from urllib.parse import urljoin
 
@@ -95,7 +96,7 @@ class GenericHtmlScraper(BaseScraper):
                 if parsed:
                     logger.info(f"[{self.config.name}] Extracted date from meta article:published_time: {parsed.date()}")
                     return parsed
-            except:
+            except (ValueError, TypeError, KeyError, AttributeError):
                 pass
 
         # Try og:published_time (Open Graph)
@@ -106,7 +107,7 @@ class GenericHtmlScraper(BaseScraper):
                 if parsed:
                     logger.info(f"[{self.config.name}] Extracted date from meta og:published_time: {parsed.date()}")
                     return parsed
-            except:
+            except (ValueError, TypeError, KeyError, AttributeError):
                 pass
 
         # Try meta name="date"
@@ -117,7 +118,7 @@ class GenericHtmlScraper(BaseScraper):
                 if parsed:
                     logger.info(f"[{self.config.name}] Extracted date from meta name=date: {parsed.date()}")
                     return parsed
-            except:
+            except (ValueError, TypeError, KeyError, AttributeError):
                 pass
 
         # Try meta name="publishdate"
@@ -128,7 +129,7 @@ class GenericHtmlScraper(BaseScraper):
                 if parsed:
                     logger.info(f"[{self.config.name}] Extracted date from meta name=publishdate: {parsed.date()}")
                     return parsed
-            except:
+            except (ValueError, TypeError, KeyError, AttributeError):
                 pass
 
         # Try <time datetime itemprop="datePublished">
@@ -139,7 +140,7 @@ class GenericHtmlScraper(BaseScraper):
                 if parsed:
                     logger.info(f"[{self.config.name}] Extracted date from time[itemprop=datePublished]: {parsed.date()}")
                     return parsed
-            except:
+            except (ValueError, TypeError, KeyError, AttributeError):
                 pass
 
         return None
@@ -241,7 +242,7 @@ class GenericHtmlScraper(BaseScraper):
             fuente=self.config.name,
             tipo_procedimiento=self._sel("tipo_procedimiento", "Licitación"),
             tipo_acceso="Portal Web",
-            fecha_scraping=datetime.utcnow(),
+            fecha_scraping=utc_now(),
             attached_files=attached_files,
             content_hash=self._content_hash(title, publication_date),
             budget=budget,
@@ -384,7 +385,7 @@ class GenericHtmlScraper(BaseScraper):
                 fuente=self.config.name,
                 tipo_procedimiento=self._sel("tipo_procedimiento", "Licitación"),
                 tipo_acceso="Portal Web",
-                fecha_scraping=datetime.utcnow(),
+                fecha_scraping=utc_now(),
                 content_hash=self._content_hash(title, publication_date),
                 estado=estado,
                 fecha_prorroga=None,

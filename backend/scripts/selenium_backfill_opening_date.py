@@ -30,6 +30,7 @@ from typing import Optional, Dict, List
 import httpx
 from bs4 import BeautifulSoup
 from utils.dates import parse_date_guess
+from utils.time import utc_now
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
 logger = logging.getLogger("selenium_backfill")
@@ -336,7 +337,7 @@ async def main():
             cache[numero] = {
                 "url": url,
                 "type": url_type,
-                "timestamp": datetime.utcnow().isoformat()
+                "timestamp": utc_now().isoformat()
             }
     save_cache(cache)
     logger.info(f"Cache updated: {len(cache)} total entries")
@@ -370,7 +371,7 @@ async def main():
                     else:
                         update_fields = {
                             "opening_date": opening_date,
-                            "updated_at": datetime.utcnow()
+                            "updated_at": utc_now()
                         }
                         if not col.find_one({"_id": doc["_id"]}).get("metadata", {}).get("comprar_pliego_url"):
                             update_fields["metadata.comprar_pliego_url"] = pliego_url

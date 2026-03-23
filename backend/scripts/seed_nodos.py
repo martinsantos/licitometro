@@ -20,6 +20,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from motor.motor_asyncio import AsyncIOMotorClient
 from dotenv import load_dotenv
+from utils.time import utc_now
 
 load_dotenv()
 
@@ -178,8 +179,8 @@ async def main():
             continue
 
         nodo_data["matched_count"] = 0
-        nodo_data["created_at"] = datetime.utcnow()
-        nodo_data["updated_at"] = datetime.utcnow()
+        nodo_data["created_at"] = utc_now()
+        nodo_data["updated_at"] = utc_now()
 
         result = await collection.insert_one(nodo_data)
         kw_count = sum(len(g["keywords"]) for g in nodo_data["keyword_groups"])

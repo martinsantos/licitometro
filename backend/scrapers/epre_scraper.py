@@ -9,7 +9,7 @@ Structure: Flatsome theme with div.row containers, each row has 6 columns:
 import hashlib
 import logging
 import re
-from datetime import datetime
+from utils.time import utc_now
 from typing import List, Optional
 from urllib.parse import urljoin
 
@@ -122,7 +122,7 @@ class EpreScraper(BaseScraper):
                     fuente="EPRE Mendoza",
                     tipo_procedimiento=tipo or "Licitación Pública",
                     tipo_acceso="Portal Web",
-                    fecha_scraping=datetime.utcnow(),
+                    fecha_scraping=utc_now(),
                     attached_files=attached_files,
                     content_hash=content_hash,
                     estado=estado_vigencia,

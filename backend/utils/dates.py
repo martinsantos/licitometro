@@ -3,6 +3,7 @@ from __future__ import annotations
 from datetime import datetime, timedelta, date
 from typing import Iterable, List, Optional, Set
 from zoneinfo import ZoneInfo
+from utils.time import utc_now
 
 
 def _safe_zoneinfo(tz_name: str) -> ZoneInfo | None:
@@ -15,7 +16,7 @@ def _safe_zoneinfo(tz_name: str) -> ZoneInfo | None:
 def now_in_tz(tz_name: str) -> datetime:
     tz = _safe_zoneinfo(tz_name)
     if tz is None:
-        return datetime.utcnow()
+        return utc_now()
     return datetime.now(tz)
 
 
@@ -411,7 +412,7 @@ def extract_expiration_date(description: str, opening_date: Optional[datetime] =
                 if parsed:
                     _date_logger.debug(f"extract_expiration_date: found {parsed.date()} via pattern '{pattern}'")
                     return parsed
-            except:
+            except (ValueError, TypeError, AttributeError):
                 pass
 
     # Fallback: opening_date + 30 days (typical oferta validity period)

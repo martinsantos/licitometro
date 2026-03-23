@@ -11,6 +11,7 @@ import logging
 from typing import Optional, Dict, Any, List
 from urllib.parse import urljoin, urlparse
 from datetime import datetime, timedelta
+from utils.time import utc_now
 
 import sys
 from pathlib import Path
@@ -130,7 +131,7 @@ class URLResolverService:
                     "$set": {
                         "canonical_url": url,
                         "url_quality": quality,
-                        "updated_at": datetime.utcnow()
+                        "updated_at": utc_now()
                     }
                 }
             )
@@ -205,7 +206,7 @@ class URLResolverService:
                                     "canonical_url": updated_lic.canonical_url,
                                     "source_urls": updated_lic.source_urls,
                                     "url_quality": updated_lic.url_quality,
-                                    "updated_at": datetime.utcnow()
+                                    "updated_at": utc_now()
                                 }
                             }
                         )

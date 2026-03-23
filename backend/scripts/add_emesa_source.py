@@ -12,6 +12,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 from motor.motor_asyncio import AsyncIOMotorClient
+from utils.time import utc_now
 
 
 async def main():
@@ -40,8 +41,8 @@ async def main():
         "headers": {},
         "cookies": {},
         "pagination": {"max_pages": 1},
-        "created_at": datetime.utcnow(),
-        "updated_at": datetime.utcnow(),
+        "created_at": utc_now(),
+        "updated_at": utc_now(),
     }
     result = await db.scraper_configs.insert_one(doc)
     print(f"ADDED: EMESA ({result.inserted_id})")

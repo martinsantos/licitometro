@@ -9,6 +9,7 @@ import logging
 import re
 import sys
 from pathlib import Path
+from utils.time import utc_now
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
@@ -268,7 +269,7 @@ async def get_ar_scraping_activity(request: Request, hours: int = 24):
     col = db.licitaciones
     base = _ar_base_filters()
 
-    since = datetime.utcnow() - timedelta(hours=hours)
+    since = utc_now() - timedelta(hours=hours)
 
     # Truly new
     truly_new_pipeline = [
@@ -523,7 +524,7 @@ async def send_ar_digest(
     db = request.app.mongodb
     col = db.licitaciones
 
-    since = datetime.utcnow() - timedelta(hours=hours)
+    since = utc_now() - timedelta(hours=hours)
     query = {**_ar_base_filters(), "first_seen_at": {"$gte": since}}
 
     items = await col.find(query).sort("first_seen_at", -1).limit(50).to_list(length=50)
@@ -590,7 +591,7 @@ async def seed_ar_sources(request: Request):
 
     created = 0
     updated = 0
-    now = datetime.utcnow()
+    now = utc_now()
 
     for source in AR_SOURCES:
         existing = await collection.find_one({"name": source["name"]})

@@ -5,6 +5,7 @@ import io
 import logging
 import re
 from datetime import datetime
+from utils.time import utc_now
 from typing import Any, Dict, List, Optional, Tuple
 from urllib.parse import urljoin
 
@@ -104,7 +105,7 @@ class BoletinOficialMendozaScraper(BaseScraper):
             )
         )
         if not days:
-            now = datetime.utcnow().date()
+            now = utc_now().date()
             return now.isoformat(), now.isoformat()
         return days[0].isoformat(), days[-1].isoformat()
 
@@ -570,7 +571,7 @@ class BoletinOficialMendozaScraper(BaseScraper):
                 tipo_procedimiento=f"Boletin Oficial - {proc['process_type']}",
                 tipo_acceso="Boletin Oficial",
                 tipo=tipo,
-                fecha_scraping=datetime.utcnow(),
+                fecha_scraping=utc_now(),
                 attached_files=[{"name": f"Boletín {boletin_num}", "url": pdf_url, "type": "pdf"}],
                 keywords=proc.get("keywords_found", []),
                 content_hash=content_hash,
@@ -764,7 +765,7 @@ class BoletinOficialMendozaScraper(BaseScraper):
                 tipo_procedimiento="Boletin Oficial - Norma",
                 tipo_acceso="Boletin Oficial",
                 tipo="decreto" if is_decreto else None,
-                fecha_scraping=datetime.utcnow(),
+                fecha_scraping=utc_now(),
                 attached_files=attached_files,
                 keywords=[keyword] if keyword else [],
                 metadata={"boe_apertura_raw": description[:500] if description else ""},

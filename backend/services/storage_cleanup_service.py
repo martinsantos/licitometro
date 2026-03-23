@@ -13,6 +13,7 @@ import json
 from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Optional, Dict, Any
+from utils.time import utc_now
 
 from motor.motor_asyncio import AsyncIOMotorDatabase
 
@@ -51,7 +52,7 @@ class StorageCleanupService:
         deleted_count = 0
 
         # Delete runs older than 30 days
-        cutoff = datetime.utcnow() - timedelta(days=30)
+        cutoff = utc_now() - timedelta(days=30)
         result = await runs_collection.delete_many({"started_at": {"$lt": cutoff}})
         deleted_count += result.deleted_count
 
@@ -93,7 +94,7 @@ class StorageCleanupService:
         except Exception:
             return {"expired_removed": 0}
 
-        now = datetime.utcnow()
+        now = utc_now()
         ttl = timedelta(hours=CACHE_TTL_HOURS)
         expired_keys = []
         for key, entry in cache.items():
@@ -122,7 +123,7 @@ class StorageCleanupService:
             return {"files_removed": 0}
 
         removed = 0
-        cutoff = datetime.utcnow() - timedelta(days=LOG_RETENTION_DAYS)
+        cutoff = utc_now() - timedelta(days=LOG_RETENTION_DAYS)
 
         for f in STORAGE_DIR.iterdir():
             if not f.is_file():

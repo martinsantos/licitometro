@@ -17,6 +17,7 @@ import logging
 from bs4 import BeautifulSoup
 from urllib.parse import urljoin, quote_plus
 from datetime import datetime, timedelta
+from utils.time import utc_now
 import re
 import uuid
 import sys
@@ -476,7 +477,7 @@ class ComprarNacionalScraper(BaseScraper):
                 "jurisdiccion": "Nacional",
                 "tipo_procedimiento": tipo,
                 "tipo_acceso": "COMPR.AR",
-                "fecha_scraping": datetime.utcnow(),
+                "fecha_scraping": utc_now(),
                 "fuente": self.config.name or "COMPR.AR Nacional",
                 "currency": currency,
                 "budget": budget,

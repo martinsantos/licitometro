@@ -10,6 +10,7 @@ import re
 import sys
 from bson import ObjectId
 from pathlib import Path
+from utils.time import utc_now
 
 # Add parent directory to path so we can import modules
 sys.path.insert(0, str(Path(__file__).parent.parent))
@@ -584,7 +585,6 @@ async def update_estado(
         raise HTTPException(404, "Licitacion not found")
 
     # Build update document
-    from datetime import datetime
     old_estado = item.get("estado", "vigente")
 
     # Update estado + add to history
@@ -593,13 +593,13 @@ async def update_estado(
         {
             "$set": {
                 "estado": estado,
-                "updated_at": datetime.utcnow()
+                "updated_at": utc_now()
             },
             "$push": {
                 "metadata.estado_history": {
                     "old_estado": old_estado,
                     "new_estado": estado,
-                    "changed_at": datetime.utcnow(),
+                    "changed_at": utc_now(),
                     "reason": reason or "Manual override via admin API",
                     "method": "admin_api"
                 }

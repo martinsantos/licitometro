@@ -202,7 +202,7 @@ const LicitacionesList = ({
   }, [setFilter]);
 
   // DailyDigest strip: filter by fecha_scraping for selected day.
-  // Excludes vencida/archivada — re-indexed old items are noise, not activity.
+  // Backend excludes archivadas by default — no need for estadoFiltro override.
   const handleDaySelect = useCallback((dateStr: string | null) => {
     if (dateStr) {
       setMany({
@@ -210,10 +210,13 @@ const LicitacionesList = ({
         fechaHasta: dateStr,
         fechaCampo: 'fecha_scraping',
         yearWorkspace: 'all',
-        estadoFiltro: 'vigente,prorrogada',
       });
     } else {
-      setMany({ fechaDesde: '', fechaHasta: '', estadoFiltro: '' });
+      setMany({
+        fechaDesde: '',
+        fechaHasta: '',
+        yearWorkspace: new Date().getFullYear().toString(),
+      });
     }
   }, [setMany]);
 

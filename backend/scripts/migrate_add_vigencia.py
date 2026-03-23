@@ -26,6 +26,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from motor.motor_asyncio import AsyncIOMotorClient
+from utils.time import utc_now
 
 logging.basicConfig(
     level=logging.INFO,
@@ -155,14 +156,14 @@ async def migrate(dry_run=False):
             if needs_fix:
                 update_doc["publication_date"] = pub_date
                 update_doc["metadata.vigencia_migration"] = {
-                    "migrated_at": datetime.utcnow(),
+                    "migrated_at": utc_now(),
                     "original_estado": current_estado,
                     "date_order_fixed": True,
                     "original_publication_date": doc.get("publication_date")
                 }
             else:
                 update_doc["metadata.vigencia_migration"] = {
-                    "migrated_at": datetime.utcnow(),
+                    "migrated_at": utc_now(),
                     "original_estado": current_estado
                 }
 

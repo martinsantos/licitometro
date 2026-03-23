@@ -12,6 +12,7 @@ import uuid
 import logging
 from datetime import datetime, timedelta
 from typing import List, Dict, Any, Optional
+from utils.time import utc_now
 
 import aiohttp
 import aiosmtplib
@@ -219,7 +220,7 @@ class NotificationService:
 
         # Last success relative time
         if last_success_at:
-            delta = datetime.utcnow() - last_success_at
+            delta = utc_now() - last_success_at
             hours = int(delta.total_seconds() / 3600)
             if hours < 1:
                 last_success_str = f"hace {int(delta.total_seconds() / 60)}min"
@@ -247,7 +248,7 @@ class NotificationService:
     async def send_daily_digest(self):
         """Send daily digest with summary of last 24h activity + per-scraper breakdown."""
         try:
-            since = datetime.utcnow() - timedelta(hours=24)
+            since = utc_now() - timedelta(hours=24)
 
             # Count new licitaciones
             new_count = await self.db.licitaciones.count_documents(
@@ -270,7 +271,7 @@ class NotificationService:
             total_failed = sum(s["failed"] for s in scraper_stats)
 
             # Find licitaciones with opening_date in next 48h
-            now = datetime.utcnow()
+            now = utc_now()
             upcoming = await self.db.licitaciones.count_documents({
                 "opening_date": {
                     "$gte": now,
@@ -313,7 +314,7 @@ class NotificationService:
                 for r in repair_scrapers:
                     since_repair = r.get("needs_repair_since")
                     if since_repair:
-                        delta = datetime.utcnow() - since_repair
+                        delta = utc_now() - since_repair
                         duration = f"hace {delta.days}d" if delta.days > 0 else f"hace {int(delta.total_seconds() / 3600)}h"
                     else:
                         duration = "?"
@@ -344,7 +345,7 @@ class NotificationService:
         and not already alerted (metadata.deadline_alert_sent != true).
         """
         try:
-            now = datetime.utcnow()
+            now = utc_now()
             window_end = now + timedelta(hours=48)
             window_start = window_end - timedelta(hours=4)
 

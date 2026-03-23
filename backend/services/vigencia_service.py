@@ -11,6 +11,7 @@ from datetime import datetime, timedelta
 from typing import Optional
 import logging
 from motor.motor_asyncio import AsyncIOMotorDatabase
+from utils.time import utc_now
 
 logger = logging.getLogger("services.vigencia")
 
@@ -78,7 +79,7 @@ class VigenciaService:
         # Update to vencida
         result = await self.db.licitaciones.update_many(
             filter_query,
-            {"$set": {"estado": "vencida", "updated_at": datetime.utcnow()}}
+            {"$set": {"estado": "vencida", "updated_at": utc_now()}}
         )
 
         if result.modified_count > 0:
@@ -127,11 +128,11 @@ class VigenciaService:
                         "opening_date": new_opening_date,
                         "fecha_prorroga": new_opening_date,
                         "estado": "prorrogada",
-                        "updated_at": datetime.utcnow(),
+                        "updated_at": utc_now(),
                         "metadata.circular_prorroga": {
                             "old_date": current_opening,
                             "new_date": new_opening_date,
-                            "detected_at": datetime.utcnow()
+                            "detected_at": utc_now()
                         }
                     }
                 }
@@ -176,7 +177,7 @@ class VigenciaService:
             if nuevo_estado != current_estado:
                 await self.db.licitaciones.update_one(
                     {"_id": doc["_id"]},
-                    {"$set": {"estado": nuevo_estado, "updated_at": datetime.utcnow()}}
+                    {"$set": {"estado": nuevo_estado, "updated_at": utc_now()}}
                 )
                 logger.debug(
                     f"Recomputed estado for {doc['_id']}: {current_estado} → {nuevo_estado}"

@@ -9,8 +9,13 @@ Run: docker exec -w /app -e PYTHONPATH=/app licitometro-backend-1 python3 script
 
 import asyncio
 import os
+import sys
+from pathlib import Path
 from motor.motor_asyncio import AsyncIOMotorClient
 from datetime import datetime
+
+sys.path.insert(0, str(Path(__file__).parent.parent))
+from utils.time import utc_now
 
 
 async def main():
@@ -44,7 +49,7 @@ async def main():
         "pagination": {},
         "headers": {},
         "cookies": {},
-        "updated_at": datetime.utcnow(),
+        "updated_at": utc_now(),
     }
 
     if existing:
@@ -55,7 +60,7 @@ async def main():
         )
         print("Config updated successfully")
     else:
-        config["created_at"] = datetime.utcnow()
+        config["created_at"] = utc_now()
         config["runs_count"] = 0
         config["last_run"] = None
         result = await db.scraper_configs.insert_one(config)

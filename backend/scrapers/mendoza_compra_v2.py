@@ -21,6 +21,7 @@ import logging
 from bs4 import BeautifulSoup
 from urllib.parse import urljoin, quote_plus
 from datetime import datetime, timedelta
+from utils.time import utc_now
 import re
 import uuid
 import sys
@@ -78,7 +79,7 @@ class PliegoURLCache:
         entry = self.cache[process_number]
         cached_time = datetime.fromisoformat(entry['timestamp'])
 
-        if datetime.utcnow() - cached_time > timedelta(hours=self.CACHE_TTL_HOURS):
+        if utc_now() - cached_time > timedelta(hours=self.CACHE_TTL_HOURS):
             del self.cache[process_number]
             return None
 
@@ -89,7 +90,7 @@ class PliegoURLCache:
         self.cache[process_number] = {
             'url': url,
             'type': url_type,
-            'timestamp': datetime.utcnow().isoformat()
+            'timestamp': utc_now().isoformat()
         }
         self._save()
 
@@ -309,7 +310,7 @@ class MendozaCompraScraperV2(BaseScraper):
                 "jurisdiccion": "Mendoza",
                 "tipo_procedimiento": tipo_procedimiento,
                 "tipo_acceso": "COMPR.AR",
-                "fecha_scraping": datetime.utcnow(),
+                "fecha_scraping": utc_now(),
                 "fuente": "COMPR.AR Mendoza",
                 "estado": estado,
                 "fecha_prorroga": None,
@@ -667,7 +668,7 @@ class MendozaCompraScraperV2(BaseScraper):
                     "jurisdiccion": "Mendoza",
                     "tipo_procedimiento": tipo,
                     "tipo_acceso": "COMPR.AR",
-                    "fecha_scraping": datetime.utcnow(),
+                    "fecha_scraping": utc_now(),
                     "fuente": "COMPR.AR Mendoza",
                     "currency": currency,
                     "budget": budget,

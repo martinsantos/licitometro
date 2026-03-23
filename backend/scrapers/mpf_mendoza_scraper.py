@@ -10,6 +10,7 @@ import logging
 import re
 import unicodedata
 from datetime import datetime
+from utils.time import utc_now
 from typing import List, Optional
 from urllib.parse import urljoin
 
@@ -180,7 +181,7 @@ class MpfMendozaScraper(BaseScraper):
                 fuente="MPF Mendoza",
                 tipo_procedimiento="Resolución",
                 tipo_acceso="Portal Web",
-                fecha_scraping=datetime.utcnow(),
+                fecha_scraping=utc_now(),
                 content_hash=self._content_hash(title, number, year),
                 attached_files=attached_files,
                 estado=estado,

@@ -20,6 +20,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from motor.motor_asyncio import AsyncIOMotorClient
+from utils.time import utc_now
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 logger = logging.getLogger("backfill_enrichment")
@@ -88,7 +89,7 @@ async def main():
                     stats_p1["category"] += 1
 
             updates["enrichment_level"] = 2
-            updates["updated_at"] = datetime.utcnow()
+            updates["updated_at"] = utc_now()
             if doc.get("workflow_state", "descubierta") == "descubierta":
                 updates["workflow_state"] = "evaluando"
 
@@ -151,7 +152,7 @@ async def main():
                     updates = {}
 
                 updates["enrichment_level"] = 2
-                updates["updated_at"] = datetime.utcnow()
+                updates["updated_at"] = utc_now()
                 if doc.get("workflow_state", "descubierta") == "descubierta":
                     updates["workflow_state"] = "evaluando"
 

@@ -14,6 +14,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from motor.motor_asyncio import AsyncIOMotorClient
+from utils.time import utc_now
 
 
 AR_SOURCES = [
@@ -180,7 +181,7 @@ async def main():
         if activate:
             source["active"] = True
 
-        now = datetime.utcnow()
+        now = utc_now()
 
         if existing:
             await collection.update_one(

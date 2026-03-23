@@ -29,6 +29,7 @@ from typing import Optional
 from bson import ObjectId
 from bs4 import BeautifulSoup
 from utils.dates import parse_date_guess
+from utils.time import utc_now
 import re
 import httpx
 
@@ -157,7 +158,7 @@ async def backfill_from_comprar_lists(db, dry_run=False):
                                 {"_id": doc["_id"]},
                                 {"$set": {
                                     "opening_date": opening_date,
-                                    "updated_at": datetime.utcnow()
+                                    "updated_at": utc_now()
                                 }}
                             )
                             logger.info(f"  Updated opening_date={opening_date} for {numero}")
@@ -210,7 +211,7 @@ async def backfill_from_pliego_urls(db, dry_run=False):
                         # Also update pliego_url in metadata if it came from cache
                         update_fields = {
                             "opening_date": opening_date,
-                            "updated_at": datetime.utcnow()
+                            "updated_at": utc_now()
                         }
                         if not doc.get("metadata", {}).get("comprar_pliego_url"):
                             update_fields["metadata.comprar_pliego_url"] = pliego_url
@@ -275,7 +276,7 @@ async def backfill_from_source_urls(db, fuente: Optional[str], dry_run=False):
                             {"_id": doc["_id"]},
                             {"$set": {
                                 "opening_date": opening_date,
-                                "updated_at": datetime.utcnow()
+                                "updated_at": utc_now()
                             }}
                         )
                         logger.info(f"  Updated opening_date for {doc.get('title', '')[:50]}")

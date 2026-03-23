@@ -11,7 +11,7 @@ import logging
 import hashlib
 from bs4 import BeautifulSoup
 from urllib.parse import urljoin
-from datetime import datetime
+from utils.time import utc_now
 import re
 import uuid
 import sys
@@ -169,7 +169,7 @@ class UncuyoScraper(BaseScraper):
                 jurisdiccion="Mendoza",
                 tipo_procedimiento=details.get('tipo') or "Licitación Pública",
                 tipo_acceso="Portal Web",
-                fecha_scraping=datetime.utcnow(),
+                fecha_scraping=utc_now(),
                 fuente="UNCuyo",
                 estado=estado,
                 fecha_prorroga=None,

@@ -10,6 +10,7 @@ States:
 import logging
 from datetime import datetime
 from typing import Optional, Dict, Any, List
+from utils.time import utc_now
 
 from bson import ObjectId
 from motor.motor_asyncio import AsyncIOMotorDatabase
@@ -59,7 +60,7 @@ class WorkflowService:
         history_entry = {
             "from_state": current_state,
             "to_state": new_state,
-            "timestamp": datetime.utcnow().isoformat(),
+            "timestamp": utc_now().isoformat(),
             "notes": notes,
         }
 
@@ -69,7 +70,7 @@ class WorkflowService:
             {
                 "$set": {
                     "workflow_state": new_state,
-                    "updated_at": datetime.utcnow(),
+                    "updated_at": utc_now(),
                 },
                 "$push": {"workflow_history": history_entry},
             },

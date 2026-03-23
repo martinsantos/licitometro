@@ -9,6 +9,7 @@ import logging
 import re
 from datetime import datetime
 from typing import List, Dict, Any, Optional
+from utils.time import utc_now
 
 from bson import ObjectId
 from motor.motor_asyncio import AsyncIOMotorDatabase
@@ -132,7 +133,7 @@ class CrossSourceService:
         if not updates:
             return licitacion_entity(base)
 
-        updates["updated_at"] = datetime.utcnow()
+        updates["updated_at"] = utc_now()
 
         # Track merge in metadata
         meta = base.get("metadata") or {}
@@ -141,7 +142,7 @@ class CrossSourceService:
             "from_id": str(related["_id"]),
             "from_fuente": related_fuente,
             "fields_merged": list(updates.keys()),
-            "timestamp": datetime.utcnow().isoformat(),
+            "timestamp": utc_now().isoformat(),
         })
         meta["cross_source_merges"] = merge_log[-10:]  # Keep last 10
         updates["metadata"] = meta
@@ -334,7 +335,7 @@ class CrossSourceService:
                         "$addToSet": {"fuentes": item_fuente},
                         "$set": {
                             f"source_urls.{item_fuente.lower().replace(' ', '_').replace('.', '')}": item_source_url,
-                            "updated_at": datetime.utcnow(),
+                            "updated_at": utc_now(),
                         }
                     }
                 )
@@ -346,7 +347,7 @@ class CrossSourceService:
                         "$addToSet": {"fuentes": match_fuente},
                         "$set": {
                             f"source_urls.{match_fuente.lower().replace(' ', '_').replace('.', '')}": match_url,
-                            "updated_at": datetime.utcnow(),
+                            "updated_at": utc_now(),
                         }
                     }
                 )

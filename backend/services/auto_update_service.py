@@ -10,6 +10,7 @@ import logging
 from datetime import datetime, timedelta
 from typing import List, Dict, Any, Optional
 import aiohttp
+from utils.time import utc_now
 
 import sys
 from pathlib import Path
@@ -32,7 +33,7 @@ class AutoUpdateService:
         """Run auto-update on active licitaciones with future opening dates."""
         logger.info("Starting auto-update of active licitaciones...")
 
-        now = datetime.utcnow()
+        now = utc_now()
 
         # Query: workflow_state in [evaluando, preparando] AND opening_date >= today
         query = {
@@ -136,7 +137,7 @@ class AutoUpdateService:
                 if r.get("change"):
                     stats["changes_detected"].append(r["change"])
 
-        stats["finished_at"] = datetime.utcnow().isoformat()
+        stats["finished_at"] = utc_now().isoformat()
         logger.info(f"Auto-update complete: {stats['updated']} updated, {stats['skipped']} skipped, {stats['errors']} errors")
 
         return stats
@@ -296,18 +297,18 @@ class AutoUpdateService:
 
             # Enrichment tracking
             update_data["enrichment_level"] = 2
-            update_data["last_enrichment"] = datetime.utcnow()
+            update_data["last_enrichment"] = utc_now()
             if update_data.get("attached_files"):
                 update_data["document_count"] = len(update_data["attached_files"])
 
             # Update metadata
             update_data["metadata"] = {
                 **metadata,
-                "enriched_at": datetime.utcnow().isoformat(),
+                "enriched_at": utc_now().isoformat(),
                 "enriched_from_url": urls_to_try[0][1] if urls_to_try else None,
                 "enriched_url_type": url_type,
                 "auto_updated": True,
-                "last_auto_update": datetime.utcnow().isoformat(),
+                "last_auto_update": utc_now().isoformat(),
             }
 
             # Auto-classify category if missing (title-first to avoid boilerplate noise)
@@ -409,7 +410,7 @@ class AutoUpdateService:
             updates["metadata"] = {
                 **metadata,
                 "auto_updated": True,
-                "last_auto_update": datetime.utcnow().isoformat(),
+                "last_auto_update": utc_now().isoformat(),
             }
 
             await self.collection.update_one(

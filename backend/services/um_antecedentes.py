@@ -13,6 +13,7 @@ import re
 from datetime import datetime, timezone, timedelta
 from difflib import SequenceMatcher
 from typing import List, Optional, Tuple
+from utils.time import utc_now
 
 import aiohttp
 from bs4 import BeautifulSoup
@@ -87,7 +88,7 @@ class UMAntecedenteService:
         needs_refresh = (
             not latest
             or not latest.get("cached_at")
-            or (datetime.utcnow() - latest["cached_at"]) > timedelta(hours=CACHE_TTL_HOURS)
+            or (utc_now() - latest["cached_at"]) > timedelta(hours=CACHE_TTL_HOURS)
         )
         if needs_refresh:
             try:
@@ -133,7 +134,7 @@ class UMAntecedenteService:
 
     async def _refresh_from_website(self) -> int:
         """Primary: scrape ultimamilla.com.ar/antecedentes (26 pages × 20 items)."""
-        now = datetime.utcnow()
+        now = utc_now()
         total = 0
 
         async with aiohttp.ClientSession(
@@ -366,7 +367,7 @@ class UMAntecedenteService:
 
     async def _refresh_from_sgi_only(self) -> int:
         """Fallback: populate cache from SGI API only (when website is down)."""
-        now = datetime.utcnow()
+        now = utc_now()
         total = 0
 
         try:

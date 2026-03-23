@@ -2,6 +2,10 @@ from typing import Optional, List, Dict, Any
 from datetime import datetime
 from uuid import uuid4
 from pydantic import BaseModel, Field, HttpUrl, model_validator
+import sys
+from pathlib import Path
+sys.path.insert(0, str(Path(__file__).parent.parent))
+from utils.time import utc_now
 
 # Workflow states
 WORKFLOW_STATES = ["descubierta", "evaluando", "preparando", "presentada", "descartada"]
@@ -242,10 +246,10 @@ class LicitacionUpdate(BaseModel):
 class Licitacion(LicitacionBase):
     """Model for a licitación stored in the database"""
     id: str = Field(default_factory=lambda: str(uuid4()))
-    created_at: datetime = Field(default_factory=datetime.utcnow)
-    updated_at: datetime = Field(default_factory=datetime.utcnow)
+    created_at: datetime = Field(default_factory=utc_now)
+    updated_at: datetime = Field(default_factory=utc_now)
     first_seen_at: datetime = Field(
-        default_factory=datetime.utcnow,
+        default_factory=utc_now,
         description="When this item was FIRST discovered (never changes on re-index)"
     )
     

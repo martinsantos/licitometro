@@ -3,7 +3,7 @@ import type { FilterState } from '../types/licitacion';
 
 const STORAGE_KEY = 'licitacionFilters';
 const YEAR_STORAGE_KEY = 'yearWorkspace';
-const FILTERS_VERSION = 8; // Bump this to clear stuck filters on deploy
+const FILTERS_VERSION = 9; // Bump this to clear stuck filters on deploy
 
 function getDefaultYear(): string {
   // Persist across sessions via localStorage
@@ -66,8 +66,7 @@ function filterReducer(state: FilterState, action: FilterAction): FilterState {
     case 'SET_MANY':
       return { ...state, ...action.payload };
     case 'CLEAR_ALL':
-      // Preserve yearWorkspace on clear
-      return { ...initialFilters, yearWorkspace: state.yearWorkspace };
+      return { ...initialFilters, yearWorkspace: new Date().getFullYear().toString() };
     default:
       return state;
   }
@@ -102,6 +101,7 @@ export function useLicitacionFilters(overrides?: Partial<FilterState>) {
     dispatch({ type: 'CLEAR_ALL' });
   }, []);
 
+  const defaultYear = new Date().getFullYear().toString();
   const hasActiveFilters = !!(
     filters.busqueda || filters.fuenteFiltro || filters.statusFiltro ||
     filters.categoryFiltro || filters.workflowFiltro || filters.jurisdiccionFiltro ||
@@ -109,7 +109,8 @@ export function useLicitacionFilters(overrides?: Partial<FilterState>) {
     filters.nodoFiltro || filters.estadoFiltro ||
     filters.budgetMin || filters.budgetMax ||
     filters.fechaDesde || filters.fechaHasta ||
-    filters.nuevasDesde
+    filters.nuevasDesde ||
+    (filters.yearWorkspace !== defaultYear)
   );
 
   const activeFilterCount = [
@@ -120,6 +121,7 @@ export function useLicitacionFilters(overrides?: Partial<FilterState>) {
     filters.budgetMin, filters.budgetMax,
     filters.fechaDesde, filters.fechaHasta,
     filters.nuevasDesde,
+    filters.yearWorkspace !== defaultYear ? filters.yearWorkspace : '',
   ].filter(Boolean).length;
 
   return { filters, setFilter, setMany, clearAll, hasActiveFilters, activeFilterCount };

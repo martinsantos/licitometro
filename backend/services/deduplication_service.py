@@ -10,6 +10,7 @@ import logging
 from typing import List, Optional, Tuple, Dict, Any
 from datetime import datetime, timedelta
 from difflib import SequenceMatcher
+from utils.time import utc_now
 
 import sys
 from pathlib import Path
@@ -197,7 +198,7 @@ class DeduplicationService:
                 (duplicate.merged_from or []) + 
                 [duplicate.id_licitacion]
             )),
-            "updated_at": datetime.utcnow()
+            "updated_at": utc_now()
         }
         
         # Update base with merged data

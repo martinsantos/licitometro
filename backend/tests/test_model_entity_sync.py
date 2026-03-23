@@ -18,6 +18,8 @@ _backend_dir = Path(__file__).resolve().parent.parent
 if str(_backend_dir) not in sys.path:
     sys.path.insert(0, str(_backend_dir))
 
+from utils.time import utc_now
+
 from db.models import licitacion_entity
 # Import the classes purely to inspect class-level metadata — no instantiation,
 # so the @model_validator (which imports utils.dates) is never triggered.
@@ -34,7 +36,7 @@ def _build_mock_document() -> dict:
     Every field is given a harmless default value so licitacion_entity() can
     run without KeyError or None-related surprises.
     """
-    now = datetime.utcnow()
+    now = utc_now()
     return {
         "_id": ObjectId(),
         # LicitacionBase fields

@@ -10,6 +10,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from models.licitacion import Licitacion, LicitacionCreate, LicitacionUpdate
+from utils.time import utc_now
 from models.scraper_config import ScraperConfig, ScraperConfigCreate, ScraperConfigUpdate
 from db.models import licitacion_entity, licitaciones_entity, scraper_config_entity, scraper_configs_entity, str_to_mongo_id
 
@@ -63,8 +64,8 @@ class LicitacionRepository:
             if licitacion_dict.get(url_field) is not None:
                 licitacion_dict[url_field] = str(licitacion_dict[url_field])
         licitacion_dict["_id"] = uuid4()
-        licitacion_dict["created_at"] = datetime.utcnow()
-        licitacion_dict["updated_at"] = datetime.utcnow()
+        licitacion_dict["created_at"] = utc_now()
+        licitacion_dict["updated_at"] = utc_now()
 
         # Auto-classify if no category set
         if not licitacion_dict.get("category"):
@@ -163,8 +164,8 @@ class LicitacionRepository:
     async def update(self, id, licitacion: LicitacionUpdate) -> Optional[Licitacion]:
         """Update a licitacion"""
         update_data = {k: v for k, v in licitacion.model_dump().items() if v is not None}
-        update_data["updated_at"] = datetime.utcnow()
-        
+        update_data["updated_at"] = utc_now()
+
         if update_data:
             query_id = id
             if isinstance(id, str):
@@ -179,7 +180,7 @@ class LicitacionRepository:
             if result.modified_count:
                 return await self.get_by_id(query_id)
         return None
-    
+
     async def delete(self, id) -> bool:
         """Delete a licitacion"""
         query_id = id
@@ -305,7 +306,7 @@ class LicitacionRepository:
 
     async def get_active_for_update(self) -> List[dict]:
         """Get licitaciones with active workflow states and future opening dates for auto-update."""
-        now = datetime.utcnow()
+        now = utc_now()
         query = {
             "workflow_state": {"$in": ["evaluando", "preparando"]},
             "$or": [
@@ -333,8 +334,8 @@ class ScraperConfigRepository:
         """Create a new scraper configuration"""
         config_dict = config.model_dump()
         config_dict["_id"] = uuid4()
-        config_dict["created_at"] = datetime.utcnow()
-        config_dict["updated_at"] = datetime.utcnow()
+        config_dict["created_at"] = utc_now()
+        config_dict["updated_at"] = utc_now()
         config_dict["last_run"] = None
         config_dict["runs_count"] = 0
         
@@ -369,8 +370,8 @@ class ScraperConfigRepository:
     async def update(self, id, config: ScraperConfigUpdate) -> Optional[ScraperConfig]:
         """Update a scraper configuration"""
         update_data = {k: v for k, v in config.model_dump().items() if v is not None}
-        update_data["updated_at"] = datetime.utcnow()
-        
+        update_data["updated_at"] = utc_now()
+
         if update_data:
             query_id = str_to_mongo_id(id) if isinstance(id, str) else id
             result = await self.collection.update_one(
@@ -392,7 +393,7 @@ class ScraperConfigRepository:
         await self.collection.update_one(
             {"_id": id},
             {
-                "$set": {"last_run": datetime.utcnow()},
+                "$set": {"last_run": utc_now()},
                 "$inc": {"runs_count": 1}
             }
         )

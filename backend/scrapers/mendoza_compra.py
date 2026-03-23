@@ -3,7 +3,7 @@ import asyncio
 import logging
 from bs4 import BeautifulSoup
 from urllib.parse import urljoin
-from datetime import datetime
+from utils.time import utc_now
 import re
 import uuid
 import sys
@@ -116,7 +116,7 @@ class MendozaCompraScraper(BaseScraper):
                 "jurisdiccion": "Mendoza",
                 "tipo_procedimiento": tipo_procedimiento,
                 "tipo_acceso": "COMPR.AR",
-                "fecha_scraping": datetime.utcnow(),
+                "fecha_scraping": utc_now(),
                 "fuente": "COMPR.AR Mendoza",
                 "estado": estado,
                 "fecha_prorroga": None,
@@ -1028,7 +1028,7 @@ class MendozaCompraScraper(BaseScraper):
                     "jurisdiccion": "Mendoza",
                     "tipo_procedimiento": tipo,
                     "tipo_acceso": "COMPR.AR",
-                    "fecha_scraping": datetime.utcnow(),
+                    "fecha_scraping": utc_now(),
                     "fuente": "COMPR.AR Mendoza",
                     "currency": currency,
                     "budget": budget,

@@ -11,7 +11,7 @@ import logging
 import hashlib
 from bs4 import BeautifulSoup
 from urllib.parse import urljoin, quote_plus
-from datetime import datetime
+from utils.time import utc_now
 import re
 import uuid
 import sys
@@ -124,7 +124,7 @@ class OsepScraper(BaseScraper):
                 jurisdiccion="Mendoza",
                 tipo_procedimiento=tipo_procedimiento,
                 tipo_acceso="COMPR.AR OSEP",
-                fecha_scraping=datetime.utcnow(),
+                fecha_scraping=utc_now(),
                 fuente="OSEP",
                 estado=estado,
                 fecha_prorroga=None,
@@ -335,7 +335,7 @@ class OsepScraper(BaseScraper):
                         jurisdiccion="Mendoza",
                         tipo_procedimiento=tipo,
                         tipo_acceso="COMPR.AR OSEP",
-                        fecha_scraping=datetime.utcnow(),
+                        fecha_scraping=utc_now(),
                         fuente="OSEP",
                         metadata={
                             "osep_list_url": list_url,

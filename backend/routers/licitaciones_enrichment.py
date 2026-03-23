@@ -3,6 +3,7 @@ from fastapi.responses import JSONResponse
 from typing import Dict, Any, Optional
 from datetime import datetime
 from bson import ObjectId
+from utils.time import utc_now
 from pathlib import Path
 import logging
 import re
@@ -118,7 +119,7 @@ async def enrich_licitacion_universal(
 
                 # Log enrichment attempt in metadata
                 enrichment_log_entry = {
-                    "timestamp": datetime.utcnow().isoformat(),
+                    "timestamp": utc_now().isoformat(),
                     "method": "manual",
                     "level": level,
                     "fields_updated": field_names,

@@ -15,7 +15,7 @@ import hashlib
 import json
 import logging
 import re
-from datetime import datetime
+from utils.time import utc_now
 from typing import List, Optional
 
 from bs4 import BeautifulSoup
@@ -196,7 +196,7 @@ class GodoyCruzScraper(BaseScraper):
                     fuente="Godoy Cruz",
                     tipo_procedimiento=tipo,
                     tipo_acceso="Portal Web",
-                    fecha_scraping=datetime.utcnow(),
+                    fecha_scraping=utc_now(),
                     budget=budget,
                     currency="ARS" if budget else None,
                     content_hash=content_hash,

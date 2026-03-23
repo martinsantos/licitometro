@@ -18,6 +18,7 @@ from uuid import uuid4
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 from motor.motor_asyncio import AsyncIOMotorClient
+from utils.time import utc_now
 
 
 async def main():
@@ -53,8 +54,8 @@ async def main():
         },
         "pagination": {"max_pages": 3},
         "source_type": "website",
-        "created_at": datetime.utcnow(),
-        "updated_at": datetime.utcnow(),
+        "created_at": utc_now(),
+        "updated_at": utc_now(),
     }
 
     await db.scraper_configs.insert_one(doc)

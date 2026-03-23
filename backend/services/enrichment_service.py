@@ -11,6 +11,7 @@ import os
 from datetime import datetime
 from pathlib import Path
 from typing import Optional, Dict, Any, List
+from utils.time import utc_now
 
 from bson import ObjectId
 from motor.motor_asyncio import AsyncIOMotorDatabase
@@ -61,8 +62,8 @@ class EnrichmentService:
 
         update = {
             "enrichment_level": level,
-            "last_enrichment": datetime.utcnow(),
-            "updated_at": datetime.utcnow(),
+            "last_enrichment": utc_now(),
+            "updated_at": utc_now(),
         }
 
         await self.collection.update_one(
@@ -86,8 +87,8 @@ class EnrichmentService:
                     "attached_files": documents,
                     "document_count": len(documents),
                     "enrichment_level": 3,
-                    "last_enrichment": datetime.utcnow(),
-                    "updated_at": datetime.utcnow(),
+                    "last_enrichment": utc_now(),
+                    "updated_at": utc_now(),
                 }
             }
         )
