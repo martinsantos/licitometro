@@ -131,9 +131,15 @@ const PublicLicitacionPage: React.FC = () => {
           {/* Status badge */}
           <div className="flex items-center gap-3 mb-4">
             <span className={`px-3 py-1 rounded-full text-xs font-bold ${
-              lic.status === 'active' ? 'bg-emerald-100 text-emerald-700' : 'bg-red-100 text-red-700'
+              (lic.estado === 'vigente' || (!lic.estado && lic.status === 'active')) ? 'bg-emerald-100 text-emerald-700' :
+              lic.estado === 'prorrogada' ? 'bg-yellow-100 text-yellow-700' :
+              'bg-gray-100 text-gray-600'
             }`}>
-              {lic.status === 'active' ? 'Abierta' : 'Cerrada'}
+              {lic.estado === 'vigente' ? 'Vigente' :
+               lic.estado === 'vencida' ? 'Vencida' :
+               lic.estado === 'prorrogada' ? 'Prorrogada' :
+               lic.estado === 'archivada' ? 'Archivada' :
+               lic.status === 'active' ? 'Abierta' : 'Cerrada'}
             </span>
             {lic.tipo_procedimiento && (
               <span className="px-3 py-1 bg-blue-100 text-blue-700 rounded-full text-xs font-bold">

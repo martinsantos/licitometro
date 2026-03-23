@@ -355,13 +355,19 @@ const LicitacionDetailPage = ({ userRole }) => {
               <div className="flex-1">
                 <div className="flex items-center gap-3 mb-4 flex-wrap">
                   <span className={`px-4 py-1.5 rounded-full text-xs font-black uppercase tracking-wider ${
-                    licitacion.status === 'active' ? 'bg-emerald-400 text-emerald-900' :
-                    licitacion.status === 'closed' ? 'bg-red-400 text-red-900' :
+                    (licitacion.estado || licitacion.status) === 'vigente' || (licitacion.estado || licitacion.status) === 'active' ? 'bg-emerald-400 text-emerald-900' :
+                    (licitacion.estado || licitacion.status) === 'vencida' || (licitacion.estado || licitacion.status) === 'closed' ? 'bg-gray-400 text-gray-900' :
+                    (licitacion.estado || licitacion.status) === 'prorrogada' ? 'bg-yellow-400 text-yellow-900' :
+                    (licitacion.estado || licitacion.status) === 'archivada' ? 'bg-slate-400 text-slate-900' :
                     'bg-gray-300 text-gray-800'
                   }`}>
-                    {licitacion.status === 'active' ? 'Activa' :
+                    {licitacion.estado === 'vigente' ? 'Vigente' :
+                     licitacion.estado === 'vencida' ? 'Vencida' :
+                     licitacion.estado === 'prorrogada' ? 'Prorrogada' :
+                     licitacion.estado === 'archivada' ? 'Archivada' :
+                     licitacion.status === 'active' ? 'Activa' :
                      licitacion.status === 'closed' ? 'Cerrada' :
-                     licitacion.status === 'awarded' ? 'Adjudicada' : licitacion.status}
+                     licitacion.status === 'awarded' ? 'Adjudicada' : (licitacion.estado || licitacion.status)}
                   </span>
                   {licitacion.fuente && (
                     <span className="px-3 py-1 rounded-full bg-white/20 text-white/90 text-xs font-bold">
