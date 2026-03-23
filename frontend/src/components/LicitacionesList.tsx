@@ -228,13 +228,12 @@ const LicitacionesList = ({
     }
   }, [setFilter, setMany, filters, fechaCampo]);
 
-  // SYNCHRONIZED: DailyDigest "Hoy" and "Nuevas de hoy" activate BOTH filters together
+  // DailyDigest strip shows INDEXATION activity (fecha_scraping), so only filter by fecha range.
+  // "Nuevas de hoy" button handles first_seen_at separately via handleToggleTodayFilter.
   const handleDaySelect = useCallback((dateStr: string | null) => {
     if (dateStr) {
-      // Activar AMBOS filtros simultáneamente (nuevasDesde Y fechaDesde/fechaHasta)
-      setMany({ fechaDesde: dateStr, fechaHasta: dateStr, nuevasDesde: dateStr });
+      setMany({ fechaDesde: dateStr, fechaHasta: dateStr, nuevasDesde: '' });
     } else {
-      // Limpiar AMBOS filtros simultáneamente
       setMany({ fechaDesde: '', fechaHasta: '', nuevasDesde: '' });
     }
   }, [setMany]);
