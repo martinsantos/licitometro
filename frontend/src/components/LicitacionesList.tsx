@@ -228,16 +228,18 @@ const LicitacionesList = ({
     }
   }, [setFilter, setMany, filters, fechaCampo]);
 
-  // DailyDigest strip shows INDEXATION activity (fecha_scraping), so only filter by fecha range.
-  // Clear yearWorkspace so the listing count matches the strip count (which ignores year).
-  // "Nuevas de hoy" button handles first_seen_at separately via handleToggleTodayFilter.
+  // DailyDigest strip counts by fecha_scraping. When clicking a day:
+  // 1. Force sort to fecha_scraping so fechaCampo matches the strip's semantics
+  // 2. Clear yearWorkspace so count matches listing (strip ignores year)
+  // 3. Don't set nuevasDesde (that's for "Nuevas de hoy" button only)
   const handleDaySelect = useCallback((dateStr: string | null) => {
     if (dateStr) {
       setMany({ fechaDesde: dateStr, fechaHasta: dateStr, nuevasDesde: '', yearWorkspace: 'all' });
+      prefs.handleSortChange('fecha_scraping');
     } else {
       setMany({ fechaDesde: '', fechaHasta: '', nuevasDesde: '' });
     }
-  }, [setMany]);
+  }, [setMany, prefs]);
 
   const handleSourceClick = useCallback((fuente: string) => {
     setFilter('fuenteFiltro', fuente);
