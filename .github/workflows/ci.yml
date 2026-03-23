@@ -38,7 +38,7 @@ jobs:
           if grep -q '"lint"' package.json; then
             npm run lint
           else
-            echo "⚠️  No lint script found, skipping..."
+            echo "No lint script found, skipping..."
           fi
         continue-on-error: false
 
@@ -53,14 +53,14 @@ jobs:
         working-directory: frontend
         run: |
           if [ ! -d "build" ]; then
-            echo "❌ Build directory not found"
+            echo "Build directory not found"
             exit 1
           fi
           if [ ! -f "build/index.html" ]; then
-            echo "❌ index.html not found in build"
+            echo "index.html not found in build"
             exit 1
           fi
-          echo "✅ Build artifacts verified"
+          echo "Build artifacts verified"
 
       - name: Setup Python
         uses: actions/setup-python@v5
@@ -73,4 +73,27 @@ jobs:
           python -m py_compile server.py
           # Check all scrapers and services too
           find scrapers services routers utils models db -name "*.py" | xargs python -m py_compile
-          echo "✅ Python syntax check passed (server + all modules)"
+          echo "Python syntax check passed (server + all modules)"
+
+  test-backend:
+    name: Backend Unit Tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install test dependencies
+        run: pip install pytest pydantic
+
+      - name: Run backend unit tests
+        working-directory: backend
+        run: pytest tests/ -v
+        env:
+          PYTHONPATH: ${{ github.workspace }}/backend

@@ -13,8 +13,14 @@ logger = logging.getLogger("auth_service")
 
 JWT_SECRET_KEY = os.environ.get("JWT_SECRET_KEY", "")
 if not JWT_SECRET_KEY:
+    _env = os.environ.get("ENV", "development").lower()
+    if _env not in ("development", "dev", "test"):
+        raise RuntimeError(
+            "JWT_SECRET_KEY is required in production. "
+            "Set it in .env or .env.production"
+        )
     JWT_SECRET_KEY = str(uuid.uuid4())
-    logger.warning("JWT_SECRET_KEY not set - using random key (sessions won't persist across restarts)")
+    logger.warning("JWT_SECRET_KEY not set - using random key (dev mode only)")
 
 JWT_ALGORITHM = "HS256"
 TOKEN_EXPIRY_HOURS = int(os.environ.get("TOKEN_EXPIRY_HOURS", "24"))

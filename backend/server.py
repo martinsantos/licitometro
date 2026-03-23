@@ -14,7 +14,12 @@ import uvicorn
 sys.path.insert(0, str(Path(__file__).parent))
 
 # Import routers directly (not as relative imports)
-from routers import licitaciones, licitaciones_ar, scraper_configs, comprar, scheduler, workflow, offer_templates, auth, public, nodos, cotizar_ai, cotizaciones, market_data, documentos, company_context
+from routers import (
+    licitaciones, licitaciones_ar, licitaciones_stats, licitaciones_enrichment,
+    licitaciones_search, licitaciones_presets,
+    scraper_configs, comprar, scheduler, workflow, offer_templates,
+    auth, public, nodos, cotizar_ai, cotizaciones, market_data, documentos, company_context,
+)
 from services.auth_service import verify_token
 
 # Load environment variables
@@ -41,6 +46,15 @@ AUTH_EXEMPT_PATHS = {
     "/api/",
 }
 
+# Prefixes where any valid token (including reader role) grants access.
+# Defined at module level to avoid recreating the tuple on every request.
+READER_ACCESSIBLE_PREFIXES = (
+    "/api/cotizar-ai/",
+    "/api/company-context",
+    "/api/documentos",
+    "/api/cotizaciones",
+)
+
 # Create FastAPI app
 _ENABLE_DOCS = os.getenv("ENABLE_DOCS", "false").lower() == "true"
 app = FastAPI(
@@ -52,7 +66,7 @@ app = FastAPI(
 )
 
 # Add CORS middleware
-allowed_origins = os.environ.get("ALLOWED_ORIGINS", "*").split(",")
+allowed_origins = os.environ.get("ALLOWED_ORIGINS", "https://licitometro.ar").split(",")
 app.add_middleware(
     CORSMiddleware,
     allow_origins=allowed_origins,
@@ -105,35 +119,8 @@ async def auth_middleware(request: Request, call_next):
     if request.method == "GET" and (path.startswith("/api/licitaciones") or path.startswith("/api/licitaciones-ar") or path.startswith("/api/market/")):
         return await call_next(request)
 
-    # Allow reader access to cotizar-ai endpoints (read-only AI analysis, no data mutation)
-    if path.startswith("/api/cotizar-ai/"):
-        token = request.cookies.get("access_token")
-        if token:
-            token_data = verify_token(token)
-            if token_data["valid"]:
-                request.state.user_role = token_data.get("role", "reader")
-                return await call_next(request)
-
-    # Allow reader access to company-context endpoints
-    if path.startswith("/api/company-context"):
-        token = request.cookies.get("access_token")
-        if token:
-            token_data = verify_token(token)
-            if token_data["valid"]:
-                request.state.user_role = token_data.get("role", "reader")
-                return await call_next(request)
-
-    # Allow reader access to documentos endpoints
-    if path.startswith("/api/documentos"):
-        token = request.cookies.get("access_token")
-        if token:
-            token_data = verify_token(token)
-            if token_data["valid"]:
-                request.state.user_role = token_data.get("role", "reader")
-                return await call_next(request)
-
-    # Allow reader access to cotizaciones endpoints
-    if path.startswith("/api/cotizaciones"):
+    # Reader-accessible prefixes (any valid token grants access, regardless of role)
+    if any(path.startswith(p) for p in READER_ACCESSIBLE_PREFIXES):
         token = request.cookies.get("access_token")
         if token:
             token_data = verify_token(token)
@@ -168,8 +155,13 @@ async def auth_middleware(request: Request, call_next):
 client = AsyncIOMotorClient(MONGO_URL)
 database = client[DB_NAME]
 
-# Include routers
+# Include routers — sub-routers with fixed paths BEFORE the main router
+# (which has /{licitacion_id} catch-all paths)
 app.include_router(auth.router)
+app.include_router(licitaciones_stats.router)
+app.include_router(licitaciones_search.router)
+app.include_router(licitaciones_enrichment.router)
+app.include_router(licitaciones_presets.router)
 app.include_router(licitaciones.router)
 app.include_router(licitaciones_ar.router)
 app.include_router(scraper_configs.router)
@@ -293,137 +285,9 @@ async def startup_db_client():
         scheduler_service.start()
         logger.info("Scheduler initialized and started automatically")
 
-        # Schedule daily storage cleanup at 3am
-        from services.storage_cleanup_service import get_cleanup_service
-        cleanup_service = get_cleanup_service(database)
-        from apscheduler.triggers.cron import CronTrigger
-        scheduler_service.scheduler.add_job(
-            func=cleanup_service.run_cleanup,
-            trigger=CronTrigger(hour=3, minute=0),
-            id="storage_cleanup",
-            name="Daily storage cleanup",
-            replace_existing=True,
-        )
-        logger.info("Daily storage cleanup scheduled at 3:00 AM")
-
-        # Schedule daily auto-update at 8am
-        from services.auto_update_service import get_auto_update_service
-        auto_update_service = get_auto_update_service(database)
-        scheduler_service.scheduler.add_job(
-            func=auto_update_service.run_auto_update,
-            trigger=CronTrigger(hour=8, minute=0),
-            id="auto_update_active",
-            name="Auto-update active licitaciones",
-            replace_existing=True,
-            max_instances=1,
-        )
-        logger.info("Auto-update of active licitaciones scheduled at 8:00 AM")
-
-        # Schedule enrichment cron every 30 minutes
-        from services.enrichment_cron_service import get_enrichment_cron_service
-        from apscheduler.triggers.interval import IntervalTrigger
-        enrichment_cron = get_enrichment_cron_service(database)
-        scheduler_service.scheduler.add_job(
-            func=enrichment_cron.run_enrichment_cycle,
-            trigger=IntervalTrigger(minutes=30),
-            id="enrichment_cron",
-            name="Enrichment cron (L1→L2)",
-            replace_existing=True,
-            max_instances=1,
-        )
-        logger.info("Enrichment cron scheduled every 30 minutes")
-
-        # Schedule daily notification digest at 9am
-        try:
-            from services.notification_service import get_notification_service
-            notification_service = get_notification_service(database)
-            scheduler_service.scheduler.add_job(
-                func=notification_service.send_daily_digest,
-                trigger=CronTrigger(hour=9, minute=0),
-                id="daily_digest",
-                name="Daily notification digest",
-                replace_existing=True,
-            )
-            logger.info("Daily notification digest scheduled at 9:00 AM")
-        except Exception as e:
-            logger.warning(f"Notification service not configured: {e}")
-
-        # Schedule nodo digests
-        try:
-            from services.nodo_digest_service import get_nodo_digest_service
-            nodo_digest = get_nodo_digest_service(database)
-
-            # Morning digest (9:15am) - daily + twice_daily
-            scheduler_service.scheduler.add_job(
-                func=nodo_digest.run_digest,
-                args=[["daily", "twice_daily"]],
-                trigger=CronTrigger(hour=9, minute=15),
-                id="nodo_digest_morning",
-                name="Nodo digest morning (daily + twice_daily)",
-                replace_existing=True,
-                max_instances=1,
-            )
-            # Evening digest (6pm) - twice_daily only
-            scheduler_service.scheduler.add_job(
-                func=nodo_digest.run_digest,
-                args=[["twice_daily"]],
-                trigger=CronTrigger(hour=18, minute=0),
-                id="nodo_digest_evening",
-                name="Nodo digest evening (twice_daily)",
-                replace_existing=True,
-                max_instances=1,
-            )
-            logger.info("Nodo digests scheduled at 9:15 AM and 6:00 PM")
-        except Exception as e:
-            logger.warning(f"Nodo digest service not configured: {e}")
-
-        # Schedule daily estado update at 6:00 AM
-        try:
-            from services.vigencia_service import get_vigencia_service
-            vigencia_service = get_vigencia_service(database)
-            scheduler_service.scheduler.add_job(
-                func=vigencia_service.update_estados_batch,
-                trigger=CronTrigger(hour=6, minute=0),
-                id="daily_estado_update",
-                name="Daily estado update (mark vencidas)",
-                replace_existing=True,
-                max_instances=1,
-            )
-            logger.info("Daily estado update scheduled at 6:00 AM")
-        except Exception as e:
-            logger.warning(f"Vigencia service not configured: {e}")
-
-        # Schedule nightly embedding batch at 11:00 PM
-        try:
-            from services.embedding_service import get_embedding_service
-            embedding_service = get_embedding_service(database)
-            scheduler_service.scheduler.add_job(
-                func=embedding_service.embed_batch,
-                trigger=CronTrigger(hour=23, minute=0),
-                id="embedding_batch",
-                name="Nightly embedding batch",
-                replace_existing=True,
-                max_instances=1,
-            )
-            logger.info("Nightly embedding batch scheduled at 11:00 PM")
-        except Exception as e:
-            logger.warning(f"Embedding service not configured: {e}")
-
-        # Schedule deadline alerts at 8am and 8pm
-        try:
-            from services.notification_service import get_notification_service as _get_ns
-            notification_service_dl = _get_ns(database)
-            scheduler_service.scheduler.add_job(
-                func=notification_service_dl.send_deadline_alerts,
-                trigger=CronTrigger(hour="8,20", minute=0),
-                id="deadline_alerts",
-                name="Deadline alerts (48h before opening)",
-                replace_existing=True,
-                max_instances=1,
-            )
-            logger.info("Deadline alerts scheduled at 8:00 AM and 8:00 PM")
-        except Exception as e:
-            logger.warning(f"Deadline alerts not configured: {e}")
+        # Register all cron jobs from declarative registry
+        from services.cron_registry import register_all_crons
+        register_all_crons(scheduler_service.scheduler, database)
 
     except Exception as e:
         logger.error(f"Failed to auto-start scheduler: {e}")

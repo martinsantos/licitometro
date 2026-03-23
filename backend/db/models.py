@@ -1,4 +1,3 @@
-from datetime import datetime
 from typing import List, Dict, Any, Optional
 from uuid import UUID
 from bson import Binary, ObjectId
@@ -119,9 +118,9 @@ def licitacion_entity(licitacion) -> dict:
         "estado": licitacion.get("estado", "vigente"),
         "fecha_prorroga": licitacion.get("fecha_prorroga"),
         # Timestamps
-        "created_at": licitacion.get("created_at", datetime.utcnow()),
-        "updated_at": licitacion.get("updated_at", datetime.utcnow()),
-        "first_seen_at": licitacion.get("first_seen_at", licitacion.get("created_at", datetime.utcnow()))
+        "created_at": licitacion.get("created_at"),
+        "updated_at": licitacion.get("updated_at"),
+        "first_seen_at": licitacion.get("first_seen_at", licitacion.get("created_at"))
     }
 
 def licitaciones_entity(licitaciones) -> list:
@@ -147,8 +146,8 @@ def scraper_config_entity(config) -> dict:
         "scope": config.get("scope"),
         "last_run": config.get("last_run"),
         "runs_count": config.get("runs_count", 0),
-        "created_at": config.get("created_at", datetime.utcnow()),
-        "updated_at": config.get("updated_at", datetime.utcnow())
+        "created_at": config.get("created_at"),
+        "updated_at": config.get("updated_at")
     }
 
 def scraper_configs_entity(configs) -> list:
@@ -169,8 +168,8 @@ def offer_template_entity(template) -> dict:
         "tags": template.get("tags", []),
         "applicable_rubros": template.get("applicable_rubros", []),
         "usage_count": template.get("usage_count", 0),
-        "created_at": template.get("created_at", datetime.utcnow()),
-        "updated_at": template.get("updated_at", datetime.utcnow()),
+        "created_at": template.get("created_at"),
+        "updated_at": template.get("updated_at"),
     }
 
 
@@ -184,8 +183,8 @@ def offer_application_entity(app) -> dict:
         "checklist": app.get("checklist", []),
         "progress_percent": app.get("progress_percent", 0.0),
         "status": app.get("status", "in_progress"),
-        "created_at": app.get("created_at", datetime.utcnow()),
-        "updated_at": app.get("updated_at", datetime.utcnow()),
+        "created_at": app.get("created_at"),
+        "updated_at": app.get("updated_at"),
     }
 
 
@@ -204,8 +203,8 @@ def nodo_entity(nodo) -> dict:
         "digest_frequency": nodo.get("digest_frequency", "daily"),
         "last_digest_sent": nodo.get("last_digest_sent"),
         "matched_count": nodo.get("matched_count", 0),
-        "created_at": nodo.get("created_at", datetime.utcnow()),
-        "updated_at": nodo.get("updated_at", datetime.utcnow()),
+        "created_at": nodo.get("created_at"),
+        "updated_at": nodo.get("updated_at"),
     }
 
 
@@ -222,8 +221,8 @@ def user_entity(user) -> dict:
         "role": user.get("role", "viewer"),
         "name": user.get("name", ""),
         "active": user.get("active", True),
-        "created_at": user.get("created_at", datetime.utcnow()),
-        "updated_at": user.get("updated_at", datetime.utcnow()),
+        "created_at": user.get("created_at"),
+        "updated_at": user.get("updated_at"),
     }
 
 
@@ -242,8 +241,8 @@ def company_profile_entity(doc) -> dict:
         "representante_legal": doc.get("representante_legal", ""),
         "cargo_representante": doc.get("cargo_representante", ""),
         "onboarding_completed": doc.get("onboarding_completed", False),
-        "created_at": doc.get("created_at", datetime.utcnow()),
-        "updated_at": doc.get("updated_at", datetime.utcnow()),
+        "created_at": doc.get("created_at"),
+        "updated_at": doc.get("updated_at"),
     }
 
 
@@ -271,8 +270,8 @@ def company_context_entity(doc) -> dict:
         "errores_comunes": doc.get("errores_comunes", []),
         "antecedentes": doc.get("antecedentes", []),
         "notas": doc.get("notas", ""),
-        "created_at": doc.get("created_at", datetime.utcnow()),
-        "updated_at": doc.get("updated_at", datetime.utcnow()),
+        "created_at": doc.get("created_at"),
+        "updated_at": doc.get("updated_at"),
     }
 
 
@@ -288,8 +287,8 @@ def documento_entity(doc) -> dict:
         "file_path": doc.get("file_path", ""),
         "mime_type": doc.get("mime_type", "application/octet-stream"),
         "file_size": doc.get("file_size", 0),
-        "created_at": doc.get("created_at", datetime.utcnow()),
-        "updated_at": doc.get("updated_at", datetime.utcnow()),
+        "created_at": doc.get("created_at"),
+        "updated_at": doc.get("updated_at"),
     }
 
 
@@ -314,6 +313,6 @@ def cotizacion_entity(doc) -> dict:
         "antecedentes_vinculados": doc.get("antecedentes_vinculados", []),
         "price_intelligence": doc.get("price_intelligence"),
         "status": doc.get("status", "borrador"),
-        "created_at": doc.get("created_at", datetime.utcnow()),
-        "updated_at": doc.get("updated_at", datetime.utcnow()),
+        "created_at": doc.get("created_at"),
+        "updated_at": doc.get("updated_at"),
     }
