@@ -3,11 +3,12 @@ import type { FilterState, FilterOptions, Nodo } from '../../types/licitacion';
 import type { FacetData, FacetValue } from '../../hooks/useFacetedFilters';
 import { EstadoFilter } from './EstadoFilter';
 
-const FECHA_CAMPO_LABELS: Record<string, string> = {
-  publication_date: 'Publicacion',
-  opening_date: 'Apertura',
-  fecha_scraping: 'Indexacion',
-};
+const FECHA_CAMPO_OPTIONS: { value: string; label: string }[] = [
+  { value: 'publication_date', label: 'Publicación' },
+  { value: 'opening_date', label: 'Apertura' },
+  { value: 'fecha_scraping', label: 'Indexación' },
+  { value: 'first_seen_at', label: 'Descubierta' },
+];
 
 interface FilterSidebarProps {
   filters: FilterState;
@@ -24,7 +25,6 @@ interface FilterSidebarProps {
   onSetMany: (updates: Partial<FilterState>) => void;
   groupBy: string;
   onGroupByChange: (value: string) => void;
-  fechaCampo: string;
   nodoMap?: Record<string, Nodo>;
 }
 
@@ -103,7 +103,7 @@ const FacetItem: React.FC<{
 const FilterSidebar: React.FC<FilterSidebarProps> = ({
   filters, onFilterChange, onClearAll, facets, hasActiveFilters, activeFilterCount,
   criticalRubros, onToggleCriticalRubro, isCollapsed, onToggleCollapse,
-  filterOptions, onSetMany, groupBy, onGroupByChange, fechaCampo, nodoMap,
+  filterOptions, onSetMany, groupBy, onGroupByChange, nodoMap,
 }) => {
   const [orgSearch, setOrgSearch] = useState('');
   const [showAllOrgs, setShowAllOrgs] = useState(false);
@@ -439,9 +439,17 @@ const FilterSidebar: React.FC<FilterSidebarProps> = ({
           {/* 9. Fechas */}
           <FilterSection title="Fechas" defaultOpen={false} badge={(filters.fechaDesde || filters.fechaHasta) ? 1 : 0}>
             <div className="space-y-2">
-              <div className="text-[10px] text-gray-400 font-bold mb-1">
-                Filtrando por: <span className="text-emerald-600">{FECHA_CAMPO_LABELS[fechaCampo] || fechaCampo}</span>
-                <span className="text-gray-300 ml-1">(segun orden)</span>
+              <div>
+                <label className="text-[10px] text-gray-400 font-bold">Campo de fecha</label>
+                <select
+                  className="w-full px-2 py-1.5 bg-gray-50 border border-gray-200 rounded-lg text-xs outline-none focus:border-emerald-400 font-bold text-gray-700 cursor-pointer"
+                  value={filters.fechaCampo || 'publication_date'}
+                  onChange={(e) => onFilterChange('fechaCampo', e.target.value)}
+                >
+                  {FECHA_CAMPO_OPTIONS.map((opt) => (
+                    <option key={opt.value} value={opt.value}>{opt.label}</option>
+                  ))}
+                </select>
               </div>
               <div className="space-y-1.5">
                 <div>
@@ -451,7 +459,6 @@ const FilterSidebar: React.FC<FilterSidebarProps> = ({
                     className="w-full px-2 py-1.5 bg-gray-50 border border-gray-200 rounded-lg text-xs outline-none focus:border-emerald-400"
                     value={filters.fechaDesde}
                     onChange={(e) => onFilterChange('fechaDesde', e.target.value)}
-                    min={fechaCampo === 'opening_date' ? new Date().toISOString().slice(0, 10) : undefined}
                   />
                 </div>
                 <div>

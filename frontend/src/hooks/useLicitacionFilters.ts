@@ -3,7 +3,7 @@ import type { FilterState } from '../types/licitacion';
 
 const STORAGE_KEY = 'licitacionFilters';
 const YEAR_STORAGE_KEY = 'yearWorkspace';
-const FILTERS_VERSION = 7; // Bump this to clear stuck filters on deploy
+const FILTERS_VERSION = 8; // Bump this to clear stuck filters on deploy
 
 function getDefaultYear(): string {
   // Persist across sessions via localStorage
@@ -31,6 +31,7 @@ const initialFilters: FilterState = {
   fechaHasta: '',
   nuevasDesde: '',
   yearWorkspace: getDefaultYear(),
+  fechaCampo: 'publication_date',
   jurisdiccionMode: 'all',  // Default: show all sources (Mendoza + Argentina)
 };
 

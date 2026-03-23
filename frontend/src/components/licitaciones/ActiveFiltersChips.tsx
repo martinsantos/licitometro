@@ -1,9 +1,24 @@
 import React from 'react';
 import type { FilterState, Nodo } from '../../types/licitacion';
 
+const ESTADO_LABELS: Record<string, string> = {
+  vigente: 'Vigente',
+  vencida: 'Vencida',
+  prorrogada: 'Prorrogada',
+  archivada: 'Archivada',
+};
+
+function formatEstadoLabel(value: string): string {
+  if (value.includes(',')) {
+    return value.split(',').map(s => ESTADO_LABELS[s.trim()] || s.trim()).join(' + ');
+  }
+  return ESTADO_LABELS[value] || value.charAt(0).toUpperCase() + value.slice(1);
+}
+
 interface ActiveFiltersChipsProps {
   filters: FilterState;
   onFilterChange: (key: keyof FilterState, value: string) => void;
+  onSetMany: (updates: Partial<FilterState>) => void;
   onClearAll: () => void;
   totalItems: number | null;
   hasActiveFilters: boolean;
@@ -18,7 +33,7 @@ const Chip: React.FC<{ label: string; color: string; onRemove: () => void }> = (
 );
 
 const ActiveFiltersChips: React.FC<ActiveFiltersChipsProps> = ({
-  filters, onFilterChange, onClearAll, totalItems, hasActiveFilters, nodoMap,
+  filters, onFilterChange, onSetMany, onClearAll, totalItems, hasActiveFilters, nodoMap,
 }) => {
   if (totalItems === null && !hasActiveFilters) return null;
 
@@ -60,16 +75,16 @@ const ActiveFiltersChips: React.FC<ActiveFiltersChipsProps> = ({
         <Chip label={filters.categoryFiltro} color="bg-pink-100 text-pink-700" onRemove={() => onFilterChange('categoryFiltro', '')} />
       )}
       {filters.estadoFiltro && (
-        <Chip label={`Vigencia: ${filters.estadoFiltro.charAt(0).toUpperCase() + filters.estadoFiltro.slice(1)}`} color="bg-emerald-100 text-emerald-700" onRemove={() => onFilterChange('estadoFiltro', '')} />
+        <Chip label={`Vigencia: ${formatEstadoLabel(filters.estadoFiltro)}`} color="bg-emerald-100 text-emerald-700" onRemove={() => onFilterChange('estadoFiltro', '')} />
       )}
       {filters.nodoFiltro && (
         <Chip label={`Nodo: ${nodoMap?.[filters.nodoFiltro]?.name || filters.nodoFiltro.slice(0, 12) + '...'}`} color="bg-sky-100 text-sky-700" onRemove={() => onFilterChange('nodoFiltro', '')} />
       )}
       {(filters.budgetMin || filters.budgetMax) && (
-        <Chip label={`$${filters.budgetMin || '0'} - $${filters.budgetMax || '...'}`} color="bg-orange-100 text-orange-700" onRemove={() => { onFilterChange('budgetMin', ''); onFilterChange('budgetMax', ''); }} />
+        <Chip label={`$${filters.budgetMin || '0'} - $${filters.budgetMax || '...'}`} color="bg-orange-100 text-orange-700" onRemove={() => onSetMany({ budgetMin: '', budgetMax: '' })} />
       )}
       {(filters.fechaDesde || filters.fechaHasta) && (
-        <Chip label={`${filters.fechaDesde || '...'} a ${filters.fechaHasta || '...'}`} color="bg-green-100 text-green-700" onRemove={() => { onFilterChange('fechaDesde', ''); onFilterChange('fechaHasta', ''); }} />
+        <Chip label={`${filters.fechaDesde || '...'} a ${filters.fechaHasta || '...'}`} color="bg-green-100 text-green-700" onRemove={() => onSetMany({ fechaDesde: '', fechaHasta: '' })} />
       )}
       {filters.nuevasDesde && (
         <Chip label={`✨ Nuevas desde ${filters.nuevasDesde}`} color="bg-emerald-100 text-emerald-700" onRemove={() => onFilterChange('nuevasDesde', '')} />

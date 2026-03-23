@@ -14,7 +14,6 @@ interface UseLicitacionDataArgs {
   sortOrder: SortOrder;
   pagina: number;
   pageSize?: number;
-  fechaCampo: string;
 }
 
 interface UseLicitacionDataResult {
@@ -32,7 +31,7 @@ function sleep(ms: number): Promise<void> {
 }
 
 export function useLicitacionData({
-  apiUrl, apiPath = '/api/licitaciones', filters, sortBy, sortOrder, pagina, pageSize = 15, fechaCampo,
+  apiUrl, apiPath = '/api/licitaciones', filters, sortBy, sortOrder, pagina, pageSize = 15,
 }: UseLicitacionDataArgs): UseLicitacionDataResult {
   const [licitaciones, setLicitaciones] = useState<Licitacion[]>([]);
   const [paginacion, setPaginacion] = useState<Paginacion | null>(null);
@@ -54,7 +53,7 @@ export function useLicitacionData({
     setIsFetching(true);
     setError(null);
 
-    const params = buildFilterParams(filters, fechaCampo);
+    const params = buildFilterParams(filters);
     params.append('page', pagina.toString());
     params.append('size', pageSize.toString());
     params.append('sort_by', sortBy);
@@ -137,7 +136,7 @@ export function useLicitacionData({
       );
       setIsFetching(false);
     }
-  }, [apiUrl, apiPath, pagina, pageSize, sortBy, sortOrder, filters, fechaCampo, retryCount]);
+  }, [apiUrl, apiPath, pagina, pageSize, sortBy, sortOrder, filters, retryCount]);
 
   useEffect(() => {
     fetchData();

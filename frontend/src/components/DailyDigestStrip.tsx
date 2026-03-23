@@ -1,14 +1,15 @@
 import React, { useState, useEffect } from 'react';
 import { format, subDays, startOfWeek, startOfMonth } from 'date-fns';
 import { es } from 'date-fns/locale';
+import type { FilterState } from '../types/licitacion';
+import { buildFilterParams } from '../utils/filterParams';
 
 interface DailyDigestStripProps {
   apiUrl: string;
   apiPath?: string;
   onDaySelect: (date: string | null) => void;
   selectedDate: string | null;
-  fechaCampo: string;
-  jurisdiccionMode?: 'all' | 'mendoza' | 'nacional';  // Filter stats by jurisdiction
+  filters: FilterState;
 }
 
 const DailyDigestStrip = ({
@@ -16,8 +17,7 @@ const DailyDigestStrip = ({
   apiPath = '/api/licitaciones',
   onDaySelect,
   selectedDate,
-  fechaCampo,
-  jurisdiccionMode = 'all'
+  filters,
 }: DailyDigestStripProps) => {
   const [counts, setCounts] = useState<Record<string, number>>({});
   const [loading, setLoading] = useState(true);
@@ -26,16 +26,23 @@ const DailyDigestStrip = ({
   useEffect(() => {
     const fetchCounts = async () => {
       try {
-        // Build URL with jurisdiction filtering
-        let url = `${apiUrl}${apiPath}/stats/daily-counts?days=14&fecha_campo=${fechaCampo}`;
-        if (jurisdiccionMode === 'nacional') {
-          url += '&only_national=true';
-        } else if (jurisdiccionMode === 'mendoza') {
-          url += '&jurisdiccion=Mendoza';
+        // Build params from current filters, excluding date range & nuevasDesde
+        // (the strip counts the last 14 days itself)
+        const strippedFilters: FilterState = {
+          ...filters,
+          fechaDesde: '',
+          fechaHasta: '',
+          nuevasDesde: '',
+        };
+        const params = buildFilterParams(strippedFilters);
+        params.append('days', '14');
+        // Default exclude vencida/archivada unless user is explicitly filtering by estado
+        if (!filters.estadoFiltro) {
+          params.append('estado_exclude', 'vencida');
+          params.append('estado_exclude', 'archivada');
         }
-        // If 'all', no additional filtering
 
-        const res = await fetch(url, { credentials: 'include' });
+        const res = await fetch(`${apiUrl}${apiPath}/stats/daily-counts?${params}`, { credentials: 'include' });
         if (res.ok) {
           const data = await res.json();
           setCounts(data.counts || {});
@@ -47,7 +54,7 @@ const DailyDigestStrip = ({
       }
     };
     fetchCounts();
-  }, [apiUrl, apiPath, fechaCampo, jurisdiccionMode]);
+  }, [apiUrl, apiPath, filters]);
 
   const days = Array.from({ length: 14 }, (_, i) => {
     const d = subDays(new Date(), i);

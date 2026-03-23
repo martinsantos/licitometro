@@ -29,11 +29,6 @@ import PresetSelector from './licitaciones/PresetSelector';
 import QuickPresetButton from './licitaciones/QuickPresetButton';
 import YearSelector from './licitaciones/YearSelector';
 
-// Derive the date field for filtering from the current sort field
-const DATE_SORT_FIELDS = ['publication_date', 'opening_date', 'fecha_scraping'];
-const deriveFechaCampo = (sortBy: string): string =>
-  DATE_SORT_FIELDS.includes(sortBy) ? sortBy : 'publication_date';
-
 interface LicitacionesListProps {
   apiUrl: string;
   apiPath?: string; // defaults to '/api/licitaciones'
@@ -75,9 +70,6 @@ const LicitacionesList = ({
   const prefs = useLicitacionPreferences();
   const filterOptions = useFilterOptions(apiUrl, filters.jurisdiccionMode);
 
-  // Derive fechaCampo from current sort field
-  const fechaCampo = useMemo(() => deriveFechaCampo(prefs.sortBy), [prefs.sortBy]);
-
   // CRITICAL: Force jurisdiction mode if provided (e.g., LicitacionesArgentinaPage forces 'nacional')
   useEffect(() => {
     if (defaultJurisdiccionMode && filters.jurisdiccionMode !== defaultJurisdiccionMode) {
@@ -94,7 +86,7 @@ const LicitacionesList = ({
     busqueda: debouncedBusqueda,
   }), [filters, debouncedBusqueda]);
 
-  const facets = useFacetedFilters(apiUrl, debouncedFilters, fechaCampo, apiPath);
+  const facets = useFacetedFilters(apiUrl, debouncedFilters, apiPath);
   const { nodoMap } = useNodos();
 
   const pageSize = 25;
@@ -107,7 +99,6 @@ const LicitacionesList = ({
     sortOrder: prefs.sortOrder,
     pagina,
     pageSize,
-    fechaCampo,
   });
 
   // Reset page on filter/sort change
@@ -207,39 +198,22 @@ const LicitacionesList = ({
   }, [navigate]);
 
   const handleFilterChange = useCallback((key: keyof FilterState, value: string) => {
+    setFilter(key, value);
+  }, [setFilter]);
 
-    // Sincronizar fechas: si se cambia fechaDesde o fechaHasta y resultan iguales (un solo día),
-    // sincronizar con nuevasDesde
-    if (key === 'fechaDesde' || key === 'fechaHasta') {
-      const otherKey = key === 'fechaDesde' ? 'fechaHasta' : 'fechaDesde';
-      const otherValue = filters[otherKey];
-
-      // Si después de este cambio, fechaDesde === fechaHasta (un solo día), sincronizar con nuevasDesde
-      if (value && otherValue && value === otherValue) {
-        setMany({ [key]: value, nuevasDesde: value });
-      } else if (!value && !otherValue) {
-        // Si se limpian ambos, limpiar también nuevasDesde
-        setMany({ [key]: value, nuevasDesde: '' });
-      } else {
-        setFilter(key, value);
-      }
-    } else {
-      setFilter(key, value);
-    }
-  }, [setFilter, setMany, filters, fechaCampo]);
-
-  // DailyDigest strip counts by fecha_scraping. When clicking a day:
-  // 1. Force sort to fecha_scraping so fechaCampo matches the strip's semantics
-  // 2. Clear yearWorkspace so count matches listing (strip ignores year)
-  // 3. Don't set nuevasDesde (that's for "Nuevas de hoy" button only)
+  // DailyDigest strip: filter by fecha_scraping for selected day.
   const handleDaySelect = useCallback((dateStr: string | null) => {
     if (dateStr) {
-      setMany({ fechaDesde: dateStr, fechaHasta: dateStr, nuevasDesde: '', yearWorkspace: 'all' });
-      prefs.handleSortChange('fecha_scraping');
+      setMany({
+        fechaDesde: dateStr,
+        fechaHasta: dateStr,
+        fechaCampo: 'fecha_scraping',
+        yearWorkspace: 'all',
+      });
     } else {
-      setMany({ fechaDesde: '', fechaHasta: '', nuevasDesde: '' });
+      setMany({ fechaDesde: '', fechaHasta: '' });
     }
-  }, [setMany, prefs]);
+  }, [setMany]);
 
   const handleSourceClick = useCallback((fuente: string) => {
     setFilter('fuenteFiltro', fuente);
@@ -249,34 +223,25 @@ const LicitacionesList = ({
     prefs.handleSortChange(newSort);
   }, [prefs.handleSortChange]);
 
-  // SYNCHRONIZED: "Nuevas de hoy" and DailyDigest "Hoy" activate BOTH filters together
+  // "Nuevas de hoy": filter purely by first_seen_at (sort-independent).
   const handleToggleTodayFilter = useCallback((today: string | null) => {
     if (today) {
-      // Activar AMBOS filtros simultáneamente (nuevasDesde Y fechaDesde/fechaHasta)
-      setMany({ nuevasDesde: today, fechaDesde: today, fechaHasta: today });
+      setMany({ nuevasDesde: today, fechaDesde: '', fechaHasta: '', fechaCampo: 'first_seen_at' });
     } else {
-      // Limpiar AMBOS filtros simultáneamente
-      setMany({ nuevasDesde: '', fechaDesde: '', fechaHasta: '' });
+      setMany({ nuevasDesde: '' });
     }
   }, [setMany]);
 
-  // Check if "Nuevas de hoy" filter is active (either nuevasDesde OR fechaDesde for "today")
+  // Check if "Nuevas de hoy" filter is active
   const todayDate = new Date().toISOString().slice(0, 10);
-  const isTodayFilterActive = filters.nuevasDesde === todayDate || filters.fechaDesde === todayDate;
+  const isTodayFilterActive = filters.nuevasDesde === todayDate;
 
-  // Preset loading
+  // Preset loading — no magic sync, presets load exactly as saved
   const handleLoadPreset = useCallback((presetFilters: Partial<FilterState>, sortBy?: string, sortOrder?: string) => {
     clearAll();
     setTimeout(() => {
       if (Object.keys(presetFilters).length > 0) {
-        // Sincronizar filtros de fecha: si fechaDesde === fechaHasta (un solo día), sincronizar con nuevasDesde
-        const syncedFilters = { ...presetFilters };
-        if (syncedFilters.fechaDesde && syncedFilters.fechaHasta &&
-            syncedFilters.fechaDesde === syncedFilters.fechaHasta &&
-            !syncedFilters.nuevasDesde) {
-          syncedFilters.nuevasDesde = syncedFilters.fechaDesde;
-        }
-        setMany(syncedFilters);
+        setMany(presetFilters);
       }
       if (sortBy) prefs.handleSortChange(sortBy as any);
       if (sortOrder === 'asc' && prefs.sortOrder !== 'asc') prefs.toggleSortOrder();
@@ -328,8 +293,7 @@ const LicitacionesList = ({
           apiPath={apiPath}
           onDaySelect={handleDaySelect}
           selectedDate={filters.fechaDesde && filters.fechaDesde === filters.fechaHasta ? filters.fechaDesde : null}
-          fechaCampo={fechaCampo}
-          jurisdiccionMode={filters.jurisdiccionMode}
+          filters={debouncedFilters}
         />
         <NovedadesStrip apiUrl={apiUrl} apiPath={apiPath} onSourceClick={handleSourceClick} jurisdiccionMode={filters.jurisdiccionMode} />
       </div>
@@ -353,7 +317,6 @@ const LicitacionesList = ({
             onSetMany={setMany}
             groupBy={prefs.groupBy}
             onGroupByChange={prefs.setGroupBy}
-            fechaCampo={fechaCampo}
             nodoMap={nodoMap}
           />
         </div>
@@ -443,6 +406,7 @@ const LicitacionesList = ({
             <ActiveFiltersChips
               filters={filters}
               onFilterChange={handleFilterChange}
+              onSetMany={setMany}
               onClearAll={clearAll}
               totalItems={paginacion?.total_items ?? null}
               hasActiveFilters={hasActiveFilters}
@@ -555,7 +519,6 @@ const LicitacionesList = ({
         sortOrder={prefs.sortOrder}
         onSortChange={handleSortChange}
         onToggleOrder={prefs.toggleSortOrder}
-        fechaCampo={fechaCampo}
         nodoMap={nodoMap}
         onSetMany={setMany}
       />

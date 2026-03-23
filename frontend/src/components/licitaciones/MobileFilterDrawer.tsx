@@ -14,11 +14,12 @@ function ensureActiveValue(facetItems: FacetValue[], activeValue: string): Facet
   return facetItems;
 }
 
-const FECHA_CAMPO_LABELS: Record<string, string> = {
-  publication_date: 'Publicacion',
-  opening_date: 'Apertura',
-  fecha_scraping: 'Indexacion',
-};
+const FECHA_CAMPO_OPTIONS: { value: string; label: string }[] = [
+  { value: 'publication_date', label: 'Publicación' },
+  { value: 'opening_date', label: 'Apertura' },
+  { value: 'fecha_scraping', label: 'Indexación' },
+  { value: 'first_seen_at', label: 'Descubierta' },
+];
 
 interface MobileFilterDrawerProps {
   isOpen: boolean;
@@ -38,7 +39,6 @@ interface MobileFilterDrawerProps {
   sortOrder?: SortOrder;
   onSortChange?: (sort: SortField) => void;
   onToggleOrder?: () => void;
-  fechaCampo: string;
   nodoMap?: Record<string, Nodo>;
   onSetMany?: (updates: Partial<FilterState>) => void;
 }
@@ -114,7 +114,7 @@ const MobileFilterDrawer: React.FC<MobileFilterDrawerProps> = ({
   isOpen, onClose, filters, onFilterChange, onClearAll,
   filterOptions, activeFilterCount, groupBy, onGroupByChange,
   criticalRubros, onToggleCriticalRubro, facets, totalItems,
-  sortBy, sortOrder, onSortChange, onToggleOrder, fechaCampo, nodoMap, onSetMany,
+  sortBy, sortOrder, onSortChange, onToggleOrder, nodoMap, onSetMany,
 }) => {
   const [orgSearch, setOrgSearch] = useState('');
 
@@ -410,9 +410,17 @@ const MobileFilterDrawer: React.FC<MobileFilterDrawerProps> = ({
             {/* Fechas */}
             <Section title="Fechas" defaultOpen={false} badge={(filters.fechaDesde || filters.fechaHasta) ? 1 : 0}>
               <div className="space-y-2">
-                <div className="text-xs text-gray-400 font-bold mb-1">
-                  Filtrando por: <span className="text-emerald-600">{FECHA_CAMPO_LABELS[fechaCampo] || fechaCampo}</span>
-                  <span className="text-gray-300 ml-1">(segun orden)</span>
+                <div>
+                  <label className="text-[10px] text-gray-400 font-bold">Campo de fecha</label>
+                  <select
+                    className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm outline-none focus:border-emerald-400 font-bold text-gray-700 cursor-pointer"
+                    value={filters.fechaCampo || 'publication_date'}
+                    onChange={(e) => onFilterChange('fechaCampo', e.target.value)}
+                  >
+                    {FECHA_CAMPO_OPTIONS.map((opt) => (
+                      <option key={opt.value} value={opt.value}>{opt.label}</option>
+                    ))}
+                  </select>
                 </div>
                 <div className="space-y-1.5">
                   <div>
@@ -422,7 +430,6 @@ const MobileFilterDrawer: React.FC<MobileFilterDrawerProps> = ({
                       className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm outline-none focus:border-emerald-400"
                       value={filters.fechaDesde}
                       onChange={(e) => onFilterChange('fechaDesde', e.target.value)}
-                      min={fechaCampo === 'opening_date' ? new Date().toISOString().slice(0, 10) : undefined}
                     />
                   </div>
                   <div>

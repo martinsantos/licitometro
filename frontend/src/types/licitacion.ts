@@ -98,6 +98,7 @@ export interface FilterState {
   fechaHasta: string;
   nuevasDesde: string;  // Filter by first_seen_at >= date (truly new items)
   yearWorkspace: string;
+  fechaCampo: string;  // Date field to filter by (decoupled from sort)
   jurisdiccionMode: 'all' | 'mendoza' | 'nacional';  // NEW: Top-level jurisdiction mode
 }
 

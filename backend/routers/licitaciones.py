@@ -554,11 +554,25 @@ async def remove_favorite(licitacion_id: str, request: Request):
 async def get_daily_counts(
     days: int = Query(14, ge=1, le=30),
     fecha_campo: str = Query("publication_date"),
-    only_national: Optional[bool] = Query(False, description="Only Argentina nacional sources (~11 sources)"),
-    jurisdiccion: Optional[str] = Query(None, description="Filter by jurisdiccion"),
+    q: Optional[str] = Query(None),
+    fuente: Optional[str] = None,
+    category: Optional[str] = None,
+    workflow_state: Optional[str] = None,
+    nodo: Optional[str] = None,
+    estado: Optional[str] = None,
+    organization: Optional[str] = None,
+    status: Optional[str] = None,
+    jurisdiccion: Optional[str] = None,
+    tipo_procedimiento: Optional[str] = None,
+    budget_min: Optional[float] = None,
+    budget_max: Optional[float] = None,
+    year: Optional[str] = None,
+    only_national: Optional[bool] = Query(False),
+    fuente_exclude: Optional[List[str]] = Query(None),
+    estado_exclude: Optional[List[str]] = Query(None, description="Exclude items with these estado values"),
     request: Request = None,
 ):
-    """Get count of licitaciones per day for the last N days"""
+    """Get count of licitaciones per day for the last N days, respecting listing filters."""
     from datetime import timedelta
 
     allowed_date_fields = ["publication_date", "opening_date", "expiration_date",
@@ -572,14 +586,36 @@ async def get_daily_counts(
 
     start_date = datetime.combine(date.today() - timedelta(days=days - 1), datetime.min.time())
 
-    # Build match stage with jurisdiction/source filtering
-    match_stage: dict = {fecha_campo: {"$gte": start_date}}
-    if only_national:
-        match_stage["tags"] = "LIC_AR"
-    else:
-        match_stage["tags"] = {"$ne": "LIC_AR"}
-        if jurisdiccion:
-            match_stage["jurisdiccion"] = jurisdiccion
+    # Build match from listing filters (excluding date range — the strip computes its own)
+    match_stage = build_base_filters(
+        fuente=fuente,
+        organization=organization,
+        status=status,
+        category=category,
+        workflow_state=workflow_state,
+        jurisdiccion=jurisdiccion,
+        tipo_procedimiento=tipo_procedimiento,
+        nodo=nodo,
+        estado=estado,
+        budget_min=budget_min,
+        budget_max=budget_max,
+        fecha_campo=fecha_campo,
+        year=year,
+        only_national=bool(only_national),
+        fuente_exclude=fuente_exclude or None,
+        q=q,
+    )
+
+    # Override date range: always last N days on fecha_campo
+    match_stage[fecha_campo] = {"$gte": start_date}
+
+    # Extra: exclude estado values (separate from estado filter)
+    if estado_exclude:
+        if "estado" in match_stage:
+            # Merge with existing estado filter via $and
+            match_stage.setdefault("$and", []).append({"estado": {"$nin": estado_exclude}})
+        else:
+            match_stage["estado"] = {"$nin": estado_exclude}
 
     pipeline = [
         {"$match": match_stage},

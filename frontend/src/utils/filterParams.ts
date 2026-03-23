@@ -5,7 +5,7 @@ import type { FilterState } from '../types/licitacion';
  * Used by both useLicitacionData (listing) and useFacetedFilters (sidebar counts)
  * so that filters are always identical.
  */
-export function buildFilterParams(filters: FilterState, fechaCampo: string): URLSearchParams {
+export function buildFilterParams(filters: FilterState): URLSearchParams {
   const params = new URLSearchParams();
 
   if (filters.busqueda) params.append('q', filters.busqueda);
@@ -31,10 +31,8 @@ export function buildFilterParams(filters: FilterState, fechaCampo: string): URL
   if (filters.fechaHasta) params.append('fecha_hasta', filters.fechaHasta);
   if (filters.nuevasDesde) params.append('nuevas_desde', filters.nuevasDesde);
 
-  // When nuevasDesde is active (synchronized "Nuevas de hoy" filter),
-  // force fecha_campo=fecha_scraping regardless of sort mode.
-  const effectiveFechaCampo = filters.nuevasDesde ? 'fecha_scraping' : fechaCampo;
-  if (effectiveFechaCampo) params.append('fecha_campo', effectiveFechaCampo);
+  // Date field — explicit from FilterState (decoupled from sort)
+  params.append('fecha_campo', filters.fechaCampo || 'publication_date');
 
   // Jurisdiction mode filtering
   if (filters.jurisdiccionMode === 'nacional') {

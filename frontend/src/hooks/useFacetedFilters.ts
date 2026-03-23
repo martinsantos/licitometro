@@ -31,7 +31,7 @@ const EMPTY_FACETS: FacetData = {
   estado: [],
 };
 
-export function useFacetedFilters(apiUrl: string, filters: FilterState, fechaCampo: string, apiPath: string = '/api/licitaciones'): FacetData {
+export function useFacetedFilters(apiUrl: string, filters: FilterState, apiPath: string = '/api/licitaciones'): FacetData {
   const [facets, setFacets] = useState<FacetData>(EMPTY_FACETS);
   const abortRef = useRef<AbortController | null>(null);
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -45,7 +45,7 @@ export function useFacetedFilters(apiUrl: string, filters: FilterState, fechaCam
       const controller = new AbortController();
       abortRef.current = controller;
 
-      const params = buildFilterParams(filters, fechaCampo);
+      const params = buildFilterParams(filters);
 
       fetch(`${apiUrl}${apiPath}/facets?${params}`, { signal: controller.signal, credentials: 'include' })
         .then(r => r.ok ? r.json() : EMPTY_FACETS)
@@ -58,7 +58,7 @@ export function useFacetedFilters(apiUrl: string, filters: FilterState, fechaCam
     return () => {
       if (timerRef.current) clearTimeout(timerRef.current);
     };
-  }, [apiUrl, apiPath, filters, fechaCampo]);
+  }, [apiUrl, apiPath, filters]);
 
   return facets;
 }
