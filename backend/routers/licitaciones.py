@@ -17,6 +17,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 from db.repositories import LicitacionRepository
 from models.licitacion import Licitacion, LicitacionCreate, LicitacionUpdate
 from dependencies import get_licitacion_repository
+from utils.filter_builder import build_base_filters, build_cross_match
 
 logger = logging.getLogger("licitaciones_router")
 
@@ -94,12 +95,14 @@ async def _get_licitaciones_impl(
     nuevas_desde, year, only_national, fuente_exclude, sort_by, sort_order, repo
 ):
     auto_filters = {}
+    search_text = ""
 
-    # If there's a search query, run smart parsing then hybrid search
+    # If there's a search query, run smart parsing to extract structured filters
     if q:
         from services.smart_search_parser import parse_smart_query
         parsed = parse_smart_query(q)
         auto_filters = parsed.get("auto_filters", {})
+        search_text = parsed.get("text", "")
 
         # Apply parsed structured filters as defaults (explicit params override)
         if not status and parsed.get("status"):
@@ -107,12 +110,9 @@ async def _get_licitaciones_impl(
         if not organization and parsed.get("organization"):
             organization = parsed["organization"]
         # Only apply auto-category when query was fully consumed (no remaining text).
-        # If there's still text to search, skip auto-category to avoid over-filtering
-        # on mismatched category values (e.g. "obras electricas" → CONSTRUCCIONES ≠ DB value).
-        if not category and parsed.get("category") and not parsed.get("text", ""):
+        if not category and parsed.get("category") and not search_text:
             category = parsed["category"]
         if not fuente and parsed.get("fuente"):
-            # Fuente from smart parser is a partial name; use regex match
             fuente = parsed["fuente"]
         if not jurisdiccion and parsed.get("jurisdiccion"):
             jurisdiccion = parsed["jurisdiccion"]
@@ -125,208 +125,58 @@ async def _get_licitaciones_impl(
         if not fecha_hasta and parsed.get("fecha_hasta"):
             fecha_hasta = date.fromisoformat(parsed["fecha_hasta"])
 
-        # Use remaining text as actual search query
-        search_text = parsed.get("text", "")
+    # Build filters using shared function (no q — text search handled by repo.search)
+    filters = build_base_filters(
+        fuente=fuente, organization=organization, status=status, category=category,
+        workflow_state=workflow_state, jurisdiccion=jurisdiccion,
+        tipo_procedimiento=tipo_procedimiento, nodo=nodo, estado=estado,
+        location=location, budget_min=budget_min, budget_max=budget_max,
+        fecha_desde=fecha_desde, fecha_hasta=fecha_hasta, fecha_campo=fecha_campo,
+        nuevas_desde=nuevas_desde, year=year,
+        only_national=bool(only_national), fuente_exclude=fuente_exclude,
+        q=q, auto_future_opening=(fecha_campo == "opening_date"),
+    )
 
-        skip = (page - 1) * size
-        order_val = 1 if sort_order == "asc" else -1
+    order_val = 1 if sort_order == "asc" else -1
+    skip = (page - 1) * size
 
-        # Build additional filters
-        extra_filters = {}
-        # Exclude LIC_AR items ONLY when not requesting national sources
-        # (Argentina page needs LIC_AR tagged items, Mendoza page excludes them)
-        if not only_national:
-            extra_filters["tags"] = {"$ne": "LIC_AR"}
-        if status: extra_filters["status"] = status
-        if organization: extra_filters["organization"] = {"$regex": f"^{re.escape(organization)}$", "$options": "i"}
-        if category: extra_filters["category"] = category
-        if fuente: extra_filters["fuente"] = {"$regex": f"^{re.escape(fuente)}$", "$options": "i"}
-        if workflow_state: extra_filters["workflow_state"] = workflow_state
-        if jurisdiccion: extra_filters["jurisdiccion"] = jurisdiccion
-        if tipo_procedimiento: extra_filters["tipo_procedimiento"] = tipo_procedimiento
-        if nodo: extra_filters["nodos"] = nodo
-        if estado: extra_filters["estado"] = estado
-
-        # National/source exclusion filters
-        if only_national:
-            extra_filters["tags"] = "LIC_AR"
-        if fuente_exclude:
-            if "fuente" in extra_filters:
-                # Combine exact match + exclusion with $and
-                extra_filters.setdefault("$and", []).append({"fuente": {"$nin": fuente_exclude}})
-            else:
-                extra_filters["fuente"] = {"$nin": fuente_exclude}
-
-        # Budget range
-        if budget_min is not None or budget_max is not None:
-            budget_filter = {}
-            if budget_min is not None: budget_filter["$gte"] = budget_min
-            if budget_max is not None: budget_filter["$lte"] = budget_max
-            extra_filters["budget"] = budget_filter
-
-        # Date range
-        if fecha_desde or fecha_hasta:
-            date_filter = {}
-            if fecha_desde: date_filter["$gte"] = datetime.combine(fecha_desde, datetime.min.time())
-            if fecha_hasta: date_filter["$lte"] = datetime.combine(fecha_hasta, datetime.max.time())
-            if date_filter:
-                field = fecha_campo if fecha_campo in ["publication_date", "opening_date", "created_at", "fecha_scraping"] else "publication_date"
-                extra_filters[field] = date_filter
-
-        # If smart parser consumed all text into filters but q was provided,
-        # use the original query as text search too (prevents 0 results)
+    if q:
         effective_search = search_text or q
-
-        if effective_search:
-            items = await repo.search(effective_search, skip=skip, limit=size,
-                                       sort_by=sort_by, sort_order=order_val,
-                                       extra_filters=extra_filters)
-            total_items = await repo.search_count(effective_search, extra_filters=extra_filters)
-        else:
-            # No text search needed (q was None)
-            items = await repo.get_all(skip=skip, limit=size, filters=extra_filters,
-                                        sort_by=sort_by, sort_order=order_val,
-                                        nulls_last=sort_by in ["opening_date", "fecha_scraping", "budget"])
-            total_items = await repo.count(filters=extra_filters)
-
+        items = await repo.search(effective_search, skip=skip, limit=size,
+                                   sort_by=sort_by, sort_order=order_val,
+                                   extra_filters=filters)
+        total_items = await repo.search_count(effective_search, extra_filters=filters)
         response = {
             "items": items,
             "paginacion": {
-                "pagina": page,
-                "por_pagina": size,
+                "pagina": page, "por_pagina": size,
                 "total_items": total_items,
-                "total_paginas": (total_items + size - 1) // size
+                "total_paginas": (total_items + size - 1) // size,
             }
         }
         if auto_filters:
             response["auto_filters"] = auto_filters
         return response
 
-    # Build filter query
-    filters = {}
-    # Exclude LIC_AR items ONLY when not requesting national sources
-    # (Argentina page needs LIC_AR tagged items, Mendoza page excludes them)
-    if not only_national:
-        filters["tags"] = {"$ne": "LIC_AR"}
-    if status:
-        filters["status"] = status
-    if organization:
-        filters["organization"] = {"$regex": f"^{re.escape(organization)}$", "$options": "i"}
-    if location:
-        filters["location"] = location
-    if category:
-        filters["category"] = category
-    if fuente:
-        filters["fuente"] = {"$regex": f"^{re.escape(fuente)}$", "$options": "i"}
-    if workflow_state:
-        filters["workflow_state"] = workflow_state
-    if jurisdiccion:
-        filters["jurisdiccion"] = jurisdiccion
-    if tipo_procedimiento:
-        filters["tipo_procedimiento"] = tipo_procedimiento
-    if nodo:
-        filters["nodos"] = nodo
-    if estado:
-        filters["estado"] = estado
-
-    # National/source exclusion filters (applied to both search and non-search paths)
-    if only_national:
-        filters["tags"] = "LIC_AR"
-    if fuente_exclude:
-        if "fuente" in filters:
-            # Combine exact match + exclusion with $and
-            filters.setdefault("$and", []).append({"fuente": {"$nin": fuente_exclude}})
-        else:
-            filters["fuente"] = {"$nin": fuente_exclude}
-
-    # Budget range filter
-    if budget_min is not None or budget_max is not None:
-        budget_filter = {}
-        if budget_min is not None:
-            budget_filter["$gte"] = budget_min
-        if budget_max is not None:
-            budget_filter["$lte"] = budget_max
-        filters["budget"] = budget_filter
-
-    # Date range filter
-    allowed_date_fields = ["publication_date", "opening_date", "expiration_date",
-                           "fecha_publicacion_portal", "fecha_inicio_consultas", "fecha_fin_consultas",
-                           "created_at", "fecha_scraping", "first_seen_at"]
-    if fecha_campo not in allowed_date_fields:
-        fecha_campo = "publication_date"
-
-    # When filtering by opening_date, enforce fecha_desde >= today
-    # (aperturas view should never show past opening dates)
-    today = date.today()
-    if fecha_campo == "opening_date":
-        if not fecha_desde or fecha_desde < today:
-            fecha_desde = today
-
-    if fecha_desde or fecha_hasta:
-        date_filter = {}
-        if fecha_desde:
-            date_filter["$gte"] = datetime.combine(fecha_desde, datetime.min.time())
-        if fecha_hasta:
-            date_filter["$lte"] = datetime.combine(fecha_hasta, datetime.max.time())
-        if date_filter:
-            filters[fecha_campo] = date_filter
-
-    # Year archival filter (enforces publication_date within year range)
-    if year and year != "all":
-        try:
-            year_num = int(year)
-            year_start = datetime(year_num, 1, 1)
-            year_end = datetime(year_num, 12, 31, 23, 59, 59)
-            # Use publication_date for year filtering (not fecha_scraping)
-            if "publication_date" in filters:
-                # Merge with existing date filter
-                existing = filters["publication_date"]
-                filters["publication_date"] = {
-                    "$gte": max(existing.get("$gte", year_start), year_start),
-                    "$lte": min(existing.get("$lte", year_end), year_end)
-                }
-            else:
-                filters["publication_date"] = {
-                    "$gte": year_start,
-                    "$lte": year_end
-                }
-        except (ValueError, TypeError):
-            pass  # Invalid year format, ignore
-
-    # "Nuevas desde" filter (first_seen_at >= date) - for "Nuevas de hoy" button
-    if nuevas_desde:
-        filters["first_seen_at"] = {"$gte": datetime.combine(nuevas_desde, datetime.min.time())}
-
-
-    # Handle sort order
-    order_val = 1 if sort_order == "asc" else -1
-
-    # Calculate skip
-    skip = (page - 1) * size
-
-    # For nullable date fields, use aggregation to push nulls to end
+    # Non-search path
     nullable_sort_fields = ["opening_date", "fecha_scraping", "budget"]
-    use_nulls_last = sort_by in nullable_sort_fields
-
-    # Get data and count in parallel, using list projection to reduce payload size
     import asyncio as _asyncio
     items, total_items = await _asyncio.gather(
         repo.get_all(
             skip=skip, limit=size, filters=filters,
             sort_by=sort_by, sort_order=order_val,
-            nulls_last=use_nulls_last,
+            nulls_last=sort_by in nullable_sort_fields,
             projection=repo.LIST_PROJECTION
         ),
         repo.count(filters=filters)
     )
-    
+
     return {
         "items": items,
         "paginacion": {
-            "pagina": page,
-            "por_pagina": size,
+            "pagina": page, "por_pagina": size,
             "total_items": total_items,
-            "total_paginas": (total_items + size - 1) // size
+            "total_paginas": (total_items + size - 1) // size,
         }
     }
 
@@ -429,24 +279,14 @@ async def count_licitaciones(
     organization: Optional[str] = None,
     location: Optional[str] = None,
     category: Optional[str] = None,
-    fuente: Optional[str] = None, # Added fuente filter
+    fuente: Optional[str] = None,
     repo: LicitacionRepository = Depends(get_licitacion_repository)
 ):
     """Count licitaciones with optional filtering"""
-    
-    # Build filter query
-    filters = {}
-    if status:
-        filters["status"] = status
-    if organization:
-        filters["organization"] = {"$regex": f"^{re.escape(organization)}$", "$options": "i"}
-    if location:
-        filters["location"] = location
-    if category:
-        filters["category"] = category
-    if fuente:
-        filters["fuente"] = {"$regex": f"^{re.escape(fuente)}$", "$options": "i"}
-    
+    filters = build_base_filters(
+        status=status, organization=organization, location=location,
+        category=category, fuente=fuente,
+    )
     count = await repo.count(filters=filters)
     return {"count": count}
 
@@ -472,6 +312,8 @@ async def get_facets(
     jurisdiccion: Optional[str] = None,
     tipo_procedimiento: Optional[str] = None,
     nodo: Optional[str] = None,
+    estado: Optional[str] = Query(None, description="Filter by estado: vigente | vencida | prorrogada | archivada"),
+    location: Optional[str] = None,
     budget_min: Optional[float] = None,
     budget_max: Optional[float] = None,
     fecha_desde: Optional[date] = None,
@@ -489,70 +331,22 @@ async def get_facets(
         db = request.app.mongodb
     except AttributeError:
         logger.error("request.app.mongodb not available - DB not initialized")
-        return {"fuente": [], "status": [], "category": [], "workflow_state": [], "jurisdiccion": [], "tipo_procedimiento": [], "organization": [], "nodos": []}
+        return {f: [] for f in ["fuente", "status", "category", "workflow_state", "jurisdiccion", "tipo_procedimiento", "organization", "nodos", "estado"]}
     collection = db.licitaciones
 
-    # Build base match from all explicit filters
-    base_match: Dict[str, Any] = {}
-    # Exclude LIC_AR items from main feed facets
-    base_match["tags"] = {"$ne": "LIC_AR"}
-    if status: base_match["status"] = status
-    if organization: base_match["organization"] = {"$regex": f"^{re.escape(organization)}$", "$options": "i"}
-    if category: base_match["category"] = category
-    if fuente: base_match["fuente"] = {"$regex": f"^{re.escape(fuente)}$", "$options": "i"}
-    if workflow_state: base_match["workflow_state"] = workflow_state
-    if jurisdiccion: base_match["jurisdiccion"] = jurisdiccion
-    if tipo_procedimiento: base_match["tipo_procedimiento"] = tipo_procedimiento
-    if nodo: base_match["nodos"] = nodo
-    if budget_min is not None or budget_max is not None:
-        bf = {}
-        if budget_min is not None: bf["$gte"] = budget_min
-        if budget_max is not None: bf["$lte"] = budget_max
-        base_match["budget"] = bf
+    # Build base match using shared filter builder (identical to listing)
+    base_match = build_base_filters(
+        fuente=fuente, organization=organization, status=status, category=category,
+        workflow_state=workflow_state, jurisdiccion=jurisdiccion,
+        tipo_procedimiento=tipo_procedimiento, nodo=nodo, estado=estado,
+        location=location, budget_min=budget_min, budget_max=budget_max,
+        fecha_desde=fecha_desde, fecha_hasta=fecha_hasta, fecha_campo=fecha_campo,
+        nuevas_desde=nuevas_desde, year=year,
+        only_national=bool(only_national), fuente_exclude=fuente_exclude, q=q,
+        auto_future_opening=(fecha_campo == "opening_date"),
+    )
 
-    allowed_date_fields = ["publication_date", "opening_date", "created_at", "fecha_scraping"]
-    fc = fecha_campo if fecha_campo in allowed_date_fields else "publication_date"
-    if fecha_desde or fecha_hasta:
-        df = {}
-        if fecha_desde: df["$gte"] = datetime.combine(fecha_desde, datetime.min.time())
-        if fecha_hasta: df["$lte"] = datetime.combine(fecha_hasta, datetime.max.time())
-        if df: base_match[fc] = df
-
-    # Year filter (always uses publication_date, same as main listing)
-    if year and year != "all":
-        try:
-            year_num = int(year)
-            year_start = datetime(year_num, 1, 1)
-            year_end = datetime(year_num, 12, 31, 23, 59, 59)
-            if "publication_date" in base_match:
-                existing = base_match["publication_date"]
-                base_match["publication_date"] = {
-                    "$gte": max(existing.get("$gte", year_start), year_start),
-                    "$lte": min(existing.get("$lte", year_end), year_end)
-                }
-            else:
-                base_match["publication_date"] = {"$gte": year_start, "$lte": year_end}
-        except (ValueError, TypeError):
-            pass
-
-    # Filter by first_seen_at for "Nuevas de hoy" functionality
-    if nuevas_desde:
-        base_match["first_seen_at"] = {"$gte": datetime.combine(nuevas_desde, datetime.min.time())}
-
-    # National/source exclusion filters
-    if only_national:
-        base_match["tags"] = "LIC_AR"
-    if fuente_exclude:
-        if "fuente" in base_match:
-            base_match.setdefault("$and", []).append({"fuente": {"$nin": fuente_exclude}})
-        else:
-            base_match["fuente"] = {"$nin": fuente_exclude}
-
-    # Text search adds $text match
-    if q:
-        base_match["$text"] = {"$search": q}
-
-    # Facet fields to compute
+    # Facet fields to compute (including estado)
     facet_fields = {
         "fuente": "fuente",
         "status": "status",
@@ -561,13 +355,14 @@ async def get_facets(
         "jurisdiccion": "jurisdiccion",
         "tipo_procedimiento": "tipo_procedimiento",
         "organization": "organization",
+        "estado": "estado",
     }
 
     import asyncio as _asyncio
 
     async def _compute_facet(facet_name: str, field: str) -> tuple:
         """Run a single facet aggregation and return (name, results)."""
-        cross_match = {k: v for k, v in base_match.items() if k != field}
+        cross_match = build_cross_match(base_match, field)
         pipeline = [
             {"$match": cross_match} if cross_match else {"$match": {}},
             {"$group": {"_id": f"${field}", "count": {"$sum": 1}}},
@@ -584,7 +379,7 @@ async def get_facets(
     async def _compute_nodos_facet() -> tuple:
         """Compute nodos facet (needs $unwind for array field)."""
         try:
-            nodos_cross = {k: v for k, v in base_match.items() if k != "nodos"}
+            nodos_cross = build_cross_match(base_match, "nodos")
             nodos_pipeline = [
                 {"$match": nodos_cross} if nodos_cross else {"$match": {}},
                 {"$unwind": "$nodos"},
@@ -598,13 +393,12 @@ async def get_facets(
         except Exception:
             return "nodos", []
 
-    # Run all facet aggregations concurrently instead of sequentially
+    # Run all facet aggregations concurrently
     tasks = [_compute_facet(name, field) for name, field in facet_fields.items()]
     tasks.append(_compute_nodos_facet())
     facet_results = await _asyncio.gather(*tasks)
 
-    result = {name: data for name, data in facet_results}
-    return result
+    return {name: data for name, data in facet_results}
 
 
 @router.get("/debug-filters")
@@ -612,66 +406,69 @@ async def debug_filters(
     q: Optional[str] = Query(None),
     status: Optional[str] = None,
     organization: Optional[str] = None,
+    location: Optional[str] = None,
     category: Optional[str] = None,
     fuente: Optional[str] = None,
     workflow_state: Optional[str] = None,
     jurisdiccion: Optional[str] = None,
     tipo_procedimiento: Optional[str] = None,
+    nodo: Optional[str] = None,
+    estado: Optional[str] = None,
     budget_min: Optional[float] = None,
     budget_max: Optional[float] = None,
     fecha_desde: Optional[date] = None,
     fecha_hasta: Optional[date] = None,
     fecha_campo: str = Query("publication_date"),
+    nuevas_desde: Optional[date] = None,
+    year: Optional[str] = None,
+    only_national: Optional[bool] = Query(False),
+    fuente_exclude: Optional[List[str]] = Query(None),
     request: Request = None,
 ):
     """Debug zero-results: show how many results appear when removing each filter."""
     db = request.app.mongodb
     collection = db.licitaciones
 
-    # Build all active filters as a dict of {filter_key: match_condition}
-    active_filters: Dict[str, Dict] = {}
-    if q: active_filters["q"] = {"$text": {"$search": q}}
-    if status: active_filters["status"] = {"status": status}
-    if organization: active_filters["organization"] = {"organization": {"$regex": f"^{re.escape(organization)}$", "$options": "i"}}
-    if category: active_filters["category"] = {"category": category}
-    if fuente: active_filters["fuente"] = {"fuente": {"$regex": f"^{re.escape(fuente)}$", "$options": "i"}}
-    if workflow_state: active_filters["workflow_state"] = {"workflow_state": workflow_state}
-    if jurisdiccion: active_filters["jurisdiccion"] = {"jurisdiccion": jurisdiccion}
-    if tipo_procedimiento: active_filters["tipo_procedimiento"] = {"tipo_procedimiento": tipo_procedimiento}
-    if budget_min is not None or budget_max is not None:
-        bf = {}
-        if budget_min is not None: bf["$gte"] = budget_min
-        if budget_max is not None: bf["$lte"] = budget_max
-        active_filters["budget"] = {"budget": bf}
+    # All params as a dict for easy per-dimension removal
+    all_params = dict(
+        fuente=fuente, organization=organization, status=status, category=category,
+        workflow_state=workflow_state, jurisdiccion=jurisdiccion,
+        tipo_procedimiento=tipo_procedimiento, nodo=nodo, estado=estado,
+        location=location, budget_min=budget_min, budget_max=budget_max,
+        fecha_desde=fecha_desde, fecha_hasta=fecha_hasta, fecha_campo=fecha_campo,
+        nuevas_desde=nuevas_desde, year=year,
+        only_national=bool(only_national), fuente_exclude=fuente_exclude, q=q,
+        auto_future_opening=(fecha_campo == "opening_date"),
+    )
 
-    allowed_date_fields = ["publication_date", "opening_date", "created_at", "fecha_scraping"]
-    fc = fecha_campo if fecha_campo in allowed_date_fields else "publication_date"
-    if fecha_desde or fecha_hasta:
-        df = {}
-        if fecha_desde: df["$gte"] = datetime.combine(fecha_desde, datetime.min.time())
-        if fecha_hasta: df["$lte"] = datetime.combine(fecha_hasta, datetime.max.time())
-        if df: active_filters["fecha"] = {fc: df}
+    # Identify which filter dimensions are actually active
+    active_keys = []
+    for k, v in all_params.items():
+        if k in ("fecha_campo",):
+            continue  # not a real filter dimension
+        if k == "only_national" and not v:
+            continue
+        if v is not None and v != "" and v != []:
+            active_keys.append(k)
 
-    if len(active_filters) < 2:
+    if len(active_keys) < 2:
         return {"total_with_all": 0, "without_each": {}}
 
-    # Total with all filters
-    all_match = {}
-    for cond in active_filters.values():
-        all_match.update(cond)
+    all_match = build_base_filters(**all_params)
     total_all = await collection.count_documents(all_match)
 
-    # Count removing each filter
+    # Count removing each filter dimension
     without_each = {}
-    for remove_key in active_filters:
-        partial_match = {}
-        for k, cond in active_filters.items():
-            if k != remove_key:
-                partial_match.update(cond)
-        if partial_match:
-            without_each[remove_key] = await collection.count_documents(partial_match)
-        else:
-            without_each[remove_key] = await collection.count_documents({})
+    for remove_key in active_keys:
+        params_without = {**all_params, remove_key: None}
+        if remove_key == "only_national":
+            params_without[remove_key] = False
+        if remove_key == "fecha_desde":
+            params_without["fecha_hasta"] = None  # remove date range together
+        if remove_key == "fecha_hasta":
+            params_without["fecha_desde"] = None
+        partial_match = build_base_filters(**params_without)
+        without_each[remove_key] = await collection.count_documents(partial_match)
 
     return {"total_with_all": total_all, "without_each": without_each}
 
@@ -1456,128 +1253,171 @@ async def enrich_licitacion_universal(
         raise HTTPException(status_code=404, detail="Licitación no encontrada")
 
     fuente = lic.get("fuente", "") if isinstance(lic, dict) else getattr(lic, "fuente", "")
-
-    # COMPR.AR: delegate to specialized enrichment
-    if "COMPR.AR" in fuente:
-        from routers.comprar import enrich_licitacion as comprar_enrich
-        return await comprar_enrich(licitacion_id, level, repo)
-
-    # Generic enrichment for all other sources
     lic_dict = lic if isinstance(lic, dict) else lic.dict()
-    source_url = lic_dict.get("source_url", "") or ""
 
-    try:
-        from dependencies import database as db
-        from services.generic_enrichment import GenericEnrichmentService
-        service = GenericEnrichmentService()
+    # Phase 1: Source-specific enrichment
+    comprar_response = None
+    updates = {}
 
-        # Look up scraper config for CSS selectors
-        selectors = None
-        if db is not None and fuente:
-            config_doc = await db.scraper_configs.find_one({
-                "name": {"$regex": re.escape(fuente), "$options": "i"},
-                "active": True,
-            })
-            if config_doc:
-                selectors = config_doc.get("selectors", {})
+    if "COMPR.AR" in fuente:
+        # COMPR.AR: delegate to specialized enrichment, capture response
+        from routers.comprar import enrich_licitacion as comprar_enrich
+        comprar_response = await comprar_enrich(licitacion_id, level, repo)
+        # Re-read the enriched doc for HUNTER + nodo matching
+        enriched_doc = await repo.get_by_id(licitacion_id)
+        if enriched_doc:
+            enriched_dict = enriched_doc if isinstance(enriched_doc, dict) else enriched_doc.dict()
+            # Build updates dict from what changed vs original
+            for k in ("description", "objeto", "category", "opening_date", "budget",
+                       "expedient_number", "licitacion_number", "title"):
+                new_val = enriched_dict.get(k)
+                old_val = lic_dict.get(k)
+                if new_val and new_val != old_val:
+                    updates[k] = new_val
+            lic_dict = enriched_dict
+    else:
+        # Generic enrichment for all other sources
+        source_url = lic_dict.get("source_url", "") or ""
 
-        source_urls = lic_dict.get("source_urls") or {}
-        if source_url or source_urls:
-            updates = await service.enrich(lic_dict, selectors)
-        else:
-            # No URLs at all — do title-only enrichment (objeto + category)
-            updates = service._enrich_title_only(lic_dict)
-
-        if not updates:
-            # Even with no HTML data, try title-only as fallback
-            updates = service._enrich_title_only(lic_dict)
-
-        if not updates:
-            return JSONResponse(content={
-                "success": True,
-                "message": "No se encontraron datos adicionales en la fuente",
-                "fields_updated": 0,
-            })
-
-        # Set enrichment level
-        current_level = lic_dict.get("enrichment_level", 1)
-        if current_level < 2:
-            updates["enrichment_level"] = 2
-
-        # Apply updates
-        update_obj = LicitacionUpdate(**{k: v for k, v in updates.items()
-                                         if k in LicitacionUpdate.__fields__})
-        # For fields not in LicitacionUpdate, update directly
-        extra_fields = {k: v for k, v in updates.items()
-                        if k not in LicitacionUpdate.__fields__}
-
-        updated = await repo.update(licitacion_id, update_obj)
-
-        if extra_fields:
-            from bson import ObjectId
-            query_id = licitacion_id
-            try:
-                query_id = ObjectId(licitacion_id)
-            except Exception:
-                pass
-            await db.licitaciones.update_one(
-                {"_id": query_id},
-                {"$set": extra_fields}
-            )
-
-        field_names = list(updates.keys())
-        logger.info(f"Enriched {licitacion_id} ({fuente}): {field_names}")
-
-        # Log enrichment attempt in metadata
-        enrichment_log_entry = {
-            "timestamp": datetime.utcnow().isoformat(),
-            "method": "manual",
-            "level": level,
-            "fields_updated": field_names,
-            "source_url": source_url[:100] if source_url else None,
-        }
-        if db is not None:
-            from bson import ObjectId as ObjId
-            try:
-                await db.licitaciones.update_one(
-                    {"_id": ObjId(licitacion_id)},
-                    {"$push": {"metadata.enrichment_log": {
-                        "$each": [enrichment_log_entry],
-                        "$slice": -10,  # Keep last 10 entries
-                    }}}
-                )
-            except Exception:
-                pass
-
-        # Re-match nodos after enrichment (description/objeto may have changed)
         try:
-            from services.nodo_matcher import get_nodo_matcher
-            from dependencies import database as nodo_db
-            if nodo_db is not None:
-                matcher = get_nodo_matcher(nodo_db)
-                title_val = updates.get("title", lic_dict.get("title", ""))
-                objeto_val = updates.get("objeto", lic_dict.get("objeto", ""))
-                desc_val = updates.get("description", lic_dict.get("description", ""))
-                org_val = lic_dict.get("organization", "")
-                cat_val = updates.get("category", lic_dict.get("category", ""))
-                await matcher.assign_nodos_to_licitacion(
-                    licitacion_id, title_val, objeto_val, desc_val, org_val, category=cat_val
-                )
-        except Exception as nodo_err:
-            logger.warning(f"Nodo re-matching after enrichment failed: {nodo_err}")
+            from dependencies import database as db
+            from services.generic_enrichment import GenericEnrichmentService
+            service = GenericEnrichmentService()
 
+            # Look up scraper config for CSS selectors
+            selectors = None
+            if db is not None and fuente:
+                config_doc = await db.scraper_configs.find_one({
+                    "name": {"$regex": re.escape(fuente), "$options": "i"},
+                    "active": True,
+                })
+                if config_doc:
+                    selectors = config_doc.get("selectors", {})
+
+            source_urls = lic_dict.get("source_urls") or {}
+            if source_url or source_urls:
+                updates = await service.enrich(lic_dict, selectors)
+            else:
+                updates = service._enrich_title_only(lic_dict)
+
+            if not updates:
+                updates = service._enrich_title_only(lic_dict)
+
+            if not updates:
+                updates = {}
+
+            if updates:
+                # Set enrichment level
+                current_level = lic_dict.get("enrichment_level", 1)
+                if current_level < 2:
+                    updates["enrichment_level"] = 2
+
+                # Apply updates
+                update_obj = LicitacionUpdate(**{k: v for k, v in updates.items()
+                                                 if k in LicitacionUpdate.__fields__})
+                extra_fields = {k: v for k, v in updates.items()
+                                if k not in LicitacionUpdate.__fields__}
+
+                await repo.update(licitacion_id, update_obj)
+
+                if extra_fields:
+                    query_id = licitacion_id
+                    try:
+                        query_id = ObjectId(licitacion_id)
+                    except Exception:
+                        pass
+                    await db.licitaciones.update_one(
+                        {"_id": query_id},
+                        {"$set": extra_fields}
+                    )
+
+                field_names = list(updates.keys())
+                logger.info(f"Enriched {licitacion_id} ({fuente}): {field_names}")
+
+                # Log enrichment attempt in metadata
+                enrichment_log_entry = {
+                    "timestamp": datetime.utcnow().isoformat(),
+                    "method": "manual",
+                    "level": level,
+                    "fields_updated": field_names,
+                    "source_url": source_url[:100] if source_url else None,
+                }
+                if db is not None:
+                    try:
+                        await db.licitaciones.update_one(
+                            {"_id": ObjectId(licitacion_id)},
+                            {"$push": {"metadata.enrichment_log": {
+                                "$each": [enrichment_log_entry],
+                                "$slice": -10,
+                            }}}
+                        )
+                    except Exception:
+                        pass
+
+        except Exception as e:
+            logger.error(f"Error enriching {licitacion_id}: {e}", exc_info=True)
+            return JSONResponse(content={
+                "success": False,
+                "message": f"Error al enriquecer: {str(e)}",
+            })
+
+    # Phase 2: HUNTER cross-source search (runs for ALL sources including COMPR.AR)
+    from dependencies import database as db
+    hunter_result = {"matches_found": 0, "merged_from": [], "fields_merged": []}
+    try:
+        from services.cross_source_service import CrossSourceService
+        if db is not None:
+            cross_svc = CrossSourceService(db)
+            hunter_result = await cross_svc.hunt_cross_sources(
+                licitacion_id, lic_dict, updates
+            )
+    except Exception as hunter_err:
+        logger.warning(f"Hunter failed for {licitacion_id}: {hunter_err}")
+
+    # Phase 3: Re-match nodos (runs for ALL sources including COMPR.AR)
+    try:
+        from services.nodo_matcher import get_nodo_matcher
+        if db is not None:
+            matcher = get_nodo_matcher(db)
+            title_val = updates.get("title", lic_dict.get("title", ""))
+            objeto_val = updates.get("objeto", lic_dict.get("objeto", ""))
+            desc_val = updates.get("description", lic_dict.get("description", ""))
+            org_val = lic_dict.get("organization", "")
+            cat_val = updates.get("category", lic_dict.get("category", ""))
+            await matcher.assign_nodos_to_licitacion(
+                licitacion_id, title_val, objeto_val, desc_val, org_val, category=cat_val
+            )
+    except Exception as nodo_err:
+        logger.warning(f"Nodo re-matching after enrichment failed: {nodo_err}")
+
+    # Phase 4: Return response
+    if comprar_response:
+        # Inject hunter results into COMPR.AR response
+        try:
+            body = comprar_response.body
+            import json as _json
+            data = _json.loads(body)
+            data["hunter"] = hunter_result
+            return JSONResponse(content=data)
+        except Exception:
+            return comprar_response
+
+    if not updates:
         return JSONResponse(content={
             "success": True,
-            "message": f"Enriquecido con {len(updates)} campos: {', '.join(field_names)}",
-            "fields_updated": len(updates),
+            "message": "No se encontraron datos adicionales en la fuente",
+            "fields_updated": 0,
+            "hunter": hunter_result,
         })
 
-    except Exception as e:
-        logger.error(f"Error enriching {licitacion_id}: {e}", exc_info=True)
-        return JSONResponse(content={
-            "success": False,
-            "message": f"Error al enriquecer: {str(e)}",
-        })
+    field_names = list(updates.keys())
+    return JSONResponse(content={
+        "success": True,
+        "message": f"Enriquecido con {len(updates)} campos: {', '.join(field_names)}",
+        "fields_updated": len(updates),
+        "fields": field_names,
+        "hunter": hunter_result,
+    })
 
 
 @router.get("/{licitacion_id}/budget-hints")

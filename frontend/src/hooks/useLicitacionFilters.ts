@@ -105,7 +105,7 @@ export function useLicitacionFilters(overrides?: Partial<FilterState>) {
     filters.busqueda || filters.fuenteFiltro || filters.statusFiltro ||
     filters.categoryFiltro || filters.workflowFiltro || filters.jurisdiccionFiltro ||
     filters.tipoProcedimientoFiltro || filters.organizacionFiltro ||
-    filters.nodoFiltro ||
+    filters.nodoFiltro || filters.estadoFiltro ||
     filters.budgetMin || filters.budgetMax ||
     filters.fechaDesde || filters.fechaHasta ||
     filters.nuevasDesde
@@ -115,7 +115,7 @@ export function useLicitacionFilters(overrides?: Partial<FilterState>) {
     filters.busqueda, filters.fuenteFiltro, filters.statusFiltro,
     filters.categoryFiltro, filters.workflowFiltro, filters.jurisdiccionFiltro,
     filters.tipoProcedimientoFiltro, filters.organizacionFiltro,
-    filters.nodoFiltro,
+    filters.nodoFiltro, filters.estadoFiltro,
     filters.budgetMin, filters.budgetMax,
     filters.fechaDesde, filters.fechaHasta,
     filters.nuevasDesde,

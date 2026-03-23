@@ -1004,11 +1004,22 @@ export default function OfertaEditor({ licitacion, onSaved }: Props) {
                         <div className="flex-1 min-w-0">
                           <div className="flex items-start justify-between gap-2">
                             <p className="font-medium text-gray-800 line-clamp-1">{ant.title}</p>
-                            {ant.url && (
-                              <a href={ant.url} target="_blank" rel="noopener noreferrer" className="text-xs text-blue-600 hover:text-blue-800 shrink-0 border border-blue-200 px-2 py-0.5 rounded-full transition-colors">
-                                Ver
-                              </a>
-                            )}
+                            <div className="flex items-center gap-1.5 shrink-0">
+                              {vinculados.includes(ant.id) ? (
+                                <button onClick={() => handleDesvincular(ant.id)} className="text-xs text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-full shrink-0 border border-emerald-200 hover:bg-emerald-100 transition-colors">
+                                  ✓ Vinculado
+                                </button>
+                              ) : (
+                                <button onClick={() => handleVincular(ant.id)} className="text-xs text-blue-600 hover:text-blue-800 border border-blue-200 px-2 py-0.5 rounded-full shrink-0 transition-colors">
+                                  + Vincular
+                                </button>
+                              )}
+                              {ant.url && (
+                                <a href={ant.url} target="_blank" rel="noopener noreferrer" className="text-xs text-gray-400 hover:text-gray-600 shrink-0 border border-gray-200 px-2 py-0.5 rounded-full transition-colors">
+                                  Ver
+                                </a>
+                              )}
+                            </div>
                           </div>
                           {ant.objeto && <p className="text-xs text-gray-500 mt-0.5 line-clamp-2">{ant.objeto}</p>}
                           <div className="flex items-center gap-2 mt-1.5 flex-wrap">
@@ -1622,7 +1633,20 @@ export default function OfertaEditor({ licitacion, onSaved }: Props) {
                   </p>
                 )}
                 {vinculados.length > 0 && (
-                  <p className="text-xs text-gray-600 mt-1">Antecedentes vinculados: {vinculados.length}</p>
+                  <div className="mt-2">
+                    <p className="text-xs font-semibold text-gray-700 mb-1">Antecedentes vinculados ({vinculados.length}):</p>
+                    <ul className="text-xs text-gray-600 space-y-0.5 list-disc list-inside">
+                      {vinculados.map(id => {
+                        const ant = antecedentes.find(a => a.id === id) || companyAntecedentes.find(a => a.id === id);
+                        return (
+                          <li key={id}>
+                            {ant ? (ant.title || ant.objeto || id).slice(0, 80) : id.slice(0, 12) + '...'}
+                            {ant?.organization && <span className="text-gray-400"> — {ant.organization}</span>}
+                          </li>
+                        );
+                      })}
+                    </ul>
+                  </div>
                 )}
               </div>
             )}

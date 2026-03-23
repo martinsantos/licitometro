@@ -7,7 +7,7 @@ COMPR.AR, Boletín Oficial, and ComprasApps.
 """
 
 import re
-from typing import Optional
+from typing import Dict, List, Optional
 
 
 # Patterns for extracting expedient numbers
@@ -27,6 +27,51 @@ _LICITACION_PATTERNS = [
     # LIC-PRIV-NNN/YYYY or LP-NNN/YYYY
     re.compile(r"^(L[A-Z]*[-\s]*(?:PUB|PRIV|DIR)?[-\s]*)(\d+)[/-](\d{4})$", re.IGNORECASE),
 ]
+
+
+_TEXT_ID_PATTERNS = [
+    (re.compile(r"(?:decreto|dec\.?)\s*(?:n[°º]?\s*)?\s*(\d+)\s*/\s*(\d{4})", re.IGNORECASE), "decreto"),
+    (re.compile(r"(?:expediente|expte?\.?)\s*(?:n[°º]?\s*)?\s*(\d+)\s*/\s*(\d{2,4})", re.IGNORECASE), "expediente"),
+    (re.compile(r"(?:licitaci[oó]n|lic\.?)\s*(?:p[uú]blica|privada)?\s*(?:n[°º]?\s*)?\s*(\d+)\s*/\s*(\d{2,4})", re.IGNORECASE), "licitacion"),
+    (re.compile(r"(?:resoluci[oó]n|res\.?)\s*(?:n[°º]?\s*)?\s*(\d+)\s*/\s*(\d{4})", re.IGNORECASE), "resolucion"),
+    (re.compile(r"(?:contrataci[oó]n\s+directa|CD)\s*(?:n[°º]?\s*)?\s*(\d+)\s*/\s*(\d{2,4})", re.IGNORECASE), "licitacion"),
+]
+
+
+def extract_identifiers_from_text(
+    title: Optional[str] = None,
+    description: Optional[str] = None,
+    objeto: Optional[str] = None,
+) -> Dict[str, any]:
+    """
+    Extract procurement identifiers (decreto, expediente, licitacion number)
+    from free text fields. Returns dict with extracted fields and raw numbers.
+    """
+    combined = " ".join(filter(None, [title, objeto, (description or "")[:2000]]))
+    if not combined.strip():
+        return {"expedient_number": None, "licitacion_number": None, "numbers": []}
+
+    result: Dict[str, any] = {"expedient_number": None, "licitacion_number": None, "numbers": []}
+    seen_numbers: set = set()
+
+    for pattern, kind in _TEXT_ID_PATTERNS:
+        for m in pattern.finditer(combined):
+            num, year_raw = m.group(1), m.group(2)
+            year = _normalize_year(year_raw)
+            if not year:
+                continue
+            canonical = f"{num}/{year}"
+            if canonical in seen_numbers:
+                continue
+            seen_numbers.add(canonical)
+            result["numbers"].append(canonical)
+
+            if kind == "expediente" and not result["expedient_number"]:
+                result["expedient_number"] = canonical
+            elif kind in ("licitacion", "decreto", "resolucion") and not result["licitacion_number"]:
+                result["licitacion_number"] = canonical
+
+    return result
 
 
 def normalize_proceso_id(

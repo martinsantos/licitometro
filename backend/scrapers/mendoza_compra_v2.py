@@ -584,7 +584,7 @@ class MendozaCompraScraperV2(BaseScraper):
                     "comprar_estado": estado,
                     "comprar_unidad_ejecutora": unidad,
                     "comprar_servicio_admin": servicio_admin,
-                    "comprar_pliego_url": pliego_url,
+                    "comprar_pliego_url": pliego_url if is_stable_pliego else None,
                     "comprar_pliego_fields": pliego_fields,
                     "comprar_apertura_raw": apertura,
                 }
@@ -597,17 +597,16 @@ class MendozaCompraScraperV2(BaseScraper):
                     proxy_html_url = f"{api_base}/api/comprar/proceso/html?list_url={quote_plus(list_url)}&target={quote_plus(target)}"
 
                 # Determine canonical URL and quality
+                # CRITICAL: Only treat VistaPreviaPliegoCiudadano as stable pliego URLs.
+                # ComprasElectronicas.aspx URLs are session-dependent and expire.
                 canonical_url = None
                 url_quality = "list_only"
                 source_urls = {}
+                is_stable_pliego = pliego_url and "VistaPreviaPliegoCiudadano" in (pliego_url or "")
 
-                if pliego_url and "VistaPreviaPliegoCiudadano" in (pliego_url or ""):
+                if is_stable_pliego:
                     canonical_url = pliego_url
                     url_quality = "direct"
-                    source_urls["comprar_pliego"] = pliego_url
-                elif pliego_url:
-                    canonical_url = pliego_url
-                    url_quality = "partial"
                     source_urls["comprar_pliego"] = pliego_url
                 elif proxy_open_url:
                     canonical_url = proxy_open_url
@@ -656,7 +655,7 @@ class MendozaCompraScraperV2(BaseScraper):
                     "description": description,
                     "objeto": objeto,
                     "contact": contact,
-                    "source_url": pliego_url or proxy_open_url or list_url,
+                    "source_url": (pliego_url if is_stable_pliego else None) or proxy_open_url or list_url,
                     "canonical_url": canonical_url,
                     "source_urls": source_urls,
                     "url_quality": url_quality,

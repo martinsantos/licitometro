@@ -191,6 +191,8 @@ class GodoyCruzScraper(BaseScraper):
                     licitacion_number=lic_number,
                     status="active" if is_active else "closed",
                     source_url=url,
+                    url_quality="list_only",
+                    source_urls={"godoy_cruz_list": url},
                     fuente="Godoy Cruz",
                     tipo_procedimiento=tipo,
                     tipo_acceso="Portal Web",

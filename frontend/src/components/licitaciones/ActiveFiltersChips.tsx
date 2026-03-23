@@ -59,6 +59,9 @@ const ActiveFiltersChips: React.FC<ActiveFiltersChipsProps> = ({
       {filters.categoryFiltro && (
         <Chip label={filters.categoryFiltro} color="bg-pink-100 text-pink-700" onRemove={() => onFilterChange('categoryFiltro', '')} />
       )}
+      {filters.estadoFiltro && (
+        <Chip label={`Vigencia: ${filters.estadoFiltro.charAt(0).toUpperCase() + filters.estadoFiltro.slice(1)}`} color="bg-emerald-100 text-emerald-700" onRemove={() => onFilterChange('estadoFiltro', '')} />
+      )}
       {filters.nodoFiltro && (
         <Chip label={`Nodo: ${nodoMap?.[filters.nodoFiltro]?.name || filters.nodoFiltro.slice(0, 12) + '...'}`} color="bg-sky-100 text-sky-700" onRemove={() => onFilterChange('nodoFiltro', '')} />
       )}

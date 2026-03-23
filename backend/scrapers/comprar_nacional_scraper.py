@@ -438,15 +438,15 @@ class ComprarNacionalScraper(BaseScraper):
                     title = nombre_desc.strip()
 
             # Determine URL quality
+            # CRITICAL: Only VistaPreviaPliegoCiudadano URLs are stable.
+            # ComprasElectronicas URLs are session-dependent and expire.
             url_quality = "list_only"
             source_url = list_url
-            if pliego_url and "VistaPreviaPliegoCiudadano" in (pliego_url or ""):
+            is_stable_pliego = pliego_url and "VistaPreviaPliegoCiudadano" in (pliego_url or "")
+            if is_stable_pliego:
                 url_quality = "direct"
                 source_url = pliego_url
                 self.stats['pliego_urls_found'] += 1
-            elif pliego_url:
-                url_quality = "partial"
-                source_url = pliego_url
 
             content_hash = hashlib.md5(
                 f"{title.lower().strip()}|{servicio_admin or unidad or ''}|{publication_date.strftime('%Y%m%d') if publication_date else 'unknown'}".encode()
@@ -488,7 +488,7 @@ class ComprarNacionalScraper(BaseScraper):
                     "comprar_estado": estado_raw,
                     "comprar_unidad_ejecutora": unidad,
                     "comprar_servicio_admin": servicio_admin,
-                    "comprar_pliego_url": pliego_url,
+                    "comprar_pliego_url": pliego_url if is_stable_pliego else None,
                     "comprar_pliego_fields": pliego_fields,
                     "comprar_apertura_raw": apertura,
                 },

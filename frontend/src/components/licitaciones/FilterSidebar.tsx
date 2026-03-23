@@ -414,10 +414,7 @@ const FilterSidebar: React.FC<FilterSidebarProps> = ({
                 ].map((preset) => (
                   <button
                     key={preset.label}
-                    onClick={() => {
-                      onFilterChange('budgetMin', preset.min);
-                      onFilterChange('budgetMax', preset.max);
-                    }}
+                    onClick={() => onSetMany({ budgetMin: preset.min, budgetMax: preset.max })}
                     className={`px-2 py-1 rounded text-[10px] font-bold transition-colors ${
                       filters.budgetMin === preset.min && filters.budgetMax === preset.max
                         ? 'bg-emerald-100 text-emerald-700'
@@ -430,7 +427,7 @@ const FilterSidebar: React.FC<FilterSidebarProps> = ({
               </div>
               {(filters.budgetMin || filters.budgetMax) && (
                 <button
-                  onClick={() => { onFilterChange('budgetMin', ''); onFilterChange('budgetMax', ''); }}
+                  onClick={() => onSetMany({ budgetMin: '', budgetMax: '' })}
                   className="text-[10px] text-red-500 hover:text-red-700 font-bold"
                 >
                   Limpiar presupuesto

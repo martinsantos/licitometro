@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import type { Licitacion, Paginacion, FilterState, SortField, SortOrder, AutoFilter } from '../types/licitacion';
+import { buildFilterParams } from '../utils/filterParams';
 
 const MAX_RETRIES = 3;
 const RETRY_DELAYS = [2000, 4000, 8000]; // exponential backoff: 2s, 4s, 8s
@@ -24,55 +25,6 @@ interface UseLicitacionDataResult {
   error: string | null;
   autoFilters: AutoFilter[];
   retry: () => void;
-}
-
-function buildParams(
-  pagina: number, pageSize: number, sortBy: string, sortOrder: string,
-  filters: FilterState, fechaCampo: string,
-): URLSearchParams {
-  const params = new URLSearchParams({
-    page: pagina.toString(),
-    size: pageSize.toString(),
-    sort_by: sortBy,
-    sort_order: sortOrder,
-  });
-
-  if (filters.busqueda) params.append('q', filters.busqueda);
-  if (filters.fuenteFiltro) params.append('fuente', filters.fuenteFiltro);
-  if (filters.statusFiltro) params.append('status', filters.statusFiltro);
-  if (filters.categoryFiltro) params.append('category', filters.categoryFiltro);
-  if (filters.workflowFiltro) params.append('workflow_state', filters.workflowFiltro);
-  if (filters.jurisdiccionFiltro) params.append('jurisdiccion', filters.jurisdiccionFiltro);
-  if (filters.tipoProcedimientoFiltro) params.append('tipo_procedimiento', filters.tipoProcedimientoFiltro);
-  if (filters.organizacionFiltro) params.append('organization', filters.organizacionFiltro);
-  if (filters.nodoFiltro) params.append('nodo', filters.nodoFiltro);
-  if (filters.estadoFiltro) params.append('estado', filters.estadoFiltro);
-  if (filters.budgetMin) params.append('budget_min', filters.budgetMin);
-  if (filters.budgetMax) params.append('budget_max', filters.budgetMax);
-  // Year workspace → use 'year' param (always filters publication_date)
-  if (filters.yearWorkspace && filters.yearWorkspace !== 'all') {
-    params.append('year', filters.yearWorkspace);
-  }
-  // Explicit date range filters → use fecha_desde/fecha_hasta with fecha_campo
-  if (filters.fechaDesde) params.append('fecha_desde', filters.fechaDesde);
-  if (filters.fechaHasta) params.append('fecha_hasta', filters.fechaHasta);
-  if (filters.nuevasDesde) params.append('nuevas_desde', filters.nuevasDesde);
-  // CRITICAL: When nuevasDesde is active (synchronized "Nuevas de hoy" filter),
-  // fechaDesde/fechaHasta must filter on fecha_scraping regardless of sort mode.
-  // publication_date rarely matches "today" — items are discovered today but published on other dates.
-  const effectiveFechaCampo = filters.nuevasDesde ? 'fecha_scraping' : fechaCampo;
-  if (effectiveFechaCampo) params.append('fecha_campo', effectiveFechaCampo);
-
-  // Jurisdiction mode filtering
-  if (filters.jurisdiccionMode === 'nacional') {
-    params.append('only_national', 'true');
-  } else if (filters.jurisdiccionMode === 'mendoza') {
-    // Exclude comprar.gob.ar sources (show only Mendoza)
-    params.append('fuente_exclude', 'Comprar.Gob.Ar');
-  }
-  // If 'all', no additional filtering
-
-  return params;
 }
 
 function sleep(ms: number): Promise<void> {
@@ -102,7 +54,11 @@ export function useLicitacionData({
     setIsFetching(true);
     setError(null);
 
-    const params = buildParams(pagina, pageSize, sortBy, sortOrder, filters, fechaCampo);
+    const params = buildFilterParams(filters, fechaCampo);
+    params.append('page', pagina.toString());
+    params.append('size', pageSize.toString());
+    params.append('sort_by', sortBy);
+    params.append('sort_order', sortOrder);
     const url = `${apiUrl}${apiPath}/?${params.toString()}`;
 
     let lastError: Error | null = null;

@@ -593,7 +593,7 @@ class LasHerasScraper(BaseScraper):
                 source_url=source_url,
                 canonical_url=detail_url or self.base_url,
                 source_urls={"las_heras": source_url},
-                url_quality="direct" if detail_url else "partial",
+                url_quality="direct" if detail_url else "list_only",
                 content_hash=content_hash,
                 status=status,
                 location="Las Heras, Mendoza",

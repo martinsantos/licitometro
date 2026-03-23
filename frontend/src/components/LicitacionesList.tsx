@@ -555,6 +555,7 @@ const LicitacionesList = ({
         onToggleOrder={prefs.toggleSortOrder}
         fechaCampo={fechaCampo}
         nodoMap={nodoMap}
+        onSetMany={setMany}
       />
     </div>
   );

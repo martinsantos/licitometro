@@ -422,6 +422,21 @@ class GenericEnrichmentService:
     # Alias: title-only enrichment works the same for any source
     _enrich_title_only = _enrich_comprar_title_only
 
+    # URL patterns that are list pages, servlets, or session-dependent.
+    # Re-fetching these returns the full list or a portal homepage, not item detail.
+    _UNFETCHABLE_PATTERNS = [
+        "comprasapps.mendoza.gov.ar/Compras/servlet/",      # GeneXus servlet (ComprasApps)
+        "webapps.godoycruz.gob.ar/consultacompras/",        # GeneXus servlet (Godoy Cruz)
+        "ComprasElectronicas.aspx?qs=",                      # COMPR.AR session-dependent
+        "/Compras.aspx?qs=",                                 # COMPR.AR list page
+        "apex.lasherasdigital.gob.ar",                       # Oracle APEX (Las Heras)
+    ]
+
+    @classmethod
+    def _is_unfetchable_url(cls, url: str) -> bool:
+        """Detect URLs that point to list pages or session-dependent servlets."""
+        return any(pattern in url for pattern in cls._UNFETCHABLE_PATTERNS)
+
     def _find_best_alt_url(self, source_urls: dict) -> Optional[str]:
         """Find the best alternative URL from source_urls dict, skipping proxies and list pages."""
         if not source_urls:
@@ -606,6 +621,12 @@ class GenericEnrichmentService:
             "comprar.mendoza.gov.ar" in source_url or "comprar.gob.ar" in source_url
         ):
             return await self._enrich_comprar(lic_doc, source_url)
+
+        # Unfetchable URLs: list pages, servlets, session-dependent pages.
+        # These will never return useful detail data — go straight to title-only.
+        if source_url and self._is_unfetchable_url(source_url):
+            logger.debug(f"Unfetchable URL detected, title-only enrichment: {source_url[:80]}")
+            return self._enrich_title_only(lic_doc)
 
         # Handle binary URLs (PDF/ZIP) before attempting HTML fetch
         if source_url:

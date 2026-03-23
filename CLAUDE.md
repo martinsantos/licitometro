@@ -467,6 +467,116 @@ Ver documentación completa en `BACKUP_PROTECTION.md`.
 
 ---
 
+## HUNTER: Búsqueda Cross-Source durante Enriquecimiento
+
+**Implementado**: Mar 22, 2026
+
+Cuando se ejecuta "Enriquecer datos" en cualquier item, HUNTER busca items relacionados en otras fuentes y mergea datos faltantes.
+
+### Arquitectura: 4 Fases del Endpoint `POST /{id}/enrich`
+
+```
+Fase 1: Enrichment por fuente
+  ├─ COMPR.AR → routers/comprar.py (pliego parsing, Selenium fallback)
+  └─ Otros → services/generic_enrichment.py (CSS selectors, PDF, title-only)
+
+Fase 2: HUNTER cross-source (TODAS las fuentes, incluyendo COMPR.AR)
+  └─ services/cross_source_service.py → hunt_cross_sources()
+
+Fase 3: Nodo re-matching (TODAS las fuentes)
+  └─ services/nodo_matcher.py → assign_nodos_to_licitacion()
+
+Fase 4: Response (inyecta hunter results en la respuesta)
+```
+
+**CRÍTICO**: Las fases 2-3 SIEMPRE corren, sin importar la fuente. El flujo anterior hacía `return await comprar_enrich(...)` que bypasseaba HUNTER y nodo matching para COMPR.AR.
+
+### Flujo de hunt_cross_sources()
+
+| Paso | Qué hace | Fallback si falla |
+|------|----------|-------------------|
+| 1 | Extraer identificadores del texto (decreto, expediente, licitación, resolución, CD) | → paso 4 |
+| 2 | Poblar campos estructurados si missing (expedient_number, licitacion_number) | — |
+| 3 | Generar/actualizar proceso_id | — |
+| 4 | find_related() — búsqueda por campos estructurados | → paso 5 |
+| 5 | Regex fallback — buscar números extraídos en licitacion_number + title | → paso 5b |
+| 5b | Title keyword $text search — MongoDB text index, score >= 3.0 | → return 0 matches |
+| 6 | merge_source_data() por cada match (non-destructive) | — |
+
+### Archivos
+
+| Archivo | Función |
+|---------|---------|
+| `backend/utils/proceso_id.py` | `extract_identifiers_from_text()` — 5 regex patterns para IDs en texto libre |
+| `backend/services/cross_source_service.py` | `hunt_cross_sources()` + `_build_title_search_query()` en CrossSourceService |
+| `backend/routers/licitaciones.py` | `POST /{id}/enrich` — 4 fases, HUNTER + nodos siempre corren |
+
+### Patrones de Identificadores Reconocidos
+
+```python
+_TEXT_ID_PATTERNS = [
+    (r'decreto|dec\.?\s*n?°?\s*(\d+)/(\d{4})', 'decreto'),
+    (r'expediente|expte?\.?\s*n?°?\s*(\d+)/(\d{2,4})', 'expediente'),
+    (r'licitaci[oó]n|lic\.?\s*(?:p[uú]blica|privada)?\s*n?°?\s*(\d+)/(\d{2,4})', 'licitacion'),
+    (r'resoluci[oó]n|res\.?\s*n?°?\s*(\d+)/(\d{4})', 'resolucion'),
+    (r'contrataci[oó]n directa|CD\s*n?°?\s*(\d+)/(\d{2,4})', 'licitacion'),
+]
+```
+
+### Title Keyword Search (fallback)
+
+`_build_title_search_query()`:
+- Filtra stopwords españoles (de, del, la, en, y, para, etc.)
+- Requiere palabras >= 4 chars
+- Necesita >= 3 palabras significativas para activarse
+- Usa top 5 palabras como query AND de MongoDB `$text`
+- Solo acepta matches con `textScore >= 3.0`
+
+### Response
+
+```json
+{
+  "success": true,
+  "fields_updated": 5,
+  "fields": ["description", "objeto", ...],
+  "hunter": {
+    "matches_found": 1,
+    "merged_from": [{"id": "...", "fuente": "Boletin Oficial", "title": "Decreto 140/2026"}],
+    "fields_merged": ["budget", "opening_date", "expedient_number"]
+  }
+}
+```
+
+### Idempotencia
+
+- `merge_source_data()` solo llena campos **vacíos** → correr enrich 2 veces no duplica ni sobreescribe
+- `cross_source_merges` en metadata guarda últimos 10 merges
+- `proceso_id` solo se actualiza si cambió
+
+### Infraestructura Existente (pre-HUNTER, usada por HUNTER)
+
+- `services/cross_source_service.py` → `find_related()`, `merge_source_data()`, `auto_link_after_scrape()`
+- `utils/proceso_id.py` → `normalize_proceso_id()` genera ID canónico
+- Endpoints: `GET /{id}/related-sources`, `POST /{id}/merge-source`
+- `scheduler_service.py` → `auto_link_after_scrape()` post-scraping (solo si proceso_id != None)
+
+### Filtros Frontend — Coherencia Sidebar/Mobile
+
+Pipeline de filtros (single source of truth):
+1. `FilterState` en `types/licitacion.ts` — 15 campos
+2. `buildFilterParams()` en `utils/filterParams.ts` — convierte FilterState → URLSearchParams
+3. `build_base_filters()` en `backend/utils/filter_builder.py` — convierte params → MongoDB query
+4. Usado por: listing (`GET /`), facets (`GET /facets`), debug-filters, count
+
+**Bugs corregidos (Mar 22)**:
+- `estadoFiltro` faltaba en `hasActiveFilters` / `activeFilterCount` → filtro Vigencia no se contaba
+- `estadoFiltro` faltaba en `ActiveFiltersChips` → no había chip removible
+- `MobileFilterDrawer` sin `onSetMany` → no podía batch-clear 3 campos de fecha
+- `MobileFilterDrawer` sin botones "Limpiar fechas" y "Limpiar presupuesto"
+- Budget presets disparaban 2 API calls (2x `onFilterChange`) → ahora usan `onSetMany` batch
+
+---
+
 ## Lecciones Aprendidas
 
 - `passlib.hash.bcrypt` es INCOMPATIBLE con `bcrypt>=5.0`. Usar `import bcrypt` directamente

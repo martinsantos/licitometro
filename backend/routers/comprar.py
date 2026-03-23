@@ -725,45 +725,43 @@ async def enrich_licitacion(
         metadata = lic.get('metadata', {}) or {}
 
         # Lista de URLs a intentar (en orden de preferencia)
+        # ONLY stable VistaPreviaPliegoCiudadano URLs + cache.
+        # ComprasElectronicas URLs are session-dependent and expire after ~24h.
         urls_to_try = []
+        seen_urls = set()
 
-        # 1. URL PLIEGO si existe
+        def _add_url(kind, url):
+            if url and url not in seen_urls:
+                seen_urls.add(url)
+                urls_to_try.append((kind, url))
+
+        # 1. URL PLIEGO si existe (only if stable)
         pliego_url = metadata.get('comprar_pliego_url')
-        if pliego_url:
-            urls_to_try.append(('pliego', pliego_url))
+        if pliego_url and 'VistaPreviaPliegoCiudadano' in pliego_url:
+            _add_url('pliego', pliego_url)
 
         # 2. source_url con PLIEGO
         source_url = str(lic.get('source_url', '') or '')
         if source_url and 'VistaPreviaPliegoCiudadano' in source_url:
-            if source_url not in [u[1] for u in urls_to_try]:
-                urls_to_try.append(('pliego', source_url))
+            _add_url('pliego', source_url)
 
-        # 3. source_url con ComprasElectronicas
-        if source_url and 'ComprasElectronicas.aspx' in source_url:
-            urls_to_try.append(('compras', source_url))
+        # 3. source_urls dict — pliego key
+        source_urls_dict = lic.get('source_urls') or {}
+        pliego_from_dict = source_urls_dict.get('comprar_pliego', '')
+        if pliego_from_dict and 'VistaPreviaPliegoCiudadano' in pliego_from_dict:
+            _add_url('pliego', pliego_from_dict)
 
-        # 4. comprar_detail_url (ComprasElectronicas)
-        detail_url = metadata.get('comprar_detail_url')
-        if detail_url and 'ComprasElectronicas' in str(detail_url):
-            if detail_url not in [u[1] for u in urls_to_try]:
-                urls_to_try.append(('compras', detail_url))
-
-        # 5. canonical_url
+        # 4. canonical_url con PLIEGO
         canonical_url = str(lic.get('canonical_url', '') or '')
-        if canonical_url:
-            if 'VistaPreviaPliegoCiudadano' in canonical_url:
-                if canonical_url not in [u[1] for u in urls_to_try]:
-                    urls_to_try.append(('pliego', canonical_url))
-            elif 'ComprasElectronicas' in canonical_url:
-                if canonical_url not in [u[1] for u in urls_to_try]:
-                    urls_to_try.append(('compras', canonical_url))
+        if canonical_url and 'VistaPreviaPliegoCiudadano' in canonical_url:
+            _add_url('pliego', canonical_url)
 
-        # 6. Cache por número
+        # 5. Cache por número
         numero = lic.get('licitacion_number') or lic.get('id_licitacion')
         if numero:
             cached = _get_cached_pliego_url(numero)
-            if cached and cached not in [u[1] for u in urls_to_try]:
-                urls_to_try.append(('cached', cached))
+            if cached:
+                _add_url('cached', cached)
 
         if not urls_to_try:
             logger.warning(f"No URL found for licitacion {licitacion_id}")

@@ -14,6 +14,7 @@ from bson import ObjectId
 from motor.motor_asyncio import AsyncIOMotorDatabase
 
 from db.models import licitacion_entity
+from utils.proceso_id import extract_identifiers_from_text, normalize_proceso_id
 
 logger = logging.getLogger("cross_source_service")
 
@@ -152,6 +153,148 @@ class CrossSourceService:
 
         updated = await self.db.licitaciones.find_one({"_id": ObjectId(base_id)})
         return licitacion_entity(updated) if updated else None
+
+    async def hunt_cross_sources(
+        self, lic_id: str, lic_doc: dict, enrichment_updates: dict
+    ) -> Dict[str, Any]:
+        """
+        After enrichment, extract identifiers from text and search for
+        related items across sources. Merges data from matches.
+
+        Returns summary: {matches_found, merged_from, fields_merged}
+        """
+        result: Dict[str, Any] = {"matches_found": 0, "merged_from": [], "fields_merged": []}
+
+        # Combine original doc fields with enrichment updates
+        title = enrichment_updates.get("title", lic_doc.get("title", ""))
+        objeto = enrichment_updates.get("objeto", lic_doc.get("objeto", ""))
+        description = enrichment_updates.get("description", lic_doc.get("description", ""))
+        fuente = lic_doc.get("fuente", "")
+
+        # Step 1: Extract identifiers from text
+        ids = extract_identifiers_from_text(title, description, objeto)
+
+        # Step 2: Populate structured fields if missing
+        field_updates: Dict[str, Any] = {}
+        if ids["expedient_number"] and not lic_doc.get("expedient_number"):
+            field_updates["expedient_number"] = ids["expedient_number"]
+        if ids["licitacion_number"] and not lic_doc.get("licitacion_number"):
+            field_updates["licitacion_number"] = ids["licitacion_number"]
+
+        # Step 3: Generate/update proceso_id
+        exp = field_updates.get("expedient_number", lic_doc.get("expedient_number"))
+        lic_num = field_updates.get("licitacion_number", lic_doc.get("licitacion_number"))
+        new_pid = normalize_proceso_id(
+            expedient_number=exp, licitacion_number=lic_num, title=title, fuente=fuente
+        )
+        if new_pid and new_pid != lic_doc.get("proceso_id"):
+            field_updates["proceso_id"] = new_pid
+
+        # Write extracted fields to DB
+        if field_updates:
+            try:
+                await self.db.licitaciones.update_one(
+                    {"_id": ObjectId(lic_id)},
+                    {"$set": field_updates}
+                )
+            except Exception as e:
+                logger.warning(f"Hunter: failed to save extracted fields for {lic_id}: {e}")
+
+        # Step 4: Find related using structured fields
+        search_doc = {**lic_doc, **field_updates}
+        search_doc["_id"] = ObjectId(lic_id)
+        matches = await self.find_related(search_doc, limit=5)
+
+        # Step 5: Fallback regex search if no matches and we have numbers
+        if not matches and ids["numbers"]:
+            or_clauses = []
+            for number in ids["numbers"][:3]:
+                escaped = re.escape(number)
+                or_clauses.append({"licitacion_number": {"$regex": escaped}})
+                or_clauses.append({"title": {"$regex": escaped, "$options": "i"}})
+            try:
+                cursor = self.db.licitaciones.find({
+                    "$or": or_clauses,
+                    "fuente": {"$ne": fuente},
+                    "_id": {"$ne": ObjectId(lic_id)},
+                }).limit(5)
+                async for doc in cursor:
+                    matches.append(licitacion_entity(doc))
+            except Exception as e:
+                logger.warning(f"Hunter fallback search failed for {lic_id}: {e}")
+
+        # Step 5b: Title-keyword text search as last resort
+        if not matches and title:
+            text_query = self._build_title_search_query(title)
+            if text_query:
+                try:
+                    cursor = self.db.licitaciones.find(
+                        {
+                            "$text": {"$search": text_query},
+                            "fuente": {"$ne": fuente},
+                            "_id": {"$ne": ObjectId(lic_id)},
+                        },
+                        {"score": {"$meta": "textScore"}},
+                    ).sort([("score", {"$meta": "textScore"})]).limit(3)
+                    async for doc in cursor:
+                        # Only accept high-confidence text matches
+                        score = doc.get("score", 0)
+                        if score >= 3.0:
+                            matches.append(licitacion_entity(doc))
+                except Exception as e:
+                    logger.debug(f"Hunter text search failed for {lic_id}: {e}")
+
+        if not matches:
+            return result
+
+        # Step 6: Merge data from each match
+        all_merged_fields: set = set()
+        for match in matches:
+            match_id = match.get("id") or str(match.get("_id", ""))
+            if not match_id:
+                continue
+            merged = await self.merge_source_data(lic_id, match_id)
+            if merged:
+                # Check what was actually merged by looking at cross_source_merges log
+                meta = merged.get("metadata") or {}
+                merges = meta.get("cross_source_merges") or []
+                if merges:
+                    last_merge = merges[-1]
+                    merged_fields = last_merge.get("fields_merged", [])
+                    all_merged_fields.update(merged_fields)
+                    result["merged_from"].append({
+                        "id": match_id,
+                        "fuente": match.get("fuente", ""),
+                        "title": (match.get("title") or "")[:100],
+                    })
+
+        result["matches_found"] = len(result["merged_from"])
+        result["fields_merged"] = list(all_merged_fields)
+
+        if result["matches_found"]:
+            logger.info(
+                f"Hunter: {lic_id} matched {result['matches_found']} cross-source items, "
+                f"merged fields: {result['fields_merged']}"
+            )
+
+        return result
+
+    @staticmethod
+    def _build_title_search_query(title: str) -> Optional[str]:
+        """Extract significant keywords from title for MongoDB $text search.
+        Returns a quoted phrase of 3+ significant words, or None."""
+        # Spanish stopwords common in procurement titles
+        stopwords = {
+            "de", "del", "la", "las", "los", "el", "en", "y", "a", "para",
+            "por", "con", "un", "una", "se", "al", "es", "que", "su", "o",
+            "no", "lo", "le", "da", "e", "n", "varios", "varias", "sobre",
+        }
+        words = re.sub(r"[^\w\s]", " ", title.lower()).split()
+        significant = [w for w in words if w not in stopwords and len(w) >= 4]
+        if len(significant) < 3:
+            return None
+        # Use up to 5 most significant words as an AND query (no quotes = AND in $text)
+        return " ".join(significant[:5])
 
     async def auto_link_after_scrape(self, new_items: List[dict]) -> int:
         """

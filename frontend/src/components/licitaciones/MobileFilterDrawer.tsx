@@ -40,6 +40,7 @@ interface MobileFilterDrawerProps {
   onToggleOrder?: () => void;
   fechaCampo: string;
   nodoMap?: Record<string, Nodo>;
+  onSetMany?: (updates: Partial<FilterState>) => void;
 }
 
 // Collapsible section
@@ -113,7 +114,7 @@ const MobileFilterDrawer: React.FC<MobileFilterDrawerProps> = ({
   isOpen, onClose, filters, onFilterChange, onClearAll,
   filterOptions, activeFilterCount, groupBy, onGroupByChange,
   criticalRubros, onToggleCriticalRubro, facets, totalItems,
-  sortBy, sortOrder, onSortChange, onToggleOrder, fechaCampo, nodoMap,
+  sortBy, sortOrder, onSortChange, onToggleOrder, fechaCampo, nodoMap, onSetMany,
 }) => {
   const [orgSearch, setOrgSearch] = useState('');
 
@@ -371,8 +372,12 @@ const MobileFilterDrawer: React.FC<MobileFilterDrawerProps> = ({
                     <button
                       key={preset.label}
                       onClick={() => {
-                        onFilterChange('budgetMin', preset.min);
-                        onFilterChange('budgetMax', preset.max);
+                        if (onSetMany) {
+                          onSetMany({ budgetMin: preset.min, budgetMax: preset.max });
+                        } else {
+                          onFilterChange('budgetMin', preset.min);
+                          onFilterChange('budgetMax', preset.max);
+                        }
                       }}
                       className={`flex-1 px-2 py-1.5 rounded text-xs font-bold transition-colors ${
                         filters.budgetMin === preset.min && filters.budgetMax === preset.max
@@ -384,6 +389,21 @@ const MobileFilterDrawer: React.FC<MobileFilterDrawerProps> = ({
                     </button>
                   ))}
                 </div>
+                {(filters.budgetMin || filters.budgetMax) && (
+                  <button
+                    onClick={() => {
+                      if (onSetMany) {
+                        onSetMany({ budgetMin: '', budgetMax: '' });
+                      } else {
+                        onFilterChange('budgetMin', '');
+                        onFilterChange('budgetMax', '');
+                      }
+                    }}
+                    className="text-xs text-red-500 hover:text-red-700 font-bold"
+                  >
+                    Limpiar presupuesto
+                  </button>
+                )}
               </div>
             </Section>
 
@@ -415,6 +435,22 @@ const MobileFilterDrawer: React.FC<MobileFilterDrawerProps> = ({
                     />
                   </div>
                 </div>
+                {(filters.fechaDesde || filters.fechaHasta) && (
+                  <button
+                    onClick={() => {
+                      if (onSetMany) {
+                        onSetMany({ fechaDesde: '', fechaHasta: '', nuevasDesde: '' });
+                      } else {
+                        onFilterChange('fechaDesde', '');
+                        onFilterChange('fechaHasta', '');
+                        onFilterChange('nuevasDesde', '');
+                      }
+                    }}
+                    className="text-xs text-red-500 hover:text-red-700 font-bold"
+                  >
+                    Limpiar fechas
+                  </button>
+                )}
               </div>
             </Section>
 
