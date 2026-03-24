@@ -64,11 +64,13 @@ def build_base_filters(
         filters["jurisdiccion"] = jurisdiccion
     if tipo_procedimiento:
         filters["tipo_procedimiento"] = tipo_procedimiento
-    if estado:
+    if estado and estado != "all":
         if ',' in estado:
             filters["estado"] = {"$in": [s.strip() for s in estado.split(',')]}
         else:
             filters["estado"] = estado
+    elif estado == "all":
+        pass  # Explicitly all — skip default exclusion
     else:
         # Default: excluir vencidas y archivadas — mostrar solo oportunidades activas.
         # Usuarios pueden opt-in a vencidas via sidebar EstadoFilter.

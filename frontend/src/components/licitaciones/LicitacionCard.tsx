@@ -17,12 +17,13 @@ interface LicitacionCardProps {
   isUrgent: boolean;
   onToggleFavorite: (id: string, e: React.MouseEvent) => void;
   onRowClick: (id: string) => void;
+  onEnrich?: (id: string) => void;
   searchQuery?: string;
   nodoMap?: Record<string, Nodo>;
 }
 
 const LicitacionCard: React.FC<LicitacionCardProps> = ({
-  lic, sortBy, isFavorite, isNew, isCritical, isUrgent, onToggleFavorite, onRowClick, searchQuery, nodoMap,
+  lic, sortBy, isFavorite, isNew, isCritical, isUrgent, onToggleFavorite, onRowClick, onEnrich, searchQuery, nodoMap,
 }) => {
   const daysUntil = getDaysUntilOpening(lic.opening_date);
   const urgencyClass = getUrgencyColor(daysUntil);
@@ -81,12 +82,32 @@ const LicitacionCard: React.FC<LicitacionCardProps> = ({
                   {format(new Date(lic.opening_date), 'dd/MM', { locale: es })}
                 </span>
               </>
+            ) : lic.publication_date ? (
+              <div className="text-center">
+                <span className="text-[10px] font-bold text-slate-400 uppercase">Publicada</span>
+                <span className="text-lg font-black text-slate-700">
+                  {format(new Date(lic.publication_date), 'd', { locale: es })}
+                </span>
+                <span className="text-xs font-bold text-slate-500 uppercase">
+                  {format(new Date(lic.publication_date), 'MMM', { locale: es })}
+                </span>
+              </div>
+            ) : (lic.first_seen_at || lic.fecha_scraping) ? (
+              <div className="text-center">
+                <span className="text-[10px] font-bold text-violet-400 uppercase">{lic.first_seen_at ? 'Descub.' : 'Index.'}</span>
+                <span className="text-lg font-black text-violet-700">
+                  {format(parseUTCDate((lic.first_seen_at || lic.fecha_scraping)!), 'd', { locale: es })}
+                </span>
+                <span className="text-xs font-bold text-violet-500 uppercase">
+                  {format(parseUTCDate((lic.first_seen_at || lic.fecha_scraping)!), 'MMM', { locale: es })}
+                </span>
+              </div>
             ) : (
               <div className="text-center">
                 <svg className="w-5 h-5 text-amber-500 mx-auto mb-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L4.082 16.5c-.77.833.192 2.5 1.732 2.5z" />
                 </svg>
-                <span className="text-[10px] font-bold text-amber-600 leading-tight block">SIN<br/>APERTURA</span>
+                <span className="text-[10px] font-bold text-amber-600 leading-tight block">SIN<br/>FECHA</span>
               </div>
             )
           ) : sortBy === 'fecha_scraping' ? (
@@ -107,21 +128,27 @@ const LicitacionCard: React.FC<LicitacionCardProps> = ({
               <span className="text-sm text-gray-400">Sin datos</span>
             )
           ) : (
-            lic.publication_date ? (
-              <>
-                <span className="text-2xl font-black text-slate-800">
-                  {format(new Date(lic.publication_date), 'd', { locale: es })}
-                </span>
-                <span className="text-sm font-bold text-slate-600 uppercase">
-                  {format(new Date(lic.publication_date), 'MMM', { locale: es })}
-                </span>
-                <span className="text-xs text-slate-500">
-                  {format(new Date(lic.publication_date), 'yyyy', { locale: es })}
-                </span>
-              </>
-            ) : (
-              <span className="text-sm text-slate-400">Sin fecha</span>
-            )
+            (() => {
+              const fallbackDate = lic.publication_date || lic.first_seen_at || lic.fecha_scraping;
+              const isSourceDate = !!lic.publication_date;
+              const fallbackLabel = lic.publication_date ? null : lic.first_seen_at ? 'Descub.' : 'Index.';
+              if (!fallbackDate) return <span className="text-sm text-slate-400">Sin fecha</span>;
+              const d = isSourceDate ? new Date(fallbackDate) : parseUTCDate(fallbackDate);
+              return (
+                <>
+                  {fallbackLabel && <span className="text-[10px] font-bold text-violet-400 uppercase">{fallbackLabel}</span>}
+                  <span className={`text-2xl font-black ${fallbackLabel ? 'text-violet-700' : 'text-slate-800'}`}>
+                    {format(d, 'd', { locale: es })}
+                  </span>
+                  <span className={`text-sm font-bold uppercase ${fallbackLabel ? 'text-violet-500' : 'text-slate-600'}`}>
+                    {format(d, 'MMM', { locale: es })}
+                  </span>
+                  <span className={`text-xs ${fallbackLabel ? 'text-violet-400' : 'text-slate-500'}`}>
+                    {format(d, 'yyyy', { locale: es })}
+                  </span>
+                </>
+              );
+            })()
           )}
         </div>
 
@@ -343,6 +370,17 @@ const LicitacionCard: React.FC<LicitacionCardProps> = ({
             </div>
 
             <div className="flex items-center gap-1.5 flex-shrink-0">
+              {onEnrich && (
+                <button
+                  onClick={(e) => { e.stopPropagation(); onEnrich(lic.id); }}
+                  className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+                  title="Enriquecer datos"
+                >
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                  </svg>
+                </button>
+              )}
               <Link
                 to={`/cotizar?licitacion_id=${lic.id}`}
                 onClick={(e) => e.stopPropagation()}
@@ -383,6 +421,7 @@ export default React.memo(LicitacionCard, (prev, next) => {
     prev.searchQuery === next.searchQuery &&
     prev.nodoMap === next.nodoMap &&
     prev.onRowClick === next.onRowClick &&
-    prev.onToggleFavorite === next.onToggleFavorite
+    prev.onToggleFavorite === next.onToggleFavorite &&
+    prev.onEnrich === next.onEnrich
   );
 });

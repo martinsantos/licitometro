@@ -34,6 +34,7 @@ interface LicitacionesListProps {
   apiPath?: string; // defaults to '/api/licitaciones'
   defaultYear?: string; // override initial yearWorkspace (e.g., 'all' for AR page)
   defaultJurisdiccionMode?: 'all' | 'mendoza' | 'nacional';  // Force jurisdiction mode
+  defaultEstadoFilter?: string; // override initial estadoFiltro (e.g., 'all' to skip default exclusion)
   pageTitle?: string;  // Custom page title (e.g., "Licitaciones Argentina")
 }
 
@@ -42,6 +43,7 @@ const LicitacionesList = ({
   apiPath = '/api/licitaciones',
   defaultYear,
   defaultJurisdiccionMode,
+  defaultEstadoFilter,
   pageTitle
 }: LicitacionesListProps) => {
   const navigate = useNavigate();
@@ -62,6 +64,7 @@ const LicitacionesList = ({
     const o: Partial<FilterState> = {};
     if (defaultJurisdiccionMode) o.jurisdiccionMode = defaultJurisdiccionMode;
     if (defaultYear) o.yearWorkspace = defaultYear;
+    if (defaultEstadoFilter !== undefined) o.estadoFiltro = defaultEstadoFilter;
     return Object.keys(o).length > 0 ? o : undefined;
   }, []);
   const { filters, setFilter, setMany, clearAll, hasActiveFilters, activeFilterCount } = useLicitacionFilters(
@@ -196,6 +199,15 @@ const LicitacionesList = ({
     sessionStorage.setItem('licitacion_scrollY', String(window.scrollY));
     navigate(`/licitacion/${id}`);
   }, [navigate]);
+
+  const handleEnrich = useCallback(async (id: string) => {
+    try {
+      await fetch(`${apiUrl}${apiPath}/${id}/enrich?level=2`, {
+        method: 'POST', credentials: 'include'
+      });
+      retry();
+    } catch { /* ignore */ }
+  }, [apiUrl, apiPath, retry]);
 
   const handleFilterChange = useCallback((key: keyof FilterState, value: string) => {
     setFilter(key, value);
@@ -471,6 +483,7 @@ const LicitacionesList = ({
                           isUrgent={isUrgentLic(lic)}
                           onToggleFavorite={prefs.toggleFavorite}
                           onRowClick={handleRowClick}
+                          onEnrich={handleEnrich}
                           searchQuery={filters.busqueda}
                           nodoMap={nodoMap}
                         />

@@ -76,6 +76,7 @@ export default function LicitacionesArgentinaPage() {
         apiUrl={apiUrl}
         defaultJurisdiccionMode="nacional"
         defaultYear="all"
+        defaultEstadoFilter="all"
         pageTitle="Licitaciones Argentina 🇦🇷"
       />
     </div>
