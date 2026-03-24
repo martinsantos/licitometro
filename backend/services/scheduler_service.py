@@ -326,13 +326,15 @@ class SchedulerService:
                 existing_hashes: Dict[str, str] = {}  # hash → id_licitacion
                 boe_existing_numbers: set = set()
 
+                existing_estados: Dict[str, Optional[str]] = {}  # id_licitacion → estado
                 if batch_ids:
                     existing_docs = await licitaciones_collection.find(
                         {"id_licitacion": {"$in": batch_ids}},
-                        {"id_licitacion": 1, "content_hash": 1}
+                        {"id_licitacion": 1, "content_hash": 1, "estado": 1}
                     ).to_list(length=None)
                     existing_ids = {doc["id_licitacion"] for doc in existing_docs}
                     existing_id_hashes = {doc["id_licitacion"]: doc.get("content_hash") for doc in existing_docs}
+                    existing_estados = {doc["id_licitacion"]: doc.get("estado") for doc in existing_docs}
 
                 if batch_hashes:
                     hash_docs = await licitaciones_collection.find(
@@ -434,6 +436,12 @@ class SchedulerService:
                             # Skip items whose content hasn't changed
                             old_hash = existing_id_hashes.get(item.id_licitacion)
                             if old_hash and item.content_hash and old_hash == item.content_hash:
+                                items_unchanged += 1
+                                continue
+
+                            # Skip re-processing vencida/archivada items — they're dead
+                            old_estado = existing_estados.get(item.id_licitacion)
+                            if old_estado in ("vencida", "archivada"):
                                 items_unchanged += 1
                                 continue
 

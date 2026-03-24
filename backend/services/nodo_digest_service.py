@@ -57,9 +57,12 @@ class NodoDigestService:
         nodo_id = str(nodo["_id"])
         nodo_name = nodo.get("name", "?")
 
-        # Find new licitaciones since last digest
+        # Find new licitaciones since last digest (exclude expired items)
         since = nodo.get("last_digest_sent")
-        lic_query = {"nodos": nodo_id}
+        lic_query = {
+            "nodos": nodo_id,
+            "estado": {"$nin": ["vencida", "archivada"]},
+        }
         if since:
             lic_query["fecha_scraping"] = {"$gt": since}
 
