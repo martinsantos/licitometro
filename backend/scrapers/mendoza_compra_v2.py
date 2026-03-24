@@ -581,6 +581,7 @@ class MendozaCompraScraperV2(BaseScraper):
 
                 # Use pre-fetched pliego data
                 pliego_fields, pliego_url = pliego_data.get(entry_idx, ({}, entry.get("pliego_url")))
+                is_stable_pliego = pliego_url and "VistaPreviaPliegoCiudadano" in (pliego_url or "")
 
                 meta = {
                     "comprar_list_url": list_url,
