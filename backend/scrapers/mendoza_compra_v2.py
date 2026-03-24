@@ -78,6 +78,9 @@ class PliegoURLCache:
 
         entry = self.cache[process_number]
         cached_time = datetime.fromisoformat(entry['timestamp'])
+        if cached_time.tzinfo is None:
+            from datetime import timezone
+            cached_time = cached_time.replace(tzinfo=timezone.utc)
 
         if utc_now() - cached_time > timedelta(hours=self.CACHE_TTL_HOURS):
             del self.cache[process_number]
