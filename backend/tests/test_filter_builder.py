@@ -32,9 +32,9 @@ def _regex_matches(pattern_dict: dict, value: str) -> bool:
 # ===========================================================================
 
 class TestDefaultFilters:
-    def test_excludes_archivada(self):
+    def test_excludes_vencida_and_archivada(self):
         f = build_base_filters()
-        assert f["estado"] == {"$ne": "archivada"}
+        assert f["estado"] == {"$nin": ["vencida", "archivada"]}
 
     def test_excludes_lic_ar(self):
         f = build_base_filters()
@@ -76,9 +76,9 @@ class TestEstadoFilter:
         f = build_base_filters(estado="vigente, prorrogada , vencida")
         assert f["estado"] == {"$in": ["vigente", "prorrogada", "vencida"]}
 
-    def test_default_excludes_archivada(self):
+    def test_default_excludes_vencida_and_archivada(self):
         f = build_base_filters()
-        assert f["estado"] == {"$ne": "archivada"}
+        assert f["estado"] == {"$nin": ["vencida", "archivada"]}
 
     def test_explicit_archivada_is_allowed(self):
         f = build_base_filters(estado="archivada")

@@ -70,8 +70,9 @@ def build_base_filters(
         else:
             filters["estado"] = estado
     else:
-        # Default: excluir archivadas. Usuario puede opt-in via sidebar EstadoFilter.
-        filters["estado"] = {"$ne": "archivada"}
+        # Default: excluir vencidas y archivadas — mostrar solo oportunidades activas.
+        # Usuarios pueden opt-in a vencidas via sidebar EstadoFilter.
+        filters["estado"] = {"$nin": ["vencida", "archivada"]}
     if location:
         filters["location"] = location
 
