@@ -27,6 +27,7 @@ const PublicListPage = lazy(() => import("./pages/PublicListPage"));
 const CotizarPage = lazy(() => import("./pages/CotizarPage"));
 const PerfilPage = lazy(() => import("./pages/PerfilPage"));
 const CompanyContextPage = lazy(() => import("./pages/CompanyContextPage"));
+const LabPage = lazy(() => import("./pages/LabPage"));
 
 // Fallback shown while lazy chunks load
 const PageLoader = () => (
@@ -63,6 +64,7 @@ const AuthenticatedApp = ({ userRole }) => (
           <Route path="/cotizar" element={<CotizarPage />} />
           <Route path="/empresa" element={<CompanyContextPage />} />
           <Route path="/perfil" element={<PerfilPage />} />
+          <Route path="/lab" element={userRole === 'admin' ? <LabPage /> : <Navigate to="/licitaciones" />} />
         </Routes>
       </Suspense>
     </main>

@@ -8,6 +8,15 @@ const ESTADO_LABELS: Record<string, string> = {
   archivada: 'Archivada',
 };
 
+const FECHA_CAMPO_LABELS: Record<string, string> = {
+  publication_date: 'Publicación',
+  opening_date: 'Apertura',
+  fecha_scraping: 'Indexación',
+  first_seen_at: 'Descubierta',
+  created_at: 'Creada',
+  expiration_date: 'Vencimiento',
+};
+
 function formatEstadoLabel(value: string): string {
   if (value.includes(',')) {
     return value.split(',').map(s => ESTADO_LABELS[s.trim()] || s.trim()).join(' + ');
@@ -50,7 +59,7 @@ const ActiveFiltersChips: React.FC<ActiveFiltersChipsProps> = ({
       ) : null}
       {filters.yearWorkspace && filters.yearWorkspace !== 'all' && (
         <span className="inline-flex items-center px-2 py-0.5 bg-gray-200 text-gray-600 rounded text-[11px] font-bold">
-          {filters.yearWorkspace}
+          Año: {filters.yearWorkspace}
         </span>
       )}
       {filters.fuenteFiltro && (
@@ -84,7 +93,7 @@ const ActiveFiltersChips: React.FC<ActiveFiltersChipsProps> = ({
         <Chip label={`$${filters.budgetMin || '0'} - $${filters.budgetMax || '...'}`} color="bg-orange-100 text-orange-700" onRemove={() => onSetMany({ budgetMin: '', budgetMax: '' })} />
       )}
       {(filters.fechaDesde || filters.fechaHasta) && (
-        <Chip label={`${filters.fechaDesde || '...'} a ${filters.fechaHasta || '...'}`} color="bg-green-100 text-green-700" onRemove={() => onSetMany({ fechaDesde: '', fechaHasta: '' })} />
+        <Chip label={`${filters.fechaCampo && filters.fechaCampo !== 'publication_date' ? (FECHA_CAMPO_LABELS[filters.fechaCampo] || filters.fechaCampo) + ': ' : ''}${filters.fechaDesde || '...'} a ${filters.fechaHasta || '...'}`} color="bg-green-100 text-green-700" onRemove={() => onSetMany({ fechaDesde: '', fechaHasta: '', fechaCampo: 'publication_date' })} />
       )}
       {filters.nuevasDesde && (
         <Chip label={`✨ Nuevas desde ${filters.nuevasDesde}`} color="bg-emerald-100 text-emerald-700" onRemove={() => onFilterChange('nuevasDesde', '')} />

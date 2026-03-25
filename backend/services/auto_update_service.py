@@ -97,6 +97,14 @@ class AutoUpdateService:
                     after_snapshot = self._take_snapshot(updated_doc)
                     changes = self._detect_changes(before_snapshot, after_snapshot)
 
+                    # Re-match nodos after enrichment (new objeto/description may match)
+                    try:
+                        from services.nodo_matcher import get_nodo_matcher
+                        matcher = get_nodo_matcher(self.db)
+                        await matcher.assign_nodos_to_licitacion(updated_doc)
+                    except Exception as nodo_err:
+                        logger.warning(f"Nodo re-matching failed for {lic_id}: {nodo_err}")
+
                     await self.collection.update_one(
                         {"_id": lic_doc["_id"]},
                         {

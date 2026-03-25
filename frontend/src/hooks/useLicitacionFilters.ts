@@ -66,7 +66,7 @@ function filterReducer(state: FilterState, action: FilterAction): FilterState {
     case 'SET_MANY':
       return { ...state, ...action.payload };
     case 'CLEAR_ALL':
-      return { ...initialFilters, yearWorkspace: new Date().getFullYear().toString() };
+      return { ...initialFilters, yearWorkspace: new Date().getFullYear().toString(), jurisdiccionMode: 'all' };
     default:
       return state;
   }
@@ -102,6 +102,7 @@ export function useLicitacionFilters(overrides?: Partial<FilterState>) {
   }, []);
 
   const defaultYear = new Date().getFullYear().toString();
+  const hasFechaCampoChanged = (filters.fechaDesde || filters.fechaHasta) && filters.fechaCampo !== 'publication_date';
   const hasActiveFilters = !!(
     filters.busqueda || filters.fuenteFiltro || filters.statusFiltro ||
     filters.categoryFiltro || filters.workflowFiltro || filters.jurisdiccionFiltro ||
@@ -109,7 +110,7 @@ export function useLicitacionFilters(overrides?: Partial<FilterState>) {
     filters.nodoFiltro || filters.estadoFiltro ||
     filters.budgetMin || filters.budgetMax ||
     filters.fechaDesde || filters.fechaHasta ||
-    filters.nuevasDesde ||
+    filters.nuevasDesde || hasFechaCampoChanged ||
     (filters.yearWorkspace !== defaultYear)
   );
 
@@ -121,6 +122,7 @@ export function useLicitacionFilters(overrides?: Partial<FilterState>) {
     filters.budgetMin, filters.budgetMax,
     filters.fechaDesde, filters.fechaHasta,
     filters.nuevasDesde,
+    hasFechaCampoChanged ? filters.fechaCampo : '',
     filters.yearWorkspace !== defaultYear ? filters.yearWorkspace : '',
   ].filter(Boolean).length;
 

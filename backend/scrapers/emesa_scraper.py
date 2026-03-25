@@ -276,6 +276,9 @@ class EmesaScraper(BaseScraper):
 
         description = item.get("descripcion", "")
 
+        from utils.object_extractor import extract_objeto
+        objeto = extract_objeto(title, description[:500] if description else "", None)
+
         # VIGENCIA MODEL: Resolve dates with multi-source fallback
         publication_date = self._resolve_publication_date(
             parsed_date=fecha_parsed,
@@ -308,6 +311,7 @@ class EmesaScraper(BaseScraper):
             id_licitacion=id_lic,
             title=title,
             description=description,
+            objeto=objeto,
             organization="EMESA - Empresa Mendocina de Energía",
             publication_date=publication_date,
             opening_date=opening_date,

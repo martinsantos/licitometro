@@ -576,6 +576,9 @@ class LasHerasScraper(BaseScraper):
                 f"{title.lower().strip()}|{organization}|{publication_date.strftime('%Y%m%d') if publication_date else 'unknown'}".encode()
             ).hexdigest()
 
+            from utils.object_extractor import extract_objeto
+            objeto = extract_objeto(title, title, None)
+
             # Metadata with raw row for debugging
             metadata = {
                 "las_heras_raw_cells": row.get("_raw_cells", []),
@@ -590,6 +593,7 @@ class LasHerasScraper(BaseScraper):
                 publication_date=publication_date,
                 opening_date=opening_date,
                 description=title,
+                objeto=objeto,
                 source_url=source_url,
                 canonical_url=detail_url or self.base_url,
                 source_urls={"las_heras": source_url},

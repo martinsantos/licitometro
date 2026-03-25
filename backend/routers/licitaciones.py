@@ -53,7 +53,6 @@ async def get_licitaciones(
     q: Optional[str] = Query(None, min_length=1, description="Search query (partial match)"),
     status: Optional[str] = None,
     organization: Optional[str] = None,
-    location: Optional[str] = None,
     category: Optional[str] = None,
     fuente: Optional[str] = None,
     workflow_state: Optional[str] = None,
@@ -79,7 +78,7 @@ async def get_licitaciones(
 
     try:
         return await _get_licitaciones_impl(
-            page, size, q, status, organization, location, category, fuente,
+            page, size, q, status, organization, category, fuente,
             workflow_state, jurisdiccion, tipo_procedimiento, nodo, estado,
             budget_min, budget_max, fecha_desde, fecha_hasta, fecha_campo,
             nuevas_desde, year, only_national, fuente_exclude, sort_by, sort_order, repo
@@ -90,7 +89,7 @@ async def get_licitaciones(
 
 
 async def _get_licitaciones_impl(
-    page, size, q, status, organization, location, category, fuente,
+    page, size, q, status, organization, category, fuente,
     workflow_state, jurisdiccion, tipo_procedimiento, nodo, estado,
     budget_min, budget_max, fecha_desde, fecha_hasta, fecha_campo,
     nuevas_desde, year, only_national, fuente_exclude, sort_by, sort_order, repo
@@ -131,7 +130,7 @@ async def _get_licitaciones_impl(
         fuente=fuente, organization=organization, status=status, category=category,
         workflow_state=workflow_state, jurisdiccion=jurisdiccion,
         tipo_procedimiento=tipo_procedimiento, nodo=nodo, estado=estado,
-        location=location, budget_min=budget_min, budget_max=budget_max,
+        budget_min=budget_min, budget_max=budget_max,
         fecha_desde=fecha_desde, fecha_hasta=fecha_hasta, fecha_campo=fecha_campo,
         nuevas_desde=nuevas_desde, year=year,
         only_national=bool(only_national), fuente_exclude=fuente_exclude,
@@ -249,14 +248,13 @@ async def get_vigentes(
 async def count_licitaciones(
     status: Optional[str] = None,
     organization: Optional[str] = None,
-    location: Optional[str] = None,
     category: Optional[str] = None,
     fuente: Optional[str] = None,
     repo: LicitacionRepository = Depends(get_licitacion_repository)
 ):
     """Count licitaciones with optional filtering"""
     filters = build_base_filters(
-        status=status, organization=organization, location=location,
+        status=status, organization=organization,
         category=category, fuente=fuente,
     )
     count = await repo.count(filters=filters)
@@ -274,7 +272,6 @@ async def get_facets(
     tipo_procedimiento: Optional[str] = None,
     nodo: Optional[str] = None,
     estado: Optional[str] = Query(None, description="Filter by estado: vigente | vencida | prorrogada | archivada"),
-    location: Optional[str] = None,
     budget_min: Optional[float] = None,
     budget_max: Optional[float] = None,
     fecha_desde: Optional[date] = None,
@@ -300,7 +297,7 @@ async def get_facets(
         fuente=fuente, organization=organization, status=status, category=category,
         workflow_state=workflow_state, jurisdiccion=jurisdiccion,
         tipo_procedimiento=tipo_procedimiento, nodo=nodo, estado=estado,
-        location=location, budget_min=budget_min, budget_max=budget_max,
+        budget_min=budget_min, budget_max=budget_max,
         fecha_desde=fecha_desde, fecha_hasta=fecha_hasta, fecha_campo=fecha_campo,
         nuevas_desde=nuevas_desde, year=year,
         only_national=bool(only_national), fuente_exclude=fuente_exclude, q=q,
@@ -367,7 +364,6 @@ async def debug_filters(
     q: Optional[str] = Query(None),
     status: Optional[str] = None,
     organization: Optional[str] = None,
-    location: Optional[str] = None,
     category: Optional[str] = None,
     fuente: Optional[str] = None,
     workflow_state: Optional[str] = None,
@@ -395,7 +391,7 @@ async def debug_filters(
         fuente=fuente, organization=organization, status=status, category=category,
         workflow_state=workflow_state, jurisdiccion=jurisdiccion,
         tipo_procedimiento=tipo_procedimiento, nodo=nodo, estado=estado,
-        location=location, budget_min=budget_min, budget_max=budget_max,
+        budget_min=budget_min, budget_max=budget_max,
         fecha_desde=fecha_desde, fecha_hasta=fecha_hasta, fecha_campo=fecha_campo,
         nuevas_desde=nuevas_desde, year=year,
         only_national=bool(only_national), fuente_exclude=fuente_exclude, q=q,
@@ -651,7 +647,7 @@ async def get_distinct_values(
 ):
     """Get distinct values for a given field"""
     # Validate field_name to prevent arbitrary field access if necessary
-    allowed_fields = ["organization", "location", "category", "fuente", "status", "workflow_state", "jurisdiccion", "tipo_procedimiento"]
+    allowed_fields = ["organization", "category", "fuente", "status", "workflow_state", "jurisdiccion", "tipo_procedimiento"]
     if field_name not in allowed_fields:
         raise HTTPException(status_code=400, detail=f"Filtering by field '{field_name}' is not allowed.")
 

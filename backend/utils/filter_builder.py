@@ -27,7 +27,6 @@ def build_base_filters(
     tipo_procedimiento: Optional[str] = None,
     nodo: Optional[str] = None,
     estado: Optional[str] = None,
-    location: Optional[str] = None,
     budget_min: Optional[float] = None,
     budget_max: Optional[float] = None,
     fecha_desde: Optional[date] = None,
@@ -75,9 +74,6 @@ def build_base_filters(
         # Default: excluir vencidas y archivadas — mostrar solo oportunidades activas.
         # Usuarios pueden opt-in a vencidas via sidebar EstadoFilter.
         filters["estado"] = {"$nin": ["vencida", "archivada"]}
-    if location:
-        filters["location"] = location
-
     # Case-insensitive anchored regex
     if fuente:
         filters["fuente"] = {"$regex": f"^{re.escape(fuente)}$", "$options": "i"}

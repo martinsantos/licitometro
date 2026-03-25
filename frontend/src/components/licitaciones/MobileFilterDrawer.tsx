@@ -214,8 +214,22 @@ const MobileFilterDrawer: React.FC<MobileFilterDrawerProps> = ({
             </FilterSection>
 
             {/* Fechas */}
-            <FilterSection title="Fechas" defaultOpen={false} badge={(filters.fechaDesde || filters.fechaHasta) ? 1 : 0}>
+            <FilterSection title="Fechas" defaultOpen={false} badge={(filters.fechaDesde || filters.fechaHasta || filters.nuevasDesde) ? 1 : 0}>
               <DateRangeFilter fechaDesde={filters.fechaDesde} fechaHasta={filters.fechaHasta} fechaCampo={filters.fechaCampo} onChange={onFilterChange} onClear={() => handleSetMany({ fechaDesde: '', fechaHasta: '', nuevasDesde: '' })} />
+              <div className="mt-2 pt-2 border-t border-gray-100">
+                <label className="text-xs font-bold text-gray-500 block mb-1">Nuevas desde</label>
+                <div className="flex items-center gap-2">
+                  <input
+                    type="date"
+                    value={filters.nuevasDesde}
+                    onChange={(e) => onFilterChange('nuevasDesde', e.target.value)}
+                    className="flex-1 px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm outline-none focus:border-emerald-400"
+                  />
+                  {filters.nuevasDesde && (
+                    <button onClick={() => onFilterChange('nuevasDesde', '')} className="text-gray-400 hover:text-red-500 text-xs font-bold">Limpiar</button>
+                  )}
+                </div>
+              </div>
             </FilterSection>
 
             {/* Agrupar por */}

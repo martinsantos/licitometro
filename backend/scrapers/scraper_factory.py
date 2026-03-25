@@ -7,7 +7,6 @@ import logging
 
 from models.scraper_config import ScraperConfig
 from scrapers.base_scraper import BaseScraper
-from scrapers.comprar_gob_ar import ComprarGobArScraper
 from scrapers.comprar_nacional_scraper import ComprarNacionalScraper
 from scrapers.boletin_oficial_mendoza_scraper import BoletinOficialMendozaScraper
 from scrapers.mendoza_compra import MendozaCompraScraper
@@ -122,8 +121,11 @@ def create_scraper(config: ScraperConfig) -> Optional[BaseScraper]:
         logger.info(f"Using MpfMendozaScraper for {config.name}")
         return MpfMendozaScraper(config)
 
-    # EMESA (Empresa Mendocina de Energía) - /concursos page works without Selenium
-    # Falls through to GenericHtmlScraper via selectors config
+    # EMESA (Empresa Mendocina de Energía)
+    if "emesa" in config_url_lower or "emesa" in config_name_lower or \
+       (config.selectors and config.selectors.get("scraper_type") == "emesa"):
+        logger.info(f"Using EmesaScraper for {config.name}")
+        return EmesaScraper(config)
 
     # Contrataciones Abiertas Mendoza (OCDS JSON downloads)
     # MUST be before mendoza.gov.ar fallback since URL contains mendoza.gov.ar

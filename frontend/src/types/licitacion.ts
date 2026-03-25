@@ -26,6 +26,8 @@ export interface Licitacion {
   first_seen_at?: string;
   nodos?: string[];
   tags?: string[];
+  contact?: string;
+  expiration_date?: string;
   estado?: 'vigente' | 'vencida' | 'prorrogada' | 'archivada';
   fecha_prorroga?: string;
   relevance_score?: number;

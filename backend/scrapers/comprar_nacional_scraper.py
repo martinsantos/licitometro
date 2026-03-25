@@ -432,6 +432,9 @@ class ComprarNacionalScraper(BaseScraper):
                 expedient_number = pliego_fields.get("Número de expediente") or pliego_fields.get("Número de Expediente")
                 description = pliego_fields.get("Objeto de la contratación") or pliego_fields.get("Objeto") or description
                 objeto = pliego_fields.get("Objeto de la contratación") or pliego_fields.get("Objeto")
+                if not objeto:
+                    from utils.object_extractor import extract_objeto
+                    objeto = extract_objeto(title, description[:500] if description else "", None)
                 currency = pliego_fields.get("Moneda")
                 contact = pliego_fields.get("Lugar de recepción de documentación física")
                 nombre_desc = pliego_fields.get("Nombre descriptivo del proceso") or pliego_fields.get("Nombre descriptivo de proceso")
