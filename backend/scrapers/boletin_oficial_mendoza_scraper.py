@@ -23,9 +23,9 @@ PROCESS_START_PATTERNS = [
     # Licitaciones
     r"(?:LLAMADO\s+(?:A\s+)?)?LICITACI[OÓ]N\s+(?:P[UÚ]BLICA|PRIVADA|ABREVIADA)?\s*(?:N[°ºoO]?\.?\s*)?(\d+[/-]?\d*)",
     r"LICITACI[OÓ]N\s+(?:P[UÚ]BLICA|PRIVADA)?\s+(?:NACIONAL|INTERNACIONAL)?",
-    # Contrataciones directas
+    # Contrataciones directas y menores
     r"CONTRATACI[OÓ]N\s+DIRECTA\s*(?:N[°ºoO]?\.?\s*)?(\d+[/-]?\d*)?",
-    r"CONTRATACI[OÓ]N\s+(?:MENOR|SIMPLIFICADA)",
+    r"CONTRATACI[OÓ]N\s+(?:MENOR|SIMPLIFICADA)\s*(?:N[°ºoO]?\.?\s*)?(\d+[/-]?\d*)?",
     # Concursos
     r"CONCURSO\s+(?:DE\s+)?PRECIOS?\s*(?:N[°ºoO]?\.?\s*)?(\d+[/-]?\d*)?",
     r"CONCURSO\s+P[UÚ]BLICO",
@@ -35,12 +35,16 @@ PROCESS_START_PATTERNS = [
     r"COMPARACI[OÓ]N\s+DE\s+PRECIOS?",
     # Llamados
     r"LLAMADO\s+(?:A\s+)?(?:LICITACI[OÓ]N|CONCURSO|COMPULSA)",
-    # Adjudicaciones
-    r"ADJUDICACI[OÓ]N\s+(?:DEFINITIVA|PROVISORIA)?",
+    # Adjudicaciones y preadjudicaciones
+    r"(?:PRE)?ADJUDICACI[OÓ]N\s+(?:DEFINITIVA|PROVISORIA)?",
     # Obras
     r"OBRA\s+(?:P[UÚ]BLICA)?\s*(?:N[°ºoO]?\.?\s*)?(\d+[/-]?\d*)?",
+    # Pedidos/solicitudes de cotización
+    r"(?:PEDIDO|SOLICITUD)\s+DE\s+COTIZACI[OÓ]N\s*(?:N[°ºoO]?\.?\s*)?(\d+[/-]?\d*)?",
     # Decretos y resoluciones sobre compras
-    r"(?:DECRETO|RESOLUCI[OÓ]N)\s*(?:N[°ºoO]?\.?\s*)?(\d+[/-]?\d*)\s*[-–]\s*(?:ADJUDIC|LICITA|CONTRAT)",
+    r"(?:DECRETO|RESOLUCI[OÓ]N)\s*(?:N[°ºoO]?\.?\s*)?(\d+[/-]?\d*)\s*[-–]\s*(?:ADJUDIC|LICITA|CONTRAT|COMPRA|OBRA)",
+    # Convenio marco
+    r"CONVENIO\s+MARCO\s*(?:N[°ºoO]?\.?\s*)?(\d+[/-]?\d*)?",
 ]
 
 # Keywords para filtrar secciones relevantes
@@ -49,10 +53,10 @@ PROCUREMENT_KEYWORDS = [
     "contratación", "contratacion", "contrataciones",
     "concurso", "concursos",
     "compulsa", "compulsas",
-    "adjudicación", "adjudicacion",
+    "adjudicación", "adjudicacion", "preadjudicación", "preadjudicacion",
     "pliego", "pliegos",
-    "presupuesto oficial",
-    "apertura de ofertas", "apertura de sobres",
+    "presupuesto oficial", "presupuesto estimado",
+    "apertura de ofertas", "apertura de sobres", "acta de apertura",
     "llamado", "llamados",
     "obra pública", "obras públicas",
     "adquisición", "adquisicion",
@@ -61,6 +65,11 @@ PROCUREMENT_KEYWORDS = [
     "precio testigo",
     "contratista", "contratistas",
     "proveedor", "proveedores",
+    "contratación menor", "contratación simplificada",
+    "pedido de cotización", "solicitud de cotización",
+    "convenio marco",
+    "adenda", "enmienda", "modificación de pliego",
+    "circular",
 ]
 
 
@@ -237,6 +246,29 @@ class BoletinOficialMendozaScraper(BaseScraper):
             return full
         return None
 
+    @staticmethod
+    def _extract_budget_from_text(text: str) -> Optional[float]:
+        """Extract budget/presupuesto amount from PDF text section."""
+        patterns = [
+            r"presupuesto\s*(?:oficial|estimado)?\s*[:\$]\s*\$?\s*([\d]+[.,\d]*)",
+            r"monto\s*(?:estimado|total)?\s*[:\$]\s*\$?\s*([\d]+[.,\d]*)",
+            r"importe\s*[:\$]\s*\$?\s*([\d]+[.,\d]*)",
+            r"(?:PESOS|ARS|\$)\s*([\d]+[.,\d]*)",
+        ]
+        for pattern in patterns:
+            m = re.search(pattern, text, re.IGNORECASE)
+            if m:
+                raw = m.group(1).strip()
+                # Argentine format: 1.234.567,89 → remove dots, replace comma with dot
+                clean = raw.replace(".", "").replace(",", ".")
+                try:
+                    val = float(clean)
+                    if val > 0:
+                        return val
+                except ValueError:
+                    continue
+        return None
+
     def _segment_processes(self, text: str, source_url: str, pub_date: datetime) -> List[Dict[str, Any]]:
         """
         Segment PDF text into individual procurement processes.
@@ -303,6 +335,9 @@ class BoletinOficialMendozaScraper(BaseScraper):
             if objeto:
                 title = f"{title} - {objeto[:100]}"
 
+            # Extract budget from PDF text
+            budget = self._extract_budget_from_text(section_text)
+
             processes.append({
                 "process_type": process_type,
                 "process_number": process_number,
@@ -313,6 +348,7 @@ class BoletinOficialMendozaScraper(BaseScraper):
                 "keywords_found": keywords_found,
                 "source_url": source_url,
                 "publication_date": pub_date,
+                "budget": budget,
             })
 
         return processes
@@ -575,6 +611,8 @@ class BoletinOficialMendozaScraper(BaseScraper):
                 attached_files=[{"name": f"Boletín {boletin_num}", "url": pdf_url, "type": "pdf"}],
                 keywords=proc.get("keywords_found", []),
                 content_hash=content_hash,
+                budget=proc.get("budget"),
+                currency="ARS" if proc.get("budget") else None,
                 metadata={"boe_apertura_raw": proc.get("content", "")[:500]},
                 estado=estado,
                 fecha_prorroga=None,

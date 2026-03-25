@@ -404,6 +404,10 @@ class ComprasAppsMendozaScraper(BaseScraper):
             # Compute estado
             estado_vigencia = self._compute_estado(publication_date, opening_date, fecha_prorroga=None)
 
+            # Extract objeto from title
+            from utils.object_extractor import extract_objeto
+            objeto = extract_objeto(titulo, titulo, None)
+
             return LicitacionCreate(
                 title=titulo,
                 organization=organization,
@@ -411,6 +415,7 @@ class ComprasAppsMendozaScraper(BaseScraper):
                 opening_date=opening_date,
                 licitacion_number=numero,
                 description=titulo,
+                objeto=objeto,
                 source_url=self.BASE_URL,
                 canonical_url=self.BASE_URL,
                 source_urls={"comprasapps_list": self.BASE_URL},
@@ -445,7 +450,7 @@ class ComprasAppsMendozaScraper(BaseScraper):
 
             selectors = self.config.selectors or {}
             current_year = datetime.now().year
-            years_to_search = selectors.get("years", [current_year, current_year - 1])
+            years_to_search = selectors.get("years", [current_year, current_year - 1, current_year - 2])
             # GeneXus estado filters:
             #   "V" = Vigente only, "P" = En Proceso only, "A" = Adjudicada only
             #   "" (empty) returns Vigente on page 1 but BREAKS pagination (always returns page 1)

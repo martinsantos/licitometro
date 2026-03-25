@@ -641,6 +641,37 @@ class MendozaCompraScraperV2(BaseScraper):
                     if nombre_desc and len(nombre_desc.strip()) > 10:
                         title = nombre_desc.strip()
 
+                    # Budget extraction from pliego labels
+                    budget_raw = (
+                        pliego_fields.get("Presupuesto estimado") or
+                        pliego_fields.get("Presupuesto Estimado") or
+                        pliego_fields.get("Monto estimado") or
+                        pliego_fields.get("Monto Estimado") or
+                        pliego_fields.get("Presupuesto oficial") or
+                        pliego_fields.get("Presupuesto Oficial") or
+                        ""
+                    )
+                    if budget_raw:
+                        import re as _re
+                        budget_match = _re.search(r'[\d]+[.,\d]*', budget_raw.replace('.', '').replace(',', '.'))
+                        if budget_match:
+                            try:
+                                budget = float(budget_match.group())
+                            except ValueError:
+                                pass
+
+                    # Publication date from pliego labels (instead of inferring)
+                    pub_raw = (
+                        pliego_fields.get("Fecha y hora estimada de publicación en el portal") or
+                        pliego_fields.get("Fecha de publicación") or
+                        ""
+                    )
+                    if pub_raw and not publication_date:
+                        from utils.dates import parse_date_guess
+                        pub_parsed = parse_date_guess(pub_raw)
+                        if pub_parsed:
+                            publication_date = pub_parsed
+
                 content_hash = hashlib.md5(
                     f"{title.lower().strip()}|{servicio_admin or unidad or ''}|{publication_date.strftime('%Y%m%d') if publication_date else 'unknown'}".encode()
                 ).hexdigest()
