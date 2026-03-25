@@ -24,8 +24,14 @@ class FirecrawlService:
         url: str,
         formats: List[str] = None,
         timeout: int = 30,
+        actions: Optional[List[Dict[str, Any]]] = None,
     ) -> Dict[str, Any]:
         """Scrape a single URL via Firecrawl API.
+
+        actions: optional browser actions to execute before scraping, e.g.:
+          [{"type": "wait", "milliseconds": 2000},
+           {"type": "click", "selector": "#btnBuscar"},
+           {"type": "wait", "milliseconds": 3000}]
 
         Returns: {success, timing_ms, data?, error?, summary?}
         """
@@ -39,7 +45,9 @@ class FirecrawlService:
             "Authorization": f"Bearer {self.api_key}",
             "Content-Type": "application/json",
         }
-        body = {"url": url, "formats": formats}
+        body: Dict[str, Any] = {"url": url, "formats": formats}
+        if actions:
+            body["actions"] = actions
 
         start = time.time()
         try:

@@ -9,8 +9,51 @@ interface ScraperConfig {
   name: string;
   url: string;
   active: boolean;
-  last_items_found?: number;
 }
+
+interface ActionPreset {
+  label: string;
+  url: string;
+  actions: any[];
+}
+
+const ACTION_PRESETS: ActionPreset[] = [
+  {
+    label: 'COMPR.AR Mza (click Buscar)',
+    url: 'https://comprar.mendoza.gov.ar/Compras.aspx',
+    actions: [
+      { type: 'wait', milliseconds: 3000 },
+      { type: 'click', selector: 'input[type="submit"][value*="Buscar"], #ctl00_CPH1_btnBuscar, .btn-search, input[name*="Buscar"]' },
+      { type: 'wait', milliseconds: 5000 },
+    ],
+  },
+  {
+    label: 'ComprasApps (esperar carga)',
+    url: 'https://comprasapps.mendoza.gov.ar/Compras/servlet/hli00049',
+    actions: [
+      { type: 'wait', milliseconds: 4000 },
+    ],
+  },
+  {
+    label: 'COMPR.AR Nac (click Buscar)',
+    url: 'https://comprar.gob.ar/BuscarAvanzado2.aspx',
+    actions: [
+      { type: 'wait', milliseconds: 3000 },
+      { type: 'click', selector: 'input[type="submit"][value*="Buscar"], .btn-search' },
+      { type: 'wait', milliseconds: 5000 },
+    ],
+  },
+  {
+    label: 'BOE Mendoza',
+    url: 'https://boe.mendoza.gov.ar/',
+    actions: [],
+  },
+  {
+    label: 'BOE Nacional (3ra seccion)',
+    url: 'https://www.boletinoficial.gob.ar/seccion/tercera',
+    actions: [],
+  },
+];
 
 const TimingBadge: React.FC<{ ms: number }> = ({ ms }) => {
   const s = ms / 1000;
@@ -29,9 +72,11 @@ const LabPage: React.FC = () => {
 
   // Quick test state
   const [quickUrl, setQuickUrl] = useState('');
+  const [quickActions, setQuickActions] = useState('');
   const [quickLoading, setQuickLoading] = useState(false);
   const [quickResult, setQuickResult] = useState<any>(null);
   const [dataTab, setDataTab] = useState<DataTab>('markdown');
+  const [showActions, setShowActions] = useState(false);
 
   // Compare state
   const [configs, setConfigs] = useState<ScraperConfig[]>([]);
@@ -49,12 +94,30 @@ const LabPage: React.FC = () => {
       .catch(() => {});
   }, []);
 
+  const applyPreset = (preset: ActionPreset) => {
+    setQuickUrl(preset.url);
+    if (preset.actions.length > 0) {
+      setQuickActions(JSON.stringify(preset.actions, null, 2));
+      setShowActions(true);
+    } else {
+      setQuickActions('');
+      setShowActions(false);
+    }
+  };
+
   const runQuickTest = async () => {
     if (!quickUrl) return;
     setQuickLoading(true);
     setQuickResult(null);
     try {
-      const res = await axios.post('/api/lab/firecrawl-test', { url: quickUrl });
+      let actions = undefined;
+      if (quickActions.trim()) {
+        try { actions = JSON.parse(quickActions); } catch { /* ignore parse error */ }
+      }
+      const res = await axios.post('/api/lab/firecrawl-test', {
+        url: quickUrl,
+        ...(actions ? { actions } : {}),
+      });
       setQuickResult(res.data);
     } catch (err: any) {
       setQuickResult({ success: false, error: err?.response?.data?.detail || err.message, timing_ms: 0 });
@@ -105,6 +168,13 @@ const LabPage: React.FC = () => {
               onKeyDown={e => e.key === 'Enter' && runQuickTest()}
             />
             <button
+              onClick={() => setShowActions(!showActions)}
+              className={`px-3 py-2 rounded-lg text-xs font-bold transition-colors ${showActions ? 'bg-orange-100 text-orange-700' : 'bg-gray-100 text-gray-500 hover:bg-gray-200'}`}
+              title="Browser actions (click, wait, type)"
+            >
+              Actions
+            </button>
+            <button
               onClick={runQuickTest}
               disabled={quickLoading || !quickUrl}
               className="px-6 py-2 bg-orange-600 text-white rounded-lg text-sm font-bold hover:bg-orange-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
@@ -113,24 +183,33 @@ const LabPage: React.FC = () => {
             </button>
           </div>
 
-          {/* Quick shortcuts */}
+          {/* Presets */}
           <div className="flex gap-2 flex-wrap">
-            {[
-              { label: 'BOE Mendoza', url: 'https://boe.mendoza.gov.ar/' },
-              { label: 'COMPR.AR Mza', url: 'https://comprar.mendoza.gov.ar/Compras.aspx' },
-              { label: 'ComprasApps', url: 'https://comprasapps.mendoza.gov.ar/Compras/servlet/hli00049' },
-              { label: 'BOE Nacional', url: 'https://www.boletinoficial.gob.ar/seccion/tercera' },
-              { label: 'COMPR.AR Nac', url: 'https://comprar.gob.ar/BuscarAvanzado2.aspx' },
-            ].map(s => (
-              <button key={s.url} onClick={() => { setQuickUrl(s.url); }} className="px-3 py-1 bg-gray-100 text-gray-600 rounded text-xs font-bold hover:bg-gray-200 transition-colors">
-                {s.label}
+            {ACTION_PRESETS.map(p => (
+              <button key={p.url} onClick={() => applyPreset(p)} className="px-3 py-1 bg-gray-100 text-gray-600 rounded text-xs font-bold hover:bg-gray-200 transition-colors">
+                {p.label} {p.actions.length > 0 && <span className="text-orange-500 ml-1">[actions]</span>}
               </button>
             ))}
           </div>
 
+          {/* Actions editor */}
+          {showActions && (
+            <div className="bg-gray-50 border border-gray-200 rounded-lg p-3">
+              <div className="flex items-center justify-between mb-2">
+                <label className="text-xs font-bold text-gray-500">Browser Actions (JSON)</label>
+                <span className="text-[10px] text-gray-400">wait, click, write, scroll</span>
+              </div>
+              <textarea
+                value={quickActions}
+                onChange={e => setQuickActions(e.target.value)}
+                placeholder={'[\n  {"type": "wait", "milliseconds": 2000},\n  {"type": "click", "selector": "#btnBuscar"}\n]'}
+                className="w-full h-28 px-3 py-2 bg-white border border-gray-200 rounded text-xs font-mono focus:outline-none focus:border-orange-400 resize-y"
+              />
+            </div>
+          )}
+
           {quickResult && (
             <div className="space-y-4">
-              {/* Summary card */}
               <div className="bg-white border border-gray-200 rounded-lg p-4">
                 <div className="flex items-center gap-3 flex-wrap">
                   <StatusBadge success={quickResult.success} />
@@ -150,7 +229,6 @@ const LabPage: React.FC = () => {
                 )}
               </div>
 
-              {/* Raw data tabs */}
               {quickResult.data && (
                 <div>
                   <div className="flex gap-1 mb-2">
@@ -191,7 +269,7 @@ const LabPage: React.FC = () => {
         <div className="space-y-4">
           <div className="flex gap-2 items-end flex-wrap">
             <div className="flex-1 min-w-[200px]">
-              <label className="text-xs font-bold text-gray-500 block mb-1">Fuente</label>
+              <label className="text-xs font-bold text-gray-500 block mb-1">Fuente ({configs.length} activas)</label>
               <select
                 value={selectedConfig}
                 onChange={e => setSelectedConfig(e.target.value)}
@@ -200,7 +278,7 @@ const LabPage: React.FC = () => {
                 <option value="">Seleccionar fuente...</option>
                 {configs.map(c => (
                   <option key={c.id} value={c.id}>
-                    {c.name} {c.last_items_found ? `(~${c.last_items_found} items)` : ''}
+                    {c.name}
                   </option>
                 ))}
               </select>

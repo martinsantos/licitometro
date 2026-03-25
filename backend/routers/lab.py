@@ -19,9 +19,17 @@ router = APIRouter(
 )
 
 
+class FirecrawlAction(BaseModel):
+    type: str  # wait, click, write, scroll, screenshot
+    selector: Optional[str] = None
+    milliseconds: Optional[int] = None
+    text: Optional[str] = None
+
+
 class FirecrawlTestRequest(BaseModel):
     url: str
     formats: List[str] = ["markdown", "html", "links"]
+    actions: Optional[List[FirecrawlAction]] = None
 
 
 class CompareRequest(BaseModel):
@@ -38,7 +46,8 @@ async def firecrawl_test(body: FirecrawlTestRequest):
     if not service.enabled:
         raise HTTPException(400, "FIRECRAWL_API_KEY not configured on server")
 
-    result = await service.scrape(body.url, body.formats, timeout=45)
+    actions = [a.model_dump(exclude_none=True) for a in body.actions] if body.actions else None
+    result = await service.scrape(body.url, body.formats, timeout=60, actions=actions)
     return result
 
 
@@ -47,10 +56,15 @@ async def compare_scrapers(body: CompareRequest, request: Request):
     """Run current scraper + Firecrawl on same source, return side-by-side."""
     db = request.app.mongodb
 
-    # Load scraper config
-    config_doc = await db.scraper_configs.find_one({"id": body.config_id})
+    from bson import ObjectId
+
+    # Load scraper config by ObjectId first, then fallback to name
+    config_doc = None
+    try:
+        config_doc = await db.scraper_configs.find_one({"_id": ObjectId(body.config_id)})
+    except Exception:
+        pass
     if not config_doc:
-        # Try by name (fallback)
         config_doc = await db.scraper_configs.find_one({
             "name": {"$regex": body.config_id, "$options": "i"}
         })
