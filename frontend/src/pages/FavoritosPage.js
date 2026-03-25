@@ -15,7 +15,8 @@ const FavoritosPage = () => {
   const [sortBy, setSortBy] = useState('fecha_guardado'); // fecha_guardado, publication_date, opening_date
   const [sortOrder, setSortOrder] = useState('desc');
 
-  // Load favoritos from localStorage and fetch their data
+  // Load favoritos: localStorage is the single source of truth.
+  // Server is used for backup/sync only.
   useEffect(() => {
     const loadFavoritos = async () => {
       setLoading(true);
@@ -29,7 +30,7 @@ const FavoritosPage = () => {
       }
 
       try {
-        // Fetch all saved licitaciones
+        // Fetch all saved licitaciones in parallel
         const promises = savedIds.map(id =>
           axios.get(`${API}/licitaciones/${id}`).catch(() => null)
         );
@@ -41,6 +42,16 @@ const FavoritosPage = () => {
             fecha_guardado: savedDates[r.data.id] || new Date().toISOString()
           }));
         setFavoritos(validResults);
+
+        // Background: sync localStorage → server (no merge back)
+        axios.get(`${API}/licitaciones/favorites`).then(resp => {
+          const serverIds = new Set(resp.data || []);
+          savedIds.forEach(id => {
+            if (!serverIds.has(id)) {
+              axios.post(`${API}/licitaciones/favorites/${id}`).catch(() => {});
+            }
+          });
+        }).catch(() => {});
       } catch (err) {
         console.error('Error loading favoritos:', err);
       } finally {
@@ -111,8 +122,10 @@ const FavoritosPage = () => {
       } else if (groupBy === 'fuente') {
         key = fav.fuente || 'Sin fuente';
       } else if (groupBy === 'fecha') {
-        const date = new Date(fav.publication_date);
-        key = format(date, 'MMMM yyyy', { locale: es });
+        try {
+          const date = fav.publication_date ? new Date(fav.publication_date) : null;
+          key = date && !isNaN(date.getTime()) ? format(date, 'MMMM yyyy', { locale: es }) : 'Sin fecha';
+        } catch { key = 'Sin fecha'; }
       } else if (groupBy === 'status') {
         key = fav.status === 'active' ? 'Abiertas' : 'Cerradas';
       } else if (groupBy === 'jurisdiccion') {
@@ -136,7 +149,11 @@ const FavoritosPage = () => {
 
   const formatDate = (dateString) => {
     if (!dateString) return 'N/A';
-    return format(new Date(dateString), 'dd/MM/yyyy', { locale: es });
+    try {
+      const d = new Date(dateString);
+      if (isNaN(d.getTime())) return 'N/A';
+      return format(d, 'dd/MM/yyyy', { locale: es });
+    } catch { return 'N/A'; }
   };
 
   if (loading) {
