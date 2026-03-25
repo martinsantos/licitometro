@@ -667,7 +667,6 @@ class MendozaCompraScraperV2(BaseScraper):
                         ""
                     )
                     if pub_raw and not publication_date:
-                        from utils.dates import parse_date_guess
                         pub_parsed = parse_date_guess(pub_raw)
                         if pub_parsed:
                             publication_date = pub_parsed
