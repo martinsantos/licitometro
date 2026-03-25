@@ -29,15 +29,11 @@ CYAN = "\033[96m"
 
 # Target sources to test
 TARGETS = [
+    # --- Mendoza sources (production URLs) ---
     {
-        "name": "Boletin Oficial Mendoza",
-        "url": "https://boe.mendoza.gov.ar/",
-        "type": "PDF gazette",
-    },
-    {
-        "name": "COMPR.AR Mendoza",
-        "url": "https://comprar.mendoza.gov.ar/Compras.aspx",
-        "type": "ASP.NET postback",
+        "name": "COMPR.AR Mendoza (lista)",
+        "url": "https://comprar.mendoza.gov.ar/Compras.aspx?qs=W1HXHGHtH10=",
+        "type": "ASP.NET postback — list_url from config",
     },
     {
         "name": "ComprasApps Mendoza",
@@ -45,14 +41,25 @@ TARGETS = [
         "type": "GeneXus servlet",
     },
     {
-        "name": "COMPR.AR Nacional",
-        "url": "https://comprar.gob.ar/BuscarAvanzado2.aspx",
-        "type": "ASP.NET (503 blocked)",
+        "name": "OSEP (lista COMPR.AR)",
+        "url": "https://comprarosep.mendoza.gov.ar/Compras.aspx?qs=W1HXHGHtH10=",
+        "type": "ASP.NET — list_url from config",
     },
     {
-        "name": "Boletin Oficial Nacional",
+        "name": "Boletin Oficial Mendoza",
+        "url": "https://informacionoficial.mendoza.gob.ar/boletinoficial/busqueda-avanzada/",
+        "type": "JS search form + API",
+    },
+    # --- Nacional sources ---
+    {
+        "name": "Boletin Oficial Nacional (3ra)",
         "url": "https://www.boletinoficial.gob.ar/seccion/tercera",
         "type": "3ra seccion",
+    },
+    {
+        "name": "COMPR.AR Nacional (BuscarAvanzado)",
+        "url": "https://comprar.gob.ar/BuscarAvanzado.aspx",
+        "type": "ASP.NET — search form",
     },
 ]
 

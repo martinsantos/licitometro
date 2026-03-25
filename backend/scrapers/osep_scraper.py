@@ -196,6 +196,9 @@ class OsepScraper(BaseScraper):
                     target = m.group(1)
             
             numero = cols[0].get_text(' ', strip=True)
+            # Filter ASP.NET pager rows ("1 2 3 4 5 6 7 8 9 10")
+            if re.match(r'^[\d\s.…]+$', numero.strip()):
+                continue
             title = cols[1].get_text(' ', strip=True)
             tipo = cols[2].get_text(' ', strip=True)
             apertura = cols[3].get_text(' ', strip=True)

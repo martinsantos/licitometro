@@ -89,7 +89,7 @@ class BoletinOficialMendozaScraper(BaseScraper):
     """
 
     DEFAULT_TZ = "America/Argentina/Mendoza"
-    DEFAULT_BUSINESS_DAYS_WINDOW = 4  # hoy + 3 dias habiles hacia atras
+    DEFAULT_BUSINESS_DAYS_WINDOW = 14  # 14 dias habiles para capturar republicaciones y extensiones
 
     def __init__(self, config: ScraperConfig):
         super().__init__(config)

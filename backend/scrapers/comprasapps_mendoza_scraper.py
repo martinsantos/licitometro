@@ -469,65 +469,75 @@ class ComprasAppsMendozaScraper(BaseScraper):
                     estado_label = estado or "(Vigente/empty)"
                     logger.info(f"Searching year {anio}, estado={estado_label}, cuc={cuc}")
 
-                    # Re-initialize session for each search to get fresh GXState
-                    if not await self._init_session():
-                        logger.warning(f"Session init failed for {anio}/{estado_label}")
-                        continue
+                    # Per-year/estado timeout: prevent one slow search from blocking entire run
+                    async def _do_search():
+                        # Re-initialize session for each search to get fresh GXState
+                        if not await self._init_session():
+                            logger.warning(f"Session init failed for {anio}/{estado_label}")
+                            return []
 
-                    form_data = self._build_search_form(
-                        anio=anio, estado=estado, cuc=cuc)
-                    search_html = await self._post_search(form_data)
-                    if not search_html:
-                        logger.warning(f"Search failed for {anio}/{estado_label}")
-                        continue
-
-                    page = 1
-                    search_rows = 0
-                    consecutive_stale = 0  # Pages with 0 new rows
-                    MAX_STALE_PAGES = 3    # Stop after N consecutive stale pages
-
-                    while True:
-                        rows = self._extract_grid_data(search_html)
-                        if not rows:
-                            break
-
-                        # Dedup: skip rows we've already seen
-                        new_rows = []
-                        for row in rows:
-                            num = str(row[0]).strip() if len(row) > 0 else ""
-                            if num and num not in seen_numeros:
-                                seen_numeros.add(num)
-                                new_rows.append(row)
-
-                        all_rows.extend(new_rows)
-                        search_rows += len(new_rows)
-                        logger.info(f"  {anio}/{estado_label} p{page}: "
-                                   f"{len(rows)} rows ({len(new_rows)} new, "
-                                   f"total: {len(all_rows)})")
-
-                        # Early stop: if pagination loops (returns same rows)
-                        if len(new_rows) == 0:
-                            consecutive_stale += 1
-                            if consecutive_stale >= MAX_STALE_PAGES:
-                                logger.warning(f"  Stopping: {MAX_STALE_PAGES} "
-                                             f"consecutive pages with 0 new rows")
-                                break
-                        else:
-                            consecutive_stale = 0
-
-                        if len(rows) < ROWS_PER_PAGE or page >= max_pages:
-                            break
-
-                        page += 1
-                        page_offset = (page - 1) * ROWS_PER_PAGE
-                        await asyncio.sleep(self.config.wait_time)
-
-                        page_form = self._build_page_form(page_offset)
-                        search_html = await self._post_search(page_form)
+                        form_data = self._build_search_form(
+                            anio=anio, estado=estado, cuc=cuc)
+                        search_html = await self._post_search(form_data)
                         if not search_html:
-                            break
+                            logger.warning(f"Search failed for {anio}/{estado_label}")
+                            return []
 
-                    logger.info(f"  {anio}/{estado_label}: {search_rows} unique rows")
+                        page = 1
+                        search_rows_count = 0
+                        consecutive_stale = 0
+                        MAX_STALE_PAGES = 3
+                        found_rows = []
+
+                        while True:
+                            rows = self._extract_grid_data(search_html)
+                            if not rows:
+                                break
+
+                            new_rows = []
+                            for row in rows:
+                                num = str(row[0]).strip() if len(row) > 0 else ""
+                                if num and num not in seen_numeros:
+                                    seen_numeros.add(num)
+                                    new_rows.append(row)
+
+                            found_rows.extend(new_rows)
+                            search_rows_count += len(new_rows)
+                            logger.info(f"  {anio}/{estado_label} p{page}: "
+                                       f"{len(rows)} rows ({len(new_rows)} new, "
+                                       f"total: {len(all_rows) + len(found_rows)})")
+
+                            if len(new_rows) == 0:
+                                consecutive_stale += 1
+                                if consecutive_stale >= MAX_STALE_PAGES:
+                                    logger.warning(f"  Stopping: {MAX_STALE_PAGES} "
+                                                 f"consecutive pages with 0 new rows")
+                                    break
+                            else:
+                                consecutive_stale = 0
+
+                            if len(rows) < ROWS_PER_PAGE or page >= max_pages:
+                                break
+
+                            page += 1
+                            page_offset = (page - 1) * ROWS_PER_PAGE
+                            await asyncio.sleep(self.config.wait_time)
+
+                            page_form = self._build_page_form(page_offset)
+                            search_html = await self._post_search(page_form)
+                            if not search_html:
+                                break
+
+                        logger.info(f"  {anio}/{estado_label}: {search_rows_count} unique rows")
+                        return found_rows
+
+                    try:
+                        year_rows = await asyncio.wait_for(_do_search(), timeout=90)
+                        all_rows.extend(year_rows)
+                    except asyncio.TimeoutError:
+                        logger.warning(f"Timeout (90s) searching year {anio}, estado={estado_label} — skipping")
+                    except Exception as e:
+                        logger.warning(f"Error searching year {anio}, estado={estado_label}: {e}")
 
             logger.info(f"Total rows extracted: {len(all_rows)}")
 
