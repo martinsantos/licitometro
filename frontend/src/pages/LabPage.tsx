@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 
-type Tab = 'quick' | 'compare';
+type Tab = 'quick' | 'compare' | 'extract';
 type DataTab = 'markdown' | 'html' | 'links';
 
 interface ScraperConfig {
@@ -85,6 +85,13 @@ const LabPage: React.FC = () => {
   const [compareLoading, setCompareLoading] = useState(false);
   const [compareResult, setCompareResult] = useState<any>(null);
 
+  // Extract state
+  const [extractUrl, setExtractUrl] = useState('');
+  const [extractPrompt, setExtractPrompt] = useState('Extraer todas las licitaciones, compras y contrataciones publicas de esta pagina. Para cada una incluir: titulo/objeto, numero de proceso, organismo, presupuesto estimado, fecha de publicacion, fecha de apertura, tipo de procedimiento, estado y URL de detalle.');
+  const [extractLoading, setExtractLoading] = useState(false);
+  const [extractResult, setExtractResult] = useState<any>(null);
+  const [showRawExtract, setShowRawExtract] = useState(false);
+
   useEffect(() => {
     axios.get('/api/scraper-configs/?active_only=true&limit=100')
       .then(res => {
@@ -138,6 +145,23 @@ const LabPage: React.FC = () => {
     setCompareLoading(false);
   };
 
+  const runExtract = async () => {
+    if (!extractUrl) return;
+    setExtractLoading(true);
+    setExtractResult(null);
+    try {
+      const res = await axios.post('/api/lab/extract', {
+        urls: [extractUrl],
+        prompt: extractPrompt,
+        use_default_schema: true,
+      });
+      setExtractResult(res.data);
+    } catch (err: any) {
+      setExtractResult({ success: false, error: err?.response?.data?.detail || err.message });
+    }
+    setExtractLoading(false);
+  };
+
   return (
     <div className="max-w-7xl mx-auto px-4 py-6">
       <div className="flex items-center gap-3 mb-6">
@@ -152,6 +176,9 @@ const LabPage: React.FC = () => {
         </button>
         <button onClick={() => setTab('compare')} className={`px-4 py-2 rounded-md text-sm font-bold transition-all ${tab === 'compare' ? 'bg-white text-gray-800 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}>
           Compare
+        </button>
+        <button onClick={() => setTab('extract')} className={`px-4 py-2 rounded-md text-sm font-bold transition-all ${tab === 'extract' ? 'bg-white text-gray-800 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}>
+          Extract (LLM)
         </button>
       </div>
 
@@ -398,6 +425,135 @@ const LabPage: React.FC = () => {
 
           {compareResult?.error && (
             <div className="text-sm text-red-600 bg-red-50 rounded-lg p-4">{compareResult.error}</div>
+          )}
+        </div>
+      )}
+
+      {/* Extract Tab */}
+      {tab === 'extract' && (
+        <div className="space-y-4">
+          <div className="flex gap-2">
+            <input
+              type="text"
+              value={extractUrl}
+              onChange={e => setExtractUrl(e.target.value)}
+              placeholder="https://ejemplo.gov.ar/licitaciones/"
+              className="flex-1 px-4 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:border-purple-400"
+              onKeyDown={e => e.key === 'Enter' && runExtract()}
+            />
+            <button
+              onClick={runExtract}
+              disabled={extractLoading || !extractUrl}
+              className="px-6 py-2 bg-purple-600 text-white rounded-lg text-sm font-bold hover:bg-purple-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+            >
+              {extractLoading ? 'Extrayendo...' : 'Extraer'}
+            </button>
+          </div>
+
+          {/* Presets */}
+          <div className="flex gap-2 flex-wrap">
+            {[
+              { label: 'COPIG Mendoza', url: 'https://www.copigmza.org.ar/licitaciones/' },
+              { label: 'OSEP lista', url: 'https://comprarosep.mendoza.gov.ar/Compras.aspx?qs=W1HXHGHtH10=' },
+              { label: 'San Carlos', url: 'https://sancarlos.gob.ar/licitaciones/' },
+              { label: 'EPRE', url: 'https://epremendoza.gob.ar/compras-licitaciones-2/' },
+              { label: 'EMESA', url: 'https://emesa.com.ar/concursos' },
+              { label: 'BOE Nacional', url: 'https://www.boletinoficial.gob.ar/seccion/tercera' },
+            ].map(p => (
+              <button key={p.url} onClick={() => setExtractUrl(p.url)} className="px-3 py-1 bg-purple-50 text-purple-600 rounded text-xs font-bold hover:bg-purple-100 transition-colors">
+                {p.label}
+              </button>
+            ))}
+          </div>
+
+          {/* Prompt */}
+          <div>
+            <label className="text-xs font-bold text-gray-500 block mb-1">Prompt (instrucciones para el LLM)</label>
+            <textarea
+              value={extractPrompt}
+              onChange={e => setExtractPrompt(e.target.value)}
+              className="w-full h-20 px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-xs focus:outline-none focus:border-purple-400 resize-y"
+            />
+          </div>
+
+          {extractLoading && (
+            <div className="text-center py-12 text-gray-400">
+              <div className="animate-spin inline-block w-8 h-8 border-2 border-gray-300 border-t-purple-500 rounded-full mb-2"></div>
+              <p className="text-sm">Firecrawl LLM extrayendo datos estructurados...</p>
+              <p className="text-xs text-gray-300 mt-1">Esto puede tomar 20-60 segundos</p>
+            </div>
+          )}
+
+          {extractResult && (
+            <div className="space-y-4">
+              <div className="bg-white border border-gray-200 rounded-lg p-4">
+                <div className="flex items-center gap-3 flex-wrap">
+                  <StatusBadge success={extractResult.success} />
+                  {extractResult.timing_ms > 0 && <TimingBadge ms={extractResult.timing_ms} />}
+                  {extractResult.data?.licitaciones && (
+                    <span className="text-sm font-bold text-purple-700">
+                      {extractResult.data.licitaciones.length} licitaciones extraidas
+                    </span>
+                  )}
+                </div>
+                {extractResult.error && (
+                  <div className="mt-2 text-sm text-red-600 bg-red-50 rounded p-2">{extractResult.error}</div>
+                )}
+              </div>
+
+              {/* Results table */}
+              {extractResult.data?.licitaciones && extractResult.data.licitaciones.length > 0 && (
+                <div className="bg-white border border-gray-200 rounded-lg overflow-hidden">
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-xs">
+                      <thead>
+                        <tr className="bg-purple-50 text-purple-800">
+                          <th className="px-3 py-2 text-left font-bold">#</th>
+                          <th className="px-3 py-2 text-left font-bold">Titulo</th>
+                          <th className="px-3 py-2 text-left font-bold">Numero</th>
+                          <th className="px-3 py-2 text-left font-bold">Organismo</th>
+                          <th className="px-3 py-2 text-left font-bold">Presupuesto</th>
+                          <th className="px-3 py-2 text-left font-bold">Apertura</th>
+                          <th className="px-3 py-2 text-left font-bold">Estado</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {extractResult.data.licitaciones.map((lic: any, i: number) => (
+                          <tr key={i} className={i % 2 === 0 ? 'bg-white' : 'bg-gray-50'}>
+                            <td className="px-3 py-2 text-gray-400">{i + 1}</td>
+                            <td className="px-3 py-2 font-medium text-gray-800 max-w-xs truncate">{lic.titulo || '-'}</td>
+                            <td className="px-3 py-2 text-gray-600 whitespace-nowrap">{lic.numero || '-'}</td>
+                            <td className="px-3 py-2 text-gray-600 max-w-[150px] truncate">{lic.organismo || '-'}</td>
+                            <td className="px-3 py-2 text-gray-600 whitespace-nowrap">{lic.presupuesto || '-'}</td>
+                            <td className="px-3 py-2 text-gray-600 whitespace-nowrap">{lic.fecha_apertura || '-'}</td>
+                            <td className="px-3 py-2">
+                              {lic.estado ? (
+                                <span className="px-1.5 py-0.5 bg-gray-100 rounded text-[10px] font-bold">{lic.estado}</span>
+                              ) : '-'}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              )}
+
+              {/* Raw JSON toggle */}
+              <button
+                onClick={() => setShowRawExtract(!showRawExtract)}
+                className="text-xs text-gray-400 hover:text-gray-600 font-bold"
+              >
+                {showRawExtract ? 'Ocultar' : 'Ver'} JSON raw
+              </button>
+              {showRawExtract && (
+                <div className="bg-gray-900 rounded-lg p-4 max-h-[400px] overflow-y-auto">
+                  <pre className="text-xs text-gray-300 font-mono whitespace-pre-wrap break-words">
+                    {JSON.stringify(extractResult.data, null, 2)}
+                  </pre>
+                </div>
+              )}
+            </div>
           )}
         </div>
       )}

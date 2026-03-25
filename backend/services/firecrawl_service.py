@@ -3,6 +3,7 @@ Firecrawl API client — async wrapper for scraping via Firecrawl.
 Used exclusively by the /lab endpoints. Never touches production data.
 """
 
+import asyncio
 import os
 import time
 import logging
@@ -98,6 +99,101 @@ class FirecrawlService:
                 "error": f"Connection error: {e}",
                 "timing_ms": int((time.time() - start) * 1000),
             }
+        except Exception as e:
+            return {
+                "success": False,
+                "error": f"{type(e).__name__}: {str(e)[:300]}",
+                "timing_ms": int((time.time() - start) * 1000),
+            }
+
+    async def extract(
+        self,
+        urls: List[str],
+        prompt: str,
+        schema: Optional[Dict[str, Any]] = None,
+        timeout: int = 120,
+        poll_interval: int = 3,
+    ) -> Dict[str, Any]:
+        """Extract structured data from URLs via Firecrawl /v2/extract (LLM).
+
+        This is async — submits a job, then polls for completion.
+        Returns: {success, timing_ms, data?, error?}
+        """
+        if not self.enabled:
+            return {"success": False, "error": "FIRECRAWL_API_KEY not configured", "timing_ms": 0}
+
+        headers = {
+            "Authorization": f"Bearer {self.api_key}",
+            "Content-Type": "application/json",
+        }
+        body: Dict[str, Any] = {"urls": urls, "prompt": prompt}
+        if schema:
+            body["schema"] = schema
+
+        start = time.time()
+        try:
+            async with aiohttp.ClientSession() as session:
+                # 1. Submit extraction job
+                async with session.post(
+                    "https://api.firecrawl.dev/v2/extract",
+                    json=body,
+                    headers=headers,
+                    timeout=aiohttp.ClientTimeout(total=30),
+                ) as resp:
+                    if resp.status != 200:
+                        text = await resp.text()
+                        return {
+                            "success": False,
+                            "error": f"HTTP {resp.status}: {text[:500]}",
+                            "timing_ms": int((time.time() - start) * 1000),
+                        }
+                    result = await resp.json()
+
+                job_id = result.get("id")
+                if not job_id:
+                    return {
+                        "success": False,
+                        "error": f"No job ID returned: {str(result)[:300]}",
+                        "timing_ms": int((time.time() - start) * 1000),
+                    }
+
+                logger.info(f"Firecrawl extract job submitted: {job_id}")
+
+                # 2. Poll for completion
+                max_polls = timeout // poll_interval
+                for attempt in range(max_polls):
+                    await asyncio.sleep(poll_interval)
+                    async with session.get(
+                        f"https://api.firecrawl.dev/v2/extract/{job_id}",
+                        headers=headers,
+                        timeout=aiohttp.ClientTimeout(total=15),
+                    ) as resp:
+                        data = await resp.json()
+                        status = data.get("status", "unknown")
+
+                        if status == "completed":
+                            timing_ms = int((time.time() - start) * 1000)
+                            return {
+                                "success": True,
+                                "timing_ms": timing_ms,
+                                "data": data.get("data", {}),
+                                "status": status,
+                            }
+
+                        if status in ("failed", "cancelled"):
+                            return {
+                                "success": False,
+                                "error": data.get("error", f"Job {status}"),
+                                "timing_ms": int((time.time() - start) * 1000),
+                                "status": status,
+                            }
+
+                return {
+                    "success": False,
+                    "error": f"Polling timeout ({timeout}s)",
+                    "timing_ms": int((time.time() - start) * 1000),
+                }
+
         except Exception as e:
             return {
                 "success": False,

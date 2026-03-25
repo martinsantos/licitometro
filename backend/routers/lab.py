@@ -37,6 +37,43 @@ class CompareRequest(BaseModel):
     max_items: int = 5
 
 
+LICITACION_EXTRACT_SCHEMA = {
+    "type": "object",
+    "properties": {
+        "licitaciones": {
+            "type": "array",
+            "items": {
+                "type": "object",
+                "properties": {
+                    "titulo": {"type": "string"},
+                    "numero": {"type": "string"},
+                    "organismo": {"type": "string"},
+                    "presupuesto": {"type": "string"},
+                    "fecha_publicacion": {"type": "string"},
+                    "fecha_apertura": {"type": "string"},
+                    "tipo_procedimiento": {"type": "string"},
+                    "estado": {"type": "string"},
+                    "url_detalle": {"type": "string"},
+                },
+            },
+        }
+    },
+}
+
+LICITACION_EXTRACT_PROMPT = (
+    "Extraer todas las licitaciones, compras y contrataciones publicas de esta pagina. "
+    "Para cada una incluir: titulo/objeto, numero de proceso, organismo, presupuesto estimado, "
+    "fecha de publicacion, fecha de apertura, tipo de procedimiento, estado y URL de detalle."
+)
+
+
+class ExtractRequest(BaseModel):
+    urls: List[str]
+    prompt: str = LICITACION_EXTRACT_PROMPT
+    extract_schema: Optional[Dict] = None
+    use_default_schema: bool = True
+
+
 @router.post("/firecrawl-test")
 async def firecrawl_test(body: FirecrawlTestRequest):
     """Quick test: Firecrawl scrape a single URL, return raw data."""
@@ -162,3 +199,17 @@ async def _run_firecrawl_safe(url: str) -> Dict[str, Any]:
         return {"success": False, "error": "FIRECRAWL_API_KEY not configured", "timing_ms": 0}
 
     return await service.scrape(url, formats=["markdown", "links"], timeout=45)
+
+
+@router.post("/extract")
+async def firecrawl_extract(body: ExtractRequest):
+    """Extract structured licitacion data from URLs via Firecrawl LLM."""
+    from services.firecrawl_service import FirecrawlService
+
+    service = FirecrawlService()
+    if not service.enabled:
+        raise HTTPException(400, "FIRECRAWL_API_KEY not configured on server")
+
+    schema = body.extract_schema if body.extract_schema else (LICITACION_EXTRACT_SCHEMA if body.use_default_schema else None)
+    result = await service.extract(body.urls, body.prompt, schema=schema, timeout=120)
+    return result
