@@ -54,6 +54,7 @@ services:
       - SMTP_PASSWORD=${SMTP_PASSWORD:-}
       - NOTIFICATION_EMAIL_TO=${NOTIFICATION_EMAIL_TO:-}
       - GROQ_API_KEY=${GROQ_API_KEY:-}
+      - FIRECRAWL_API_KEY=${FIRECRAWL_API_KEY:-}
     volumes:
       - storage_data:/app/storage
     networks:
