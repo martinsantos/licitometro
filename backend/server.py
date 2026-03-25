@@ -233,9 +233,12 @@ async def startup_db_client():
         for src in AR_SOURCES:
             existing = await database.scraper_configs.find_one({"name": src["name"]})
             if existing:
+                # Only patch scope/selectors/url — NEVER overwrite schedule (may be user-tuned)
+                patch = {k: v for k, v in src.items() if k not in ("schedule", "active", "name")}
+                patch["updated_at"] = now
                 await database.scraper_configs.update_one(
                     {"name": src["name"]},
-                    {"$set": {**src, "updated_at": now}},
+                    {"$set": patch},
                 )
                 updated_count += 1
             else:
