@@ -707,18 +707,27 @@ class BoletinOficialMendozaScraper(BaseScraper):
             organization = "Boletin Oficial Mendoza"
             attached_files = []
 
+            tema = None
             if details_row:
                 details_text = details_row.get_text(" ", strip=True)
                 description = details_text[:1000] if details_text else None
+
+                # Extract "Tema:" field — the real subject of the resolution/decree
+                tema_match = re.search(r"Tema:\s*(.+?)(?:\s*Origen:|\s*$)", details_text or "")
+                if tema_match:
+                    tema = tema_match.group(1).strip()
+
                 # Try to extract Origen
                 origin_match = re.search(r"Origen:\s*([A-ZÁÉÍÓÚÑ0-9 ,.-]+)", details_text or "")
                 if origin_match:
                     organization = origin_match.group(1).strip()
+
                 # Try to extract page number for PDF deep link
                 page_num = None
                 page_match = re.search(r"(?:Pág\.?|Página)\s*(\d+)", details_text or "", re.IGNORECASE)
                 if page_match:
                     page_num = page_match.group(1)
+
                 # Attach 'Texto Publicado' link if present
                 texto_link = details_row.find("a", string=re.compile(r"Texto Publicado", re.IGNORECASE))
                 if texto_link and texto_link.get("href"):
@@ -733,9 +742,10 @@ class BoletinOficialMendozaScraper(BaseScraper):
                         }
                     )
 
-            # Second strict filter to reduce noise
+            # FIX: Strict filter must NOT include the search keyword — only match
+            # if procurement terms appear in the ACTUAL content of the item
             if strict_re:
-                combined_text = " ".join(filter(None, [tipo, norma, description or "", keyword or ""]))
+                combined_text = " ".join(filter(None, [tipo, norma, description or ""]))
                 if not strict_re.search(combined_text):
                     continue
 
@@ -748,13 +758,27 @@ class BoletinOficialMendozaScraper(BaseScraper):
                     {"name": f"Boletin {boletin_num}", "url": pdf_url, "type": "pdf"}
                 )
 
+            # Build title from tipo + norma + meaningful subject
             title = f"{tipo} {norma}".strip()
-            # Extract objeto and enrich title
+
+            # FIX: Extract objeto from pre-legal text only (before VISTO/CONSIDERANDO)
             objeto = None
-            if description:
-                objeto = self._extract_objeto_from_text(description)
-                if objeto:
-                    title = f"{title} - {objeto[:100]}"
+            useful_text = description or ""
+            # Truncate at legal boilerplate markers
+            for marker in ["VISTO", "CONSIDERANDO", "POR ELLO", "EL GOBERNADOR"]:
+                idx = useful_text.upper().find(marker)
+                if idx > 20:  # only if marker is not at the very start
+                    useful_text = useful_text[:idx]
+                    break
+
+            if useful_text:
+                objeto = self._extract_objeto_from_text(useful_text)
+
+            # Use Tema field as title enrichment (cleaner than objeto from legal body)
+            if tema and len(tema) > 10:
+                title = f"{title} - {tema[:120]}"
+            elif objeto and len(objeto) > 10:
+                title = f"{title} - {objeto[:100]}"
 
             # Stable ID: use norma number (unique per boletin)
             id_licitacion = f"boletin-mza:norma:{norma}" if norma else f"boletin-mza:norma:{boletin_num}:{hashlib.md5(title.encode()).hexdigest()[:8]}"
