@@ -825,10 +825,11 @@ class BoletinOficialMendozaScraper(BaseScraper):
                         }
                     )
 
-            # FIX: Strict filter must NOT include the search keyword — only match
-            # if procurement terms appear in the ACTUAL content of the item
+            # FIX: Strict filter on SUMMARY only (first 200 chars = Tema + Origen)
+            # Procurement words deep in legal boilerplate (>200 chars in) are noise
             if strict_re:
-                combined_text = " ".join(filter(None, [tipo, norma, description or ""]))
+                desc_summary = (description or "")[:200]
+                combined_text = " ".join(filter(None, [tipo, norma, desc_summary]))
                 if not strict_re.search(combined_text):
                     continue
 
@@ -841,24 +842,39 @@ class BoletinOficialMendozaScraper(BaseScraper):
                     {"name": f"Boletin {boletin_num}", "url": pdf_url, "type": "pdf"}
                 )
 
+            # Parse structured labels from description (same parser as PDF flow)
+            parsed = self._parse_boe_labels(description or "")
+
+            # Extract expediente from "Visto el expediente N° EX-XXXX"
+            expedient_number = parsed.get("expedient_number")
+            if not expedient_number and description:
+                exp_match = re.search(
+                    r"[Vv]isto\s+(?:el\s+)?expediente\s*(?:N[°ºo]?)?\s*:?\s*(EX[\w-]+|[\d]+[\w/-]*)",
+                    description,
+                )
+                if exp_match:
+                    expedient_number = exp_match.group(1).strip()
+
+            # Extract budget from labels
+            budget = parsed.get("budget")
+
             # Build title from tipo + norma + meaningful subject
             title = f"{tipo} {norma}".strip()
 
-            # FIX: Extract objeto from pre-legal text only (before VISTO/CONSIDERANDO)
-            objeto = None
-            useful_text = description or ""
-            # Truncate at legal boilerplate markers
-            for marker in ["VISTO", "CONSIDERANDO", "POR ELLO", "EL GOBERNADOR"]:
-                idx = useful_text.upper().find(marker)
-                if idx > 20:  # only if marker is not at the very start
-                    useful_text = useful_text[:idx]
-                    break
+            # Extract objeto: prioritize parsed label, then pre-legal text
+            objeto = parsed.get("objeto")
+            if not objeto:
+                useful_text = description or ""
+                for marker in ["VISTO", "CONSIDERANDO", "POR ELLO", "EL GOBERNADOR"]:
+                    idx = useful_text.upper().find(marker)
+                    if idx > 20:
+                        useful_text = useful_text[:idx]
+                        break
+                if useful_text:
+                    objeto = self._extract_objeto_from_text(useful_text)
 
-            if useful_text:
-                objeto = self._extract_objeto_from_text(useful_text)
-
-            # Use Tema field as title enrichment (cleaner than objeto from legal body)
-            if tema and len(tema) > 10:
+            # Use Tema field as title enrichment (cleaner than objeto from body)
+            if tema and len(tema) > 10 and tema.lower() not in ("decreto", "resolución", "resolución", "norma"):
                 title = f"{title} - {tema[:120]}"
             elif objeto and len(objeto) > 10:
                 title = f"{title} - {objeto[:100]}"
@@ -870,8 +886,8 @@ class BoletinOficialMendozaScraper(BaseScraper):
             is_decreto = tipo.upper().startswith("DECRETO") or tipo.upper().startswith("RESOLUCI")
             # But not if the description references an actual licitación
             if is_decreto and description:
-                desc_upper = description.upper()
-                if any(kw in desc_upper for kw in ("LICITACI", "CONTRATACI", "CONCURSO", "COMPULSA")):
+                desc_upper = (description or "")[:300].upper()
+                if any(kw in desc_upper for kw in ("LICITACI", "CONTRATACI", "CONCURSO", "COMPULSA", "OBRA P")):
                     is_decreto = False
 
             # VIGENCIA MODEL: Resolve dates with multi-source fallback
@@ -900,9 +916,10 @@ class BoletinOficialMendozaScraper(BaseScraper):
                 objeto=objeto,
                 organization=organization,
                 jurisdiccion="Mendoza",
-                publication_date=publication_date,  # Can be None (no fallback!)
+                publication_date=publication_date,
                 opening_date=opening_date,
                 licitacion_number=norma or None,
+                expedient_number=expedient_number,
                 description=description,
                 status="active",
                 source_url=boletin_link or str(self.config.url),
@@ -913,6 +930,8 @@ class BoletinOficialMendozaScraper(BaseScraper):
                 fecha_scraping=utc_now(),
                 attached_files=attached_files,
                 keywords=[keyword] if keyword else [],
+                budget=budget,
+                currency="ARS" if budget else None,
                 metadata={"boe_apertura_raw": description[:500] if description else ""},
                 estado=estado,
                 fecha_prorroga=None,

@@ -43,14 +43,22 @@ class CrossSourceService:
 
         query_parts = []
         if proceso_id:
-            query_parts.append({"proceso_id": proceso_id})
+            # Exact match + prefix match (LIC-3003/2026 matches LIC-3003/2026-1)
+            core_pid = re.sub(r'-\d+$', '', proceso_id).strip()
+            if core_pid != proceso_id:
+                query_parts.append({"proceso_id": {"$in": [proceso_id, core_pid]}})
+            else:
+                query_parts.append({"proceso_id": {"$regex": "^" + re.escape(proceso_id), "$options": "i"}})
         if expediente:
             # Fuzzy match: strip common prefixes, match core number
             cleaned = re.sub(r"^(Expte\.?|Expediente|EX[-\s]*)\s*N?[°º]?\s*", "", expediente, flags=re.IGNORECASE).strip()
             if cleaned and len(cleaned) >= 3:
                 query_parts.append({"expedient_number": {"$regex": re.escape(cleaned), "$options": "i"}})
         if lic_number:
-            query_parts.append({"licitacion_number": lic_number})
+            # Fuzzy match: strip trailing -N suffix and match as prefix
+            core_number = re.sub(r'-\d+$', '', lic_number).strip()
+            if core_number:
+                query_parts.append({"licitacion_number": {"$regex": "^" + re.escape(core_number), "$options": "i"}})
 
         if not query_parts:
             return []
@@ -244,6 +252,34 @@ class CrossSourceService:
                             matches.append(licitacion_entity(doc))
                 except Exception as e:
                     logger.debug(f"Hunter text search failed for {lic_id}: {e}")
+
+        # Step 5c: BOE-specific search by decreto/expediente in other sources' descriptions
+        if not matches and "boletin" in fuente.lower():
+            boe_queries = []
+            # Search by expediente number in other sources
+            exp = lic_doc.get("expedient_number") or field_updates.get("expedient_number")
+            if exp and len(exp) > 5:
+                escaped_exp = re.escape(exp)
+                boe_queries.append({"expedient_number": {"$regex": escaped_exp, "$options": "i"}})
+                boe_queries.append({"description": {"$regex": escaped_exp, "$options": "i"}})
+            # Search by decreto/resolución number in descriptions
+            lic_num = lic_doc.get("licitacion_number")
+            if lic_num and len(str(lic_num)) >= 2:
+                decreto_pattern = f"(?:decreto|resoluci[oó]n)\\s*(?:N[°ºo]?\\.?\\s*)?{re.escape(str(lic_num))}"
+                boe_queries.append({"description": {"$regex": decreto_pattern, "$options": "i"}})
+            if boe_queries:
+                try:
+                    cursor = self.db.licitaciones.find({
+                        "$or": boe_queries,
+                        "fuente": {"$not": {"$regex": "boletin", "$options": "i"}},
+                        "_id": {"$ne": ObjectId(lic_id)},
+                    }).limit(5)
+                    async for doc in cursor:
+                        matches.append(licitacion_entity(doc))
+                    if matches:
+                        logger.info(f"Hunter BOE cross-source found {len(matches)} matches for {lic_id}")
+                except Exception as e:
+                    logger.debug(f"Hunter BOE cross-source search failed for {lic_id}: {e}")
 
         if not matches:
             return result
