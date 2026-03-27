@@ -41,8 +41,17 @@ def analyze_extracted_text(text: str, lic_doc: dict) -> Dict[str, Any]:
     updates: Dict[str, Any] = {}
 
     # Description: use extracted text if longer than current
+    # BUT: skip for BOE gazette PDFs (multi-process docs with header noise)
     current_desc = lic_doc.get("description", "") or ""
-    if len(text) > len(current_desc) + 20:
+    is_boe_gazette = "AUTORIDADES" in text[:500] or "GOBERNADOR" in text[:500]
+    fuente = lic_doc.get("fuente", "")
+    is_boe_source = "boletin" in fuente.lower()
+
+    if is_boe_gazette or is_boe_source:
+        # For BOE gazette PDFs: only extract fields, NEVER overwrite description
+        # The existing description from the scraper is already the process-specific text
+        pass
+    elif len(text) > len(current_desc) + 20:
         updates["description"] = text[:MAX_DESCRIPTION_LEN]
 
     # Opening date (only if missing)
@@ -84,7 +93,11 @@ def analyze_extracted_text(text: str, lic_doc: dict) -> Dict[str, Any]:
         meta["expediente"] = exp_match.group(1).strip()
         updates["metadata"] = meta
 
-    _ensure_objeto_and_category(updates, lic_doc)
+    # For BOE sources: don't overwrite existing objeto with garbage from full PDF
+    if is_boe_source and lic_doc.get("objeto"):
+        pass  # Keep existing objeto from scraper
+    else:
+        _ensure_objeto_and_category(updates, lic_doc)
 
     # Improve title if it's just a number/code
     from utils.object_extractor import is_poor_title
