@@ -294,19 +294,28 @@ class BoletinOficialMendozaScraper(BaseScraper):
             # No explicit process markers found, try to extract based on keywords
             return self._extract_by_keywords(text, source_url, pub_date)
 
+        # BOE PDF header markers to strip from descriptions
+        _HEADER_NOISE = re.compile(
+            r"^.*(AUTORIDADES|GOBERNADOR|VICEGOBERNADOR|MINISTRO DE|MINISTRA DE|"
+            r"EDICI[OÓ]N N°|INDICE|Secci[oó]n General|Normas:.*Edictos:).*$",
+            re.MULTILINE | re.IGNORECASE,
+        )
+
         # Extract each process section
         for i, match in enumerate(matches):
             start_pos = match.start()
             # End position is either next match or end of text
             end_pos = matches[i + 1].start() if i + 1 < len(matches) else len(text)
 
-            # Extract section with some context before
-            context_start = max(0, start_pos - 200)
-            section_text = text[context_start:end_pos].strip()
+            # FIX: Start from the match itself, NO lookback that pulls PDF header
+            section_text = text[start_pos:end_pos].strip()
 
             # Limit section size
             if len(section_text) > 5000:
                 section_text = section_text[:5000] + "..."
+
+            # FIX: Strip BOE header noise lines from section
+            section_text = _HEADER_NOISE.sub("", section_text).strip()
 
             # Determine process type
             matched_text = match.group(0).upper()
@@ -315,28 +324,35 @@ class BoletinOficialMendozaScraper(BaseScraper):
             # Extract process number
             process_number = self._extract_process_number(matched_text)
 
-            # Extract organization
-            organization = self._extract_organization(section_text)
+            # FIX: Parse structured labels from BOE gazette format
+            parsed = self._parse_boe_labels(section_text)
+
+            # Extract organization (from parsed label or fallback to text scan)
+            organization = parsed.get("organization") or self._extract_organization(section_text)
 
             # Find matching keywords
             keywords_found = self._find_keywords(section_text)
 
             if not keywords_found:
-                # Skip if no procurement keywords found
                 continue
 
-            # Build title
+            # FIX: Use parsed OBJETO label (most reliable) → fallback to regex extraction
+            objeto = parsed.get("objeto") or self._extract_objeto_from_text(section_text)
+
+            # Build title with real objeto (not garbage from header)
             title = f"{process_type}"
             if process_number:
                 title = f"{process_type} N° {process_number}"
+            if objeto and len(objeto) > 5:
+                title = f"{title} - {objeto[:120]}"
 
-            # Extract objeto and enrich title
-            objeto = self._extract_objeto_from_text(section_text)
-            if objeto:
-                title = f"{title} - {objeto[:100]}"
+            # FIX: Use parsed budget label → fallback to regex extraction
+            budget = parsed.get("budget") or self._extract_budget_from_text(section_text)
 
-            # Extract budget from PDF text
-            budget = self._extract_budget_from_text(section_text)
+            # Use parsed expedient number if process_number is missing
+            expedient_number = parsed.get("expedient_number")
+            if not process_number and expedient_number:
+                process_number = expedient_number
 
             processes.append({
                 "process_type": process_type,
@@ -349,9 +365,72 @@ class BoletinOficialMendozaScraper(BaseScraper):
                 "source_url": source_url,
                 "publication_date": pub_date,
                 "budget": budget,
+                "expedient_number": expedient_number,
             })
 
         return processes
+
+    @staticmethod
+    def _parse_boe_labels(text: str) -> Dict[str, Any]:
+        """Parse structured labels from BOE gazette PDF text.
+
+        BOE processes often have explicit labels:
+          OBJETO: CONSTRUCCIÓN EDIFICIO NUEVO...
+          EXPEDIENTE N°: EX 2026 01730418...
+          PRESUPUESTO OFICIAL: $ 785.498.588
+          ORGANISMO: DEPARTAMENTO GENERAL DE IRRIGACIÓN
+        """
+        result: Dict[str, Any] = {}
+
+        # OBJETO label
+        m = re.search(
+            r"OBJETO\s*:\s*(.+?)(?:\n|EXPEDIENTE|PRESUPUESTO|VALOR|VENTA|APERTURA|$)",
+            text, re.IGNORECASE | re.DOTALL,
+        )
+        if m:
+            obj = m.group(1).strip()
+            # Clean: remove trailing whitespace, truncate
+            obj = re.sub(r"\s+", " ", obj).strip()[:200]
+            if len(obj) > 5:
+                result["objeto"] = obj
+
+        # EXPEDIENTE label
+        m = re.search(
+            r"EXPEDIENTE\s*(?:N[°ºo]?)?\s*:?\s*(.+?)(?:\n|PRESUPUESTO|OBJETO|VALOR|$)",
+            text, re.IGNORECASE,
+        )
+        if m:
+            exp = m.group(1).strip()
+            exp = re.sub(r"\s+", " ", exp).strip()[:100]
+            if len(exp) > 3:
+                result["expedient_number"] = exp
+
+        # PRESUPUESTO label
+        m = re.search(
+            r"PRESUPUESTO\s*(?:OFICIAL|ESTIMADO)?\s*:?\s*\$?\s*([\d]+[.,\d]*)",
+            text, re.IGNORECASE,
+        )
+        if m:
+            raw = m.group(1).strip()
+            clean = raw.replace(".", "").replace(",", ".")
+            try:
+                val = float(clean)
+                if val > 0:
+                    result["budget"] = val
+            except ValueError:
+                pass
+
+        # Organization from first line or ORGANISMO label
+        m = re.search(
+            r"(?:ORGANISMO|REPARTICI[OÓ]N|DEPARTAMENTO|DIRECCI[OÓ]N|MINISTERIO)\s*"
+            r"(?:GENERAL\s*)?(?:DE\s*)?([A-ZÁÉÍÓÚÑ][A-ZÁÉÍÓÚÑ\s,.-]{5,80})",
+            text, re.IGNORECASE,
+        )
+        if m:
+            org = m.group(0).strip()[:80]
+            result["organization"] = org
+
+        return result
 
     def _extract_by_keywords(self, text: str, source_url: str, pub_date: datetime) -> List[Dict[str, Any]]:
         """
@@ -568,10 +647,13 @@ class BoletinOficialMendozaScraper(BaseScraper):
 
             id_licitacion = f"boletin-mza:pdf:{stable_key}"
 
-            # Build description
+            # Build description: use clean process content (header already stripped)
             description = proc["content"]
             if base_description and base_description not in description:
                 description = f"{base_description}\n\n{description}"
+
+            # Use expedient_number from parsed labels if available
+            expedient_number = proc.get("expedient_number")
 
             # Detect decretos
             is_decreto = self._is_decreto(proc["process_type"], proc.get("content", ""))
@@ -600,6 +682,7 @@ class BoletinOficialMendozaScraper(BaseScraper):
                 publication_date=pub_date,
                 opening_date=opening_date,
                 licitacion_number=process_number,
+                expedient_number=expedient_number,
                 description=description[:3000],
                 status="active",
                 source_url=pdf_url,
