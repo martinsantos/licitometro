@@ -825,11 +825,13 @@ class BoletinOficialMendozaScraper(BaseScraper):
                         }
                     )
 
-            # FIX: Strict filter on SUMMARY only (first 200 chars = Tema + Origen)
-            # Procurement words deep in legal boilerplate (>200 chars in) are noise
+            # FIX: Strict filter on summary portion only (tipo + norma + tema + first 500 chars)
+            # Procurement words deep in legal boilerplate (>500 chars) are typically noise
             if strict_re:
-                desc_summary = (description or "")[:200]
-                combined_text = " ".join(filter(None, [tipo, norma, desc_summary]))
+                filter_parts = [tipo, norma, tema or ""]
+                # Use first 500 chars of description (covers Tema + Origen + VISTO clause)
+                filter_parts.append((description or "")[:500])
+                combined_text = " ".join(filter(None, filter_parts))
                 if not strict_re.search(combined_text):
                     continue
 
