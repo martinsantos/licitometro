@@ -63,6 +63,16 @@ class GenericEnrichmentService:
         if source_url:
             url_lower = source_url.lower().split("?")[0].split("#")[0]
             is_pdf_url = url_lower.endswith(".pdf") or "/verpdf/" in url_lower or "/getpdf/" in url_lower or "/download/pdf" in url_lower
+
+            # BOE-specific: re-segment gazette PDF and extract from matching segment
+            fuente = lic_doc.get("fuente", "")
+            if "boletin" in fuente.lower() and is_pdf_url:
+                from .boe_enricher import enrich_boe
+                result = await enrich_boe(self.http, lic_doc, source_url)
+                if result:
+                    return result
+                # Fall through to generic PDF path if BOE enrichment found nothing
+
             if is_pdf_url:
                 text = await pdf_zip_enricher.extract_text_from_pdf_url(self.http, source_url)
                 if text:

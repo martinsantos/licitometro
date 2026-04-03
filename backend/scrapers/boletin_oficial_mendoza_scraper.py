@@ -269,9 +269,42 @@ class BoletinOficialMendozaScraper(BaseScraper):
                     continue
         return None
 
+    def _segment_processes_section_aware(self, text: str, source_url: str, pub_date: datetime) -> List[Dict[str, Any]]:
+        """
+        Section-aware segmentation: find the LICITACIONES section and parse structured blocks.
+
+        BOE gazettes have clear section headers (LICITACIONES, CONCURSOS Y LICITACIONES).
+        Real procurement items appear AFTER that header, separated by (*) markers.
+        This avoids false positives from DECRETOS/RESOLUCIONES that mention procurement keywords.
+        """
+        from services.enrichment.boe_enricher import (
+            _find_licitaciones_section, _split_by_separator, _parse_licitacion_block,
+        )
+
+        lic_section_start = _find_licitaciones_section(text)
+        if lic_section_start is None:
+            return []  # No section header found, caller falls back to regex
+
+        section_text = text[lic_section_start:]
+        blocks = _split_by_separator(section_text)
+        processes = []
+        for block in blocks:
+            parsed = _parse_licitacion_block(block)
+            if parsed:
+                # Adapt to the format expected by _process_pdf_for_licitaciones
+                parsed["source_url"] = source_url
+                parsed["publication_date"] = pub_date
+                parsed["keywords_found"] = parsed.pop("keywords", [])
+                processes.append(parsed)
+
+        if processes:
+            logger.info(f"Section-aware parsing: {len(processes)} items from LICITACIONES section")
+
+        return processes
+
     def _segment_processes(self, text: str, source_url: str, pub_date: datetime) -> List[Dict[str, Any]]:
         """
-        Segment PDF text into individual procurement processes.
+        Regex-based fallback: segment PDF text into individual procurement processes.
 
         Returns a list of dicts with:
         - process_type: type of process (licitación, contratación directa, etc.)
@@ -619,8 +652,12 @@ class BoletinOficialMendozaScraper(BaseScraper):
             self._pdf_cache[cache_key] = full_text
             logger.info(f"Extracted {len(full_text)} chars from PDF: {pdf_url}")
 
-        # Segment into processes
-        processes = self._segment_processes(full_text, pdf_url, pub_date)
+        # Segment into processes — prefer section-aware parsing (LICITACIONES section)
+        # over regex-based full-text segmentation to avoid false positives from DECRETOS/RESOLUCIONES
+        processes = self._segment_processes_section_aware(full_text, pdf_url, pub_date)
+        if not processes:
+            # Fallback: regex-based segmentation (for PDFs without clear LICITACIONES section header)
+            processes = self._segment_processes(full_text, pdf_url, pub_date)
 
         if not processes:
             logger.debug(f"No procurement processes found in PDF: {pdf_url}")
