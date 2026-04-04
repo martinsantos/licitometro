@@ -6,6 +6,8 @@ import WorkflowBadge from '../components/WorkflowBadge';
 import OfferChecklist from '../components/OfferChecklist';
 import OfertaEditor from '../components/cotizar/OfertaEditor';
 import { useNodos } from '../hooks/useNodos';
+import HunterButton from '../components/hunter/HunterButton';
+import HunterPanel from '../components/hunter/HunterPanel';
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL || '';
 const API = `${BACKEND_URL}/api`;
@@ -74,6 +76,7 @@ const LicitacionDetailPage = ({ userRole }) => {
   const [error, setError] = useState(null);
   const [isSaved, setIsSaved] = useState(false);
   const [enriching, setEnriching] = useState(false);
+  const [hunterOpen, setHunterOpen] = useState(false);
   const [enrichMessage, setEnrichMessage] = useState(null);
   const [activeTab, setActiveTab] = useState('general');
   const tabNavRef = useRef(null);
@@ -504,6 +507,18 @@ const LicitacionDetailPage = ({ userRole }) => {
                   </svg>
                   Cotizar
                 </Link>
+
+                <div className="flex sm:flex-col gap-2">
+                  <button
+                    onClick={() => setHunterOpen(true)}
+                    className="p-3 rounded-2xl bg-amber-500/80 text-white hover:bg-amber-600 transition-all duration-300"
+                    title="HUNTER: Buscar en otras fuentes"
+                  >
+                    <svg className="w-6 h-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <circle cx="12" cy="12" r="10" /><circle cx="12" cy="12" r="6" /><circle cx="12" cy="12" r="2" /><line x1="12" y1="2" x2="12" y2="6" /><line x1="12" y1="18" x2="12" y2="22" /><line x1="2" y1="12" x2="6" y2="12" /><line x1="18" y1="12" x2="22" y2="12" />
+                    </svg>
+                  </button>
+                </div>
 
                 {isAdmin && licitacion?.source_url && (
                   <div className="flex sm:flex-col gap-2">
@@ -1282,6 +1297,20 @@ const LicitacionDetailPage = ({ userRole }) => {
         .btn-primary { background: linear-gradient(135deg, #2563eb, #4f46e5); color: white; border-radius: 16px; font-weight: 800; letter-spacing: 0.03em; transition: all 0.3s ease; box-shadow: 0 8px 20px -5px rgba(37, 99, 235, 0.4); }
         .btn-primary:hover { transform: translateY(-2px); box-shadow: 0 12px 25px -5px rgba(37, 99, 235, 0.5); }
       `}} />
+
+      {/* HUNTER Panel */}
+      <HunterPanel
+        licitacionId={id}
+        mode="detail"
+        isOpen={hunterOpen}
+        onClose={() => setHunterOpen(false)}
+        onMerge={() => {
+          // Reload licitacion data after merge
+          axios.get(`${API}/licitaciones/${id}`, { withCredentials: true })
+            .then(res => setLicitacion(res.data))
+            .catch(() => {});
+        }}
+      />
     </div>
   );
 };

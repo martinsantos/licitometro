@@ -4,6 +4,7 @@ import {
   PliegoInfo, MarcoLegal, PriceIntelligence, MongoCotizacion, Documento,
 } from '../../hooks/useCotizarAPI';
 import DocumentRepository from './DocumentRepository';
+import HunterPanel from '../hunter/HunterPanel';
 
 interface Licitacion {
   id: string;
@@ -141,6 +142,7 @@ export default function OfertaEditor({ licitacion, onSaved }: Props) {
   const [analyzeError, setAnalyzeError] = useState('');
   const [budgetHints, setBudgetHints] = useState<BudgetHints | null>(null);
   const [loadingHints, setLoadingHints] = useState(false);
+  const [hunterOpen, setHunterOpen] = useState(false);
   const [suggestingPropuesta, setSuggestingPropuesta] = useState(false);
   const [antecedentes, setAntecedentes] = useState<Antecedente[]>([]);
   const [loadingAntecedentes, setLoadingAntecedentes] = useState(false);
@@ -721,6 +723,15 @@ export default function OfertaEditor({ licitacion, onSaved }: Props) {
               >
                 {loadingHints ? <span className="w-3 h-3 border border-purple-400 border-t-transparent rounded-full animate-spin" /> : '✨'}
                 Cargar items con IA
+              </button>
+              <button
+                onClick={() => setHunterOpen(true)}
+                className="text-xs text-amber-600 hover:text-amber-800 border border-amber-200 hover:border-amber-400 px-3 py-1.5 rounded-lg transition-colors flex items-center gap-1 font-semibold"
+              >
+                <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                  <circle cx="12" cy="12" r="10" /><circle cx="12" cy="12" r="6" /><circle cx="12" cy="12" r="2" />
+                </svg>
+                HUNTER
               </button>
             </div>
           </div>
@@ -1739,6 +1750,27 @@ export default function OfertaEditor({ licitacion, onSaved }: Props) {
 
       {/* Document Repository Modal */}
       <DocumentRepository open={showDocRepo} onClose={() => setShowDocRepo(false)} />
+
+      {/* HUNTER Panel */}
+      <HunterPanel
+        licitacionId={licitacion.id}
+        mode="cotizar"
+        isOpen={hunterOpen}
+        onClose={() => setHunterOpen(false)}
+        onImportItems={(importedItems) => {
+          if (importedItems && importedItems.length > 0) {
+            const newItems: CotizarItem[] = importedItems.map((it: any, idx: number) => ({
+              id: `hunter-${Date.now()}-${idx}`,
+              descripcion: it.descripcion || it.description || '',
+              cantidad: it.cantidad || 1,
+              unidad: it.unidad || 'u.',
+              precio_unitario: it.precio_unitario || 0,
+            }));
+            setItems(prev => [...prev.filter(i => i.descripcion), ...newItems]);
+            setHunterOpen(false);
+          }
+        }}
+      />
     </div>
   );
 }

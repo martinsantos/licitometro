@@ -20,7 +20,7 @@ from routers import (
     licitaciones_search, licitaciones_presets,
     scraper_configs, comprar, scheduler, workflow, offer_templates,
     auth, public, nodos, cotizar_ai, cotizaciones, market_data, documentos, company_context,
-    lab,
+    lab, hunter,
 )
 from services.auth_service import verify_token
 
@@ -164,6 +164,7 @@ app.include_router(licitaciones_stats.router)
 app.include_router(licitaciones_search.router)
 app.include_router(licitaciones_enrichment.router)
 app.include_router(licitaciones_presets.router)
+app.include_router(hunter.router)
 app.include_router(licitaciones.router)
 app.include_router(licitaciones_ar.router)
 app.include_router(scraper_configs.router)
