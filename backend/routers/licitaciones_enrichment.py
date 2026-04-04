@@ -333,6 +333,18 @@ async def get_budget_hints(licitacion_id: str, request: Request):
         except Exception as e:
             logger.warning(f"Failed to extract pliego items via AI: {e}")
 
+    # 3. Use cached pliego_info from extract-pliego-info (deep AI extraction)
+    if not items_from_pliego:
+        pliego_info = (lic.get("metadata") or {}).get("pliego_info")
+        if pliego_info and isinstance(pliego_info, dict):
+            for it in pliego_info.get("items", []):
+                if it.get("descripcion"):
+                    items_from_pliego.append({
+                        "descripcion": str(it["descripcion"])[:200],
+                        "cantidad": float(it.get("cantidad", 1) or 1),
+                        "unidad": str(it.get("unidad", "u."))[:20],
+                    })
+
     return {
         "budget": budget,
         "budget_source": "official" if budget else "estimated_from_pliego",

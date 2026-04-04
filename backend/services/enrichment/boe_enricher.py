@@ -521,11 +521,14 @@ async def enrich_boe(http: ResilientHttpClient, lic_doc: dict, source_url: str) 
         if opening:
             updates["opening_date"] = opening
 
-    # Budget: update if missing or segment has a better one
+    # Budget: always update from matched segment (old segmentation often assigns wrong budget)
     seg_budget = segment.get("budget")
-    if seg_budget and not lic_doc.get("budget"):
+    if seg_budget:
         updates["budget"] = seg_budget
-        if not lic_doc.get("currency"):
+        # Detect USD currency in segment text
+        if re.search(r'U\$D|USD|dólar|dolares', section_text, re.IGNORECASE):
+            updates["currency"] = "USD"
+        elif not lic_doc.get("currency"):
             updates["currency"] = "ARS"
         meta = lic_doc.get("metadata", {}) or {}
         meta["budget_source"] = "extracted_from_boe_segment"

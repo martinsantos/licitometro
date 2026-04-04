@@ -166,18 +166,36 @@ async def search_antecedentes(body: Dict[str, Any], request: Request):
     antecedentes = []
     current_nodos = lic.get("nodos") or []
 
+    # Budget magnitude filter: ±10x of current budget (avoids comparing $2K with $5B)
+    budget_filter = {}
+    if current_budget and current_budget > 0:
+        budget_filter = {"budget": {"$gte": current_budget / 10, "$lte": current_budget * 10}}
+
     # Phase 1: $text search with relevance scoring
     if search_text:
         try:
             text_query = {
                 "$text": {"$search": search_text},
                 "_id": {"$ne": ObjectId(licitacion_id)},
+                **budget_filter,
             }
             cursor = db.licitaciones.find(
                 text_query,
                 {"score": {"$meta": "textScore"}},
             ).sort([("score", {"$meta": "textScore"})]).limit(10)
             antecedentes = await cursor.to_list(10)
+
+            # If budget filter was too strict, retry without it
+            if not antecedentes and budget_filter:
+                text_query_no_budget = {
+                    "$text": {"$search": search_text},
+                    "_id": {"$ne": ObjectId(licitacion_id)},
+                }
+                cursor = db.licitaciones.find(
+                    text_query_no_budget,
+                    {"score": {"$meta": "textScore"}},
+                ).sort([("score", {"$meta": "textScore"})]).limit(10)
+                antecedentes = await cursor.to_list(10)
         except Exception as e:
             logger.warning(f"Text search for antecedentes failed: {e}")
 
@@ -189,9 +207,9 @@ async def search_antecedentes(body: Dict[str, Any], request: Request):
             nodo_query = {
                 "_id": {"$nin": list(existing_ids)},
                 "nodos": {"$in": current_nodos},
+                **budget_filter,
             }
-            if lic.get("budget"):
-                # Prefer items with budget for price comparison
+            if not budget_filter:
                 nodo_query["budget"] = {"$gt": 0}
             nodo_results = await db.licitaciones.find(nodo_query).sort(
                 "publication_date", -1
@@ -570,7 +588,19 @@ async def extract_pliego_info(body: Dict[str, Any], request: Request):
         text += f"\n\n{company_ctx}"
 
     groq = get_groq_enrichment_service()
-    return await groq.extract_pliego_info(text, known_fields=known_fields_text)
+    pliego_result = await groq.extract_pliego_info(text, known_fields=known_fields_text)
+
+    # Persist pliego_info to metadata so budget-hints can use cached items
+    if pliego_result and not pliego_result.get("error"):
+        try:
+            await db.licitaciones.update_one(
+                {"_id": lic["_id"]},
+                {"$set": {"metadata.pliego_info": pliego_result}}
+            )
+        except Exception as e:
+            logger.warning(f"Failed to persist pliego_info: {e}")
+
+    return pliego_result
 
 
 @router.get("/company-antecedentes/sectors")
