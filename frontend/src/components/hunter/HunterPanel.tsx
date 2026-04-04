@@ -318,12 +318,12 @@ const AdjudicacionCard: React.FC<{ adj: HunterAdjudicacion }> = ({ adj }) => (
 
 const StatsBar: React.FC<{ stats: HunterResult['search_stats'] }> = ({ stats }) => (
   <div className="flex items-center gap-4 px-4 py-2 bg-gray-800/50 border-b border-gray-700 text-[11px] text-gray-400">
-    <span>{stats.sources_searched} fuentes</span>
+    <span>{stats?.sources_searched || 0} fuentes</span>
     <span className="w-px h-3 bg-gray-600" />
-    <span>{stats.total_matches} resultado{stats.total_matches !== 1 ? 's' : ''}</span>
+    <span>{stats?.total_matches || 0} resultado{(stats?.total_matches || 0) !== 1 ? 's' : ''}</span>
     <span className="w-px h-3 bg-gray-600" />
     <span className="truncate">
-      {stats.strategies_used.join(', ')}
+      {(stats.strategies_used || []).join(', ')}
     </span>
   </div>
 );
@@ -426,9 +426,9 @@ const HunterPanel: React.FC<HunterPanelProps> = ({
   }, [licitacionId, onMerge]);
 
   // Separate matches by confidence
-  const exactMatches = result?.matches.filter((m) => m.confidence === 'alta') ?? [];
-  const similarMatches = result?.matches.filter((m) => m.confidence !== 'alta') ?? [];
-  const adjudicaciones = result?.adjudicaciones ?? [];
+  const exactMatches = (result?.matches || []).filter((m) => m.confidence === 'alta');
+  const similarMatches = (result?.matches || []).filter((m) => m.confidence !== 'alta');
+  const adjudicaciones = result?.adjudicaciones || [];
   const hasAnyResults = exactMatches.length > 0 || similarMatches.length > 0 || adjudicaciones.length > 0;
 
   if (!isOpen) return null;
