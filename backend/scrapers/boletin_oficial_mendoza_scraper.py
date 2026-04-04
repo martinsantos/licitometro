@@ -781,21 +781,41 @@ class BoletinOficialMendozaScraper(BaseScraper):
         try:
             target_url = advance_url
             extra_headers = {}
-            if self._needs_proxy(advance_url):
+            use_proxy = self._needs_proxy(advance_url)
+            if use_proxy:
                 from scrapers.resilient_http import PROXY_URL, PROXY_SECRET
                 extra_headers = {"X-Target-URL": advance_url, "X-Proxy-Secret": PROXY_SECRET}
                 target_url = PROXY_URL
-            async with self.session.post(target_url, data=payload, headers=extra_headers) as response:
-                if response.status < 200 or response.status >= 300:
-                    logger.error(f"Advance search failed {response.status} for keyword={keyword}")
-                    return None
-                # Read raw bytes and decode manually (servers may lie about charset)
-                raw = await response.read()
-                encoding = response.charset or "utf-8"
+
+            import aiohttp as _aiohttp
+            proxy_timeout = _aiohttp.ClientTimeout(total=30, connect=10, sock_read=25)
+            for attempt in range(3):
                 try:
-                    return raw.decode(encoding)
-                except (UnicodeDecodeError, LookupError):
-                    return raw.decode("latin-1", errors="replace")
+                    async with self.session.post(
+                        target_url, data=payload, headers=extra_headers,
+                        ssl=(use_proxy or None),
+                        timeout=proxy_timeout if use_proxy else None,
+                    ) as response:
+                        if response.status == 522 and attempt < 2:
+                            logger.warning(f"BOE proxy returned 522, retry {attempt + 1}")
+                            await asyncio.sleep(1)
+                            continue
+                        if response.status < 200 or response.status >= 300:
+                            logger.error(f"Advance search failed {response.status} for keyword={keyword}")
+                            return None
+                        raw = await response.read()
+                        encoding = response.charset or "utf-8"
+                        try:
+                            return raw.decode(encoding)
+                        except (UnicodeDecodeError, LookupError):
+                            return raw.decode("latin-1", errors="replace")
+                except (_aiohttp.ClientError, asyncio.TimeoutError) as e:
+                    if attempt < 2:
+                        logger.warning(f"BOE advance search attempt {attempt + 1} failed: {e}, retrying...")
+                        await asyncio.sleep(1)
+                        continue
+                    raise
+            return None
         except Exception as exc:
             logger.error(f"Advance search error: {exc}")
             return None
