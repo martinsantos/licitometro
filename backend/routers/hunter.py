@@ -70,6 +70,20 @@ def _build_match_preview(match: dict, base: dict) -> dict:
     desc = match.get("description") or match.get("objeto") or ""
     desc_preview = desc[:200] + ("…" if len(desc) > 200 else "")
 
+    # Determine confidence based on what matched
+    confidence = "baja"
+    if match.get("proceso_id") and base.get("proceso_id") and match["proceso_id"] == base["proceso_id"]:
+        confidence = "alta"
+    elif match.get("expedient_number") and base.get("expedient_number"):
+        confidence = "alta"
+    elif match.get("licitacion_number") and base.get("licitacion_number"):
+        if str(match["licitacion_number"]) == str(base["licitacion_number"]):
+            confidence = "alta"
+        else:
+            confidence = "media"
+    elif fields_would_fill:
+        confidence = "media"
+
     return {
         "id": match_id,
         "title": match.get("title", ""),
@@ -81,6 +95,8 @@ def _build_match_preview(match: dict, base: dict) -> dict:
         "publication_date": match.get("publication_date"),
         "opening_date": match.get("opening_date"),
         "proceso_id": match.get("proceso_id"),
+        "confidence": confidence,
+        "match_type": "proceso_id" if confidence == "alta" else "text_search",
         "description_preview": desc_preview,
         "fields_available": fields_available,
         "fields_would_fill": fields_would_fill,
@@ -362,15 +378,23 @@ async def _handle_search(db, base: dict, doc: dict, licitacion_id: str) -> dict:
     match_ids = {m["id"] for m in matches}
     adjudicaciones = [a for a in adjudicaciones if a["id"] not in match_ids]
 
+    strategies = []
+    if base.get("proceso_id"):
+        strategies.append("proceso_id")
+    if base.get("expedient_number"):
+        strategies.append("expediente")
+    if base.get("licitacion_number"):
+        strategies.append("licitacion_number")
+
     return {
         "licitacion_id": licitacion_id,
         "action": "search",
         "matches": matches,
         "adjudicaciones": adjudicaciones,
         "search_stats": {
-            "matches_found": len(matches),
-            "adjudicaciones_found": len(adjudicaciones),
-            "search_fields_used": _describe_search_fields(base),
+            "sources_searched": len(set(m["fuente"] for m in matches + adjudicaciones if m.get("fuente"))),
+            "total_matches": len(matches) + len(adjudicaciones),
+            "strategies_used": strategies,
         },
     }
 
@@ -410,21 +434,25 @@ async def _handle_deep_search(db, base: dict, doc: dict, licitacion_id: str) -> 
     match_ids = {m["id"] for m in matches}
     adjudicaciones = [a for a in adjudicaciones if a["id"] not in match_ids]
 
+    strategies = []
+    if related:
+        strategies.append("proceso_id")
+    if new_text:
+        strategies.append("texto")
+    if new_cat:
+        strategies.append("categoria+presupuesto")
+    if new_boe:
+        strategies.append("BOE patrones")
+
     return {
         "licitacion_id": licitacion_id,
         "action": "deep_search",
         "matches": matches,
         "adjudicaciones": adjudicaciones,
         "search_stats": {
-            "matches_found": len(matches),
-            "adjudicaciones_found": len(adjudicaciones),
-            "search_fields_used": _describe_search_fields(base),
-            "strategies_used": {
-                "structured": len(related),
-                "text_search": len(new_text),
-                "category_budget": len(new_cat),
-                "boe_patterns": len(new_boe),
-            },
+            "sources_searched": len(set(m["fuente"] for m in matches + adjudicaciones if m.get("fuente"))),
+            "total_matches": len(matches) + len(adjudicaciones),
+            "strategies_used": strategies,
         },
     }
 
