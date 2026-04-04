@@ -1,5 +1,6 @@
 """CotizAR AI Router - AI-powered bid assistance endpoints."""
 
+import asyncio
 import json
 import logging
 import sys
@@ -11,6 +12,10 @@ from fastapi import APIRouter, HTTPException, Request
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
+from services.enrichment.pdf_zip_enricher import (
+    extract_text_from_pdf_url,
+    extract_text_from_zip,
+)
 from services.groq_enrichment import get_groq_enrichment_service
 
 logger = logging.getLogger("cotizar_ai")
@@ -277,32 +282,202 @@ async def extract_pliego_info(body: Dict[str, Any], request: Request):
     if not lic:
         raise HTTPException(404, "Licitacion not found")
 
-    # Build text from all available sources
+    # --- HUNTER: fetch cross-source related licitaciones ---
+    from services.cross_source_service import CrossSourceService
+    cross_svc = CrossSourceService(db)
+    related_sources = await cross_svc.find_related(lic, limit=15)
+    # Merge richer data from related sources into our view
+    cross_items = []
+    cross_descriptions = []
+    cross_attached = []
+    for rel in related_sources:
+        if rel.get("items"):
+            cross_items.extend(rel["items"])
+        if rel.get("description") and len(rel.get("description", "")) > len(lic.get("description") or ""):
+            cross_descriptions.append(f"[{rel.get('fuente', 'Otra fuente')}]: {rel['description'][:5000]}")
+        for f in (rel.get("attached_files") or []):
+            ftype = (f.get("type") or "").lower()
+            url = f.get("url", "")
+            if url and ftype in ("pdf", "zip") and "javascript" not in url.lower() and "Manual" not in url and "Inscripcion" not in url:
+                cross_attached.append(f)
+    if related_sources:
+        logger.info(f"CotizAR HUNTER: found {len(related_sources)} related sources, {len(cross_items)} items, {len(cross_attached)} files")
+
+    # --- COMPR.AR auto-search: when description references compras.mendoza.gov.ar ---
+    comprar_pliego_text = ""
+    desc_text = lic.get("description") or ""
+    lic_number = lic.get("licitacion_number") or ""
+    source_url = lic.get("source_url") or ""
+    is_comprar = "comprar.mendoza.gov.ar" in source_url or "comprar.mendoza" in source_url
+    refs_comprar = "compras.mendoza.gov.ar" in desc_text or "comprar.mendoza.gov.ar" in desc_text
+
+    if (refs_comprar or is_comprar) and lic_number and not (lic.get("metadata") or {}).get("comprar_pliego_fields"):
+        try:
+            import re as _re
+            # Extract the core process number (strip trailing -N suffixes)
+            core_num = _re.sub(r'-\d+$', '', lic_number).strip()
+            logger.info(f"CotizAR: auto-searching COMPR.AR for process {core_num}")
+
+            from routers.comprar import _search_and_resolve_pliego
+            pliego_url = await _search_and_resolve_pliego(core_num, "https://comprar.mendoza.gov.ar/Compras.aspx?qs=W1HXHGHtH10=")
+
+            if pliego_url and "VistaPreviaPliegoCiudadano" in pliego_url:
+                logger.info(f"CotizAR: resolved COMPR.AR pliego URL: {pliego_url[:80]}")
+                # Fetch and extract pliego labels
+                from services.enrichment.comprar_enricher import enrich_comprar
+                from scrapers.resilient_http import ResilientHttpClient
+                http = ResilientHttpClient()
+                try:
+                    comprar_updates = await enrich_comprar(http, lic, pliego_url)
+                    # Extract description and pliego fields for the AI
+                    if comprar_updates.get("description"):
+                        comprar_pliego_text = comprar_updates["description"][:8000]
+                    comprar_meta = comprar_updates.get("metadata") or {}
+                    cpf = comprar_meta.get("comprar_pliego_fields") or {}
+                    if cpf:
+                        pliego_lines = [f"  {k}: {v}" for k, v in cpf.items() if v]
+                        if pliego_lines:
+                            comprar_pliego_text += "\n\nDatos COMPR.AR:\n" + "\n".join(pliego_lines)
+
+                    # Persist enrichment to DB so future calls don't re-fetch
+                    if comprar_updates:
+                        await db.licitaciones.update_one(
+                            {"_id": lic["_id"]},
+                            {"$set": comprar_updates}
+                        )
+                        logger.info(f"CotizAR: persisted COMPR.AR enrichment ({len(comprar_updates)} fields)")
+                finally:
+                    await http.close()
+            else:
+                logger.info(f"CotizAR: COMPR.AR search returned no pliego URL for {core_num}")
+        except Exception as e:
+            logger.warning(f"CotizAR: COMPR.AR auto-search failed: {e}")
+
+    # Build known_fields for structured data the AI should NOT list as missing
+    known_fields = []
+    if lic.get("objeto"):
+        known_fields.append(f"Objeto: {lic['objeto']}")
+    if lic.get("budget"):
+        currency = lic.get("currency", "ARS")
+        known_fields.append(f"Presupuesto oficial: ${lic['budget']:,.2f} {currency}")
+    if lic.get("opening_date"):
+        known_fields.append(f"Fecha apertura: {lic['opening_date']}")
+    if lic.get("organization"):
+        known_fields.append(f"Organismo: {lic['organization']}")
+    if lic.get("tipo_procedimiento"):
+        known_fields.append(f"Procedimiento: {lic['tipo_procedimiento']}")
+    if lic.get("duracion_contrato"):
+        known_fields.append(f"Duración contrato: {lic['duracion_contrato']}")
+    if lic.get("garantias"):
+        known_fields.append(f"Garantías: {json.dumps(lic['garantias'], ensure_ascii=False)[:200]}")
+    if lic.get("encuadre_legal"):
+        known_fields.append(f"Encuadre legal: {lic['encuadre_legal']}")
+    known_fields_text = "\n".join(known_fields)
+
+    # --- Download and parse attached PDFs/ZIPs (own + cross-source) ---
+    all_attached = list(lic.get("attached_files") or []) + cross_attached
+    pdf_texts = []
+    download_tasks = []
+    seen_urls = set()
+    for f in all_attached:
+        url = f.get("url", "")
+        ftype = (f.get("type") or "").lower()
+        if not url or "javascript" in url.lower() or url in seen_urls:
+            continue
+        seen_urls.add(url)
+        if ftype == "pdf" or url.lower().endswith(".pdf"):
+            download_tasks.append(extract_text_from_pdf_url(None, url))
+        elif ftype == "zip" or url.lower().endswith(".zip"):
+            download_tasks.append(extract_text_from_zip(None, url))
+
+    if download_tasks:
+        logger.info(f"CotizAR pliego: downloading {len(download_tasks)} attachments for {licitacion_id}")
+        results = await asyncio.gather(*download_tasks, return_exceptions=True)
+        for r in results:
+            if isinstance(r, str) and r.strip():
+                pdf_texts.append(r)
+        if pdf_texts:
+            logger.info(f"CotizAR pliego: extracted {sum(len(t) for t in pdf_texts)} chars from {len(pdf_texts)} files")
+
+    pliego_full_text = "\n\n".join(pdf_texts)
+
+    # --- Smart section extraction: find relevant parts in large PDFs ---
+    if pliego_full_text and len(pliego_full_text) > 30000:
+        import re
+        text_lower = pliego_full_text.lower()
+        sections = []
+
+        # Always include the beginning (presupuesto, objeto, conditions) — first 5K
+        sections.append(pliego_full_text[:5000])
+
+        # Find the ITEMS section — where renglones/items/planilla de cotización live
+        items_markers = [
+            r'planilla\s+de\s+cotizaci[oó]n', r'c[oó]mputo\s+(?:m[eé]trico|y\s+presupuesto)',
+            r'planilla\s+de\s+precio', r'presupuesto\s+detallado',
+            r'rengl[oó]n\s+n[°º]?\s*\d', r'item\s+n[°º]?\s*\d',
+            r'descripci[oó]n\s+.*\s+cantidad', r'cant\.\s+unid',
+            r'\bitem\b.*\bprecio\b', r'\bitemizado\b',
+            r'unidad\s+de\s+medida', r'precio\s+unitario',
+        ]
+        items_pos = -1
+        for pattern in items_markers:
+            m = re.search(pattern, text_lower)
+            if m:
+                # Start a bit before the match for context
+                items_pos = max(0, m.start() - 500)
+                logger.info(f"CotizAR pliego: found items section via '{pattern}' at pos {items_pos}/{len(pliego_full_text)}")
+                break
+
+        if items_pos >= 0:
+            sections.append(pliego_full_text[items_pos:items_pos + 18000])
+        else:
+            # Fallback: find section with highest density of price/number patterns
+            price_pattern = re.compile(r'\$\s*[\d.,]+|\d+[\.,]\d{2}')
+            best_pos, best_score = 0, 0
+            for pos in range(5000, len(pliego_full_text) - 18000 + 1, 5000):
+                chunk = pliego_full_text[pos:pos + 18000]
+                score = len(price_pattern.findall(chunk))
+                if score > best_score:
+                    best_score = score
+                    best_pos = pos
+            if best_score > 5:
+                logger.info(f"CotizAR pliego: using price-density fallback at pos {best_pos} (score={best_score})")
+                sections.append(pliego_full_text[best_pos:best_pos + 18000])
+            else:
+                # Last resort: keyword search or middle of document
+                search_terms = []
+                for field in [lic.get("objeto"), lic.get("title")]:
+                    if field:
+                        stopwords = {"para", "como", "este", "esta", "todo", "decreto", "provincia", "mendoza", "gobierno"}
+                        words = [w for w in re.findall(r'[a-záéíóúñü]{4,}', field.lower()) if w not in stopwords]
+                        search_terms.extend(words[:6])
+                search_terms = list(dict.fromkeys(search_terms))
+                if search_terms:
+                    for pos in range(5000, len(pliego_full_text) - 18000 + 1, 5000):
+                        score = sum(text_lower[pos:pos + 18000].count(t) for t in search_terms)
+                        if score > best_score:
+                            best_score = score
+                            best_pos = pos
+                sections.append(pliego_full_text[best_pos:best_pos + 18000])
+
+        # Deduplicate overlapping sections
+        pliego_full_text = "\n\n[...]\n\n".join(sections)
+
+    # --- Build structured text payload in sections ---
     parts = []
+
+    # Section 1: Structured data
+    parts.append("=== DATOS ESTRUCTURADOS ===")
     if lic.get("objeto"):
         parts.append(f"Objeto: {lic['objeto']}")
     if lic.get("title"):
         parts.append(f"Título: {lic['title']}")
-    if lic.get("description"):
-        parts.append(f"Descripción:\n{lic['description'][:4000]}")
-    if lic.get("items"):
-        items_str = json.dumps(lic["items"], ensure_ascii=False)[:2000]
-        parts.append(f"Items del pliego: {items_str}")
     if lic.get("budget"):
         parts.append(f"Presupuesto oficial: ${lic['budget']}")
     if lic.get("organization"):
         parts.append(f"Organismo: {lic['organization']}")
     if lic.get("tipo_procedimiento"):
         parts.append(f"Tipo: {lic['tipo_procedimiento']}")
-    # Include ALL COMPR.AR pliego fields (not just 10 hardcoded keys)
-    meta = lic.get("metadata") or {}
-    pliego_fields = meta.get("comprar_pliego_fields") or {}
-    if pliego_fields:
-        pliego_parts = [f"  {k}: {v}" for k, v in pliego_fields.items() if v]
-        if pliego_parts:
-            parts.append("Datos del pliego COMPR.AR:\n" + "\n".join(pliego_parts))
-
-    # Include structured fields already parsed on the licitacion
     if lic.get("opening_date"):
         parts.append(f"Fecha de apertura: {lic['opening_date']}")
     if lic.get("encuadre_legal"):
@@ -311,6 +486,45 @@ async def extract_pliego_info(body: Dict[str, Any], request: Request):
         parts.append(f"Garantías: {json.dumps(lic['garantias'], ensure_ascii=False)[:500]}")
     if lic.get("duracion_contrato"):
         parts.append(f"Duración contrato: {lic['duracion_contrato']}")
+    if lic.get("items"):
+        items_str = json.dumps(lic["items"], ensure_ascii=False)[:2000]
+        parts.append(f"Items del pliego: {items_str}")
+
+    # COMPR.AR pliego fields
+    meta = lic.get("metadata") or {}
+    pliego_fields = meta.get("comprar_pliego_fields") or {}
+    if pliego_fields:
+        pliego_parts = [f"  {k}: {v}" for k, v in pliego_fields.items() if v]
+        if pliego_parts:
+            parts.append("Datos del pliego COMPR.AR:\n" + "\n".join(pliego_parts))
+
+    # Cross-source items and descriptions from HUNTER
+    all_items = list(lic.get("items") or []) + cross_items
+    if cross_items and not lic.get("items"):
+        items_str = json.dumps(cross_items[:30], ensure_ascii=False)[:3000]
+        parts.append(f"Items de fuentes relacionadas: {items_str}")
+    if cross_descriptions:
+        parts.append("\n=== DATOS DE FUENTES RELACIONADAS (HUNTER) ===")
+        for cd in cross_descriptions[:3]:
+            parts.append(cd[:3000])
+
+    # Section 2: Description field (always include if available)
+    if lic.get("description"):
+        desc = lic["description"]
+        # Skip gazette TOC (starts with AUTORIDADES or INDICE)
+        if not desc.strip().startswith("AUTORIDADES") and not desc.strip().startswith("INDICE"):
+            parts.append("\n=== DESCRIPCIÓN ===")
+            parts.append(desc[:5000])
+
+    # Section 3: COMPR.AR pliego data (from auto-search)
+    if comprar_pliego_text:
+        parts.append("\n=== PLIEGO COMPR.AR (obtenido automáticamente del portal) ===")
+        parts.append(comprar_pliego_text[:10000])
+
+    # Section 4: Full pliego text from PDFs
+    if pliego_full_text:
+        parts.append("\n=== TEXTO COMPLETO DEL PLIEGO (extraído de PDFs adjuntos) ===")
+        parts.append(pliego_full_text[:25000])
 
     text = "\n".join(parts)
     if len(text) < 20:
@@ -323,7 +537,7 @@ async def extract_pliego_info(body: Dict[str, Any], request: Request):
         text += f"\n\n{company_ctx}"
 
     groq = get_groq_enrichment_service()
-    return await groq.extract_pliego_info(text)
+    return await groq.extract_pliego_info(text, known_fields=known_fields_text)
 
 
 @router.get("/company-antecedentes/sectors")

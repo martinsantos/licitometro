@@ -157,16 +157,17 @@ class ResilientHttpClient:
 
                 # Route blocked domains through Cloudflare Worker proxy
                 actual_url = url
-                actual_method = method
+                request_kwargs = dict(kwargs)
                 if self._needs_proxy(url):
                     headers["X-Target-URL"] = url
                     headers["X-Proxy-Secret"] = PROXY_SECRET
                     actual_url = PROXY_URL
-                    # Forward body via kwargs (data/json) — method stays the same
+                    # Workers.dev requires proper SSL (ssl=False causes 522)
+                    request_kwargs["ssl"] = True
                     logger.debug(f"Proxying {url[:60]} via Cloudflare Worker")
 
                 async with self._session.request(
-                    method, actual_url, headers=headers, **kwargs
+                    method, actual_url, headers=headers, **request_kwargs
                 ) as response:
                     if response.status == 200:
                         domain_state.record_success()

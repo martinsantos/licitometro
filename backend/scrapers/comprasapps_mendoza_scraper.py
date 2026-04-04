@@ -155,7 +155,7 @@ class ComprasAppsMendozaScraper(BaseScraper):
                 logger.info("ComprasApps: using Cloudflare proxy")
 
             async with self.session.get(
-                target_url, ssl=False, timeout=self._REQUEST_TIMEOUT,
+                target_url, ssl=(target_url != self.BASE_URL), timeout=self._REQUEST_TIMEOUT,
                 headers=extra_headers,
             ) as resp:
                 if resp.status != 200:
@@ -243,7 +243,7 @@ class ComprasAppsMendozaScraper(BaseScraper):
                 target_url,
                 data=form_data,
                 headers=post_headers,
-                ssl=False,
+                ssl=(target_url != self.BASE_URL),
                 timeout=self._REQUEST_TIMEOUT,
             ) as resp:
                 if resp.status != 200:

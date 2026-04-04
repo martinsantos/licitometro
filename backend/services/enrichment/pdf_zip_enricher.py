@@ -36,7 +36,9 @@ async def download_binary(http: ResilientHttpClient, url: str, max_bytes: int) -
             logger.info(f"Binary download via proxy: {url[:60]}")
 
         async with aiohttp.ClientSession(headers=headers) as session:
-            async with session.get(target_url, timeout=aiohttp.ClientTimeout(total=60), ssl=False) as resp:
+            # Workers.dev requires proper SSL; mendoza.gov.ar needs ssl=False
+            use_ssl = False if target_url == url else None  # None = default SSL validation
+            async with session.get(target_url, timeout=aiohttp.ClientTimeout(total=60), ssl=use_ssl) as resp:
                 if resp.status != 200:
                     logger.warning(f"Binary download failed ({resp.status}): {url}")
                     return None

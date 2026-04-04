@@ -105,14 +105,23 @@ const LicitacionDetailPage = ({ userRole }) => {
 
   const toggleSave = async () => {
     const savedItems = JSON.parse(localStorage.getItem('savedLicitaciones') || '[]');
+    const savedDates = JSON.parse(localStorage.getItem('savedLicitacionesDates') || '{}');
     if (isSaved) {
       const newSaved = savedItems.filter(item => item !== id);
+      delete savedDates[id];
       localStorage.setItem('savedLicitaciones', JSON.stringify(newSaved));
+      localStorage.setItem('savedLicitacionesDates', JSON.stringify(savedDates));
       setIsSaved(false);
+      // Sync removal to server
+      axios.delete(`${API}/licitaciones/favorites/${id}`).catch(() => {});
     } else {
       savedItems.push(id);
+      savedDates[id] = new Date().toISOString();
       localStorage.setItem('savedLicitaciones', JSON.stringify(savedItems));
+      localStorage.setItem('savedLicitacionesDates', JSON.stringify(savedDates));
       setIsSaved(true);
+      // Sync addition to server
+      axios.post(`${API}/licitaciones/favorites/${id}`).catch(() => {});
       // Trigger enrich when favoriting any licitacion with a source URL
       if (licitacion?.source_url) {
         enrichLicitacion();

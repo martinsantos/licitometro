@@ -255,7 +255,25 @@ export default function OfertaEditor({ licitacion, onSaved }: Props) {
 
         // Fetch enrichments in background
         api.getBudgetHints(licitacion.id).then(h => { if (!cancelled) setBudgetHints(h); }).catch(() => {});
-        api.extractPliegoInfo(licitacion.id).then(p => { if (!cancelled && !p.error) setPliegoInfo(p); }).catch(() => {});
+        api.extractPliegoInfo(licitacion.id).then(p => {
+          if (cancelled || p.error) return;
+          setPliegoInfo(p);
+          // Auto-import items from pliego analysis if editor is empty
+          if (p.items && p.items.length > 0) {
+            setItems(prev => {
+              const hasRealItems = prev.some(it => it.descripcion.trim() !== '');
+              if (!hasRealItems) {
+                return p.items!.map(it => ({
+                  descripcion: it.descripcion || '',
+                  cantidad: it.cantidad || 1,
+                  unidad: it.unidad || 'u.',
+                  precio_unitario: 0,
+                }));
+              }
+              return prev;
+            });
+          }
+        }).catch(() => {});
         api.listDocuments().then(d => { if (!cancelled) setCompanyDocs(d); }).catch(() => {});
       } catch (e: unknown) {
         if (!cancelled) {

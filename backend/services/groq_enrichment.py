@@ -253,25 +253,40 @@ class GroqEnrichmentService:
             logger.warning(f"Groq extract_marco_legal failed: {e}")
             return {"error": str(e)}
 
-    async def extract_pliego_info(self, pliego_text: str) -> Dict[str, Any]:
+    async def extract_pliego_info(self, pliego_text: str, known_fields: str = "") -> Dict[str, Any]:
         """Deep extraction of pliego information for bidders."""
         client = self._get_client()
         if not client:
             return {"error": "IA no disponible", "items": [], "info_faltante": []}
 
-        prompt = f"""Analiza este pliego/descripción de licitación pública argentina y extrae TODA la información relevante para que una empresa pueda cotizar:
+        known_section = ""
+        if known_fields:
+            known_section = f"""
+DATOS YA CONFIRMADOS (NO listar como faltantes):
+{known_fields}
+"""
 
-{pliego_text[:4000]}
+        prompt = f"""Eres un analista experto en licitaciones públicas argentinas. Analiza EXHAUSTIVAMENTE el siguiente texto y extrae TODA la información relevante para que una empresa pueda armar su cotización (cuadro de precios).
+
+INSTRUCCIONES CRÍTICAS:
+1. ITEMS/RENGLONES: Extrae TODOS los items, renglones o rubros que el oferente debe cotizar. Incluye descripción completa, cantidad exacta y unidad. Si el pliego lista subitems o especificaciones técnicas por item, incluirlas en la descripción.
+2. REQUISITOS TÉCNICOS: Extrae requisitos técnicos REALES del texto (certificaciones, normas, especificaciones). NO inventes requisitos genéricos.
+3. DOCUMENTACIÓN: Lista SOLO la documentación que el pliego EXPLÍCITAMENTE requiere.
+4. INFO FALTANTE: Lista ÚNICAMENTE datos que genuinamente NO aparecen en el texto NI en DATOS CONFIRMADOS. Si el pliego es completo, devuelve lista vacía [].
+5. TIPO DE DOCUMENTO: Si el texto es un decreto, resolución, o boletín oficial (NO un pliego de licitación), indicá en info_faltante UN SOLO item: "Este documento es un decreto/resolución, no un pliego de licitación. Para cotizar, busque el pliego específico del proceso." NO listes requisitos genéricos como faltantes.
+{known_section}
+TEXTO DEL PLIEGO:
+{pliego_text[:30000]}
 
 Responde SOLO con JSON válido (sin markdown, sin backticks):
-{{"items": [{{"descripcion": "...", "cantidad": 1, "unidad": "u."}}], "requisitos_tecnicos": ["Requisito 1"], "documentacion_requerida": ["Doc 1"], "plazo_ejecucion": "30 días hábiles", "lugar_entrega": "...", "garantias": {{"oferta": "5%", "cumplimiento": "10%"}}, "presupuesto_oficial": null, "fecha_apertura": null, "condiciones_especiales": [], "info_faltante": ["Lista de datos que NO se encontraron y habría que consultar al organismo"]}}"""
+{{"items": [{{"descripcion": "Descripción completa del item/renglón", "cantidad": 1, "unidad": "u."}}], "requisitos_tecnicos": ["Requisito extraído del texto"], "documentacion_requerida": ["Doc requerida en el pliego"], "plazo_ejecucion": "Plazo si aparece en el texto", "lugar_entrega": "Lugar si aparece", "garantias": {{"oferta": "5%", "cumplimiento": "10%"}}, "presupuesto_oficial": null, "fecha_apertura": null, "condiciones_especiales": ["Condición especial del pliego"], "info_faltante": ["SOLO datos genuinamente ausentes del pliego"]}}"""
 
         try:
             response = await asyncio.to_thread(
                 client.chat.completions.create,
                 model=GROQ_MODEL,
                 messages=[{"role": "user", "content": prompt}],
-                max_tokens=1200,
+                max_tokens=2500,
                 temperature=0.2,
             )
             content = response.choices[0].message.content.strip()
