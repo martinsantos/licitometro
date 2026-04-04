@@ -145,8 +145,18 @@ class ComprasAppsMendozaScraper(BaseScraper):
     async def _init_session(self) -> bool:
         """GET initial page to establish session and extract GXState."""
         try:
+            # Route through Cloudflare proxy if domain is blocked
+            target_url = self.BASE_URL
+            extra_headers = {}
+            if self._needs_proxy(self.BASE_URL):
+                from scrapers.resilient_http import PROXY_URL, PROXY_SECRET
+                extra_headers = {"X-Target-URL": self.BASE_URL, "X-Proxy-Secret": PROXY_SECRET}
+                target_url = PROXY_URL
+                logger.info("ComprasApps: using Cloudflare proxy")
+
             async with self.session.get(
-                self.BASE_URL, ssl=False, timeout=self._REQUEST_TIMEOUT
+                target_url, ssl=False, timeout=self._REQUEST_TIMEOUT,
+                headers=extra_headers,
             ) as resp:
                 if resp.status != 200:
                     logger.error(f"Init failed: HTTP {resp.status}")
@@ -218,13 +228,21 @@ class ComprasAppsMendozaScraper(BaseScraper):
     async def _post_search(self, form_data: Dict[str, str]) -> Optional[str]:
         """Execute a POST search and return HTML."""
         try:
+            target_url = self.BASE_URL
+            post_headers = {
+                "Content-Type": "application/x-www-form-urlencoded",
+                "Referer": self.BASE_URL,
+            }
+            if self._needs_proxy(self.BASE_URL):
+                from scrapers.resilient_http import PROXY_URL, PROXY_SECRET
+                post_headers["X-Target-URL"] = self.BASE_URL
+                post_headers["X-Proxy-Secret"] = PROXY_SECRET
+                target_url = PROXY_URL
+
             async with self.session.post(
-                self.BASE_URL,
+                target_url,
                 data=form_data,
-                headers={
-                    "Content-Type": "application/x-www-form-urlencoded",
-                    "Referer": self.BASE_URL,
-                },
+                headers=post_headers,
                 ssl=False,
                 timeout=self._REQUEST_TIMEOUT,
             ) as resp:

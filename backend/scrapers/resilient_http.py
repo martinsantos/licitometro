@@ -9,6 +9,7 @@ Resilient HTTP client with anti-ban features:
 
 import asyncio
 import logging
+import os
 import random
 import time
 from typing import Optional, Dict
@@ -16,6 +17,19 @@ from urllib.parse import urlparse
 import aiohttp
 
 logger = logging.getLogger("resilient_http")
+
+# Cloudflare Worker proxy for blocked domains (mendoza.gov.ar blocks datacenter IPs)
+PROXY_URL = os.environ.get("MZA_PROXY_URL", "https://mza-proxy.santosma.workers.dev/")
+PROXY_SECRET = os.environ.get("MZA_PROXY_SECRET", "licitometro-mza-2026")
+PROXIED_DOMAINS = [
+    "comprasapps.mendoza.gov.ar",
+    "portalgateway.mendoza.gov.ar",
+    "boe.mendoza.gov.ar",
+    "datosabiertos-compras.mendoza.gov.ar",
+    "www.mendoza.gov.ar",
+    "mendoza.gov.ar",
+    "informacionoficial.mendoza.gob.ar",
+]
 
 USER_AGENTS = [
     "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
@@ -94,6 +108,11 @@ class ResilientHttpClient:
     def _random_ua(self) -> str:
         return random.choice(USER_AGENTS)
 
+    def _needs_proxy(self, url: str) -> bool:
+        """Check if URL should be routed through Cloudflare Worker proxy."""
+        domain = self._get_domain(url).lower()
+        return any(domain == d or domain.endswith("." + d) for d in PROXIED_DOMAINS)
+
     def _backoff_delay(self, attempt: int) -> float:
         delay = min(self.base_delay * (2 ** attempt), self.max_delay)
         jitter = delay * random.uniform(0.5, 1.5)
@@ -136,8 +155,18 @@ class ResilientHttpClient:
                     **self.extra_headers,
                 }
 
+                # Route blocked domains through Cloudflare Worker proxy
+                actual_url = url
+                actual_method = method
+                if self._needs_proxy(url):
+                    headers["X-Target-URL"] = url
+                    headers["X-Proxy-Secret"] = PROXY_SECRET
+                    actual_url = PROXY_URL
+                    # Forward body via kwargs (data/json) — method stays the same
+                    logger.debug(f"Proxying {url[:60]} via Cloudflare Worker")
+
                 async with self._session.request(
-                    method, url, headers=headers, **kwargs
+                    method, actual_url, headers=headers, **kwargs
                 ) as response:
                     if response.status == 200:
                         domain_state.record_success()

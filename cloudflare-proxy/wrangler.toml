@@ -1,0 +1,9 @@
+name = "mza-proxy"
+main = "worker.js"
+compatibility_date = "2024-01-01"
+
+# Route: proxy.licitometro.ar/*
+# Configure via Cloudflare dashboard or: wrangler deploy
+routes = [
+  { pattern = "proxy.licitometro.ar/*", zone_name = "licitometro.ar" }
+]

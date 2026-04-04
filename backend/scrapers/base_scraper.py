@@ -14,7 +14,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 from models.scraper_config import ScraperConfig
 from models.licitacion import LicitacionCreate
 import aiohttp
-from scrapers.resilient_http import ResilientHttpClient
+from scrapers.resilient_http import ResilientHttpClient, PROXY_URL, PROXY_SECRET, PROXIED_DOMAINS
 
 logger = logging.getLogger("scraper")
 
@@ -62,6 +62,16 @@ class BaseScraper(ABC):
     async def get_next_page_url(self, html: str, current_url: str) -> Optional[str]:
         """Get the URL of the next page for pagination"""
         pass
+
+    def _needs_proxy(self, url: str) -> bool:
+        """Check if URL should be routed through Cloudflare Worker proxy."""
+        from urllib.parse import urlparse
+        domain = urlparse(url).netloc.lower()
+        return any(domain == d or domain.endswith("." + d) for d in PROXIED_DOMAINS)
+
+    def _proxy_headers(self, url: str) -> dict:
+        """Build proxy headers for a request to a blocked domain."""
+        return {"X-Target-URL": url, "X-Proxy-Secret": PROXY_SECRET}
 
     async def fetch_page(self, url: str) -> Optional[str]:
         """Fetch a page using the resilient HTTP client"""

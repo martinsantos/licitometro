@@ -148,7 +148,13 @@ class BoletinOficialMendozaScraper(BaseScraper):
             return None
         try:
             clean_url = url.split("#")[0]
-            async with self.session.get(clean_url) as response:
+            target_url = clean_url
+            extra_headers = {}
+            if self._needs_proxy(clean_url):
+                from scrapers.resilient_http import PROXY_URL, PROXY_SECRET
+                extra_headers = {"X-Target-URL": clean_url, "X-Proxy-Secret": PROXY_SECRET}
+                target_url = PROXY_URL
+            async with self.session.get(target_url, headers=extra_headers) as response:
                 if response.status != 200:
                     logger.warning(f"Failed to download PDF: {url} (status {response.status})")
                     return None
@@ -773,7 +779,13 @@ class BoletinOficialMendozaScraper(BaseScraper):
         }
 
         try:
-            async with self.session.post(advance_url, data=payload) as response:
+            target_url = advance_url
+            extra_headers = {}
+            if self._needs_proxy(advance_url):
+                from scrapers.resilient_http import PROXY_URL, PROXY_SECRET
+                extra_headers = {"X-Target-URL": advance_url, "X-Proxy-Secret": PROXY_SECRET}
+                target_url = PROXY_URL
+            async with self.session.post(target_url, data=payload, headers=extra_headers) as response:
                 if response.status < 200 or response.status >= 300:
                     logger.error(f"Advance search failed {response.status} for keyword={keyword}")
                     return None

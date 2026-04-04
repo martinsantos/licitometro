@@ -20,11 +20,23 @@ async def download_binary(http: ResilientHttpClient, url: str, max_bytes: int) -
     """Stream-download binary content with size limit."""
     try:
         import aiohttp
+        from scrapers.resilient_http import PROXY_URL, PROXY_SECRET, PROXIED_DOMAINS
+        from urllib.parse import urlparse
+
         headers = {
             "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
         }
+        # Route blocked domains through Cloudflare Worker proxy
+        target_url = url
+        domain = urlparse(url).netloc.lower()
+        if any(domain == d or domain.endswith("." + d) for d in PROXIED_DOMAINS):
+            headers["X-Target-URL"] = url
+            headers["X-Proxy-Secret"] = PROXY_SECRET
+            target_url = PROXY_URL
+            logger.info(f"Binary download via proxy: {url[:60]}")
+
         async with aiohttp.ClientSession(headers=headers) as session:
-            async with session.get(url, timeout=aiohttp.ClientTimeout(total=60), ssl=False) as resp:
+            async with session.get(target_url, timeout=aiohttp.ClientTimeout(total=60), ssl=False) as resp:
                 if resp.status != 200:
                     logger.warning(f"Binary download failed ({resp.status}): {url}")
                     return None
