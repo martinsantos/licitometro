@@ -169,7 +169,7 @@ class ResilientHttpClient:
                 async with self._session.request(
                     method, actual_url, headers=headers, **request_kwargs
                 ) as response:
-                    if response.status == 200:
+                    if 200 <= response.status < 300:
                         domain_state.record_success()
                         # Always read raw bytes first, then decode manually.
                         # response.text() is unreliable when servers lie about charset.
