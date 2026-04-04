@@ -339,23 +339,38 @@ async def extract_pliego_info(body: Dict[str, Any], request: Request):
     if related_sources:
         logger.info(f"CotizAR HUNTER: found {len(related_sources)} related sources, {len(cross_items)} items, {len(cross_attached)} files")
 
-    # --- COMPR.AR auto-search: when description references compras.mendoza.gov.ar ---
+    # --- COMPR.AR auto-search: when any field references compras.mendoza.gov.ar ---
     comprar_pliego_text = ""
     desc_text = lic.get("description") or ""
     lic_number = lic.get("licitacion_number") or ""
     source_url = lic.get("source_url") or ""
+    source_urls = lic.get("source_urls") or {}
+    source_urls_str = " ".join(str(v) for v in source_urls.values())
     is_comprar = "comprar.mendoza.gov.ar" in source_url or "comprar.mendoza" in source_url
-    refs_comprar = "compras.mendoza.gov.ar" in desc_text or "comprar.mendoza.gov.ar" in desc_text
+    refs_comprar = (
+        "compras.mendoza.gov.ar" in desc_text or
+        "comprar.mendoza.gov.ar" in desc_text or
+        "comprar.mendoza.gov.ar" in source_urls_str  # Check source_urls too
+    )
 
-    if (refs_comprar or is_comprar) and lic_number and not (lic.get("metadata") or {}).get("comprar_pliego_fields"):
+    if (refs_comprar or is_comprar) and not (lic.get("metadata") or {}).get("comprar_pliego_fields"):
         try:
             import re as _re
-            # Extract the core process number (strip trailing -N suffixes)
-            core_num = _re.sub(r'-\d+$', '', lic_number).strip()
-            logger.info(f"CotizAR: auto-searching COMPR.AR for process {core_num}")
+            pliego_url = None
 
-            from routers.comprar import _search_and_resolve_pliego
-            pliego_url = await _search_and_resolve_pliego(core_num, "https://comprar.mendoza.gov.ar/Compras.aspx?qs=W1HXHGHtH10=")
+            # First: check if source_urls already has a VistaPreviaPliegoCiudadano URL
+            for su_val in source_urls.values():
+                if isinstance(su_val, str) and "VistaPreviaPliegoCiudadano" in su_val:
+                    pliego_url = su_val
+                    logger.info(f"CotizAR: using existing COMPR.AR pliego URL from source_urls")
+                    break
+
+            # Second: search COMPR.AR by licitacion_number
+            if not pliego_url and lic_number:
+                core_num = _re.sub(r'-\d{1,3}$', '', lic_number).strip()
+                logger.info(f"CotizAR: auto-searching COMPR.AR for process {core_num}")
+                from routers.comprar import _search_and_resolve_pliego
+                pliego_url = await _search_and_resolve_pliego(core_num, "https://comprar.mendoza.gov.ar/Compras.aspx?qs=W1HXHGHtH10=")
 
             if pliego_url and "VistaPreviaPliegoCiudadano" in pliego_url:
                 logger.info(f"CotizAR: resolved COMPR.AR pliego URL: {pliego_url[:80]}")

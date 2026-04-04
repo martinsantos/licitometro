@@ -55,10 +55,11 @@ class CrossSourceService:
             if cleaned and len(cleaned) >= 3:
                 query_parts.append({"expedient_number": {"$regex": re.escape(cleaned), "$options": "i"}})
         if lic_number:
-            # Fuzzy match: strip trailing -N suffix and match as prefix
-            core_number = re.sub(r'-\d+$', '', lic_number).strip()
+            # Fuzzy match: strip trailing CUC suffix (-N, 1-3 digits) but keep years (-2024)
+            core_number = re.sub(r'-\d{1,3}$', '', lic_number).strip()
             if core_number:
-                query_parts.append({"licitacion_number": {"$regex": "^" + re.escape(core_number), "$options": "i"}})
+                # Use word boundary to prevent "2070" matching "20701"
+                query_parts.append({"licitacion_number": {"$regex": "^" + re.escape(core_number) + "(?:[/-]|$)", "$options": "i"}})
 
         if not query_parts:
             return []
