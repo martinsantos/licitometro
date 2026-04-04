@@ -40,16 +40,17 @@ async def download_binary(http: ResilientHttpClient, url: str, max_bytes: int) -
         use_proxy = target_url != url
 
         async with aiohttp.ClientSession(headers=headers) as session:
-            for attempt in range(3):
+            max_attempts = 5 if use_proxy else 3
+            for attempt in range(max_attempts):
                 try:
                     async with session.get(
                         target_url,
                         timeout=aiohttp.ClientTimeout(total=90 if use_proxy else 60),
                         ssl=use_ssl,
                     ) as resp:
-                        if resp.status == 522 and attempt < 2:
+                        if resp.status == 522 and attempt < max_attempts - 1:
                             logger.warning(f"Binary proxy 522, retry {attempt + 1}: {url[:60]}")
-                            await _asyncio.sleep(2)
+                            await _asyncio.sleep(3)
                             continue
                         if resp.status != 200:
                             logger.warning(f"Binary download failed ({resp.status}): {url}")
@@ -68,9 +69,9 @@ async def download_binary(http: ResilientHttpClient, url: str, max_bytes: int) -
                             chunks.append(chunk)
                         return b"".join(chunks)
                 except (aiohttp.ClientError, _asyncio.TimeoutError) as e:
-                    if attempt < 2:
+                    if attempt < max_attempts - 1:
                         logger.warning(f"Binary download attempt {attempt + 1} failed: {e}, retrying...")
-                        await _asyncio.sleep(2)
+                        await _asyncio.sleep(3)
                         continue
                     raise
             return None
