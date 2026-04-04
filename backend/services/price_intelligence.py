@@ -25,6 +25,12 @@ class PriceIntelligenceService:
         budgets = []
         sources = []
         item_prices = []
+        current_budget = lic.get("budget")
+
+        # Budget magnitude filter: ±10x to avoid comparing $2K with $5B
+        budget_filter = {"budget": {"$gt": 0}}
+        if current_budget and current_budget > 0:
+            budget_filter = {"budget": {"$gte": current_budget / 10, "$lte": current_budget * 10}}
 
         # 1. Internal antecedentes — text search on closed licitaciones
         search_text = " ".join(filter(None, [
@@ -38,9 +44,8 @@ class PriceIntelligenceService:
                 cursor = self.db.licitaciones.find(
                     {
                         "$text": {"$search": search_text},
-                        "estado": {"$in": ["vencida", "archivada"]},
                         "_id": {"$ne": lic["_id"]},
-                        "budget": {"$gt": 0},
+                        **budget_filter,
                     },
                     {"score": {"$meta": "textScore"}},
                 ).sort([("score", {"$meta": "textScore"})]).limit(20)
@@ -68,9 +73,8 @@ class PriceIntelligenceService:
                     try:
                         cursor = self.db.licitaciones.find({
                             "category": lic["category"],
-                            "estado": {"$in": ["vencida", "archivada"]},
                             "_id": {"$ne": lic["_id"]},
-                            "budget": {"$gt": 0},
+                            **budget_filter,
                         }).sort("publication_date", -1).limit(10)
 
                         fallback = await cursor.to_list(10)
@@ -82,13 +86,13 @@ class PriceIntelligenceService:
                     except Exception:
                         pass
 
-        # 2. COMPR.AR historical — same category
+        # 2. COMPR.AR historical — same category with magnitude filter
         try:
             comprar_cursor = self.db.licitaciones.find({
                 "fuente": {"$regex": "compra", "$options": "i"},
                 "category": lic.get("category"),
-                "budget": {"$gt": 0},
                 "_id": {"$ne": lic["_id"]},
+                **budget_filter,
             }).sort("publication_date", -1).limit(10)
 
             comprar_items = await comprar_cursor.to_list(10)
