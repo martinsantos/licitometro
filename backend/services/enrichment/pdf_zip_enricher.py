@@ -35,26 +35,45 @@ async def download_binary(http: ResilientHttpClient, url: str, max_bytes: int) -
             target_url = PROXY_URL
             logger.info(f"Binary download via proxy: {url[:60]}")
 
+        import asyncio as _asyncio
+        use_ssl = False if target_url == url else None  # None = default SSL for workers.dev
+        use_proxy = target_url != url
+
         async with aiohttp.ClientSession(headers=headers) as session:
-            # Workers.dev requires proper SSL; mendoza.gov.ar needs ssl=False
-            use_ssl = False if target_url == url else None  # None = default SSL validation
-            async with session.get(target_url, timeout=aiohttp.ClientTimeout(total=60), ssl=use_ssl) as resp:
-                if resp.status != 200:
-                    logger.warning(f"Binary download failed ({resp.status}): {url}")
-                    return None
-                content_length = int(resp.headers.get("Content-Length", 0))
-                if content_length > max_bytes:
-                    logger.warning(f"Binary too large ({content_length / 1024 / 1024:.1f}MB): {url}")
-                    return None
-                chunks = []
-                total = 0
-                async for chunk in resp.content.iter_chunked(64 * 1024):
-                    total += len(chunk)
-                    if total > max_bytes:
-                        logger.warning(f"Binary exceeded size limit during download: {url}")
-                        return None
-                    chunks.append(chunk)
-                return b"".join(chunks)
+            for attempt in range(3):
+                try:
+                    async with session.get(
+                        target_url,
+                        timeout=aiohttp.ClientTimeout(total=90 if use_proxy else 60),
+                        ssl=use_ssl,
+                    ) as resp:
+                        if resp.status == 522 and attempt < 2:
+                            logger.warning(f"Binary proxy 522, retry {attempt + 1}: {url[:60]}")
+                            await _asyncio.sleep(2)
+                            continue
+                        if resp.status != 200:
+                            logger.warning(f"Binary download failed ({resp.status}): {url}")
+                            return None
+                        content_length = int(resp.headers.get("Content-Length", 0))
+                        if content_length > max_bytes:
+                            logger.warning(f"Binary too large ({content_length / 1024 / 1024:.1f}MB): {url}")
+                            return None
+                        chunks = []
+                        total = 0
+                        async for chunk in resp.content.iter_chunked(64 * 1024):
+                            total += len(chunk)
+                            if total > max_bytes:
+                                logger.warning(f"Binary exceeded size limit during download: {url}")
+                                return None
+                            chunks.append(chunk)
+                        return b"".join(chunks)
+                except (aiohttp.ClientError, _asyncio.TimeoutError) as e:
+                    if attempt < 2:
+                        logger.warning(f"Binary download attempt {attempt + 1} failed: {e}, retrying...")
+                        await _asyncio.sleep(2)
+                        continue
+                    raise
+            return None
     except Exception as e:
         logger.error(f"Error downloading binary {url}: {e}")
         return None
