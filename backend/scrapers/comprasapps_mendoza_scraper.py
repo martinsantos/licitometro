@@ -148,21 +148,44 @@ class ComprasAppsMendozaScraper(BaseScraper):
             # Route through Cloudflare proxy if domain is blocked
             target_url = self.BASE_URL
             extra_headers = {}
-            if self._needs_proxy(self.BASE_URL):
+            use_proxy = self._needs_proxy(self.BASE_URL)
+            if use_proxy:
                 from scrapers.resilient_http import PROXY_URL, PROXY_SECRET
                 extra_headers = {"X-Target-URL": self.BASE_URL, "X-Proxy-Secret": PROXY_SECRET}
                 target_url = PROXY_URL
                 logger.info("ComprasApps: using Cloudflare proxy")
 
-            async with self.session.get(
-                target_url, ssl=(target_url != self.BASE_URL), timeout=self._REQUEST_TIMEOUT,
-                headers=extra_headers,
-            ) as resp:
-                if resp.status != 200:
-                    logger.error(f"Init failed: HTTP {resp.status}")
-                    return False
-                raw = await resp.read()
-                html = raw.decode("utf-8", errors="replace")
+            # Retry up to 3 times (proxy may return 522 on first attempt)
+            html = None
+            proxy_timeout = aiohttp.ClientTimeout(total=30, connect=10, sock_read=25)
+            for attempt in range(3):
+                try:
+                    async with self.session.get(
+                        target_url,
+                        ssl=(use_proxy or None),  # True for proxy, None (default) for direct
+                        timeout=proxy_timeout if use_proxy else self._REQUEST_TIMEOUT,
+                        headers=extra_headers,
+                    ) as resp:
+                        if resp.status == 522 and attempt < 2:
+                            logger.warning(f"Proxy returned 522, retry {attempt + 1}")
+                            await asyncio.sleep(1)
+                            continue
+                        if resp.status >= 400:
+                            logger.error(f"Init failed: HTTP {resp.status}")
+                            return False
+                        raw = await resp.read()
+                        html = raw.decode("utf-8", errors="replace")
+                        break
+                except (aiohttp.ClientError, asyncio.TimeoutError) as e:
+                    if attempt < 2:
+                        logger.warning(f"Init attempt {attempt + 1} failed: {e}, retrying...")
+                        await asyncio.sleep(1)
+                        continue
+                    raise
+
+            if not html:
+                logger.error("Init failed: no response after retries")
+                return False
 
             soup = BeautifulSoup(html, "html.parser")
             gxstate_input = soup.find("input", {"name": "GXState"})
@@ -233,36 +256,53 @@ class ComprasAppsMendozaScraper(BaseScraper):
                 "Content-Type": "application/x-www-form-urlencoded",
                 "Referer": self.BASE_URL,
             }
-            if self._needs_proxy(self.BASE_URL):
+            use_proxy = self._needs_proxy(self.BASE_URL)
+            if use_proxy:
                 from scrapers.resilient_http import PROXY_URL, PROXY_SECRET
                 post_headers["X-Target-URL"] = self.BASE_URL
                 post_headers["X-Proxy-Secret"] = PROXY_SECRET
                 target_url = PROXY_URL
 
-            async with self.session.post(
-                target_url,
-                data=form_data,
-                headers=post_headers,
-                ssl=(target_url != self.BASE_URL),
-                timeout=self._REQUEST_TIMEOUT,
-            ) as resp:
-                if resp.status != 200:
-                    logger.error(f"POST failed: HTTP {resp.status}")
-                    return None
-                raw = await resp.read()
-                html = raw.decode("utf-8", errors="replace")
+            proxy_timeout = aiohttp.ClientTimeout(total=30, connect=10, sock_read=25)
+            resp_status = None
+            html = None
+            for attempt in range(3):
+                try:
+                    async with self.session.post(
+                        target_url,
+                        data=form_data,
+                        headers=post_headers,
+                        ssl=(use_proxy or None),
+                        timeout=proxy_timeout if use_proxy else self._REQUEST_TIMEOUT,
+                    ) as resp:
+                        resp_status = resp.status
+                        if resp.status == 522 and attempt < 2:
+                            logger.warning(f"Proxy POST returned 522, retry {attempt + 1}")
+                            await asyncio.sleep(1)
+                            continue
+                        if resp.status >= 400:
+                            logger.error(f"POST failed: HTTP {resp.status}")
+                            return None
+                        raw = await resp.read()
+                        html = raw.decode("utf-8", errors="replace")
 
-                # Update GXState from response for pagination
-                soup = BeautifulSoup(html, "html.parser")
-                gxstate_input = soup.find("input", {"name": "GXState"})
-                if gxstate_input and gxstate_input.get("value"):
-                    self._gxstate_raw = gxstate_input["value"]
-                    try:
-                        self._gxstate = json.loads(self._gxstate_raw)
-                    except json.JSONDecodeError:
-                        pass
-
-                return html
+                        # Update GXState from response for pagination
+                        soup = BeautifulSoup(html, "html.parser")
+                        gxstate_input = soup.find("input", {"name": "GXState"})
+                        if gxstate_input and gxstate_input.get("value"):
+                            self._gxstate_raw = gxstate_input["value"]
+                            try:
+                                self._gxstate = json.loads(self._gxstate_raw)
+                            except json.JSONDecodeError:
+                                pass
+                        return html
+                except (aiohttp.ClientError, asyncio.TimeoutError) as e:
+                    if attempt < 2:
+                        logger.warning(f"POST attempt {attempt + 1} failed: {e}, retrying...")
+                        await asyncio.sleep(1)
+                        continue
+                    raise
+            return html
         except Exception as e:
             logger.error(f"POST search failed: {e}")
             return None
