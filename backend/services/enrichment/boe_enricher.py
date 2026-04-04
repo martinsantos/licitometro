@@ -492,9 +492,13 @@ async def enrich_boe(http: ResilientHttpClient, lic_doc: dict, source_url: str) 
     updates: Dict[str, Any] = {}
     section_text = segment.get("content", "")
 
-    # Description: update if segment content is significantly longer
+    # Description: replace if segment content is relevant (BOE descriptions from old
+    # regex segmentation are often contaminated with wrong decree/resolution text)
     current_desc = lic_doc.get("description", "") or ""
-    if section_text and len(section_text) > len(current_desc) + 50:
+    if section_text and len(section_text) > 100:
+        # For BOE items, the matched segment IS the correct content — always use it
+        # The old description was likely from the HTML toggle-body (wrong norma) or
+        # from a badly segmented PDF section mixing multiple processes
         updates["description"] = section_text[:10000]
 
     # Objeto: update if missing, garbage, or segment is more detailed
@@ -539,10 +543,9 @@ async def enrich_boe(http: ResilientHttpClient, lic_doc: dict, source_url: str) 
     if seg_exp and (not current_exp or is_garbage_exp):
         updates["expedient_number"] = seg_exp
 
-    # Organization: update if current is generic
+    # Organization: update if segment has one (old segmentation often assigns wrong org)
     seg_org = segment.get("organization")
-    current_org = lic_doc.get("organization", "")
-    if seg_org and (not current_org or current_org in ("Boletin Oficial Mendoza", "Gobierno de Mendoza")):
+    if seg_org:
         updates["organization"] = seg_org
 
     # Always ensure objeto + category

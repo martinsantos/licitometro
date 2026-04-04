@@ -69,32 +69,42 @@ export default {
       return new Response(`Domain ${targetHost} not allowed`, { status: 403 });
     }
 
-    // Forward request
+    // Forward request with retry (some edges can't reach origin on first try)
     try {
       const headers = new Headers();
-      // Forward content-type and other relevant headers
       for (const [key, value] of request.headers) {
         if (['content-type', 'accept', 'accept-encoding', 'accept-language'].includes(key.toLowerCase())) {
           headers.set(key, value);
         }
       }
-      // Add a real browser User-Agent
       headers.set('User-Agent', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36');
 
-      const fetchOptions = {
-        method: request.method,
-        headers,
-        redirect: 'follow',
-      };
-
-      // Forward body for POST/PUT
+      let body = null;
       if (['POST', 'PUT', 'PATCH'].includes(request.method)) {
-        fetchOptions.body = await request.arrayBuffer();
+        body = await request.arrayBuffer();
       }
 
-      const response = await fetch(targetUrl, fetchOptions);
+      // Retry up to 3 times — some CF edges timeout connecting to Argentine origins
+      let response;
+      for (let attempt = 0; attempt < 3; attempt++) {
+        const fetchOptions = {
+          method: request.method,
+          headers,
+          redirect: 'follow',
+        };
+        if (body) fetchOptions.body = body;
 
-      // Return proxied response
+        try {
+          response = await fetch(targetUrl, fetchOptions);
+          if (response.status !== 522) break; // Success or non-retryable error
+          // 522 = origin connection timeout, retry
+          if (attempt < 2) await new Promise(r => setTimeout(r, 2000));
+        } catch (fetchErr) {
+          if (attempt >= 2) throw fetchErr;
+          await new Promise(r => setTimeout(r, 2000));
+        }
+      }
+
       const responseHeaders = new Headers(response.headers);
       responseHeaders.set('Access-Control-Allow-Origin', '*');
       responseHeaders.set('X-Proxied-From', targetHost);
