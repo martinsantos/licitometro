@@ -164,6 +164,7 @@ async def search_antecedentes(body: Dict[str, Any], request: Request):
     search_text = " ".join(search_parts).strip()
 
     antecedentes = []
+    current_nodos = lic.get("nodos") or []
 
     # Phase 1: $text search with relevance scoring
     if search_text:
@@ -171,7 +172,6 @@ async def search_antecedentes(body: Dict[str, Any], request: Request):
             text_query = {
                 "$text": {"$search": search_text},
                 "_id": {"$ne": ObjectId(licitacion_id)},
-                "estado": {"$in": ["vencida", "archivada"]},
             }
             cursor = db.licitaciones.find(
                 text_query,
@@ -181,11 +181,29 @@ async def search_antecedentes(body: Dict[str, Any], request: Request):
         except Exception as e:
             logger.warning(f"Text search for antecedentes failed: {e}")
 
-    # Phase 2: Fallback to category-only query if text search yielded nothing
+    # Phase 2: Nodo-based search (find items in same nodos regardless of text match)
+    if current_nodos and len(antecedentes) < 10:
+        try:
+            existing_ids = {a["_id"] for a in antecedentes}
+            existing_ids.add(ObjectId(licitacion_id))
+            nodo_query = {
+                "_id": {"$nin": list(existing_ids)},
+                "nodos": {"$in": current_nodos},
+            }
+            if lic.get("budget"):
+                # Prefer items with budget for price comparison
+                nodo_query["budget"] = {"$gt": 0}
+            nodo_results = await db.licitaciones.find(nodo_query).sort(
+                "publication_date", -1
+            ).limit(10 - len(antecedentes)).to_list(10)
+            antecedentes.extend(nodo_results)
+        except Exception as e:
+            logger.warning(f"Nodo search for antecedentes failed: {e}")
+
+    # Phase 3: Fallback to category-only query if still nothing
     if not antecedentes and lic.get("category"):
         fallback_query = {
             "_id": {"$ne": ObjectId(licitacion_id)},
-            "estado": {"$in": ["vencida", "archivada"]},
             "category": lic["category"],
         }
         antecedentes = await db.licitaciones.find(fallback_query).sort(
@@ -374,8 +392,20 @@ async def extract_pliego_info(body: Dict[str, Any], request: Request):
         known_fields.append(f"Encuadre legal: {lic['encuadre_legal']}")
     known_fields_text = "\n".join(known_fields)
 
-    # --- Download and parse attached PDFs/ZIPs (own + cross-source) ---
+    # --- Download and parse attached PDFs/ZIPs (own + cross-source + description URLs) ---
     all_attached = list(lic.get("attached_files") or []) + cross_attached
+
+    # Extract URLs from description text that might be pliego download pages
+    desc_for_urls = (lic.get("description") or "") + " " + comprar_pliego_text
+    import re as _re
+    desc_urls = _re.findall(r'https?://[^\s<>"\')\]]+', desc_for_urls)
+    for durl in desc_urls:
+        durl_clean = durl.rstrip(".,;:")
+        if durl_clean.lower().endswith(".pdf") or durl_clean.lower().endswith(".zip"):
+            all_attached.append({"url": durl_clean, "type": "pdf" if durl_clean.lower().endswith(".pdf") else "zip"})
+        elif any(kw in durl_clean.lower() for kw in ("pliego", "licitacion", "descarga", "download")):
+            all_attached.append({"url": durl_clean, "type": "pdf"})
+
     pdf_texts = []
     download_tasks = []
     seen_urls = set()
@@ -383,6 +413,9 @@ async def extract_pliego_info(body: Dict[str, Any], request: Request):
         url = f.get("url", "")
         ftype = (f.get("type") or "").lower()
         if not url or "javascript" in url.lower() or url in seen_urls:
+            continue
+        # Skip gazette PDFs (huge multi-process docs, not the actual pliego)
+        if "/verpdf/" in url and "boe.mendoza" in url:
             continue
         seen_urls.add(url)
         if ftype == "pdf" or url.lower().endswith(".pdf"):
