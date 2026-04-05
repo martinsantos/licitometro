@@ -61,11 +61,12 @@ const confBadge: Record<string, string> = {
 
 /* ── Match Card ─────────────────────────────────────────────────────── */
 
-function MatchCard({ m, mode, onAction, actionLoading }: {
+function MatchCard({ m, mode, onAction, actionLoading, alreadyMerged }: {
   m: HunterMatch;
   mode: 'detail' | 'cotizar';
   onAction: (id: string, action: string) => void;
   actionLoading: string | null;
+  alreadyMerged?: boolean;
 }) {
   const budgetStr = fmt(m.budget, m.currency);
   const fc = fuenteColor[m.fuente] || 'bg-gray-100 text-gray-600';
@@ -126,13 +127,19 @@ function MatchCard({ m, mode, onAction, actionLoading }: {
       {/* Actions */}
       <div className="flex items-center gap-2">
         {mode === 'detail' && (
-          <button
-            onClick={() => onAction(m.id, 'merge')}
-            disabled={isLoading}
-            className="text-xs font-semibold px-3 py-1.5 rounded-lg bg-amber-500 text-white hover:bg-amber-600 disabled:opacity-50 transition-colors"
-          >
-            {isLoading ? '⏳ Fusionando...' : '🔗 Fusionar datos'}
-          </button>
+          alreadyMerged ? (
+            <span className="text-xs font-semibold px-3 py-1.5 rounded-lg bg-emerald-100 text-emerald-700">
+              ✓ Ya fusionado
+            </span>
+          ) : (
+            <button
+              onClick={() => onAction(m.id, 'merge')}
+              disabled={isLoading}
+              className="text-xs font-semibold px-3 py-1.5 rounded-lg bg-amber-500 text-white hover:bg-amber-600 disabled:opacity-50 transition-colors"
+            >
+              {isLoading ? '⏳ Fusionando...' : '🔗 Fusionar datos'}
+            </button>
+          )
         )}
         {mode === 'cotizar' && m.items_count > 0 && (
           <button
@@ -164,6 +171,7 @@ export default function HunterPanel({ licitacionId, mode, isOpen, onClose, onMer
   const [result, setResult] = useState<HunterResult | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [actionLoading, setActionLoading] = useState<string | null>(null);
+  const [mergedIds, setMergedIds] = useState<Set<string>>(new Set());
   const [toast, setToast] = useState<{ msg: string; type: 'ok' | 'err' } | null>(null);
   const abortRef = useRef<AbortController | null>(null);
 
@@ -200,9 +208,17 @@ export default function HunterPanel({ licitacionId, mode, isOpen, onClose, onMer
     if (isOpen) {
       setResult(null);
       doSearch('search');
+      // Load already-merged IDs from licitacion metadata
+      fetch(`/api/licitaciones/${licitacionId}`, { credentials: 'include' })
+        .then(r => r.json())
+        .then(lic => {
+          const merges = lic?.metadata?.cross_source_merges || [];
+          setMergedIds(new Set(merges.map((m: any) => m.from_id)));
+        })
+        .catch(() => {});
     }
     return () => abortRef.current?.abort();
-  }, [isOpen, doSearch]);
+  }, [isOpen, doSearch, licitacionId]);
 
   const handleAction = async (matchId: string, action: string) => {
     setActionLoading(matchId);
@@ -217,6 +233,7 @@ export default function HunterPanel({ licitacionId, mode, isOpen, onClose, onMer
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         const data = await res.json();
         showToast(`✓ Fusionado: ${(data.fields_merged || []).join(', ')}`);
+        setMergedIds(prev => new Set([...prev, matchId]));
         onMerge?.(matchId);
       } else if (action === 'import') {
         // Fetch the related item's items
@@ -332,7 +349,7 @@ export default function HunterPanel({ licitacionId, mode, isOpen, onClose, onMer
                   </h3>
                   <div className="space-y-3">
                     {exactMatches.map(m => (
-                      <MatchCard key={m.id} m={m} mode={mode} onAction={handleAction} actionLoading={actionLoading} />
+                      <MatchCard key={m.id} m={m} mode={mode} onAction={handleAction} actionLoading={actionLoading} alreadyMerged={mergedIds.has(m.id)} />
                     ))}
                   </div>
                 </section>
@@ -346,7 +363,7 @@ export default function HunterPanel({ licitacionId, mode, isOpen, onClose, onMer
                   </h3>
                   <div className="space-y-3">
                     {adjudicaciones.map(m => (
-                      <MatchCard key={m.id} m={m} mode={mode} onAction={handleAction} actionLoading={actionLoading} />
+                      <MatchCard key={m.id} m={m} mode={mode} onAction={handleAction} actionLoading={actionLoading} alreadyMerged={mergedIds.has(m.id)} />
                     ))}
                   </div>
                 </section>
@@ -360,7 +377,7 @@ export default function HunterPanel({ licitacionId, mode, isOpen, onClose, onMer
                   </h3>
                   <div className="space-y-3">
                     {similarMatches.map(m => (
-                      <MatchCard key={m.id} m={m} mode={mode} onAction={handleAction} actionLoading={actionLoading} />
+                      <MatchCard key={m.id} m={m} mode={mode} onAction={handleAction} actionLoading={actionLoading} alreadyMerged={mergedIds.has(m.id)} />
                     ))}
                   </div>
                 </section>
