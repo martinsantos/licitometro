@@ -425,7 +425,7 @@ const LicitacionDetailPage = ({ userRole }) => {
               </div>
               
               {/* Action Buttons */}
-              <div className="flex sm:flex-col gap-3">
+              <div className="flex flex-wrap gap-2 sm:flex-col sm:gap-3">
                 <button
                   onClick={toggleSave}
                   className={`flex items-center gap-2 px-3 py-2 rounded-2xl transition-all duration-300 text-sm ${
