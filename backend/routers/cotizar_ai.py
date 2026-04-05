@@ -444,7 +444,7 @@ async def extract_pliego_info(body: Dict[str, Any], request: Request):
             all_attached.append({"url": durl_clean, "type": ftype})
         elif any(kw in dl for kw in ("pliego", "licitacion", "descarga", "download")):
             all_attached.append({"url": durl_clean, "type": "pdf"})
-        elif "/verpdf/" not in dl:
+        elif "/verpdf/" not in dl and "mendoza.gov.ar" not in dl:
             # Landing page — scrape for PDF links (1-2 levels deep)
             try:
                 async with _aiohttp.ClientSession() as _sess:
@@ -464,7 +464,8 @@ async def extract_pliego_info(body: Dict[str, Any], request: Request):
                                     all_attached.append({"url": _h, "type": "pdf" if _hl.endswith(".pdf") else "zip", "name": _a.get_text(strip=True)[:60]})
                                 # Subpage that matches objeto keywords
                                 elif any(kw in _hl or kw in _t for kw in ["licitacion", "obra", "pliego"]):
-                                    obj_words = [w for w in objeto_lower.split() if len(w) >= 5][:3]
+                                    import unicodedata as _ud
+                                    obj_words = [_ud.normalize('NFD', w).encode('ascii', 'ignore').decode() for w in objeto_lower.split() if len(w) >= 5][:3]
                                     if any(w in _hl for w in obj_words):
                                         # Follow subpage
                                         try:
@@ -481,7 +482,7 @@ async def extract_pliego_info(body: Dict[str, Any], request: Request):
                                         except Exception:
                                             pass
             except Exception as _e:
-                logger.debug(f"Failed to scrape landing page {durl_clean}: {_e}")
+                logger.warning(f"Failed to scrape landing page {durl_clean}: {_e}")
 
     pdf_texts = []
     download_tasks = []
