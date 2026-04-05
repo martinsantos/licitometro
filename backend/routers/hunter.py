@@ -226,25 +226,68 @@ async def _scrape_description_urls(base: dict) -> List[dict]:
                                     "size": len(text),
                                 })
                     elif "html" in ct.lower():
-                        # HTML page — look for PDF links
+                        # HTML page — look for PDF/document links AND subpages
                         html = await resp.text()
                         from bs4 import BeautifulSoup
+                        from urllib.parse import urljoin as _urljoin
                         soup = BeautifulSoup(html, "html.parser")
                         pdf_links = []
+                        subpages = []
+                        objeto_lower = (base.get("objeto") or "").lower()
+
                         for a in soup.find_all("a", href=True):
                             href = a["href"]
                             link_text = a.get_text(strip=True).lower()
-                            if href.lower().endswith(".pdf") or "pliego" in link_text or "descarg" in link_text:
-                                if href.startswith("/"):
-                                    from urllib.parse import urljoin
-                                    href = urljoin(url, href)
-                                if href.startswith("http"):
-                                    pdf_links.append({"url": href, "text": a.get_text(strip=True)[:100]})
-                        if pdf_links:
+                            if href.startswith("/") or not href.startswith("http"):
+                                href = _urljoin(url, href)
+                            if not href.startswith("http"):
+                                continue
+
+                            h_lower = href.lower()
+                            # Collect document links
+                            if any(h_lower.endswith(ext) for ext in (".pdf", ".xlsx", ".xls", ".zip", ".doc", ".docx")):
+                                pdf_links.append({"url": href, "text": a.get_text(strip=True)[:100]})
+                            elif "pliego" in link_text or "descarg" in link_text or "cotizaci" in link_text:
+                                pdf_links.append({"url": href, "text": a.get_text(strip=True)[:100]})
+                            # Collect subpages that match the objeto
+                            elif any(kw in h_lower or kw in link_text for kw in ["licitacion", "obra", "pliego"]):
+                                # Check if subpage title matches our objeto
+                                obj_words = [w for w in objeto_lower.split() if len(w) >= 5][:3]
+                                if any(w in h_lower or w in link_text for w in obj_words):
+                                    subpages.append(href)
+
+                        # Follow subpages to find PDFs (1 level deep)
+                        for subpage in subpages[:3]:
+                            if subpage in seen_urls:
+                                continue
+                            seen_urls.add(subpage)
+                            try:
+                                async with session.get(subpage, timeout=aiohttp.ClientTimeout(total=10), ssl=False) as sub_resp:
+                                    if sub_resp.status == 200 and "html" in sub_resp.headers.get("Content-Type", ""):
+                                        sub_html = await sub_resp.text()
+                                        sub_soup = BeautifulSoup(sub_html, "html.parser")
+                                        for a2 in sub_soup.find_all("a", href=True):
+                                            h2 = a2["href"]
+                                            if h2.startswith("/") or not h2.startswith("http"):
+                                                h2 = _urljoin(subpage, h2)
+                                            if any(h2.lower().endswith(ext) for ext in (".pdf", ".xlsx", ".xls", ".zip")):
+                                                pdf_links.append({"url": h2, "text": a2.get_text(strip=True)[:100]})
+                            except Exception:
+                                pass
+
+                        # Deduplicate pdf_links by URL
+                        seen_pdfs = set()
+                        unique_links = []
+                        for pl in pdf_links:
+                            if pl["url"] not in seen_pdfs:
+                                seen_pdfs.add(pl["url"])
+                                unique_links.append(pl)
+
+                        if unique_links:
                             results.append({
                                 "source": url,
                                 "type": "landing_page",
-                                "pdf_links": pdf_links[:10],
+                                "pdf_links": unique_links[:20],
                                 "page_title": soup.title.string if soup.title else "",
                             })
         except Exception as e:

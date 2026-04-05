@@ -428,16 +428,60 @@ async def extract_pliego_info(body: Dict[str, Any], request: Request):
     # --- Download and parse attached PDFs/ZIPs (own + cross-source + description URLs) ---
     all_attached = list(lic.get("attached_files") or []) + cross_attached
 
-    # Extract URLs from description text that might be pliego download pages
+    # Extract URLs from description text and follow landing pages to find pliego PDFs
     desc_for_urls = (lic.get("description") or "") + " " + comprar_pliego_text
     import re as _re
+    import aiohttp as _aiohttp
+    from urllib.parse import urljoin as _urljoin
     desc_urls = _re.findall(r'https?://[^\s<>"\')\]]+', desc_for_urls)
+    objeto_lower = (lic.get("objeto") or "").lower()
+
     for durl in desc_urls:
         durl_clean = durl.rstrip(".,;:")
-        if durl_clean.lower().endswith(".pdf") or durl_clean.lower().endswith(".zip"):
-            all_attached.append({"url": durl_clean, "type": "pdf" if durl_clean.lower().endswith(".pdf") else "zip"})
-        elif any(kw in durl_clean.lower() for kw in ("pliego", "licitacion", "descarga", "download")):
+        dl = durl_clean.lower()
+        if dl.endswith(".pdf") or dl.endswith(".zip") or dl.endswith(".xlsx"):
+            ftype = "zip" if dl.endswith(".zip") else "pdf"
+            all_attached.append({"url": durl_clean, "type": ftype})
+        elif any(kw in dl for kw in ("pliego", "licitacion", "descarga", "download")):
             all_attached.append({"url": durl_clean, "type": "pdf"})
+        elif "/verpdf/" not in dl:
+            # Landing page — scrape for PDF links (1-2 levels deep)
+            try:
+                async with _aiohttp.ClientSession() as _sess:
+                    async with _sess.get(durl_clean, timeout=_aiohttp.ClientTimeout(total=10), ssl=False) as _resp:
+                        if _resp.status == 200 and "html" in _resp.headers.get("Content-Type", ""):
+                            _html = await _resp.text()
+                            from bs4 import BeautifulSoup as _BS
+                            _soup = _BS(_html, "html.parser")
+                            for _a in _soup.find_all("a", href=True):
+                                _h = _a["href"]
+                                _t = _a.get_text(strip=True).lower()
+                                if _h.startswith("/") or not _h.startswith("http"):
+                                    _h = _urljoin(durl_clean, _h)
+                                _hl = _h.lower()
+                                # Direct file links
+                                if any(_hl.endswith(ext) for ext in (".pdf", ".xlsx", ".xls", ".zip")):
+                                    all_attached.append({"url": _h, "type": "pdf" if _hl.endswith(".pdf") else "zip", "name": _a.get_text(strip=True)[:60]})
+                                # Subpage that matches objeto keywords
+                                elif any(kw in _hl or kw in _t for kw in ["licitacion", "obra", "pliego"]):
+                                    obj_words = [w for w in objeto_lower.split() if len(w) >= 5][:3]
+                                    if any(w in _hl for w in obj_words):
+                                        # Follow subpage
+                                        try:
+                                            async with _sess.get(_h, timeout=_aiohttp.ClientTimeout(total=10), ssl=False) as _sr:
+                                                if _sr.status == 200 and "html" in _sr.headers.get("Content-Type", ""):
+                                                    _sh = await _sr.text()
+                                                    _ss = _BS(_sh, "html.parser")
+                                                    for _a2 in _ss.find_all("a", href=True):
+                                                        _h2 = _a2["href"]
+                                                        if _h2.startswith("/") or not _h2.startswith("http"):
+                                                            _h2 = _urljoin(_h, _h2)
+                                                        if any(_h2.lower().endswith(ext) for ext in (".pdf", ".xlsx", ".xls", ".zip")):
+                                                            all_attached.append({"url": _h2, "type": "pdf" if _h2.lower().endswith(".pdf") else "zip", "name": _a2.get_text(strip=True)[:60]})
+                                        except Exception:
+                                            pass
+            except Exception as _e:
+                logger.debug(f"Failed to scrape landing page {durl_clean}: {_e}")
 
     pdf_texts = []
     download_tasks = []
