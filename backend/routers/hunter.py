@@ -254,11 +254,44 @@ async def _scrape_description_urls(base: dict) -> List[dict]:
     return results
 
 
-async def _search_same_org_historical(db, base: dict, exclude_id: str) -> List[dict]:
-    """Find past licitaciones from the same organization with budgets (price references)."""
-    org = base.get("organization", "")
+async def _search_by_objeto_similarity(db, base: dict, exclude_id: str) -> List[dict]:
+    """Find licitaciones with similar objeto/title using $text search. Most relevant strategy."""
+    objeto = base.get("objeto") or base.get("title") or ""
+    keywords = _extract_search_keywords(objeto, max_words=6)
+    if len(keywords) < 2:
+        return []
+
+    text_query = " ".join(keywords)
+    try:
+        oid = ObjectId(exclude_id)
+    except Exception:
+        oid = None
+
+    query: Dict[str, Any] = {
+        "$text": {"$search": text_query},
+        "budget": {"$gt": 0},
+    }
+    if oid:
+        query["_id"] = {"$ne": oid}
+
+    results = []
+    try:
+        cursor = db.licitaciones.find(
+            query, {"score": {"$meta": "textScore"}}
+        ).sort([("score", {"$meta": "textScore"})]).limit(10)
+        async for doc in cursor:
+            if doc.get("score", 0) >= 1.5:
+                results.append(licitacion_entity(doc))
+    except Exception as e:
+        logger.debug(f"Objeto similarity search failed: {e}")
+    return results
+
+
+async def _search_same_category(db, base: dict, exclude_id: str) -> List[dict]:
+    """Find licitaciones in same category with budget (price references)."""
     category = base.get("category", "")
-    if not org and not category:
+    budget = base.get("budget")
+    if not category:
         return []
 
     try:
@@ -266,29 +299,19 @@ async def _search_same_org_historical(db, base: dict, exclude_id: str) -> List[d
     except Exception:
         oid = None
 
-    # Build query: same org OR same category, with budget, sorted by date desc
-    or_parts = []
-    if org and len(org) > 5:
-        # Fuzzy org match — first significant word
-        import re as _re
-        org_words = [w for w in _re.findall(r'\w+', org) if len(w) >= 4 and w.lower() not in ("direccion", "ministerio", "gobierno", "mendoza", "general")]
-        if org_words:
-            or_parts.append({"organization": {"$regex": _re.escape(org_words[0]), "$options": "i"}})
-    if category:
-        or_parts.append({"category": category})
-
-    if not or_parts:
-        return []
-
     query: Dict[str, Any] = {
-        "$or": or_parts,
+        "category": category,
         "budget": {"$gt": 0},
     }
     if oid:
         query["_id"] = {"$ne": oid}
+    # Budget magnitude filter if available
+    if budget and budget > 0:
+        query["budget"]["$gte"] = budget / 10
+        query["budget"]["$lte"] = budget * 10
 
     results = []
-    cursor = db.licitaciones.find(query).sort("publication_date", -1).limit(15)
+    cursor = db.licitaciones.find(query).sort("publication_date", -1).limit(10)
     async for doc in cursor:
         results.append(licitacion_entity(doc))
     return results
@@ -472,13 +495,20 @@ async def _handle_search(db, base: dict, doc: dict, licitacion_id: str) -> dict:
     from services.cross_source_service import CrossSourceService
 
     cross_svc = CrossSourceService(db)
+
+    # Priority 1: Exact cross-source matches (proceso_id, expedient, licitacion_number)
     related = await cross_svc.find_related(doc, limit=15)
     all_raw = list(related)
 
-    # Also search same organization's past licitaciones (price references)
-    org_results = await _search_same_org_historical(db, base, licitacion_id)
-    org_new = _deduplicate_matches(all_raw, org_results)
-    all_raw.extend(org_new)
+    # Priority 2: Similar objeto/title ($text search — most relevant)
+    objeto_results = await _search_by_objeto_similarity(db, base, licitacion_id)
+    obj_new = _deduplicate_matches(all_raw, objeto_results)
+    all_raw.extend(obj_new)
+
+    # Priority 3: Same category with similar budget
+    cat_results = await _search_same_category(db, base, licitacion_id)
+    cat_new = _deduplicate_matches(all_raw, cat_results)
+    all_raw.extend(cat_new)
 
     matches = [_build_match_preview(m, base) for m in all_raw]
 
@@ -496,10 +526,10 @@ async def _handle_search(db, base: dict, doc: dict, licitacion_id: str) -> dict:
     strategies = []
     if related:
         strategies.append("cross-source")
-    if org_new:
-        strategies.append("misma organización")
-    if base.get("expedient_number"):
-        strategies.append("expediente")
+    if obj_new:
+        strategies.append("objeto similar")
+    if cat_new:
+        strategies.append("misma categoría")
     if web_results:
         strategies.append("sitios web")
 
@@ -528,12 +558,17 @@ async def _handle_deep_search(db, base: dict, doc: dict, licitacion_id: str) -> 
     related = await cross_svc.find_related(doc, limit=15)
     all_matches_raw = list(related)
 
-    # Phase 2: Same organization historical (price references)
-    org_results = await _search_same_org_historical(db, base, licitacion_id)
-    new_org = _deduplicate_matches(all_matches_raw, org_results)
-    all_matches_raw.extend(new_org)
+    # Phase 2: Similar objeto ($text search — most relevant for prices)
+    obj_results = await _search_by_objeto_similarity(db, base, licitacion_id)
+    new_obj = _deduplicate_matches(all_matches_raw, obj_results)
+    all_matches_raw.extend(new_obj)
 
-    # Phase 3: $text search with objeto keywords
+    # Phase 3: Same category with budget range
+    cat_results_2 = await _search_same_category(db, base, licitacion_id)
+    new_cat_2 = _deduplicate_matches(all_matches_raw, cat_results_2)
+    all_matches_raw.extend(new_cat_2)
+
+    # Phase 4: $text search with objeto keywords (broader)
     text_results = await _deep_text_search(db, base, licitacion_id, fuente)
     new_text = _deduplicate_matches(all_matches_raw, text_results)
     all_matches_raw.extend(new_text)
@@ -563,10 +598,12 @@ async def _handle_deep_search(db, base: dict, doc: dict, licitacion_id: str) -> 
     strategies = []
     if related:
         strategies.append("cross-source")
-    if new_org:
-        strategies.append("misma organización")
+    if new_obj:
+        strategies.append("objeto similar")
+    if new_cat_2:
+        strategies.append("misma categoría")
     if new_text:
-        strategies.append("texto")
+        strategies.append("texto amplio")
     if new_cat:
         strategies.append("categoría+presupuesto")
     if new_boe:
