@@ -619,10 +619,9 @@ async def extract_pliego_info(body: Dict[str, Any], request: Request):
         for cd in cross_descriptions[:3]:
             parts.append(cd[:3000])
 
-    # Section 2: Description field (always include if available)
-    if lic.get("description"):
+    # Section 2: Description field (skip if we have real pliego text — BOE descriptions confuse AI)
+    if lic.get("description") and not pliego_full_text:
         desc = lic["description"]
-        # Skip gazette TOC (starts with AUTORIDADES or INDICE)
         if not desc.strip().startswith("AUTORIDADES") and not desc.strip().startswith("INDICE"):
             parts.append("\n=== DESCRIPCIÓN ===")
             parts.append(desc[:5000])
