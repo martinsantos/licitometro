@@ -428,27 +428,27 @@ const LicitacionDetailPage = ({ userRole }) => {
               <div className="flex sm:flex-col gap-3">
                 <button
                   onClick={toggleSave}
-                  className={`p-3 rounded-2xl transition-all duration-300 ${
+                  className={`flex items-center gap-2 px-3 py-2 rounded-2xl transition-all duration-300 text-sm ${
                     isSaved
                       ? 'bg-yellow-400 text-yellow-900 shadow-lg shadow-yellow-400/30'
                       : 'bg-white/20 text-white hover:bg-white/30'
                   }`}
-                  title={isSaved ? 'Quitar de guardados' : 'Guardar licitación'}
                 >
-                  <svg className="w-6 h-6" fill={isSaved ? 'currentColor' : 'none'} stroke="currentColor" viewBox="0 0 24 24">
+                  <svg className="w-5 h-5" fill={isSaved ? 'currentColor' : 'none'} stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 5a2 2 0 012-2h10a2 2 0 012 2v16l-7-3.5L5 21V5z" />
                   </svg>
+                  {isSaved ? 'Guardado' : 'Guardar'}
                 </button>
 
                 {/* Share Button with dropdown */}
                 <div className="relative group">
                   <button
-                    className="p-3 rounded-2xl bg-white/20 text-white hover:bg-white/30 transition-all duration-300"
-                    title="Compartir"
+                    className="flex items-center gap-2 px-3 py-2 rounded-2xl bg-white/20 text-white hover:bg-white/30 transition-all duration-300 text-sm"
                   >
-                    <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z" />
                     </svg>
+                    Compartir
                   </button>
                   {/* Share dropdown */}
                   <div className="absolute right-0 mt-2 w-48 bg-white rounded-xl shadow-xl border border-gray-100 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-50">
