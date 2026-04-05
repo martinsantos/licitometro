@@ -188,6 +188,112 @@ async def _search_adjudicaciones(db, base: dict, exclude_id: str) -> List[dict]:
     return results
 
 
+# ── Web scraping for pliego from description URLs ────────────────────
+
+async def _scrape_description_urls(base: dict) -> List[dict]:
+    """Follow URLs in description to find pliego PDFs and extract items."""
+    import re as _re
+    import aiohttp
+    desc = (base.get("description") or "") + " " + (base.get("objeto") or "")
+    urls = _re.findall(r'https?://[^\s<>"\')\]]+', desc)
+    if not urls:
+        return []
+
+    results = []
+    for raw_url in urls[:5]:  # Max 5 URLs
+        url = raw_url.rstrip(".,;:")
+        # Skip gazette PDFs and known non-pliego URLs
+        if "/verpdf/" in url or "javascript" in url.lower():
+            continue
+
+        try:
+            async with aiohttp.ClientSession() as session:
+                async with session.get(url, timeout=aiohttp.ClientTimeout(total=15), ssl=False) as resp:
+                    if resp.status != 200:
+                        continue
+                    ct = resp.headers.get("Content-Type", "")
+                    if "pdf" in ct.lower() or url.lower().endswith(".pdf"):
+                        # Direct PDF — extract text
+                        data = await resp.read()
+                        if len(data) < 25 * 1024 * 1024:
+                            from services.enrichment.pdf_zip_enricher import extract_text_from_pdf_bytes
+                            text = extract_text_from_pdf_bytes(data)
+                            if text and len(text) > 100:
+                                results.append({
+                                    "source": url,
+                                    "type": "pdf",
+                                    "text": text[:10000],
+                                    "size": len(text),
+                                })
+                    elif "html" in ct.lower():
+                        # HTML page — look for PDF links
+                        html = await resp.text()
+                        from bs4 import BeautifulSoup
+                        soup = BeautifulSoup(html, "html.parser")
+                        pdf_links = []
+                        for a in soup.find_all("a", href=True):
+                            href = a["href"]
+                            link_text = a.get_text(strip=True).lower()
+                            if href.lower().endswith(".pdf") or "pliego" in link_text or "descarg" in link_text:
+                                if href.startswith("/"):
+                                    from urllib.parse import urljoin
+                                    href = urljoin(url, href)
+                                if href.startswith("http"):
+                                    pdf_links.append({"url": href, "text": a.get_text(strip=True)[:100]})
+                        if pdf_links:
+                            results.append({
+                                "source": url,
+                                "type": "landing_page",
+                                "pdf_links": pdf_links[:10],
+                                "page_title": soup.title.string if soup.title else "",
+                            })
+        except Exception as e:
+            logger.debug(f"Failed to scrape {url}: {e}")
+            continue
+
+    return results
+
+
+async def _search_same_org_historical(db, base: dict, exclude_id: str) -> List[dict]:
+    """Find past licitaciones from the same organization with budgets (price references)."""
+    org = base.get("organization", "")
+    category = base.get("category", "")
+    if not org and not category:
+        return []
+
+    try:
+        oid = ObjectId(exclude_id)
+    except Exception:
+        oid = None
+
+    # Build query: same org OR same category, with budget, sorted by date desc
+    or_parts = []
+    if org and len(org) > 5:
+        # Fuzzy org match — first significant word
+        import re as _re
+        org_words = [w for w in _re.findall(r'\w+', org) if len(w) >= 4 and w.lower() not in ("direccion", "ministerio", "gobierno", "mendoza", "general")]
+        if org_words:
+            or_parts.append({"organization": {"$regex": _re.escape(org_words[0]), "$options": "i"}})
+    if category:
+        or_parts.append({"category": category})
+
+    if not or_parts:
+        return []
+
+    query: Dict[str, Any] = {
+        "$or": or_parts,
+        "budget": {"$gt": 0},
+    }
+    if oid:
+        query["_id"] = {"$ne": oid}
+
+    results = []
+    cursor = db.licitaciones.find(query).sort("publication_date", -1).limit(15)
+    async for doc in cursor:
+        results.append(licitacion_entity(doc))
+    return results
+
+
 # ── Deep search strategies ───────────────────────────────────────────
 
 async def _deep_text_search(db, base: dict, exclude_id: str, exclude_fuente: str) -> List[dict]:
@@ -362,13 +468,19 @@ async def hunter_interactive(
 
 
 async def _handle_search(db, base: dict, doc: dict, licitacion_id: str) -> dict:
-    """Handle action=search: structured cross-source matching."""
+    """Handle action=search: structured cross-source + same org historical + web scraping."""
     from services.cross_source_service import CrossSourceService
 
     cross_svc = CrossSourceService(db)
     related = await cross_svc.find_related(doc, limit=15)
+    all_raw = list(related)
 
-    matches = [_build_match_preview(m, base) for m in related]
+    # Also search same organization's past licitaciones (price references)
+    org_results = await _search_same_org_historical(db, base, licitacion_id)
+    org_new = _deduplicate_matches(all_raw, org_results)
+    all_raw.extend(org_new)
+
+    matches = [_build_match_preview(m, base) for m in all_raw]
 
     # Search for adjudicaciones
     adjudicaciones_raw = await _search_adjudicaciones(db, base, licitacion_id)
@@ -378,21 +490,27 @@ async def _handle_search(db, base: dict, doc: dict, licitacion_id: str) -> dict:
     match_ids = {m["id"] for m in matches}
     adjudicaciones = [a for a in adjudicaciones if a["id"] not in match_ids]
 
+    # Scrape description URLs for pliego data
+    web_results = await _scrape_description_urls(base)
+
     strategies = []
-    if base.get("proceso_id"):
-        strategies.append("proceso_id")
+    if related:
+        strategies.append("cross-source")
+    if org_new:
+        strategies.append("misma organización")
     if base.get("expedient_number"):
         strategies.append("expediente")
-    if base.get("licitacion_number"):
-        strategies.append("licitacion_number")
+    if web_results:
+        strategies.append("sitios web")
 
     return {
         "licitacion_id": licitacion_id,
         "action": "search",
         "matches": matches,
         "adjudicaciones": adjudicaciones,
+        "web_sources": web_results,
         "search_stats": {
-            "sources_searched": len(set(m["fuente"] for m in matches + adjudicaciones if m.get("fuente"))),
+            "sources_searched": len(set(m["fuente"] for m in matches + adjudicaciones if m.get("fuente"))) + len(web_results),
             "total_matches": len(matches) + len(adjudicaciones),
             "strategies_used": strategies,
         },
@@ -410,17 +528,22 @@ async def _handle_deep_search(db, base: dict, doc: dict, licitacion_id: str) -> 
     related = await cross_svc.find_related(doc, limit=15)
     all_matches_raw = list(related)
 
-    # Phase 2: $text search with objeto keywords
+    # Phase 2: Same organization historical (price references)
+    org_results = await _search_same_org_historical(db, base, licitacion_id)
+    new_org = _deduplicate_matches(all_matches_raw, org_results)
+    all_matches_raw.extend(new_org)
+
+    # Phase 3: $text search with objeto keywords
     text_results = await _deep_text_search(db, base, licitacion_id, fuente)
     new_text = _deduplicate_matches(all_matches_raw, text_results)
     all_matches_raw.extend(new_text)
 
-    # Phase 3: Category + budget range search
+    # Phase 4: Category + budget range search
     cat_results = await _deep_category_budget_search(db, base, licitacion_id, fuente)
     new_cat = _deduplicate_matches(all_matches_raw, cat_results)
     all_matches_raw.extend(new_cat)
 
-    # Phase 4: BOE adjudicaciones by number patterns
+    # Phase 5: BOE adjudicaciones by number patterns
     boe_results = await _deep_boe_adjudicaciones(db, base, licitacion_id)
     new_boe = _deduplicate_matches(all_matches_raw, boe_results)
     all_matches_raw.extend(new_boe)
@@ -434,23 +557,31 @@ async def _handle_deep_search(db, base: dict, doc: dict, licitacion_id: str) -> 
     match_ids = {m["id"] for m in matches}
     adjudicaciones = [a for a in adjudicaciones if a["id"] not in match_ids]
 
+    # Phase 6: Web scraping of description URLs
+    web_results = await _scrape_description_urls(base)
+
     strategies = []
     if related:
-        strategies.append("proceso_id")
+        strategies.append("cross-source")
+    if new_org:
+        strategies.append("misma organización")
     if new_text:
         strategies.append("texto")
     if new_cat:
-        strategies.append("categoria+presupuesto")
+        strategies.append("categoría+presupuesto")
     if new_boe:
         strategies.append("BOE patrones")
+    if web_results:
+        strategies.append("sitios web")
 
     return {
         "licitacion_id": licitacion_id,
         "action": "deep_search",
         "matches": matches,
         "adjudicaciones": adjudicaciones,
+        "web_sources": web_results,
         "search_stats": {
-            "sources_searched": len(set(m["fuente"] for m in matches + adjudicaciones if m.get("fuente"))),
+            "sources_searched": len(set(m["fuente"] for m in matches + adjudicaciones if m.get("fuente"))) + len(web_results),
             "total_matches": len(matches) + len(adjudicaciones),
             "strategies_used": strategies,
         },

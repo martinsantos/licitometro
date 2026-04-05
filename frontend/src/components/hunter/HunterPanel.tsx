@@ -19,9 +19,19 @@ interface HunterMatch {
   source_url?: string;
 }
 
+interface WebSource {
+  source: string;
+  type: string;
+  text?: string;
+  size?: number;
+  page_title?: string;
+  pdf_links?: { url: string; text: string }[];
+}
+
 interface HunterResult {
   matches: HunterMatch[];
   adjudicaciones: HunterMatch[];
+  web_sources?: WebSource[];
   search_stats: {
     sources_searched: number;
     total_matches: number;
@@ -233,7 +243,7 @@ export default function HunterPanel({ licitacionId, mode, isOpen, onClose, onMer
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         const data = await res.json();
         showToast(`✓ Fusionado: ${(data.fields_merged || []).join(', ')}`);
-        setMergedIds(prev => new Set([...prev, matchId]));
+        setMergedIds(prev => { const next = new Set(Array.from(prev)); next.add(matchId); return next; });
         onMerge?.(matchId);
       } else if (action === 'import') {
         // Fetch the related item's items
@@ -263,7 +273,8 @@ export default function HunterPanel({ licitacionId, mode, isOpen, onClose, onMer
   const exactMatches = matches.filter(m => m.confidence === 'alta');
   const similarMatches = matches.filter(m => m.confidence !== 'alta');
   const allForPrices = [...matches, ...adjudicaciones].filter(m => m.budget);
-  const hasResults = matches.length > 0 || adjudicaciones.length > 0;
+  const webSources = result?.web_sources || [];
+  const hasResults = matches.length > 0 || adjudicaciones.length > 0 || webSources.length > 0;
 
   return (
     <>
@@ -383,8 +394,43 @@ export default function HunterPanel({ licitacionId, mode, isOpen, onClose, onMer
                 </section>
               )}
 
+              {/* Web sources from description URLs */}
+              {(result?.web_sources || []).length > 0 && (
+                <section>
+                  <h3 className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">
+                    🌐 Sitios web relacionados
+                  </h3>
+                  <div className="space-y-2">
+                    {(result?.web_sources || []).map((ws, i) => (
+                      <div key={i} className="bg-blue-50 border border-blue-200 rounded-xl p-3">
+                        <div className="flex items-center gap-2 mb-1">
+                          <span className="text-[10px] bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full font-medium">
+                            {ws.type === 'pdf' ? '📄 PDF' : '🌐 Web'}
+                          </span>
+                          {ws.page_title && <span className="text-xs text-gray-700 font-medium">{ws.page_title}</span>}
+                        </div>
+                        <a href={ws.source} target="_blank" rel="noopener noreferrer" className="text-xs text-blue-600 hover:underline break-all">
+                          {ws.source}
+                        </a>
+                        {ws.text && <p className="text-xs text-gray-500 mt-1 line-clamp-2">{ws.text.substring(0, 150)}...</p>}
+                        {ws.pdf_links && ws.pdf_links.length > 0 && (
+                          <div className="mt-2 space-y-1">
+                            {ws.pdf_links.map((pl, j) => (
+                              <a key={j} href={pl.url} target="_blank" rel="noopener noreferrer"
+                                className="flex items-center gap-1 text-xs text-blue-700 hover:underline">
+                                📎 {pl.text || 'Descargar PDF'}
+                              </a>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </section>
+              )}
+
               {/* Empty */}
-              {!hasResults && (
+              {!hasResults && !(result?.web_sources || []).length && (
                 <div className="text-center py-10">
                   <p className="text-3xl mb-3">🎯</p>
                   <p className="text-gray-600 font-medium">No se encontraron fuentes</p>
