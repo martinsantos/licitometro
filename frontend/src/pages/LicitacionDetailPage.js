@@ -93,9 +93,18 @@ const LicitacionDetailPage = ({ userRole }) => {
         setIsPublic(response.data.is_public || false);
         setPublicSlug(response.data.public_slug || null);
         setLoading(false);
-        // Check if saved in localStorage
-        const savedItems = JSON.parse(localStorage.getItem('savedLicitaciones') || '[]');
-        setIsSaved(savedItems.includes(id));
+        // Check if saved on SERVER (source of truth), fallback to localStorage
+        axios.get(`${API}/licitaciones/favorites`, { withCredentials: true })
+          .then(resp => {
+            const serverFavs = resp.data || [];
+            setIsSaved(serverFavs.includes(id));
+            // Sync localStorage cache
+            localStorage.setItem('savedLicitaciones', JSON.stringify(serverFavs));
+          })
+          .catch(() => {
+            const savedItems = JSON.parse(localStorage.getItem('savedLicitaciones') || '[]');
+            setIsSaved(savedItems.includes(id));
+          });
       } catch (error) {
         console.error('Error fetching licitacion:', error);
         setError('Error cargando la licitación');
@@ -107,25 +116,23 @@ const LicitacionDetailPage = ({ userRole }) => {
   }, [id]);
 
   const toggleSave = async () => {
-    const savedItems = JSON.parse(localStorage.getItem('savedLicitaciones') || '[]');
-    const savedDates = JSON.parse(localStorage.getItem('savedLicitacionesDates') || '{}');
     if (isSaved) {
-      const newSaved = savedItems.filter(item => item !== id);
-      delete savedDates[id];
-      localStorage.setItem('savedLicitaciones', JSON.stringify(newSaved));
-      localStorage.setItem('savedLicitacionesDates', JSON.stringify(savedDates));
+      // Remove: SERVER first, then localStorage cache
       setIsSaved(false);
-      // Sync removal to server
-      axios.delete(`${API}/licitaciones/favorites/${id}`).catch(() => {});
+      await axios.delete(`${API}/licitaciones/favorites/${id}`, { withCredentials: true }).catch(() => {});
+      const savedItems = JSON.parse(localStorage.getItem('savedLicitaciones') || '[]');
+      localStorage.setItem('savedLicitaciones', JSON.stringify(savedItems.filter(i => i !== id)));
     } else {
-      savedItems.push(id);
-      savedDates[id] = new Date().toISOString();
-      localStorage.setItem('savedLicitaciones', JSON.stringify(savedItems));
-      localStorage.setItem('savedLicitacionesDates', JSON.stringify(savedDates));
+      // Add: SERVER first, then localStorage cache
       setIsSaved(true);
-      // Sync addition to server
-      axios.post(`${API}/licitaciones/favorites/${id}`).catch(() => {});
-      // Trigger enrich when favoriting any licitacion with a source URL
+      await axios.post(`${API}/licitaciones/favorites/${id}`, {}, { withCredentials: true }).catch(() => {});
+      const savedItems = JSON.parse(localStorage.getItem('savedLicitaciones') || '[]');
+      if (!savedItems.includes(id)) savedItems.push(id);
+      localStorage.setItem('savedLicitaciones', JSON.stringify(savedItems));
+      const savedDates = JSON.parse(localStorage.getItem('savedLicitacionesDates') || '{}');
+      savedDates[id] = new Date().toISOString();
+      localStorage.setItem('savedLicitacionesDates', JSON.stringify(savedDates));
+      // Trigger enrich when favoriting
       if (licitacion?.source_url) {
         enrichLicitacion();
       }

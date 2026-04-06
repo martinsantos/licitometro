@@ -15,24 +15,39 @@ const FavoritosPage = () => {
   const [sortBy, setSortBy] = useState('fecha_guardado'); // fecha_guardado, publication_date, opening_date
   const [sortOrder, setSortOrder] = useState('desc');
 
-  // Load favoritos: localStorage is the single source of truth.
-  // Server is used for backup/sync only.
+  // Load favoritos: SERVER is the single source of truth.
+  // localStorage is kept as cache only.
   useEffect(() => {
     const loadFavoritos = async () => {
       setLoading(true);
-      const savedIds = JSON.parse(localStorage.getItem('savedLicitaciones') || '[]');
-      const savedDates = JSON.parse(localStorage.getItem('savedLicitacionesDates') || '{}');
-
-      if (savedIds.length === 0) {
-        setFavoritos([]);
-        setLoading(false);
-        return;
-      }
-
       try {
-        // Fetch all saved licitaciones in parallel
-        const promises = savedIds.map(id =>
-          axios.get(`${API}/licitaciones/${id}`).catch(() => null)
+        // 1. Get favorite IDs from SERVER (source of truth)
+        const favResp = await axios.get(`${API}/licitaciones/favorites`, { withCredentials: true });
+        const serverIds = favResp.data || [];
+
+        // 2. Merge any localStorage-only favorites TO server (one-time migration)
+        const localIds = JSON.parse(localStorage.getItem('savedLicitaciones') || '[]');
+        const serverSet = new Set(serverIds);
+        for (const localId of localIds) {
+          if (!serverSet.has(localId)) {
+            await axios.post(`${API}/licitaciones/favorites/${localId}`, {}, { withCredentials: true }).catch(() => {});
+            serverIds.push(localId);
+          }
+        }
+
+        // 3. Update localStorage to match server
+        localStorage.setItem('savedLicitaciones', JSON.stringify(serverIds));
+
+        if (serverIds.length === 0) {
+          setFavoritos([]);
+          setLoading(false);
+          return;
+        }
+
+        // 4. Fetch licitacion details for each favorite
+        const savedDates = JSON.parse(localStorage.getItem('savedLicitacionesDates') || '{}');
+        const promises = serverIds.map(id =>
+          axios.get(`${API}/licitaciones/${id}`, { withCredentials: true }).catch(() => null)
         );
         const results = await Promise.all(promises);
         const validResults = results
@@ -42,18 +57,17 @@ const FavoritosPage = () => {
             fecha_guardado: savedDates[r.data.id] || new Date().toISOString()
           }));
         setFavoritos(validResults);
-
-        // Background: sync localStorage → server (no merge back)
-        axios.get(`${API}/licitaciones/favorites`).then(resp => {
-          const serverIds = new Set(resp.data || []);
-          savedIds.forEach(id => {
-            if (!serverIds.has(id)) {
-              axios.post(`${API}/licitaciones/favorites/${id}`).catch(() => {});
-            }
-          });
-        }).catch(() => {});
       } catch (err) {
-        console.error('Error loading favoritos:', err);
+        console.error('Error loading favoritos from server:', err);
+        // Fallback: use localStorage if server is unreachable
+        const localIds = JSON.parse(localStorage.getItem('savedLicitaciones') || '[]');
+        if (localIds.length > 0) {
+          const promises = localIds.map(id =>
+            axios.get(`${API}/licitaciones/${id}`).catch(() => null)
+          );
+          const results = await Promise.all(promises);
+          setFavoritos(results.filter(r => r && r.data).map(r => r.data));
+        }
       } finally {
         setLoading(false);
       }
@@ -64,19 +78,23 @@ const FavoritosPage = () => {
 
   const removeFavorito = (id, e) => {
     e.stopPropagation();
+    // Remove from SERVER first (source of truth)
+    axios.delete(`${API}/licitaciones/favorites/${id}`, { withCredentials: true }).catch(() => {});
+    // Then update localStorage cache
     const savedIds = JSON.parse(localStorage.getItem('savedLicitaciones') || '[]');
     const savedDates = JSON.parse(localStorage.getItem('savedLicitacionesDates') || '{}');
-
-    const newIds = savedIds.filter(savedId => savedId !== id);
+    localStorage.setItem('savedLicitaciones', JSON.stringify(savedIds.filter(i => i !== id)));
     delete savedDates[id];
-
-    localStorage.setItem('savedLicitaciones', JSON.stringify(newIds));
     localStorage.setItem('savedLicitacionesDates', JSON.stringify(savedDates));
     setFavoritos(prev => prev.filter(f => f.id !== id));
   };
 
-  const clearAllFavoritos = () => {
+  const clearAllFavoritos = async () => {
     if (window.confirm('¿Estás seguro de que quieres eliminar todos los favoritos?')) {
+      // Remove all from server
+      for (const f of favoritos) {
+        await axios.delete(`${API}/licitaciones/favorites/${f.id}`, { withCredentials: true }).catch(() => {});
+      }
       localStorage.setItem('savedLicitaciones', '[]');
       localStorage.setItem('savedLicitacionesDates', '{}');
       setFavoritos([]);
