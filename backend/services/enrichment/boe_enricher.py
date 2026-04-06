@@ -195,6 +195,17 @@ def _parse_licitacion_block(block: str) -> Optional[Dict[str, Any]]:
         obj_text = re.sub(r'\s+', ' ', obj_match.group(1).strip())
         if len(obj_text) > 10:
             objeto = obj_text[:200]
+    # Strategy 1.5: Hospital format — objeto in line after "Hora: HH:MMhs"
+    if not objeto:
+        # Match line(s) between "Hora:" and "Las listas/Lugar/Pliego"
+        hosp_match = re.search(
+            r"Hora:[^\n]+\n+([A-ZÁÉÍÓÚÑ][^\n]{10,300})\n+(?:Las listas|Lugar|Pliego|Presupuesto|S/Cargo|\d{2}/\d{2})",
+            full_text,
+        )
+        if hosp_match:
+            obj_text = re.sub(r'\s+', ' ', hosp_match.group(1).strip())
+            if len(obj_text) > 10:
+                objeto = obj_text[:200]
     # Strategy 2: OBJETO: label
     if not objeto:
         objeto = parsed.get("objeto")
@@ -502,17 +513,10 @@ async def enrich_boe(http: ResilientHttpClient, lic_doc: dict, source_url: str) 
         updates["description"] = section_text[:10000]
 
     # Objeto: update if missing, garbage, or segment is more detailed
+    # When BOE matches by expedient/licitacion_number, the segment's objeto IS the
+    # correct one — old segmentation often contaminated objeto with adjacent items.
     seg_objeto = segment.get("objeto")
-    current_obj = lic_doc.get("objeto") or ""
-    # Detect garbage objeto (dates, short text, generic)
-    is_garbage_obj = current_obj and (
-        re.match(r'^d[ií]a\s+\d', current_obj, re.IGNORECASE) or
-        len(current_obj) < 10 or
-        "citado" in current_obj.lower()
-    )
-    if seg_objeto and (not current_obj or is_garbage_obj):
-        updates["objeto"] = seg_objeto
-    elif seg_objeto and current_obj and len(seg_objeto) > len(current_obj) + 20:
+    if seg_objeto:
         updates["objeto"] = seg_objeto
 
     # Opening date: only if missing
