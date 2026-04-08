@@ -69,3 +69,8 @@ docker-compose.preview-*.yml
 
 # Caddy (VPS-specific, not in repo)
 docker-compose.caddy.yml
+# Playwright / manual capture tooling
+node_modules/
+package.json
+package-lock.json
+yarn.lock
