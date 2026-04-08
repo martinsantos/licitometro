@@ -1,0 +1,350 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Manual Licitómetro — Documento completo</title>
+  <meta name="description" content="Manual completo de Licitómetro en un solo documento scrolleable.">
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500&display=swap">
+  <link rel="stylesheet" href="/manual/assets/css/manual.css">
+  <style>
+    html { scroll-behavior: smooth; scroll-padding-top: 24px; }
+    .all-content { max-width: 860px; margin: 0 auto; padding: 0 24px 120px; }
+    .doc-section {
+      padding-top: 48px; margin-top: 48px;
+      border-top: 1px solid #e7e5e4;
+      scroll-margin-top: 24px;
+    }
+    .doc-section:first-of-type { border-top: none; margin-top: 0; padding-top: 24px; }
+    .doc-section-label {
+      display: inline-block;
+      font-size: 11px; font-weight: 700;
+      letter-spacing: 0.12em; text-transform: uppercase;
+      color: #d97706; padding: 4px 10px;
+      background: #fef3c7; border-radius: 999px;
+      margin-bottom: 16px;
+    }
+    .doc-section .breadcrumb,
+    .doc-section .page-footer { display: none; }
+    .sidebar a.active { background: #fef3c7 !important; color: #92400e !important; border-left: 3px solid #d97706 !important; }
+    .doc-loader { padding: 80px 0; text-align: center; color: #78716c; font-size: 14px; }
+    .doc-loader .spinner {
+      display: inline-block; width: 32px; height: 32px;
+      border: 3px solid #fde68a; border-top-color: #d97706;
+      border-radius: 50%; animation: spin 0.8s linear infinite;
+      margin-bottom: 16px;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .doc-hero {
+      padding: 56px 0 32px;
+      border-bottom: 1px solid #f5f5f4;
+      margin-bottom: 16px;
+    }
+    .doc-hero .kicker {
+      display: inline-block;
+      font-size: 12px; font-weight: 700;
+      letter-spacing: 0.1em; text-transform: uppercase;
+      color: #d97706; margin-bottom: 12px;
+    }
+    .doc-hero h1 {
+      font-size: 44px !important; font-weight: 800 !important;
+      margin: 0 0 16px !important;
+      letter-spacing: -0.025em; line-height: 1.1 !important;
+    }
+    .doc-hero p {
+      font-size: 18px; color: #57534e;
+      line-height: 1.6; margin: 0; max-width: 620px;
+    }
+    .jump-top {
+      position: fixed; bottom: 24px; right: 24px;
+      width: 44px; height: 44px; border-radius: 50%;
+      background: #1c1917; color: #fafaf9; border: none;
+      cursor: pointer; font-size: 20px; line-height: 1;
+      box-shadow: 0 8px 24px -8px rgba(0, 0, 0, 0.4);
+      opacity: 0; transform: translateY(16px);
+      transition: all 0.3s ease; z-index: 100;
+    }
+    .jump-top.visible { opacity: 1; transform: translateY(0); }
+    .jump-top:hover { background: #d97706; }
+    @media (max-width: 900px) {
+      .doc-hero h1 { font-size: 32px !important; }
+      .doc-hero p { font-size: 15px; }
+    }
+  </style>
+</head>
+<body>
+  <div class="scroll-progress"></div>
+
+  <header class="mobile-header">
+    <button class="mobile-toggle" aria-label="Menú">☰</button>
+    <strong>Manual Licitómetro</strong>
+    <a href="/" style="text-decoration:none;color:#d97706;font-size:13px;">← Volver</a>
+  </header>
+
+  <div class="sidebar-overlay"></div>
+  <aside class="sidebar"></aside>
+
+  <main class="content">
+    <div class="all-content">
+      <header class="doc-hero">
+        <div class="kicker">Manual completo · v2.0</div>
+        <h1>Licitómetro de principio a fin</h1>
+        <p>Toda la documentación en una sola página. Usá el sidebar izquierdo para saltar directo a una sección, o simplemente scrolleá de arriba a abajo.</p>
+      </header>
+
+      <div id="doc-sections">
+        <div class="doc-loader">
+          <div class="spinner"></div>
+          <div>Cargando documentación…</div>
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <button class="jump-top" id="jump-top" aria-label="Volver arriba">↑</button>
+
+  <script>
+  (function() {
+    'use strict';
+
+    var PAGES = [
+      { id: 'inicio-rapido', label: '¿Qué es Licitómetro?', section: 'Inicio Rápido', url: '/manual/pages/inicio-rapido.html' },
+      { id: 'listado',       label: 'Listado de licitaciones', section: 'Uso Diario',     url: '/manual/pages/listado.html' },
+      { id: 'detalle',       label: 'Detalle de licitación',   section: 'Uso Diario',     url: '/manual/pages/detalle.html' },
+      { id: 'favoritos',     label: 'Favoritos',               section: 'Uso Diario',     url: '/manual/pages/favoritos.html' },
+      { id: 'perfil',        label: 'Mi perfil',               section: 'Uso Diario',     url: '/manual/pages/perfil.html' },
+      { id: 'hunter',        label: 'HUNTER (Cazador)',        section: 'Búsqueda',       url: '/manual/pages/hunter.html' },
+      { id: 'nodos',         label: 'Nodos semánticos',        section: 'Búsqueda',       url: '/manual/pages/nodos.html' },
+      { id: 'cotizar',       label: 'CotizAR (6 pasos)',       section: 'Cotizar',        url: '/manual/pages/cotizar.html' },
+      { id: 'empresa',       label: 'Mi empresa',              section: 'Cotizar',        url: '/manual/pages/empresa.html' },
+      { id: 'stats',         label: 'Estadísticas',            section: 'Análisis',       url: '/manual/pages/stats.html' },
+      { id: 'admin',         label: 'Panel de admin',          section: 'Administración', url: '/manual/pages/admin.html', badge: 'Admin' },
+      { id: 'lab',           label: 'Lab experimental',        section: 'Administración', url: '/manual/pages/lab.html',   badge: 'Admin' },
+      { id: 'referencia',    label: 'Glosario y referencia',   section: 'Referencia',     url: '/manual/pages/referencia.html' },
+      { id: 'changelog',     label: 'Changelog',               section: 'Referencia',     url: '/manual/pages/changelog.html' }
+    ];
+
+    function el(tag, className, text) {
+      var n = document.createElement(tag);
+      if (className) n.className = className;
+      if (text != null) n.textContent = text;
+      return n;
+    }
+
+    function buildSidebar() {
+      var sidebar = document.querySelector('.sidebar');
+      if (!sidebar) return;
+      while (sidebar.firstChild) sidebar.removeChild(sidebar.firstChild);
+
+      var brand = el('div', 'sidebar-brand');
+      var brandLink = document.createElement('a');
+      brandLink.href = '/manual/';
+      brandLink.appendChild(el('div', 'logo-icon', 'L'));
+      var bt = document.createElement('div');
+      bt.appendChild(el('div', 'brand-text', 'Manual Licitómetro'));
+      bt.appendChild(el('div', 'brand-subtitle', 'v2.0 · Beta'));
+      brandLink.appendChild(bt);
+      brand.appendChild(brandLink);
+      sidebar.appendChild(brand);
+
+      var searchBox = el('div', 'sidebar-search');
+      var input = document.createElement('input');
+      input.type = 'text';
+      input.placeholder = 'Filtrar secciones…';
+      input.autocomplete = 'off';
+      searchBox.appendChild(input);
+      sidebar.appendChild(searchBox);
+
+      var nav = el('div', 'sidebar-nav');
+      var groups = [];
+      var groupMap = {};
+      for (var i = 0; i < PAGES.length; i++) {
+        var p = PAGES[i];
+        if (!groupMap[p.section]) {
+          groupMap[p.section] = [];
+          groups.push({ title: p.section, items: groupMap[p.section] });
+        }
+        groupMap[p.section].push(p);
+      }
+
+      for (var g = 0; g < groups.length; g++) {
+        var group = groups[g];
+        var sec = el('div', 'sidebar-section');
+        sec.appendChild(el('div', 'sidebar-section-title', group.title));
+        for (var j = 0; j < group.items.length; j++) {
+          var item = group.items[j];
+          var a = document.createElement('a');
+          a.href = '#' + item.id;
+          a.appendChild(document.createTextNode(item.label));
+          if (item.badge) {
+            a.appendChild(document.createTextNode(' '));
+            a.appendChild(el('span', 'badge admin', item.badge));
+          }
+          sec.appendChild(a);
+        }
+        nav.appendChild(sec);
+      }
+      sidebar.appendChild(nav);
+
+      input.addEventListener('input', function() {
+        var q = input.value.trim().toLowerCase();
+        var links = nav.querySelectorAll('a');
+        for (var k = 0; k < links.length; k++) {
+          var show = !q || links[k].textContent.toLowerCase().indexOf(q) !== -1;
+          links[k].style.display = show ? '' : 'none';
+        }
+        var sections = nav.querySelectorAll('.sidebar-section');
+        for (var s = 0; s < sections.length; s++) {
+          var sublinks = sections[s].querySelectorAll('a');
+          var anyVisible = false;
+          for (var x = 0; x < sublinks.length; x++) {
+            if (sublinks[x].style.display !== 'none') { anyVisible = true; break; }
+          }
+          sections[s].style.display = anyVisible ? '' : 'none';
+        }
+      });
+    }
+
+    function buildErrorSection(page, message) {
+      var section = el('section', 'doc-section');
+      section.id = page.id;
+      section.appendChild(el('div', 'doc-section-label', page.section));
+      section.appendChild(el('h2', null, page.label));
+      var adm = el('div', 'admonition warning');
+      adm.appendChild(el('div', 'admonition-title', '⚠ No se pudo cargar'));
+      adm.appendChild(el('p', null, 'Error: ' + message));
+      section.appendChild(adm);
+      return section;
+    }
+
+    function rewriteLinks(root) {
+      var links = root.querySelectorAll('a[href]');
+      for (var i = 0; i < links.length; i++) {
+        var href = links[i].getAttribute('href') || '';
+        var m = href.match(/^\/manual\/(?:pages\/([a-z-]+)\.html)?(#[^?]*)?$/);
+        if (m) {
+          var pageId = m[1] || 'inicio-rapido';
+          var hash = m[2] ? m[2].slice(1) : '';
+          var found = false;
+          for (var j = 0; j < PAGES.length; j++) {
+            if (PAGES[j].id === pageId) { found = true; break; }
+          }
+          if (found) {
+            links[i].setAttribute('href', '#' + pageId + (hash ? '-' + hash : ''));
+          }
+        }
+      }
+    }
+
+    function loadPage(page) {
+      return fetch(page.url, { credentials: 'include' }).then(function(res) {
+        if (!res.ok) throw new Error(res.status + ' ' + res.statusText);
+        return res.text();
+      }).then(function(html) {
+        var parser = new DOMParser();
+        var doc = parser.parseFromString(html, 'text/html');
+        var main = doc.querySelector('main.content') || doc.querySelector('main') || doc.body;
+
+        var toRemove = main.querySelectorAll('.breadcrumb, .page-footer');
+        for (var i = 0; i < toRemove.length; i++) toRemove[i].remove();
+
+        rewriteLinks(main);
+
+        var section = el('section', 'doc-section');
+        section.id = page.id;
+        section.appendChild(el('div', 'doc-section-label', page.section));
+        while (main.firstChild) section.appendChild(main.firstChild);
+        return section;
+      }).catch(function(err) {
+        return buildErrorSection(page, String(err && err.message ? err.message : err));
+      });
+    }
+
+    function loadAllPages() {
+      var container = document.getElementById('doc-sections');
+      var fragment = document.createDocumentFragment();
+      var chain = Promise.resolve();
+      PAGES.forEach(function(page) {
+        chain = chain.then(function() {
+          return loadPage(page).then(function(section) { fragment.appendChild(section); });
+        });
+      });
+      return chain.then(function() {
+        while (container.firstChild) container.removeChild(container.firstChild);
+        container.appendChild(fragment);
+        if (location.hash) {
+          var target = document.getElementById(location.hash.slice(1));
+          if (target) target.scrollIntoView({ behavior: 'auto', block: 'start' });
+        }
+      });
+    }
+
+    function setupScrollSpy() {
+      if (!('IntersectionObserver' in window)) return;
+      var observer = new IntersectionObserver(function(entries) {
+        for (var i = 0; i < entries.length; i++) {
+          if (entries[i].isIntersecting) {
+            var id = entries[i].target.id;
+            var allLinks = document.querySelectorAll('.sidebar-nav a');
+            for (var j = 0; j < allLinks.length; j++) allLinks[j].classList.remove('active');
+            var active = document.querySelector('.sidebar-nav a[href="#' + id + '"]');
+            if (active) active.classList.add('active');
+          }
+        }
+      }, { rootMargin: '-20% 0px -70% 0px', threshold: 0 });
+
+      var sections = document.querySelectorAll('.doc-section');
+      for (var k = 0; k < sections.length; k++) observer.observe(sections[k]);
+    }
+
+    function setupChrome() {
+      var toggle = document.querySelector('.mobile-toggle');
+      var sidebar = document.querySelector('.sidebar');
+      var overlay = document.querySelector('.sidebar-overlay');
+      if (toggle && sidebar && overlay) {
+        toggle.addEventListener('click', function() {
+          sidebar.classList.toggle('active');
+          overlay.classList.toggle('active');
+        });
+        overlay.addEventListener('click', function() {
+          sidebar.classList.remove('active');
+          overlay.classList.remove('active');
+        });
+        sidebar.addEventListener('click', function(e) {
+          if (e.target.tagName === 'A' && sidebar.classList.contains('active')) {
+            sidebar.classList.remove('active');
+            overlay.classList.remove('active');
+          }
+        });
+      }
+
+      var bar = document.querySelector('.scroll-progress');
+      var jump = document.getElementById('jump-top');
+      window.addEventListener('scroll', function() {
+        var y = window.scrollY;
+        var max = document.documentElement.scrollHeight - window.innerHeight;
+        if (bar) bar.style.width = (max > 0 ? (y / max) * 100 : 0) + '%';
+        if (jump) jump.classList.toggle('visible', y > 400);
+      });
+      if (jump) {
+        jump.addEventListener('click', function() {
+          window.scrollTo({ top: 0, behavior: 'smooth' });
+        });
+      }
+    }
+
+    function init() {
+      buildSidebar();
+      setupChrome();
+      loadAllPages().then(setupScrollSpy);
+    }
+
+    if (document.readyState === 'loading') {
+      document.addEventListener('DOMContentLoaded', init);
+    } else {
+      init();
+    }
+  })();
+  </script>
+</body>
+</html>

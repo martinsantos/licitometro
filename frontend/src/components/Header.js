@@ -35,7 +35,7 @@ const Header = ({ userRole }) => {
     { path: '/nodos', label: 'Nodos', adminOnly: true },
     { path: '/templates', label: 'Plantillas', adminOnly: true },
     { path: '/stats', label: 'Estadísticas' },
-    { path: '/manual', label: '📖 Manual', external: true },
+    { path: '/manual/all.html', label: '📖 Manual', external: true },
     { path: '/lab', label: 'Lab', adminOnly: true },
     { path: '/admin', label: 'Admin', adminOnly: true },
   ].filter(link => !link.adminOnly || isAdmin);
