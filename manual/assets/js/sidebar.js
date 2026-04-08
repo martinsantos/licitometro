@@ -2,6 +2,22 @@
 // Uses safe DOM methods (no innerHTML) to avoid XSS risks
 
 (function() {
+  // ============================================================
+  // Redirect per-page files to the all-in-one scroll view.
+  // The manual is a single continuous-scroll document; direct
+  // per-page URLs just resolve to their anchor in /manual/all.html.
+  // This runs first so the user never sees the paginated layout.
+  // ============================================================
+  try {
+    var pathMatch = window.location.pathname.match(/\/manual\/pages\/([a-z0-9-]+)\.html$/i);
+    if (pathMatch) {
+      var pageId = pathMatch[1];
+      var hashExtra = window.location.hash ? '-' + window.location.hash.slice(1) : '';
+      window.location.replace('/manual/all.html#' + pageId + hashExtra);
+      return; // stop sidebar init — we're navigating away
+    }
+  } catch (e) { /* fall through to normal sidebar init */ }
+
   const NAV = [
     {
       title: 'Inicio Rápido',
