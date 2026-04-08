@@ -139,34 +139,51 @@ class OpenDataLoaderService:
         return self._build_summary(data)
 
     def _build_summary(self, data: Any) -> Dict[str, Any]:
-        """Build a friendly summary from the raw opendataloader JSON."""
-        # The output structure varies — handle both list and dict roots
-        elements = []
-        if isinstance(data, list):
-            elements = data
-        elif isinstance(data, dict):
-            elements = data.get("elements", []) or data.get("blocks", []) or []
-            if not elements and "pages" in data:
-                for page in data["pages"]:
-                    elements.extend(page.get("elements", []))
+        """Build a friendly summary from the raw opendataloader JSON.
 
-        # Count by type
+        Real structure:
+          {
+            "file name": "...", "number of pages": N, "title": "...",
+            "kids": [
+              {"type": "...", "id": N, "page number": N, "bounding box": [...], ...}
+            ]
+          }
+        """
+        metadata: Dict[str, Any] = {}
+        elements: list = []
+
+        if isinstance(data, dict):
+            metadata = {
+                "file_name": data.get("file name"),
+                "title": data.get("title"),
+                "author": data.get("author"),
+                "page_count": data.get("number of pages"),
+                "creation_date": data.get("creation date"),
+            }
+            elements = data.get("kids") or data.get("elements") or []
+        elif isinstance(data, list):
+            elements = data
+
         type_counts: Dict[str, int] = {}
         pages_set = set()
-        text_samples = []
-        tables = []
+        text_samples: list = []
+        tables: list = []
 
-        for el in elements:
+        def _walk(el: Any):
             if not isinstance(el, dict):
-                continue
+                return
             etype = el.get("type", "unknown")
             type_counts[etype] = type_counts.get(etype, 0) + 1
-            page = el.get("page") or el.get("page_number")
+            page = el.get("page number") or el.get("page")
             if page is not None:
                 pages_set.add(page)
-            content = el.get("content") or el.get("text") or ""
-            if etype in ("paragraph", "heading", "title") and content:
-                if len(text_samples) < 10:
+
+            content = el.get("content") or el.get("text") or el.get("value") or ""
+            if isinstance(content, list):
+                content = " ".join(str(c) for c in content if c)
+
+            if etype in ("paragraph", "heading", "title", "text", "h1", "h2", "h3") and content:
+                if len(text_samples) < 15:
                     text_samples.append({
                         "type": etype,
                         "page": page,
@@ -175,18 +192,37 @@ class OpenDataLoaderService:
             elif etype == "table":
                 tables.append({
                     "page": page,
-                    "preview": str(content)[:500] if content else None,
+                    "preview": str(content)[:500] if content else json.dumps(el, default=str)[:500],
                 })
+
+            # Recurse into children
+            for child in (el.get("kids") or el.get("children") or []):
+                _walk(child)
+
+        for el in elements:
+            _walk(el)
+
+        # Truncate raw output if too large
+        raw_json = json.dumps(data, default=str)
+        if len(raw_json) > 100000:
+            raw_data = {
+                "truncated": True,
+                "metadata": metadata,
+                "first_50_kids": elements[:50] if isinstance(elements, list) else None,
+            }
+        else:
+            raw_data = data
 
         return {
             "success": True,
+            "metadata": metadata,
             "summary": {
-                "total_elements": len(elements),
-                "pages": len(pages_set),
+                "total_elements": sum(type_counts.values()),
+                "pages": metadata.get("page_count") or len(pages_set),
                 "type_counts": type_counts,
                 "tables_found": len(tables),
             },
             "text_samples": text_samples,
             "tables": tables[:5],
-            "raw": data if len(json.dumps(data, default=str)) < 50000 else {"truncated": True, "preview": str(data)[:5000]},
+            "raw": raw_data,
         }
