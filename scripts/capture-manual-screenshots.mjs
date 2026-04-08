@@ -48,8 +48,38 @@ const MOBILE  = { width: 390,  height: 844, deviceScaleFactor: 3 };
  *   clip        — { x, y, width, height } to crop (optional, full page otherwise)
  *   fullPage    — boolean (default false)
  */
+// Helper: click a tab by visible text, tolerant of casing/icon prefixes
+async function clickTab(page, text) {
+  const selectors = [
+    `button:has-text("${text}")`,
+    `[role="tab"]:has-text("${text}")`,
+    `a:has-text("${text}")`,
+    `[class*="tab"]:has-text("${text}")`,
+  ];
+  for (const sel of selectors) {
+    const loc = page.locator(sel).first();
+    if (await loc.count()) {
+      await loc.click({ timeout: 2500 }).catch(() => {});
+      return true;
+    }
+  }
+  return false;
+}
+
+// Helper: click any button matching text
+async function clickButton(page, text) {
+  const loc = page.locator(`button:has-text("${text}")`).first();
+  if (await loc.count()) {
+    await loc.click({ timeout: 2500 }).catch(() => {});
+    return true;
+  }
+  return false;
+}
+
 const SHOTS = [
-  // ============ DESKTOP ============
+  // ============================================================
+  // LISTADO — core views of the main /licitaciones page
+  // ============================================================
   {
     file: 'listado-cards.png',
     device: 'desktop',
@@ -61,148 +91,228 @@ const SHOTS = [
     device: 'desktop',
     path: '/licitaciones',
     setup: async (page) => {
-      // Switch to table view if toggle exists
-      const tableBtn = page.locator('button[aria-label*="tabla" i], button:has-text("Tabla")').first();
-      if (await tableBtn.count()) await tableBtn.click();
-      await page.waitForTimeout(800);
+      const btn = page.locator('button[aria-label*="tabla" i], button:has-text("Tabla")').first();
+      if (await btn.count()) await btn.click();
+      await page.waitForTimeout(1000);
     },
   },
   {
     file: 'filtros-sidebar.png',
     device: 'desktop',
     path: '/licitaciones',
-    wait: 'aside, [class*="sidebar" i], [class*="FilterSidebar" i]',
+    wait: 'aside, [class*="FilterSidebar" i]',
   },
   {
     file: 'busqueda.png',
     device: 'desktop',
     path: '/licitaciones',
     setup: async (page) => {
-      const search = page.locator('input[type="search"], input[placeholder*="uscar" i]').first();
-      if (await search.count()) {
-        await search.fill('obra pública');
-        await page.waitForTimeout(1000);
-      }
+      const s = page.locator('input[type="search"], input[placeholder*="uscar" i]').first();
+      if (await s.count()) { await s.fill('obra pública'); await page.waitForTimeout(1200); }
     },
   },
   {
-    file: 'favoritos.png',
+    file: 'vigentes-hoy.png',
     device: 'desktop',
-    path: '/favoritos',
-    wait: 'main, article, h1',
-  },
-  {
-    file: 'perfil.png',
-    device: 'desktop',
-    path: '/perfil',
-    wait: 'main, h1',
-  },
-  {
-    file: 'stats.png',
-    device: 'desktop',
-    path: '/stats',
-    wait: 'main, h1, canvas, svg',
-  },
-  {
-    file: 'cotizar-home.png',
-    device: 'desktop',
-    path: '/cotizar',
-    wait: 'main, h1',
-  },
-  {
-    file: 'empresa.png',
-    device: 'desktop',
-    path: '/empresa',
-    wait: 'main, h1',
-  },
-  {
-    file: 'nodos.png',
-    device: 'desktop',
-    path: '/nodos',
-    wait: 'main, h1',
-  },
-  {
-    file: 'admin.png',
-    device: 'desktop',
-    path: '/admin',
-    wait: 'main, h1',
-  },
-  {
-    file: 'lab.png',
-    device: 'desktop',
-    path: '/lab',
-    wait: 'main, h1',
+    path: '/licitaciones',
+    setup: async (page) => {
+      await clickButton(page, 'Nuevas de hoy').catch(() => {});
+      await page.waitForTimeout(1200);
+    },
   },
 
-  // Detalle — captured via a real licitación id fetched at runtime
+  // ============================================================
+  // FAVORITOS / PERFIL
+  // ============================================================
+  { file: 'favoritos.png',         device: 'desktop', path: '/favoritos', wait: 'main, article, h1' },
+  { file: 'perfil.png',            device: 'desktop', path: '/perfil',    wait: 'main, h1' },
+
+  // ============================================================
+  // STATS — multiple views
+  // ============================================================
+  { file: 'stats.png',             device: 'desktop', path: '/stats',     wait: 'main, h1, canvas, svg', fullPage: true },
+  {
+    file: 'stats-by-source.png',
+    device: 'desktop',
+    path: '/stats',
+    setup: async (page) => { await clickTab(page, 'Por fuente'); await page.waitForTimeout(1200); },
+  },
+  {
+    file: 'stats-by-state.png',
+    device: 'desktop',
+    path: '/stats',
+    setup: async (page) => { await clickTab(page, 'Estado'); await page.waitForTimeout(1200); },
+  },
+
+  // ============================================================
+  // COTIZAR — wizard steps
+  // ============================================================
+  { file: 'cotizar-home.png',      device: 'desktop', path: '/cotizar', wait: 'main, h1' },
+  {
+    file: 'cotizar-paso-1-items.png',
+    device: 'desktop',
+    path: '/cotizar',
+    setup: async (page) => {
+      // Open the first active licitación if visible
+      const first = page.locator('a[href*="/cotizar/"], .licitacion-card a, [class*="card"] a').first();
+      if (await first.count()) await first.click();
+      await page.waitForTimeout(1500);
+    },
+    fullPage: true,
+  },
+
+  // ============================================================
+  // EMPRESA
+  // ============================================================
+  { file: 'empresa.png',           device: 'desktop', path: '/empresa', wait: 'main, h1', fullPage: true },
+
+  // ============================================================
+  // NODOS — list + form
+  // ============================================================
+  { file: 'nodos.png',             device: 'desktop', path: '/nodos', wait: 'main, h1', fullPage: true },
+  {
+    file: 'nodos-form.png',
+    device: 'desktop',
+    path: '/nodos',
+    setup: async (page) => {
+      await clickButton(page, 'Nuevo').catch(() => {});
+      await clickButton(page, '+ Nuevo nodo').catch(() => {});
+      await clickButton(page, 'Crear').catch(() => {});
+      await page.waitForTimeout(1200);
+    },
+  },
+
+  // ============================================================
+  // ADMIN — overview + individual tabs
+  // ============================================================
+  { file: 'admin.png',             device: 'desktop', path: '/admin', wait: 'main, h1' },
+  {
+    file: 'admin-monitor.png',
+    device: 'desktop',
+    path: '/admin',
+    setup: async (page) => { await clickTab(page, 'Monitor'); await page.waitForTimeout(1500); },
+  },
+  {
+    file: 'admin-fuentes.png',
+    device: 'desktop',
+    path: '/admin',
+    setup: async (page) => { await clickTab(page, 'Fuentes'); await page.waitForTimeout(1500); },
+  },
+  {
+    file: 'admin-logs.png',
+    device: 'desktop',
+    path: '/admin',
+    setup: async (page) => { await clickTab(page, 'Logs'); await page.waitForTimeout(1500); },
+  },
+  {
+    file: 'admin-calidad.png',
+    device: 'desktop',
+    path: '/admin',
+    setup: async (page) => { await clickTab(page, 'Calidad'); await page.waitForTimeout(1500); },
+  },
+
+  // ============================================================
+  // LAB
+  // ============================================================
+  { file: 'lab.png',               device: 'desktop', path: '/lab', wait: 'main, h1', fullPage: true },
+
+  // ============================================================
+  // DETALLE — header + each tab
+  // ============================================================
   {
     file: 'detalle-header.png',
     device: 'desktop',
     path: '__DETALLE__',
-    wait: 'main, h1, [class*="header" i]',
+    wait: 'main, h1',
+  },
+  {
+    file: 'detalle-info.png',
+    device: 'desktop',
+    path: '__DETALLE__',
+    setup: async (page) => { await clickTab(page, 'Info'); await page.waitForTimeout(1000); },
+    fullPage: true,
+  },
+  {
+    file: 'detalle-items.png',
+    device: 'desktop',
+    path: '__DETALLE__',
+    setup: async (page) => { await clickTab(page, 'Items'); await page.waitForTimeout(1000); },
+  },
+  {
+    file: 'detalle-documentos.png',
+    device: 'desktop',
+    path: '__DETALLE__',
+    setup: async (page) => { await clickTab(page, 'Documentos'); await page.waitForTimeout(1000); },
+  },
+  {
+    file: 'detalle-cronograma.png',
+    device: 'desktop',
+    path: '__DETALLE__',
+    setup: async (page) => { await clickTab(page, 'Cronograma'); await page.waitForTimeout(1000); },
   },
   {
     file: 'workflow-stepper.png',
     device: 'desktop',
     path: '__DETALLE__',
     setup: async (page) => {
-      // Try multiple locators for the Workflow tab
-      const selectors = [
-        'button:has-text("Workflow")',
-        '[role="tab"]:has-text("Workflow")',
-        'button:has-text("⚙️")',
-        'a:has-text("Workflow")',
-      ];
-      for (const sel of selectors) {
-        const loc = page.locator(sel).first();
-        if (await loc.count()) {
-          await loc.click({ timeout: 2000 }).catch(() => {});
-          break;
-        }
-      }
-      // Wait long enough for the stepper component to render
+      await clickTab(page, 'Workflow');
       await page.waitForTimeout(1500);
-      // Scroll to the stepper if visible
       const stepper = page.locator('[class*="stepper" i], [class*="Workflow" i]').first();
       if (await stepper.count()) await stepper.scrollIntoViewIfNeeded().catch(() => {});
     },
   },
-
-  // ============ MOBILE ============
   {
-    file: 'listado-mobile.png',
-    device: 'mobile',
-    path: '/licitaciones',
-    wait: 'main, article',
+    file: 'detalle-similares.png',
+    device: 'desktop',
+    path: '__DETALLE__',
+    setup: async (page) => { await clickTab(page, 'Similares'); await page.waitForTimeout(1500); },
   },
+
+  // ============================================================
+  // HUNTER — panel opened
+  // ============================================================
+  {
+    file: 'hunter-panel.png',
+    device: 'desktop',
+    path: '__DETALLE__',
+    setup: async (page) => {
+      await clickButton(page, 'Hunter').catch(() => {});
+      await clickButton(page, '🎯 Hunter').catch(() => {});
+      await clickButton(page, '🎯').catch(() => {});
+      await page.waitForTimeout(2500);
+    },
+  },
+
+  // ============================================================
+  // MOBILE
+  // ============================================================
+  { file: 'listado-mobile.png',    device: 'mobile', path: '/licitaciones', wait: 'main, article' },
   {
     file: 'filtros-drawer.png',
     device: 'mobile',
     path: '/licitaciones',
     setup: async (page) => {
-      const btn = page.locator('button:has-text("Filtros")').first();
-      if (await btn.count()) await btn.click();
-      await page.waitForTimeout(600);
+      const b = page.locator('button:has-text("Filtros")').first();
+      if (await b.count()) await b.click();
+      await page.waitForTimeout(800);
     },
   },
   {
-    file: 'detalle-mobile.png',
+    file: 'menu-mobile.png',
     device: 'mobile',
-    path: '__DETALLE__',
-    wait: 'main, h1',
+    path: '/licitaciones',
+    setup: async (page) => {
+      const b = page.locator('button[aria-label*="enú" i], button.mobile-toggle, button:has-text("☰")').first();
+      if (await b.count()) await b.click();
+      await page.waitForTimeout(800);
+    },
   },
-  {
-    file: 'favoritos-mobile.png',
-    device: 'mobile',
-    path: '/favoritos',
-    wait: 'main, h1',
-  },
-  {
-    file: 'cotizar-mobile.png',
-    device: 'mobile',
-    path: '/cotizar',
-    wait: 'main, h1',
-  },
+  { file: 'detalle-mobile.png',    device: 'mobile', path: '__DETALLE__',  wait: 'main, h1' },
+  { file: 'favoritos-mobile.png',  device: 'mobile', path: '/favoritos',   wait: 'main, h1' },
+  { file: 'cotizar-mobile.png',    device: 'mobile', path: '/cotizar',     wait: 'main, h1' },
+  { file: 'nodos-mobile.png',      device: 'mobile', path: '/nodos',       wait: 'main, h1' },
+  { file: 'stats-mobile.png',      device: 'mobile', path: '/stats',       wait: 'main, h1' },
+  { file: 'perfil-mobile.png',     device: 'mobile', path: '/perfil',      wait: 'main, h1' },
 ];
 
 async function ensureDir(p) {
