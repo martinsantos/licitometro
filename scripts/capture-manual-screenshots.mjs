@@ -24,12 +24,13 @@ const ROOT = resolve(__dirname, '..');
 const BASE_URL = process.env.BASE_URL || 'https://licitometro.ar';
 const PASSWORD = process.env.LICITOMETRO_PASSWORD;
 const READER_TOKEN = process.env.LICITOMETRO_READER_TOKEN;
+const ADMIN_JWT = process.env.LICITOMETRO_ADMIN_JWT;
 const OUT_DIR = process.env.OUT_DIR || resolve(ROOT, 'manual/assets/img');
 const ONLY = (process.env.ONLY || '').split(',').map(s => s.trim()).filter(Boolean);
 const HEADLESS = process.env.HEADLESS !== 'false';
 
-if (!PASSWORD && !READER_TOKEN) {
-  console.error('ERROR: set LICITOMETRO_PASSWORD or LICITOMETRO_READER_TOKEN');
+if (!PASSWORD && !READER_TOKEN && !ADMIN_JWT) {
+  console.error('ERROR: set LICITOMETRO_PASSWORD, LICITOMETRO_READER_TOKEN or LICITOMETRO_ADMIN_JWT');
   process.exit(1);
 }
 
@@ -145,9 +146,25 @@ const SHOTS = [
     device: 'desktop',
     path: '__DETALLE__',
     setup: async (page) => {
-      const tab = page.locator('button:has-text("Workflow"), [role="tab"]:has-text("Workflow")').first();
-      if (await tab.count()) await tab.click();
-      await page.waitForTimeout(600);
+      // Try multiple locators for the Workflow tab
+      const selectors = [
+        'button:has-text("Workflow")',
+        '[role="tab"]:has-text("Workflow")',
+        'button:has-text("⚙️")',
+        'a:has-text("Workflow")',
+      ];
+      for (const sel of selectors) {
+        const loc = page.locator(sel).first();
+        if (await loc.count()) {
+          await loc.click({ timeout: 2000 }).catch(() => {});
+          break;
+        }
+      }
+      // Wait long enough for the stepper component to render
+      await page.waitForTimeout(1500);
+      // Scroll to the stepper if visible
+      const stepper = page.locator('[class*="stepper" i], [class*="Workflow" i]').first();
+      if (await stepper.count()) await stepper.scrollIntoViewIfNeeded().catch(() => {});
     },
   },
 
@@ -193,6 +210,23 @@ async function ensureDir(p) {
 }
 
 async function login(context, page) {
+  // Highest priority: inject an admin JWT directly as the access_token cookie.
+  // This bypasses /api/auth/token-login which always downgrades to reader role.
+  if (ADMIN_JWT) {
+    const host = new URL(BASE_URL).hostname;
+    await context.addCookies([{
+      name: 'access_token',
+      value: ADMIN_JWT,
+      domain: host,
+      path: '/',
+      httpOnly: true,
+      secure: true,
+      sameSite: 'Lax',
+    }]);
+    await page.goto(BASE_URL, { waitUntil: 'networkidle' });
+    return;
+  }
+
   // Preferred path: exchange a reader token for a session cookie via API.
   if (READER_TOKEN) {
     const res = await page.request.post(`${BASE_URL}/api/auth/token-login`, {
