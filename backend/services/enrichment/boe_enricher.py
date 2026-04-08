@@ -479,9 +479,18 @@ async def enrich_boe(http: ResilientHttpClient, lic_doc: dict, source_url: str) 
     """BOE-specific enrichment: download gazette PDF, re-segment, extract from matched segment.
 
     Returns updates dict (same interface as other enrichers), or empty dict if no match found.
+
+    Note: BOE uses pypdf directly (not the global wrapper) because the section/segment
+    regex parsing is tightly coupled to pypdf's output format. opendataloader's
+    structured output groups elements differently and loses lines critical for the
+    Hospital format (Apertura/Hora/objeto on separate paragraphs).
     """
-    # Download and extract full gazette text
-    text = await pdf_zip_enricher.extract_text_from_pdf_url(http, source_url)
+    # Force pypdf for BOE — segmentation logic depends on pypdf format
+    pdf_bytes = await pdf_zip_enricher.download_binary(http, source_url, pdf_zip_enricher.MAX_PDF_BYTES)
+    if not pdf_bytes:
+        text = None
+    else:
+        text = pdf_zip_enricher._extract_with_pypdf(pdf_bytes)
     if not text:
         logger.warning(f"BOE enrichment: could not download/extract PDF: {source_url[:80]}")
         return {}

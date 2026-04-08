@@ -187,12 +187,14 @@ class BoletinOficialMendozaScraper(BaseScraper):
         return None
 
     def _extract_text_from_pdf(self, pdf_bytes: bytes) -> str:
-        """Extract text from PDF using the unified extractor.
+        """Extract text from PDF using pypdf directly.
 
-        Honors USE_OPENDATALOADER_PDF env flag with automatic fallback to pypdf.
+        BOE uses pypdf (not the unified wrapper) because the section/segment
+        regex parsing is tightly coupled to pypdf's output format. opendataloader
+        groups elements differently and loses lines critical for Hospital Notti format.
         """
-        from services.enrichment.pdf_zip_enricher import extract_text_from_pdf_bytes
-        return extract_text_from_pdf_bytes(pdf_bytes)
+        from services.enrichment.pdf_zip_enricher import _extract_with_pypdf
+        return _extract_with_pypdf(pdf_bytes)
 
     def _extract_text_from_pdf_page(self, pdf_bytes: bytes, page_num: int) -> str:
         """Extract text from a specific page of PDF."""
