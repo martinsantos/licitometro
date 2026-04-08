@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 
-type Tab = 'quick' | 'compare' | 'extract';
+type Tab = 'quick' | 'compare' | 'extract' | 'pdf';
 type DataTab = 'markdown' | 'html' | 'links';
 
 interface ScraperConfig {
@@ -92,6 +92,31 @@ const LabPage: React.FC = () => {
   const [extractResult, setExtractResult] = useState<any>(null);
   const [showRawExtract, setShowRawExtract] = useState(false);
 
+  // PDF (OpenDataLoader) state
+  const [pdfUrl, setPdfUrl] = useState('');
+  const [pdfLoading, setPdfLoading] = useState(false);
+  const [pdfResult, setPdfResult] = useState<any>(null);
+  const [showRawPdf, setShowRawPdf] = useState(false);
+
+  const PDF_PRESETS = [
+    { label: 'BOE Mendoza 32566', url: 'https://boe.mendoza.gov.ar/default/public/publico/verpdf/32566' },
+    { label: 'BOE Mendoza 32565', url: 'https://boe.mendoza.gov.ar/default/public/publico/verpdf/32565' },
+    { label: 'BOE Mendoza 32564', url: 'https://boe.mendoza.gov.ar/default/public/publico/verpdf/32564' },
+  ];
+
+  const runPdfTest = async () => {
+    if (!pdfUrl) return;
+    setPdfLoading(true);
+    setPdfResult(null);
+    try {
+      const res = await axios.post('/api/lab/opendataloader-test', { url: pdfUrl, timeout: 180 });
+      setPdfResult(res.data);
+    } catch (err: any) {
+      setPdfResult({ success: false, error: err?.response?.data?.detail || err.message, timing_ms: 0 });
+    }
+    setPdfLoading(false);
+  };
+
   useEffect(() => {
     axios.get('/api/scraper-configs/?active_only=true&limit=100')
       .then(res => {
@@ -179,6 +204,9 @@ const LabPage: React.FC = () => {
         </button>
         <button onClick={() => setTab('extract')} className={`px-4 py-2 rounded-md text-sm font-bold transition-all ${tab === 'extract' ? 'bg-white text-gray-800 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}>
           Extract (LLM)
+        </button>
+        <button onClick={() => setTab('pdf')} className={`px-4 py-2 rounded-md text-sm font-bold transition-all ${tab === 'pdf' ? 'bg-white text-gray-800 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}>
+          PDF Parser
         </button>
       </div>
 
@@ -553,6 +581,155 @@ const LabPage: React.FC = () => {
                   </pre>
                 </div>
               )}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* PDF Parser Tab (OpenDataLoader) */}
+      {tab === 'pdf' && (
+        <div className="space-y-4">
+          <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 text-sm text-amber-800">
+            <strong>OpenDataLoader PDF</strong> — parser de PDFs basado en Java que extrae elementos estructurados (headings, párrafos, tablas, listas, imágenes) con bounding boxes y orden de lectura. Ideal para el Boletín Oficial PDF.
+            <br/>
+            <span className="text-xs opacity-75">Spawns JVM por cada llamada — espera 10–60s.</span>
+          </div>
+
+          <div className="flex gap-2">
+            <input
+              type="text"
+              value={pdfUrl}
+              onChange={e => setPdfUrl(e.target.value)}
+              placeholder="https://boe.mendoza.gov.ar/default/public/publico/verpdf/32566"
+              className="flex-1 px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:border-amber-500"
+            />
+            <button
+              onClick={runPdfTest}
+              disabled={pdfLoading || !pdfUrl}
+              className="px-5 py-2 bg-amber-600 text-white rounded-lg text-sm font-bold hover:bg-amber-700 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {pdfLoading ? 'Parseando…' : 'Parsear PDF'}
+            </button>
+          </div>
+
+          {/* Presets */}
+          <div className="flex flex-wrap gap-2">
+            {PDF_PRESETS.map(p => (
+              <button
+                key={p.url}
+                onClick={() => setPdfUrl(p.url)}
+                className="px-3 py-1 bg-gray-100 text-gray-700 rounded-md text-xs hover:bg-gray-200"
+              >
+                {p.label}
+              </button>
+            ))}
+          </div>
+
+          {/* Loading */}
+          {pdfLoading && (
+            <div className="bg-amber-50 border border-amber-200 rounded-lg p-6 text-center">
+              <div className="inline-block w-8 h-8 border-3 border-amber-300 border-t-amber-600 rounded-full animate-spin mb-2"></div>
+              <p className="text-amber-700 text-sm font-medium">Descargando y parseando PDF (puede tardar 30–60s)…</p>
+            </div>
+          )}
+
+          {/* Result */}
+          {pdfResult && !pdfLoading && (
+            <div className="bg-white border border-gray-200 rounded-lg p-4 space-y-4">
+              <div className="flex items-center gap-3">
+                <StatusBadge success={pdfResult.success} />
+                {pdfResult.timing_ms !== undefined && <TimingBadge ms={pdfResult.timing_ms} />}
+                {pdfResult.pdf_size_bytes && (
+                  <span className="text-xs text-gray-500">
+                    {(pdfResult.pdf_size_bytes / 1024 / 1024).toFixed(2)} MB
+                  </span>
+                )}
+              </div>
+
+              {pdfResult.error && (
+                <div className="bg-red-50 border border-red-200 rounded-lg p-3 text-red-700 text-sm">
+                  <strong>Error:</strong> {pdfResult.error}
+                </div>
+              )}
+
+              {pdfResult.summary && (
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                  <div className="bg-emerald-50 border border-emerald-200 rounded-lg p-3 text-center">
+                    <div className="text-2xl font-bold text-emerald-700">{pdfResult.summary.pages}</div>
+                    <div className="text-xs text-emerald-600 uppercase">Páginas</div>
+                  </div>
+                  <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 text-center">
+                    <div className="text-2xl font-bold text-blue-700">{pdfResult.summary.total_elements}</div>
+                    <div className="text-xs text-blue-600 uppercase">Elementos</div>
+                  </div>
+                  <div className="bg-purple-50 border border-purple-200 rounded-lg p-3 text-center">
+                    <div className="text-2xl font-bold text-purple-700">{pdfResult.summary.tables_found}</div>
+                    <div className="text-xs text-purple-600 uppercase">Tablas</div>
+                  </div>
+                  <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 text-center">
+                    <div className="text-2xl font-bold text-amber-700">{Object.keys(pdfResult.summary.type_counts || {}).length}</div>
+                    <div className="text-xs text-amber-600 uppercase">Tipos</div>
+                  </div>
+                </div>
+              )}
+
+              {pdfResult.summary?.type_counts && (
+                <div>
+                  <h4 className="text-xs font-bold text-gray-500 uppercase mb-2">Tipos de elementos</h4>
+                  <div className="flex flex-wrap gap-2">
+                    {Object.entries(pdfResult.summary.type_counts as Record<string, number>).map(([type, count]) => (
+                      <span key={type} className="px-2 py-1 bg-gray-100 text-gray-700 rounded text-xs">
+                        <strong>{type}:</strong> {count}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {pdfResult.text_samples && pdfResult.text_samples.length > 0 && (
+                <div>
+                  <h4 className="text-xs font-bold text-gray-500 uppercase mb-2">Muestras de texto</h4>
+                  <div className="space-y-2">
+                    {pdfResult.text_samples.map((s: any, i: number) => (
+                      <div key={i} className="bg-gray-50 border border-gray-200 rounded p-2 text-xs">
+                        <div className="flex gap-2 mb-1">
+                          <span className="font-bold text-gray-600">{s.type}</span>
+                          {s.page !== undefined && <span className="text-gray-400">p.{s.page}</span>}
+                        </div>
+                        <p className="text-gray-700">{s.text}</p>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {pdfResult.tables && pdfResult.tables.length > 0 && (
+                <div>
+                  <h4 className="text-xs font-bold text-gray-500 uppercase mb-2">Tablas encontradas</h4>
+                  <div className="space-y-2">
+                    {pdfResult.tables.map((t: any, i: number) => (
+                      <div key={i} className="bg-purple-50 border border-purple-200 rounded p-2 text-xs">
+                        <div className="font-bold text-purple-700 mb-1">Tabla {i + 1} {t.page !== undefined && `(p.${t.page})`}</div>
+                        {t.preview && <p className="text-purple-900 font-mono whitespace-pre-wrap">{t.preview}</p>}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              <div>
+                <button
+                  onClick={() => setShowRawPdf(!showRawPdf)}
+                  className="text-xs text-gray-500 hover:text-gray-700 underline"
+                >
+                  {showRawPdf ? '▼ Ocultar JSON crudo' : '▶ Ver JSON crudo'}
+                </button>
+                {showRawPdf && (
+                  <pre className="mt-2 bg-gray-900 text-green-400 p-3 rounded text-xs overflow-auto max-h-96">
+                    {JSON.stringify(pdfResult.raw, null, 2)}
+                  </pre>
+                )}
+              </div>
             </div>
           )}
         </div>

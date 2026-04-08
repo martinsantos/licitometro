@@ -201,6 +201,23 @@ async def _run_firecrawl_safe(url: str) -> Dict[str, Any]:
     return await service.scrape(url, formats=["markdown", "links"], timeout=45)
 
 
+class OpenDataLoaderRequest(BaseModel):
+    url: str
+    timeout: int = 120
+
+
+@router.post("/opendataloader-test")
+async def opendataloader_test(body: OpenDataLoaderRequest):
+    """Test opendataloader-pdf: download a PDF and parse it with structured output."""
+    from services.opendataloader_service import OpenDataLoaderService
+
+    service = OpenDataLoaderService()
+    if not service.enabled:
+        raise HTTPException(400, "opendataloader-pdf not installed on server (requires Java 11+)")
+
+    return await service.parse_url(body.url, timeout=body.timeout)
+
+
 @router.post("/extract")
 async def firecrawl_extract(body: ExtractRequest):
     """Extract structured licitacion data from URLs via Firecrawl LLM."""
