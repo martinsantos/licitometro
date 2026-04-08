@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Inicio Rápido — Manual Licitómetro</title>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap">
+  <link rel="stylesheet" href="/manual/assets/css/manual.css">
+</head>
+<body>
+  <div class="scroll-progress"></div>
+  <header class="mobile-header">
+    <button class="mobile-toggle" aria-label="Menú">☰</button>
+    <strong>Manual Licitómetro</strong>
+    <a href="/" style="text-decoration:none;color:#d97706;font-size:13px;">← Volver</a>
+  </header>
+  <div class="sidebar-overlay"></div>
+  <aside class="sidebar"></aside>
+
+  <main class="content">
+    <div class="breadcrumb">
+      <a href="/manual/">Manual</a>
+      <span class="sep">›</span>
+      <span>Inicio Rápido</span>
+    </div>
+
+    <h1>Inicio Rápido</h1>
+    <p class="lead">
+      Empezá a usar Licitómetro en menos de 5 minutos. Esta guía te lleva desde el login hasta tu primera licitación marcada como favorita.
+    </p>
+
+    <h2>Primer ingreso</h2>
+    <p>
+      Accedé a <strong><a href="https://licitometro.ar">licitometro.ar</a></strong> y hacé login con tu usuario y contraseña.
+      La sesión queda activa por <strong>24 horas</strong> mediante una cookie segura (JWT).
+    </p>
+
+    <div class="admonition tip">
+      <div class="admonition-title">💡 Tip</div>
+      <p>Si recibís un link de email con <code>?token=xxx</code>, hacé click directo: te loguea automáticamente sin necesidad de contraseña.</p>
+    </div>
+
+    <h3>¿Qué ves al ingresar?</h3>
+    <p>La pantalla principal es el <strong>Listado de Licitaciones</strong> ordenado por fecha de scraping (más recientes primero). En el header tenés:</p>
+
+    <ul>
+      <li><strong>Inicio</strong> — Dashboard con stats</li>
+      <li><strong>Licitaciones</strong> — Listado de Mendoza (default)</li>
+      <li><strong>Lic. AR</strong> — Listado de Argentina (nacionales)</li>
+      <li><strong>Favoritos</strong> — Tus licitaciones guardadas</li>
+      <li><strong>Cotizador</strong> — Asistente CotizAR</li>
+      <li><strong>Empresa</strong> — Tu perfil de empresa</li>
+      <li><strong>Mi actividad</strong> — Dashboard personal</li>
+      <li><strong>Nodos</strong> — Mapas semánticos (admin)</li>
+      <li><strong>Plantillas</strong> — Templates de oferta</li>
+    </ul>
+
+    <h2 id="tour-roles">Tour por roles</h2>
+    <p>Licitómetro tiene tres roles principales. Elegí el tuyo para ver el flujo recomendado:</p>
+
+    <h3 id="usuario">👤 Usuario común</h3>
+    <p>Si solo querés <strong>ver licitaciones, filtrar y recibir notificaciones</strong>:</p>
+    <ol>
+      <li>Andá a <strong>Licitaciones</strong> y usá los filtros de la barra lateral (categoría, fuente, estado).</li>
+      <li>Click en cualquier licitación para ver el detalle completo.</li>
+      <li>Marcá como <strong>favorita</strong> con el botón ⭐ de los botones flotantes.</li>
+      <li>Configurá tus <strong>rubros críticos</strong> en la sidebar para ver badges de urgencia.</li>
+      <li>Recibís notificaciones diarias por email a las 9am y por <strong>@Licitobot</strong> en Telegram.</li>
+    </ol>
+
+    <h3 id="cotizador">💼 Cotizador (empresa que oferta)</h3>
+    <p>Si vas a <strong>armar ofertas</strong> para licitaciones:</p>
+    <ol>
+      <li>Configurá tu <strong>perfil de empresa</strong> en <strong>Empresa</strong>: nombre, CUIT, zonas geográficas, antecedentes.</li>
+      <li>Encontrá la licitación que querés cotizar en el <strong>Listado</strong>.</li>
+      <li>Click en <strong>Cotizar</strong> para abrir el editor CotizAR de 6 pasos.</li>
+      <li>Usá <strong>HUNTER 🎯</strong> para encontrar el pliego en otras fuentes y comparar precios reales de adjudicaciones pasadas.</li>
+      <li>Generá la <strong>oferta final</strong> y exportala a PDF.</li>
+    </ol>
+
+    <h3 id="admin">🔧 Administrador</h3>
+    <p>Si gestionás el sistema:</p>
+    <ol>
+      <li>Andá a <strong>Admin</strong> → tab <strong>Monitor</strong> para ver el estado de los 24 scrapers.</li>
+      <li>Configurá <strong>Nodos</strong> (mapas semánticos) en <strong>/nodos</strong> para auto-clasificar licitaciones por rubro.</li>
+      <li>Usá <strong>Lab</strong> para probar nuevos scrapers o el parser de PDFs antes de pasarlos a producción.</li>
+      <li>Monitoreá la <strong>Calidad de datos</strong> en el panel admin: niveles de enriquecimiento, duplicados, datos faltantes.</li>
+    </ol>
+
+    <h2>Glosario rápido</h2>
+    <table>
+      <tr><th>Término</th><th>Significado</th></tr>
+      <tr><td><strong>Licitación</strong></td><td>Convocatoria pública del Estado para contratar bienes o servicios.</td></tr>
+      <tr><td><strong>Pliego</strong></td><td>Documento oficial con condiciones técnicas y económicas.</td></tr>
+      <tr><td><strong>Objeto</strong></td><td>Qué contrata la licitación (ej: "ADQUISICIÓN DE CALEFACTORES").</td></tr>
+      <tr><td><strong>Expediente</strong></td><td>Identificador único del trámite (ej: <code>EX-2026-01172061-GDEMZA-CCC</code>).</td></tr>
+      <tr><td><strong>Fuente</strong></td><td>Origen de los datos: BOE, COMPR.AR, ComprasApps, etc.</td></tr>
+      <tr><td><strong>Apertura</strong></td><td>Fecha límite para presentar ofertas.</td></tr>
+      <tr><td><strong>Vigente / Vencida / Prorrogada / Archivada</strong></td><td>Estados de vigencia.</td></tr>
+      <tr><td><strong>Enriquecimiento</strong></td><td>Proceso automático que extrae datos del PDF/HTML del pliego.</td></tr>
+      <tr><td><strong>Nodo</strong></td><td>Mapa semántico de keywords para agrupar por rubro.</td></tr>
+      <tr><td><strong>HUNTER</strong></td><td>Búsqueda cross-source que cazí datos del mismo proceso en otras fuentes.</td></tr>
+      <tr><td><strong>CotizAR</strong></td><td>Asistente de 6 pasos para armar una oferta.</td></tr>
+    </table>
+
+    <div class="page-footer">
+      <a href="/manual/" class="prev">¿Qué es Licitómetro?</a>
+      <a href="/manual/pages/listado.html" class="next">Listado de licitaciones</a>
+    </div>
+  </main>
+
+  <script src="/manual/assets/js/sidebar.js"></script>
+  <script src="/manual/assets/js/search.js"></script>
+</body>
+</html>

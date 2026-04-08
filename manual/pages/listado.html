@@ -1,0 +1,155 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Listado de licitaciones — Manual Licitómetro</title>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap">
+  <link rel="stylesheet" href="/manual/assets/css/manual.css">
+</head>
+<body>
+  <div class="scroll-progress"></div>
+  <header class="mobile-header">
+    <button class="mobile-toggle" aria-label="Menú">☰</button>
+    <strong>Manual Licitómetro</strong>
+    <a href="/" style="text-decoration:none;color:#d97706;font-size:13px;">← Volver</a>
+  </header>
+  <div class="sidebar-overlay"></div>
+  <aside class="sidebar"></aside>
+
+  <main class="content">
+    <div class="breadcrumb">
+      <a href="/manual/">Manual</a>
+      <span class="sep">›</span>
+      <span>Listado de licitaciones</span>
+    </div>
+
+    <h1>Listado de licitaciones</h1>
+    <p class="lead">
+      La pantalla principal de Licitómetro. Te muestra todas las licitaciones agregadas, con filtros, búsqueda y vistas configurables.
+    </p>
+
+    <h2>Cómo acceder</h2>
+    <p>Click en <strong>Licitaciones</strong> en el header (Mendoza) o <strong>Lic. AR</strong> (Argentina nacional). El listado carga ordenado por fecha de scraping descendente — las más recientes primero.</p>
+
+    <div class="screenshot">
+      <img src="/manual/assets/img/desktop/listado-cards.png" alt="Vista de cards del listado">
+      <div class="caption">🖥 Vista de cards (default) con filtros laterales y barra de búsqueda.</div>
+    </div>
+
+    <h2>Vistas disponibles</h2>
+    <ul>
+      <li><strong>Cards</strong> (default) — Vista compacta con título, organización, fecha de apertura, presupuesto y badge de urgencia.</li>
+      <li><strong>Tabla</strong> — Vista columnar con headers ordenables. Ideal para ver más datos por pantalla.</li>
+      <li><strong>Calendario</strong> — Timeline de vencimientos por fecha de apertura.</li>
+    </ul>
+
+    <p>Cambiá entre vistas con el toggle en la barra de herramientas (esquina superior derecha).</p>
+
+    <h2 id="filtros">Filtros</h2>
+    <p>La barra lateral izquierda contiene <strong>filtros facetados</strong> con conteos en tiempo real. Cada filtro muestra cuántas licitaciones tiene cada opción.</p>
+
+    <h3>Filtros disponibles</h3>
+    <table>
+      <tr><th>Filtro</th><th>Descripción</th></tr>
+      <tr><td><strong>Fechas</strong></td><td>Publicación, apertura, vencimiento, descubierta, indexada o creación. Sincronizados entre sí.</td></tr>
+      <tr><td><strong>Fuente</strong></td><td>24 fuentes activas: ComprasApps, COMPR.AR, BOE, IPV, COPIG, etc.</td></tr>
+      <tr><td><strong>Organización</strong></td><td>Ministerios, hospitales, municipios, universidades.</td></tr>
+      <tr><td><strong>Estado</strong></td><td>Vigente, vencida, prorrogada, archivada.</td></tr>
+      <tr><td><strong>Procedimiento</strong></td><td>Licitación pública, contratación directa, concurso, etc.</td></tr>
+      <tr><td><strong>Categoría</strong></td><td>34 rubros: IT, construcción, salud, vivero, etc.</td></tr>
+      <tr><td><strong>Nodos</strong></td><td>Mapas semánticos: Servicios IT Última Milla, Vivero, etc.</td></tr>
+      <tr><td><strong>Presupuesto</strong></td><td>Rangos: <$100K, $100K-$1M, >$1M (configurables).</td></tr>
+      <tr><td><strong>Nivel de enriquecimiento</strong></td><td>1 (básico), 2 (detallado), 3 (completo).</td></tr>
+    </table>
+
+    <div class="screenshot">
+      <img src="/manual/assets/img/desktop/filtros-sidebar.png" alt="Sidebar de filtros">
+      <div class="caption">🖥 Sidebar de filtros con conteos faceted.</div>
+    </div>
+
+    <h3>Filtros rápidos (toolbar)</h3>
+    <ul>
+      <li><strong>🟢 Vigentes hoy</strong> — Licitaciones con apertura futura (no vencidas).</li>
+      <li><strong>⚡ Nuevas de hoy</strong> — Licitaciones descubiertas en las últimas 24h. Filtra por <code>first_seen_at</code>.</li>
+    </ul>
+
+    <h3>Categorías críticas (urgencia)</h3>
+    <p>En la sidebar de filtros, sección "Rubros Críticos", podés marcar hasta N rubros como <strong>urgentes</strong>. Las cards de licitaciones que matcheen mostrarán un <strong>badge naranja de urgencia</strong>.</p>
+
+    <div class="admonition tip">
+      <div class="admonition-title">💡 Tip</div>
+      <p>Los rubros críticos se guardan en localStorage. Configurá los que correspondan a tu rubro de negocio para no perderte oportunidades.</p>
+    </div>
+
+    <h2 id="busqueda">Búsqueda</h2>
+    <p>La barra de búsqueda en la parte superior busca en <strong>título, objeto y descripción</strong> de las licitaciones.</p>
+
+    <ul>
+      <li><strong>Texto plano</strong> — Tipeá palabras clave (ej: "limpieza hospital").</li>
+      <li><strong>Smart Search</strong> — Toggle A / AI / + para activar variantes con NLP. La IA interpreta queries naturales.</li>
+      <li><strong>Debounce</strong> — La búsqueda ejecuta 700ms después de dejar de tipear.</li>
+    </ul>
+
+    <h2>Ordenar</h2>
+    <p>Click en el dropdown <strong>Ordenar por</strong> para elegir:</p>
+    <ul>
+      <li>Fecha de scraping (default) — más recientes primero</li>
+      <li>Fecha de publicación</li>
+      <li>Fecha de apertura</li>
+      <li>Fecha descubierta (first_seen_at)</li>
+      <li>Urgencia (vencimiento más cercano primero)</li>
+      <li>Relevancia (en búsquedas)</li>
+    </ul>
+
+    <h2>Agrupar por</h2>
+    <p>El dropdown <strong>Agrupar</strong> (visible en mobile y dentro del drawer en desktop) organiza el listado por:</p>
+    <ul>
+      <li>Sin agrupar (default)</li>
+      <li>Organización</li>
+      <li>Fuente</li>
+      <li>Estado</li>
+      <li>Jurisdicción</li>
+      <li>Procedimiento</li>
+      <li>Categoría</li>
+    </ul>
+
+    <h2>Presets de filtros</h2>
+    <p>Podés <strong>guardar combinaciones de filtros</strong> como presets reutilizables. Click en "Guardar preset", asigná un nombre y se queda disponible en el dropdown para uso futuro.</p>
+
+    <h2>Strips informativas</h2>
+
+    <h3>📅 Daily Digest Strip</h3>
+    <p>Encima del listado, una barra de timeline muestra "Hoy", "Ayer" y un calendario expandible. Click en cualquier día filtra las licitaciones scrapeadas ese día.</p>
+
+    <h3>🆕 Novedades Strip</h3>
+    <p>Categorías de novedades del día:</p>
+    <ul>
+      <li><strong>Nuevas</strong> — Descubiertas hoy</li>
+      <li><strong>Reindexadas</strong> — Scrapeadas hoy pero descubiertas antes</li>
+      <li><strong>Actualizadas</strong> — Datos modificados (presupuesto, fechas, etc.)</li>
+    </ul>
+
+    <h2>Mobile</h2>
+    <p>En pantallas pequeñas:</p>
+    <ul>
+      <li>Los filtros se acceden desde un botón <strong>"Filtros"</strong> que abre un drawer lateral.</li>
+      <li>El dropdown <strong>"Agrupar"</strong> aparece en la toolbar para acceso rápido sin abrir el drawer.</li>
+      <li>Las cards se apilan verticalmente.</li>
+    </ul>
+
+    <div class="screenshot mobile">
+      <img src="/manual/assets/img/mobile/listado-mobile.png" alt="Listado mobile">
+      <div class="caption">📱 Vista mobile con drawer de filtros.</div>
+    </div>
+
+    <div class="page-footer">
+      <a href="/manual/pages/inicio-rapido.html" class="prev">Inicio Rápido</a>
+      <a href="/manual/pages/detalle.html" class="next">Detalle de licitación</a>
+    </div>
+  </main>
+
+  <script src="/manual/assets/js/sidebar.js"></script>
+  <script src="/manual/assets/js/search.js"></script>
+</body>
+</html>

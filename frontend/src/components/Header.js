@@ -35,6 +35,7 @@ const Header = ({ userRole }) => {
     { path: '/nodos', label: 'Nodos', adminOnly: true },
     { path: '/templates', label: 'Plantillas', adminOnly: true },
     { path: '/stats', label: 'Estadísticas' },
+    { path: '/manual', label: '📖 Manual', external: true },
     { path: '/lab', label: 'Lab', adminOnly: true },
     { path: '/admin', label: 'Admin', adminOnly: true },
   ].filter(link => !link.adminOnly || isAdmin);
@@ -63,21 +64,28 @@ const Header = ({ userRole }) => {
           {/* Desktop Nav */}
           <nav className="hidden md:flex items-center gap-1">
             <ul className="flex items-center gap-1">
-              {navLinks.map(({ path, label, icon }) => (
-                <li key={path}>
-                  <Link
-                    to={path}
-                    className={`flex items-center gap-1.5 px-3 py-2 rounded-md text-sm font-medium transition-colors ${
-                      isActive(path)
-                        ? 'bg-white/10 text-white'
-                        : 'text-slate-300 hover:bg-white/5 hover:text-white'
-                    }`}
-                  >
-                    {icon}
-                    {label}
-                  </Link>
-                </li>
-              ))}
+              {navLinks.map(({ path, label, icon, external }) => {
+                const linkClass = `flex items-center gap-1.5 px-3 py-2 rounded-md text-sm font-medium transition-colors ${
+                  isActive(path)
+                    ? 'bg-white/10 text-white'
+                    : 'text-slate-300 hover:bg-white/5 hover:text-white'
+                }`;
+                return (
+                  <li key={path}>
+                    {external ? (
+                      <a href={path} className={linkClass}>
+                        {icon}
+                        {label}
+                      </a>
+                    ) : (
+                      <Link to={path} className={linkClass}>
+                        {icon}
+                        {label}
+                      </Link>
+                    )}
+                  </li>
+                );
+              })}
             </ul>
             {/* Logout button */}
             <button
@@ -110,22 +118,28 @@ const Header = ({ userRole }) => {
         {mobileMenuOpen && (
           <nav className="md:hidden pb-4 border-t border-white/10 pt-2">
             <ul className="space-y-1">
-              {navLinks.map(({ path, label, icon }) => (
-                <li key={path}>
-                  <Link
-                    to={path}
-                    onClick={() => setMobileMenuOpen(false)}
-                    className={`flex items-center gap-2 px-3 py-2 rounded-md text-sm font-medium transition-colors ${
-                      isActive(path)
-                        ? 'bg-white/10 text-white'
-                        : 'text-slate-300 hover:bg-white/5 hover:text-white'
-                    }`}
-                  >
-                    {icon}
-                    {label}
-                  </Link>
-                </li>
-              ))}
+              {navLinks.map(({ path, label, icon, external }) => {
+                const linkClass = `flex items-center gap-2 px-3 py-2 rounded-md text-sm font-medium transition-colors ${
+                  isActive(path)
+                    ? 'bg-white/10 text-white'
+                    : 'text-slate-300 hover:bg-white/5 hover:text-white'
+                }`;
+                return (
+                  <li key={path}>
+                    {external ? (
+                      <a href={path} onClick={() => setMobileMenuOpen(false)} className={linkClass}>
+                        {icon}
+                        {label}
+                      </a>
+                    ) : (
+                      <Link to={path} onClick={() => setMobileMenuOpen(false)} className={linkClass}>
+                        {icon}
+                        {label}
+                      </Link>
+                    )}
+                  </li>
+                );
+              })}
               <li>
                 <button
                   onClick={handleLogout}

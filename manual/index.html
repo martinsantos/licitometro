@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Manual Licitómetro</title>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap">
+  <link rel="stylesheet" href="/manual/assets/css/manual.css">
+</head>
+<body>
+  <div class="scroll-progress"></div>
+
+  <header class="mobile-header">
+    <button class="mobile-toggle" aria-label="Menú">☰</button>
+    <strong>Manual Licitómetro</strong>
+    <a href="/" style="text-decoration:none;color:#d97706;font-size:13px;">← Volver</a>
+  </header>
+
+  <div class="sidebar-overlay"></div>
+  <aside class="sidebar"></aside>
+
+  <main class="content">
+    <div class="hero">
+      <h1>Manual de Licitómetro</h1>
+      <p class="lead">
+        La guía completa para monitorear, enriquecer y cotizar licitaciones públicas de Mendoza y Argentina.
+      </p>
+    </div>
+
+    <h2>¿Qué es Licitómetro?</h2>
+    <p>
+      <strong>Licitómetro</strong> es una plataforma de monitoreo de licitaciones públicas que agrega, enriquece
+      y organiza datos de <strong>24+ fuentes gubernamentales</strong> de Mendoza y Argentina. Permite a empresas
+      cotizadoras descubrir oportunidades, evaluar pliegos, comparar precios históricos y armar ofertas con asistencia de IA.
+    </p>
+
+    <div class="admonition info">
+      <div class="admonition-title">ℹ️ Información</div>
+      <p>Este manual cubre Licitómetro <strong>v2.0</strong> (Abril 2026), incluyendo HUNTER cross-source, OpenDataLoader PDF parser y CotizAR con asistencia IA.</p>
+    </div>
+
+    <h2>Funcionalidades principales</h2>
+    <div class="card-grid">
+      <a href="/manual/pages/listado.html" class="feature-card">
+        <div class="icon">📋</div>
+        <h3>Listado y filtros</h3>
+        <p>Lista en tiempo real con filtros por fecha, fuente, categoría, estado y nodos semánticos.</p>
+      </a>
+      <a href="/manual/pages/detalle.html" class="feature-card">
+        <div class="icon">🔍</div>
+        <h3>Detalle enriquecido</h3>
+        <p>Pliegos completos con extracción automática de objeto, presupuesto, fechas y categorías.</p>
+      </a>
+      <a href="/manual/pages/hunter.html" class="feature-card">
+        <div class="icon">🎯</div>
+        <h3>HUNTER (Cazador)</h3>
+        <p>Búsqueda cross-source en todas las fuentes, adjudicaciones BOE y comparación de precios reales.</p>
+      </a>
+      <a href="/manual/pages/cotizar.html" class="feature-card">
+        <div class="icon">💼</div>
+        <h3>CotizAR</h3>
+        <p>Asistente de 6 pasos para armar ofertas: items, propuesta, marco legal, análisis IA y oferta final.</p>
+      </a>
+      <a href="/manual/pages/nodos.html" class="feature-card">
+        <div class="icon">🌐</div>
+        <h3>Nodos semánticos</h3>
+        <p>Mapas de keywords para agrupar licitaciones por rubro (IT, Vivero, Construcción, etc.) y enviar digests.</p>
+      </a>
+      <a href="/manual/pages/favoritos.html" class="feature-card">
+        <div class="icon">⭐</div>
+        <h3>Favoritos</h3>
+        <p>Marcá licitaciones de interés. Sincronización servidor para acceso desde cualquier dispositivo.</p>
+      </a>
+    </div>
+
+    <h2>¿Por dónde empezar?</h2>
+    <p>Elegí tu rol para ver una guía rápida:</p>
+
+    <div class="card-grid">
+      <a href="/manual/pages/inicio-rapido.html#usuario" class="feature-card">
+        <div class="icon">👤</div>
+        <h3>Soy usuario nuevo</h3>
+        <p>Ver licitaciones, filtrar, marcar favoritos y recibir notificaciones.</p>
+      </a>
+      <a href="/manual/pages/inicio-rapido.html#cotizador" class="feature-card">
+        <div class="icon">💼</div>
+        <h3>Voy a cotizar</h3>
+        <p>Configurar empresa, usar CotizAR y comparar precios con HUNTER.</p>
+      </a>
+      <a href="/manual/pages/inicio-rapido.html#admin" class="feature-card">
+        <div class="icon">🔧</div>
+        <h3>Soy administrador</h3>
+        <p>Configurar scrapers, monitorear el sistema y gestionar nodos.</p>
+      </a>
+    </div>
+
+    <h2>Stack y arquitectura</h2>
+    <table>
+      <tr><th>Capa</th><th>Tecnología</th></tr>
+      <tr><td>Frontend</td><td>React 18 + TypeScript + Tailwind CSS</td></tr>
+      <tr><td>Backend</td><td>FastAPI + Python 3.11 + Gunicorn</td></tr>
+      <tr><td>Base de datos</td><td>MongoDB 7.0 con Motor (async driver)</td></tr>
+      <tr><td>Scraping</td><td>aiohttp + Selenium + opendataloader-pdf (Java)</td></tr>
+      <tr><td>IA</td><td>Groq (llama-3.3-70b) + sentence-transformers</td></tr>
+      <tr><td>Notificaciones</td><td>Telegram (@Licitobot) + Email (Postfix)</td></tr>
+    </table>
+
+    <h2>Soporte</h2>
+    <p>
+      Si encontrás un problema o querés sugerir una mejora, contactá al equipo de desarrollo.
+      Para emergencias técnicas (sitio caído, scraper fallando), reportá inmediatamente.
+    </p>
+
+    <div class="page-footer">
+      <span></span>
+      <a href="/manual/pages/inicio-rapido.html" class="next">Primer ingreso</a>
+    </div>
+  </main>
+
+  <script src="/manual/assets/js/sidebar.js"></script>
+  <script src="/manual/assets/js/search.js"></script>
+</body>
+</html>

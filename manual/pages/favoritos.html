@@ -1,0 +1,108 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Favoritos — Manual Licitómetro</title>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap">
+  <link rel="stylesheet" href="/manual/assets/css/manual.css">
+</head>
+<body>
+  <div class="scroll-progress"></div>
+  <header class="mobile-header">
+    <button class="mobile-toggle" aria-label="Menú">☰</button>
+    <strong>Manual Licitómetro</strong>
+    <a href="/" style="text-decoration:none;color:#d97706;font-size:13px;">← Volver</a>
+  </header>
+  <div class="sidebar-overlay"></div>
+  <aside class="sidebar"></aside>
+
+  <main class="content">
+    <div class="breadcrumb">
+      <a href="/manual/">Manual</a>
+      <span class="sep">›</span>
+      <span>Favoritos</span>
+    </div>
+
+    <h1>Favoritos</h1>
+    <p class="lead">
+      Marcá las licitaciones que te interesan para acceder rápido. Sincronizadas con el servidor — no se pierden al limpiar caché o cambiar de navegador.
+    </p>
+
+    <h2>Cómo guardar una licitación</h2>
+    <p>Tres formas de marcar una licitación como favorita:</p>
+    <ol>
+      <li><strong>Desde el listado</strong>: click en el ícono ⭐ que aparece al hover sobre una card.</li>
+      <li><strong>Desde el detalle</strong>: click en el botón flotante <strong>"Guardar"</strong> (esquina superior derecha del header morado).</li>
+      <li><strong>Desde HUNTER</strong>: al fusionar datos, se sugiere guardar.</li>
+    </ol>
+
+    <div class="admonition tip">
+      <div class="admonition-title">💡 Auto-enrichment</div>
+      <p>Cuando marcás una licitación con URL fuente como favorita, Licitómetro <strong>automáticamente dispara el enriquecimiento</strong> para tener datos completos cuando vuelvas a verla.</p>
+    </div>
+
+    <h2>Acceder a tus favoritos</h2>
+    <p>Click en <strong>Favoritos</strong> en el header. Te lleva a <code>/favoritos</code>.</p>
+
+    <div class="screenshot">
+      <img src="/manual/assets/img/desktop/favoritos.png" alt="Página de favoritos">
+      <div class="caption">🖥 Página de favoritos con grouping y sorting.</div>
+    </div>
+
+    <h2>Agrupar y ordenar</h2>
+    <p>La página tiene dos dropdowns en la barra superior:</p>
+    <ul>
+      <li><strong>Agrupar por</strong>: Sin agrupar, organización, fuente, fecha guardado, estado, procedimiento.</li>
+      <li><strong>Ordenar por</strong>: Fecha guardado (default), publicación, apertura, presupuesto, urgencia.</li>
+    </ul>
+
+    <h2>Acciones sobre favoritos</h2>
+    <table>
+      <tr><th>Acción</th><th>Cómo</th></tr>
+      <tr><td>Ver detalle</td><td>Click en cualquier card.</td></tr>
+      <tr><td>Quitar de favoritos</td><td>Click en el ícono ❌ en la esquina de la card.</td></tr>
+      <tr><td>Cotizar</td><td>Botón "Cotizar" en la card.</td></tr>
+      <tr><td>Limpiar todos</td><td>Botón "Limpiar todo" en la barra superior. Pide confirmación.</td></tr>
+    </table>
+
+    <h2>Sincronización servidor</h2>
+    <p>Los favoritos se guardan en MongoDB del servidor mediante:</p>
+    <ul>
+      <li><code>POST /api/licitaciones/favorites/{id}</code> — agregar</li>
+      <li><code>DELETE /api/licitaciones/favorites/{id}</code> — quitar</li>
+      <li><code>GET /api/licitaciones/favorites</code> — listar IDs guardados</li>
+    </ul>
+
+    <p>El navegador mantiene una copia en localStorage como cache, pero el servidor es la <strong>fuente de verdad</strong>. Esto significa que:</p>
+    <ul>
+      <li>✅ Acceso desde cualquier dispositivo (mobile, otra compu)</li>
+      <li>✅ No se pierden al limpiar caché del navegador</li>
+      <li>✅ Sobreviven reinstalaciones de navegador</li>
+      <li>✅ Backup automático junto con el resto de la base</li>
+    </ul>
+
+    <div class="admonition info">
+      <div class="admonition-title">ℹ️ Migración automática</div>
+      <p>Si tenías favoritos guardados solo en localStorage (de versiones anteriores), al abrir la página de Favoritos se sincronizan automáticamente al servidor.</p>
+    </div>
+
+    <h2>Deadline countdown</h2>
+    <p>Cada favorito muestra un <strong>countdown de urgencia</strong> al lado del título:</p>
+    <ul>
+      <li><strong>HOY</strong> (rojo) — vence hoy</li>
+      <li><strong>1d, 2d, 3d</strong> (naranja) — vence en pocos días</li>
+      <li><strong>Nd</strong> (gris) — más de una semana</li>
+      <li><strong>VENCIDA</strong> (slate) — ya pasó la apertura</li>
+    </ul>
+
+    <div class="page-footer">
+      <a href="/manual/pages/detalle.html" class="prev">Detalle de licitación</a>
+      <a href="/manual/pages/perfil.html" class="next">Mi Perfil</a>
+    </div>
+  </main>
+
+  <script src="/manual/assets/js/sidebar.js"></script>
+  <script src="/manual/assets/js/search.js"></script>
+</body>
+</html>
