@@ -24,18 +24,132 @@
       <span>CotizAR</span>
     </div>
 
-    <h1>💼 CotizAR</h1>
-    <p class="lead">Asistente de 6 pasos para armar una oferta completa: items, propuesta, empresa, marco legal, análisis IA y oferta final.</p>
+    <h1>💼 CotizAR — Asistente de ofertas</h1>
+    <p class="lead">
+      CotizAR es un wizard de 6 pasos para armar tu oferta a una licitación. Carga ítems con IA, usa inteligencia de precios basada en compras pasadas, y exporta a PDF o DOCX con tu branding.
+    </p>
+
+    <h2>Acceso</h2>
+    <p>Desde el header: <strong>Cotizador</strong> → te lleva a <code>/cotizar</code>. También desde el detalle de una licitación: botón flotante <strong>💼 Cotizar</strong>.</p>
+
+    <h2>Home de CotizAR</h2>
+    <p>Tiene dos secciones:</p>
+    <ul>
+      <li><strong>Licitaciones activas</strong>: las que están en workflow_state <em>evaluando</em> o <em>preparando</em>. Click en una para abrir el editor.</li>
+      <li><strong>Mis cotizaciones</strong>: ofertas guardadas como draft o ya exportadas. Podés continuar una, duplicarla o borrarla.</li>
+    </ul>
+
+    <h2 id="wizard">Editor — los 6 pasos</h2>
+
+    <h3>Paso 1: Ítems</h3>
+    <p>Listado editable de los ítems del pliego. Tres formas de cargarlos:</p>
+    <ol>
+      <li><strong>Importar del pliego</strong>: si la licitación tiene <code>items[]</code> estructurados (COMPR.AR los provee), un solo click los trae todos</li>
+      <li><strong>Cargar con IA</strong>: si no hay ítems estructurados, Groq analiza el <code>description</code> y extrae una lista de ítems sugeridos</li>
+      <li><strong>Manual</strong>: agregar ítems uno por uno con descripción, cantidad, unidad, precio unitario</li>
+    </ol>
+
+    <div class="admonition tip">
+      <div class="admonition-title">💡 Parseo robusto de cantidad</div>
+      <p>Los ítems de COMPR.AR vienen con <code>cantidad = "1,00 UNIDAD/S"</code> (string con unidad embebida). CotizAR parsea el número con regex y extrae la unidad por separado. También limpia la <code>descripcion</code>: remueve los sufijos "Presentación: X  Solicitado: Y".</p>
+    </div>
+
+    <p>Cada ítem muestra:</p>
+    <ul>
+      <li><strong>Descripción</strong>: editable inline</li>
+      <li><strong>Cantidad × Unidad</strong>: input numérico + dropdown (UNIDAD, KG, LT, etc.)</li>
+      <li><strong>Precio unitario ARS</strong>: input numérico con formato de miles</li>
+      <li><strong>Subtotal</strong>: calculado automáticamente</li>
+      <li><strong>Hint de precio sugerido</strong>: si hay match en Inteligencia de Precios, muestra el promedio histórico con link al proceso pasado</li>
+    </ul>
+
+    <h3>Paso 2: Propuesta</h3>
+    <p>Texto narrativo de la oferta: enfoque técnico, metodología, cronograma de ejecución. Editor WYSIWYG con markdown support. Plantillas pre-cargadas por rubro (obra pública, servicios, suministro).</p>
+
+    <h3>Paso 3: Empresa</h3>
+    <p>Trae automáticamente los datos del <a href="/manual/pages/empresa.html">perfil de empresa</a>: razón social, CUIT, domicilio, contacto. Todo editable para este oferta específica (ej: si querés usar un domicilio alternativo).</p>
+
+    <h3>Paso 4: Marco legal</h3>
+    <p>Encuadre legal aplicable: ley de compras públicas, decreto reglamentario, pliego de bases y condiciones particulares. CotizAR detecta del campo <code>legal_framework</code> de la licitación y pre-llena. Podés agregar cláusulas custom.</p>
+
+    <h3>Paso 5: Análisis IA</h3>
+    <p>Groq analiza tu oferta completa contra el pliego y devuelve:</p>
+    <ul>
+      <li><strong>Puntos fuertes</strong>: qué está bien alineado con lo que pide el pliego</li>
+      <li><strong>Gaps detectados</strong>: requisitos del pliego que no están cubiertos en tu oferta</li>
+      <li><strong>Riesgos</strong>: cláusulas riesgosas (penalidades altas, plazos ajustados, garantías fuertes)</li>
+      <li><strong>Sugerencias</strong>: mejoras específicas para subir tu score</li>
+    </ul>
 
     <div class="admonition info">
-      <div class="admonition-title">📝 En construcción</div>
-      <p>Esta sección está siendo escrita. Próximamente estará disponible con capturas y guía completa paso a paso.</p>
-      <p>Mientras tanto, <a href="/manual/">volvé al inicio</a> o explorá las secciones ya disponibles en el menú lateral.</p>
+      <div class="admonition-title">ℹ️ Groq API</div>
+      <p>El análisis usa Groq Cloud (API key en <code>GROQ_API_KEY</code>). Si la key no está configurada, el paso 5 queda en modo solo-lectura con un mensaje informativo.</p>
+    </div>
+
+    <h3>Paso 6: Oferta final</h3>
+    <p>Vista previa de la oferta formateada + botones de exportación:</p>
+    <ul>
+      <li><strong>📄 PDF</strong>: oferta completa con tabla de ítems, propuesta, empresa, marco legal</li>
+      <li><strong>📝 DOCX</strong>: misma estructura pero editable en Word (útil si querés últimos retoques manuales)</li>
+      <li><strong>💾 Guardar draft</strong>: queda en <em>Mis cotizaciones</em> para seguir después</li>
+      <li><strong>✅ Marcar como presentada</strong>: cambia el workflow_state de la licitación a <em>presentada</em> y la guarda como registro histórico</li>
+    </ul>
+
+    <h2 id="inteligencia">Inteligencia de precios</h2>
+    <p>
+      El motor de precios usa el histórico de ComprasApps (~2,600 adjudicaciones pasadas) para estimar cuánto pagó el Estado antes por ítems similares. Es la base para competir con ofertas razonables.
+    </p>
+
+    <h3>Cómo funciona</h3>
+    <ol>
+      <li>Tomás un ítem del pliego actual (ej: "SUPLEMENTO DE L-AMINOACIDOS")</li>
+      <li>El motor busca en el histórico por similaridad de texto (top 10 matches)</li>
+      <li>Para cada match, obtiene el precio unitario de la adjudicación</li>
+      <li>Calcula: promedio, mediana, min, max, P25, P75</li>
+      <li>Devuelve un rango sugerido con link a cada proceso pasado</li>
+    </ol>
+
+    <p>Los hints aparecen en el Paso 1 al lado del campo "Precio unitario". Click en el hint → modal con el detalle de las 10 comparables.</p>
+
+    <h2>Budget hints del endpoint</h2>
+    <p><code>GET /api/licitaciones/{id}/budget-hints</code> devuelve:</p>
+    <ul>
+      <li><code>items_from_pliego</code>: ítems estructurados si existen</li>
+      <li><code>items_from_ai</code>: ítems extraídos con Groq si no hay estructurados</li>
+      <li><code>procedure_ranges</code>: rangos típicos por tipo de procedimiento:
+        <ul>
+          <li>Contratación Directa: &lt; $5M ARS</li>
+          <li>Licitación Privada: $5M - $50M ARS</li>
+          <li>Licitación Pública: &gt; $50M ARS</li>
+        </ul>
+      </li>
+    </ul>
+
+    <h2>Atajos de teclado</h2>
+    <table>
+      <tr><th>Tecla</th><th>Acción</th></tr>
+      <tr><td><code>Ctrl+S</code></td><td>Guardar draft</td></tr>
+      <tr><td><code>Ctrl+Enter</code></td><td>Siguiente paso</td></tr>
+      <tr><td><code>Ctrl+Shift+Enter</code></td><td>Paso anterior</td></tr>
+      <tr><td><code>Ctrl+D</code></td><td>Duplicar ítem seleccionado</td></tr>
+      <tr><td><code>Ctrl+I</code></td><td>Importar ítems del pliego</td></tr>
+    </table>
+
+    <div class="admonition tip">
+      <div class="admonition-title">💡 Workflow recomendado</div>
+      <p>
+        1. Marcá la licitación como <em>evaluando</em> desde el stepper del detalle.<br>
+        2. Corré <strong>HUNTER</strong> para traer datos de otras fuentes (presupuesto, ítems, expediente).<br>
+        3. Abrí CotizAR y Paso 1 → Importar del pliego.<br>
+        4. Ajustá precios con ayuda de Inteligencia de Precios.<br>
+        5. Redactá propuesta (Paso 2) y pasá por análisis IA (Paso 5).<br>
+        6. Exportá PDF, imprimí, presentá, marcá como <em>presentada</em>.
+      </p>
     </div>
 
     <div class="page-footer">
-      <a href="/manual/" class="prev">Inicio del manual</a>
-      <span></span>
+      <a href="/manual/pages/nodos.html" class="prev">Nodos</a>
+      <a href="/manual/pages/empresa.html" class="next">Mi empresa</a>
     </div>
   </main>
 

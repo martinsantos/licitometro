@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Mi Empresa — Manual Licitómetro</title>
+  <title>Mi empresa — Manual Licitómetro</title>
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap">
   <link rel="stylesheet" href="/manual/assets/css/manual.css">
 </head>
@@ -21,21 +21,126 @@
     <div class="breadcrumb">
       <a href="/manual/">Manual</a>
       <span class="sep">›</span>
-      <span>Mi Empresa</span>
+      <span>Mi empresa</span>
     </div>
 
-    <h1>🏢 Mi Empresa</h1>
-    <p class="lead">Configurá el perfil de tu empresa: nombre, CUIT, zonas geográficas, antecedentes y notificaciones.</p>
+    <h1>🏢 Mi empresa</h1>
+    <p class="lead">
+      El perfil de empresa centraliza los datos que CotizAR usa para armar tus ofertas: datos legales, zonas geográficas, antecedentes, documentación y preferencias de notificación.
+    </p>
 
-    <div class="admonition info">
-      <div class="admonition-title">📝 En construcción</div>
-      <p>Esta sección está siendo escrita. Próximamente estará disponible con capturas y guía completa paso a paso.</p>
-      <p>Mientras tanto, <a href="/manual/">volvé al inicio</a> o explorá las secciones ya disponibles en el menú lateral.</p>
+    <h2>Por qué es importante configurarlo</h2>
+    <p>Si tenés el perfil completo:</p>
+    <ul>
+      <li>✅ CotizAR pre-llena automáticamente los datos de empresa en cada oferta</li>
+      <li>✅ Recibís alertas <strong>solo</strong> de licitaciones en tus zonas de interés</li>
+      <li>✅ El sistema sugiere licitaciones donde podés usar antecedentes previos</li>
+      <li>✅ Los PDFs exportados incluyen tu branding (logo, colores, pie de página)</li>
+    </ul>
+
+    <h2>Secciones del perfil</h2>
+
+    <h3>📝 Datos básicos</h3>
+    <ul>
+      <li><strong>Razón social</strong>: nombre legal completo</li>
+      <li><strong>CUIT</strong>: con validación de dígito verificador</li>
+      <li><strong>Forma jurídica</strong>: SA, SRL, Unipersonal, Cooperativa, etc.</li>
+      <li><strong>Domicilio legal</strong>: calle, ciudad, provincia, CP</li>
+      <li><strong>Actividad principal</strong>: código AFIP + descripción</li>
+      <li><strong>Inicio de actividades</strong>: fecha (para calcular años de experiencia)</li>
+      <li><strong>Sitio web</strong> y <strong>email de contacto</strong></li>
+    </ul>
+
+    <h3>🗺️ Zonas geográficas</h3>
+    <p>Definís dónde podés operar. CotizAR usa esto para filtrar licitaciones que requieren presencia local.</p>
+    <ul>
+      <li><strong>Jurisdicciones</strong>: Nacional, Provincial (Mendoza), Municipal (lista de municipios)</li>
+      <li><strong>Radio de cobertura</strong>: "hasta X km del domicilio"</li>
+      <li><strong>Departamentos cubiertos</strong>: checkboxes de los 18 departamentos de Mendoza</li>
+      <li><strong>Provincias alternativas</strong>: si atendés más allá de Mendoza</li>
+    </ul>
+
+    <div class="admonition tip">
+      <div class="admonition-title">💡 Filtrado inteligente</div>
+      <p>Con zonas configuradas, el listado de <strong>/licitaciones</strong> muestra un toggle <em>"Solo mis zonas"</em> que filtra los items fuera de tu cobertura.</p>
     </div>
+
+    <h3>🏆 Antecedentes</h3>
+    <p>Historial de ofertas y contratos previos. Útil para demostrar experiencia en la licitación actual.</p>
+    <p>Por cada antecedente:</p>
+    <ul>
+      <li>Título del proceso / contrato</li>
+      <li>Organismo contratante</li>
+      <li>Monto adjudicado</li>
+      <li>Fecha inicio + fecha fin</li>
+      <li>Estado: en curso / finalizado / rescindido</li>
+      <li>Categoría del rubro</li>
+      <li>Documento adjunto: acta de recepción, certificado de buena ejecución</li>
+    </ul>
+    <p>CotizAR sugiere qué antecedentes adjuntar a cada oferta basándose en categoría + jurisdicción del proceso actual.</p>
+
+    <h3>📎 Documentación</h3>
+    <p>Biblioteca de documentos reutilizables:</p>
+    <ul>
+      <li>Estatuto social</li>
+      <li>Constancia de CUIT</li>
+      <li>Certificado fiscal AFIP</li>
+      <li>Balance de los últimos 2 años</li>
+      <li>Certificado de cumplimiento previsional</li>
+      <li>Habilitaciones provinciales/municipales</li>
+      <li>Pólizas de seguro vigentes</li>
+      <li>Certificados ISO/calidad</li>
+    </ul>
+    <p>Los documentos se suben una vez y CotizAR los adjunta automáticamente a cada oferta que los requiera.</p>
+
+    <div class="admonition warning">
+      <div class="admonition-title">⚠️ Fechas de vencimiento</div>
+      <p>Cada documento tiene una fecha de vencimiento. Cuando falta menos de 30 días, el panel muestra una alerta roja y te envía un email. Actualizá antes de que venza para no quedar afuera de licitaciones críticas.</p>
+    </div>
+
+    <h3>🔔 Notificaciones</h3>
+    <p>Preferencias de cuándo y cómo te notifica Licitómetro:</p>
+    <ul>
+      <li><strong>Email diario 9am</strong>: digest con licitaciones nuevas de tus zonas + categorías de interés</li>
+      <li><strong>Telegram @Licitobot</strong>: alertas en tiempo real (opcional)</li>
+      <li><strong>Umbral de presupuesto</strong>: "solo avisame si el monto es &gt; X ARS"</li>
+      <li><strong>Días anticipación</strong>: "avisame N días antes de la apertura"</li>
+      <li><strong>Silenciar rubros</strong>: lista negra de categorías que no te interesan</li>
+    </ul>
+
+    <h3>🎨 Branding (para PDFs)</h3>
+    <p>Personalización visual de los PDFs exportados desde CotizAR:</p>
+    <ul>
+      <li>Logo (PNG o SVG, máximo 500KB)</li>
+      <li>Color primario (picker, default amber #d97706)</li>
+      <li>Fuente (Inter, Roboto, Open Sans, Merriweather)</li>
+      <li>Pie de página custom (ej: "Empresa X - Av. San Martín 123 - Mendoza")</li>
+      <li>Header custom (texto a la derecha del logo)</li>
+    </ul>
+
+    <h2>Validación y completitud</h2>
+    <p>En el header del perfil hay una barra de progreso: <strong>"Perfil X% completo"</strong>. CotizAR bloquea el exportado final si está en &lt; 60%. Los campos obligatorios:</p>
+    <ul>
+      <li>Razón social, CUIT, domicilio</li>
+      <li>Al menos 1 zona geográfica</li>
+      <li>Constancia de CUIT vigente</li>
+      <li>Certificado fiscal vigente</li>
+    </ul>
+
+    <h2>API endpoints</h2>
+    <table>
+      <tr><th>Endpoint</th><th>Propósito</th></tr>
+      <tr><td><code>GET /api/empresa</code></td><td>Leer perfil actual</td></tr>
+      <tr><td><code>PUT /api/empresa</code></td><td>Actualizar datos básicos</td></tr>
+      <tr><td><code>POST /api/empresa/antecedentes</code></td><td>Agregar antecedente</td></tr>
+      <tr><td><code>DELETE /api/empresa/antecedentes/{id}</code></td><td>Eliminar antecedente</td></tr>
+      <tr><td><code>POST /api/empresa/documentos</code></td><td>Subir documento (multipart)</td></tr>
+      <tr><td><code>GET /api/empresa/documentos/{id}</code></td><td>Descargar documento</td></tr>
+    </table>
 
     <div class="page-footer">
-      <a href="/manual/" class="prev">Inicio del manual</a>
-      <span></span>
+      <a href="/manual/pages/cotizar.html" class="prev">CotizAR</a>
+      <a href="/manual/pages/perfil.html" class="next">Mi perfil</a>
     </div>
   </main>
 

@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Glosario y referencia — Manual Licitómetro</title>
+  <title>Referencia — Manual Licitómetro</title>
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap">
   <link rel="stylesheet" href="/manual/assets/css/manual.css">
 </head>
@@ -21,21 +21,168 @@
     <div class="breadcrumb">
       <a href="/manual/">Manual</a>
       <span class="sep">›</span>
-      <span>Glosario y referencia</span>
+      <span>Referencia</span>
     </div>
 
-    <h1>📚 Glosario y referencia</h1>
-    <p class="lead">Glosario, fuentes de datos, categorías, estados, tipos de procedimiento y resumen de API.</p>
+    <h1>📚 Referencia técnica</h1>
+    <p class="lead">
+      Tablas de referencia: las 24 fuentes de datos con su estado, los 34 rubros, los estados de vigencia, los tipos de procedimiento, roles y permisos, canales de notificación y endpoints principales de la API.
+    </p>
 
-    <div class="admonition info">
-      <div class="admonition-title">📝 En construcción</div>
-      <p>Esta sección está siendo escrita. Próximamente estará disponible con capturas y guía completa paso a paso.</p>
-      <p>Mientras tanto, <a href="/manual/">volvé al inicio</a> o explorá las secciones ya disponibles en el menú lateral.</p>
+    <h2 id="fuentes">24 fuentes activas</h2>
+    <table>
+      <tr><th>Fuente</th><th>Scraper</th><th>Items ≈</th><th>Notas</th></tr>
+      <tr><td>ComprasApps Mendoza</td><td>comprasapps_mendoza</td><td>2601</td><td>GeneXus servlet, multi-year, 37 CUCs</td></tr>
+      <tr><td>COMPR.AR Mendoza</td><td>mendoza_compra_v2</td><td>101</td><td>HTTP-only, ASP.NET postback, 82s</td></tr>
+      <tr><td>COMPR.AR Nacional</td><td>comprar_nacional</td><td>0</td><td>Fast-fail on 503 (comprar.gob.ar bloquea datacenter)</td></tr>
+      <tr><td>Boletín Oficial Mendoza</td><td>boletin_oficial_mendoza</td><td>54</td><td>PDF gazette, pypdf extraction</td></tr>
+      <tr><td>COPIG Mendoza</td><td>generic_html</td><td>50</td><td>Custom WP, requiere IPv6</td></tr>
+      <tr><td>San Carlos</td><td>generic_html</td><td>50</td><td>WordPress+Elementor, IPv6</td></tr>
+      <tr><td>OSEP</td><td>osep</td><td>45</td><td>Obra social</td></tr>
+      <tr><td>Maipú</td><td>generic_html (inline)</td><td>41</td><td>Tabla WordPress, ZIP enrichment</td></tr>
+      <tr><td>La Paz</td><td>generic_html</td><td>30</td><td>WordPress Vantage, IPv6 required</td></tr>
+      <tr><td>IPV Mendoza</td><td>generic_html</td><td>28</td><td>WordPress blog</td></tr>
+      <tr><td>Santa Rosa</td><td>generic_html</td><td>25</td><td>CMS</td></tr>
+      <tr><td>Junín</td><td>generic_html</td><td>13</td><td>CMS</td></tr>
+      <tr><td>Vialidad Mendoza</td><td>vialidad_mendoza</td><td>10</td><td>Scraper dedicado</td></tr>
+      <tr><td>Godoy Cruz</td><td>godoy_cruz</td><td>10</td><td>GeneXus JSON grid, pliego→budget 1:1000</td></tr>
+      <tr><td>General Alvear</td><td>generic_html</td><td>9</td><td>CMS</td></tr>
+      <tr><td>Malargüe</td><td>generic_html</td><td>9</td><td>CMS</td></tr>
+      <tr><td>Irrigación</td><td>generic_html</td><td>9</td><td>JHipster (limitado)</td></tr>
+      <tr><td>Rivadavia</td><td>generic_html</td><td>6</td><td>CMS</td></tr>
+      <tr><td>Guaymallén</td><td>generic_html</td><td>6</td><td>CMS</td></tr>
+      <tr><td>Ciudad de Mendoza</td><td>generic_html</td><td>5</td><td>CMS</td></tr>
+      <tr><td>EPRE Mendoza</td><td>epre</td><td>4</td><td>Flatsome layout</td></tr>
+      <tr><td>AYSAM</td><td>aysam</td><td>3</td><td>Agua de Mendoza</td></tr>
+      <tr><td>UNCuyo</td><td>uncuyo</td><td>3</td><td>Universidad</td></tr>
+      <tr><td>Las Heras</td><td>las_heras (Selenium)</td><td>3</td><td>Oracle APEX</td></tr>
+      <tr><td>EMESA</td><td>generic_html</td><td>3</td><td>WAF solo en 404</td></tr>
+      <tr><td>Luján de Cuyo</td><td>generic_html</td><td>1</td><td>CMS</td></tr>
+      <tr><td>Tupungato</td><td>generic_html</td><td>1</td><td>CMS</td></tr>
+    </table>
+
+    <p><strong>Total:</strong> ~3,231 licitaciones indexadas (crece ~20-50 por día).</p>
+
+    <h3>Fuentes no viables (investigadas pero descartadas)</h3>
+    <ul>
+      <li><strong>ISCAMEN</strong>: JS-only DOM, requiere navegación compleja</li>
+      <li><strong>Tunuyán</strong>: login requerido</li>
+      <li><strong>Lavalle</strong>: tabla vacía</li>
+      <li><strong>Senado Mendoza</strong>: páginas vacías</li>
+    </ul>
+
+    <h2 id="estados">Estados de vigencia</h2>
+    <table>
+      <tr><th>Estado</th><th>Criterio</th><th>Color</th></tr>
+      <tr><td><strong>vigente</strong></td><td><code>opening_date &gt; hoy</code> OR <code>opening_date = null</code></td><td>Verde</td></tr>
+      <tr><td><strong>prorrogada</strong></td><td><code>fecha_prorroga &gt; hoy</code></td><td>Amarillo</td></tr>
+      <tr><td><strong>vencida</strong></td><td><code>opening_date &lt; hoy</code> AND sin prórroga</td><td>Gris</td></tr>
+      <tr><td><strong>archivada</strong></td><td><code>publication_date &lt; 2025-01-01</code></td><td>Slate</td></tr>
+    </table>
+
+    <h3>Reglas de validación de fechas</h3>
+    <ul>
+      <li><code>opening_date &gt;= publication_date</code> (orden cronológico)</li>
+      <li><code>2024 &lt;= year &lt;= 2027</code> (rango permitido)</li>
+      <li>Años de 2 dígitos: 24-27 → 2024-2027. Años &gt;= 28 se rechazan</li>
+      <li><strong>NUNCA usar <code>datetime.utcnow()</code></strong> como fallback → retornar <code>None</code></li>
+    </ul>
+
+    <h2 id="procedimientos">Tipos de procedimiento</h2>
+    <table>
+      <tr><th>Tipo</th><th>Rango típico (ARS)</th></tr>
+      <tr><td>Contratación Directa</td><td>&lt; 5M</td></tr>
+      <tr><td>Compulsa Abreviada</td><td>5M - 20M</td></tr>
+      <tr><td>Licitación Privada</td><td>20M - 50M</td></tr>
+      <tr><td>Licitación Pública</td><td>&gt; 50M</td></tr>
+      <tr><td>Subasta Pública</td><td>variable</td></tr>
+      <tr><td>Concurso de Precios</td><td>variable</td></tr>
+      <tr><td>Concurso Público</td><td>variable</td></tr>
+    </table>
+
+    <h2 id="workflow">Workflow states</h2>
+    <table>
+      <tr><th>Estado</th><th>Cuándo</th><th>Cambio</th></tr>
+      <tr><td><strong>descubierta</strong></td><td>Recién scrapeada</td><td>Default</td></tr>
+      <tr><td><strong>evaluando</strong></td><td>En análisis</td><td>Manual</td></tr>
+      <tr><td><strong>preparando</strong></td><td>Armando oferta</td><td>Manual</td></tr>
+      <tr><td><strong>presentada</strong></td><td>Oferta entregada</td><td>Manual</td></tr>
+      <tr><td><strong>descartada</strong></td><td>No se presenta</td><td>Manual</td></tr>
+    </table>
+
+    <div class="admonition danger">
+      <div class="admonition-title">🚨 Regla de oro</div>
+      <p><strong>Enrichment nunca cambia workflow_state.</strong> Las transiciones son explícitas y manuales, validadas por el usuario desde la UI o via <code>PUT /api/licitaciones/{id}/workflow</code>.</p>
     </div>
+
+    <h2 id="niveles">Niveles de enrichment</h2>
+    <table>
+      <tr><th>Nivel</th><th>Qué contiene</th></tr>
+      <tr><td><strong>1 - Basic</strong></td><td>Título, fecha, fuente, URL</td></tr>
+      <tr><td><strong>2 - Detailed</strong></td><td>+ description, opening_date, budget, objeto, category, nodos</td></tr>
+      <tr><td><strong>3 - Documents</strong></td><td>+ PDFs descargados localmente, items extraídos, HUNTER ejecutado</td></tr>
+    </table>
+
+    <h2 id="notificaciones">Canales de notificación</h2>
+    <table>
+      <tr><th>Canal</th><th>Configuración</th><th>Cuándo</th></tr>
+      <tr><td>Email</td><td><code>SMTP_*</code> env vars + <code>NOTIFICATION_EMAIL_TO</code></td><td>Daily digest 9am + alertas críticas</td></tr>
+      <tr><td>Telegram</td><td><code>TELEGRAM_BOT_TOKEN</code> + <code>TELEGRAM_CHAT_ID</code> (@Licitobot)</td><td>Daily digest 9am + real-time opcional</td></tr>
+      <tr><td>Nodo email</td><td>Por nodo, lista de destinatarios</td><td>Digest nodo 9:15am y/o 6pm</td></tr>
+      <tr><td>Nodo Telegram</td><td>Por nodo, chat_id específico</td><td>Digest nodo 9:15am y/o 6pm</td></tr>
+    </table>
+
+    <h2 id="endpoints">Endpoints API principales</h2>
+    <table>
+      <tr><th>Endpoint</th><th>Propósito</th></tr>
+      <tr><td><code>GET /api/licitaciones/</code></td><td>Listado con filtros, búsqueda, paginación</td></tr>
+      <tr><td><code>GET /api/licitaciones/{id}</code></td><td>Detalle completo</td></tr>
+      <tr><td><code>POST /api/licitaciones/{id}/enrich</code></td><td>Disparar enrichment + HUNTER</td></tr>
+      <tr><td><code>GET /api/licitaciones/facets</code></td><td>Conteos facetados para filtros</td></tr>
+      <tr><td><code>GET /api/licitaciones/search</code></td><td>Búsqueda de texto completo</td></tr>
+      <tr><td><code>GET /api/licitaciones/vigentes</code></td><td>Shortcut: solo vigentes hoy</td></tr>
+      <tr><td><code>GET /api/licitaciones/stats/*</code></td><td>Agregaciones de estadísticas</td></tr>
+      <tr><td><code>POST /api/licitaciones/favorites/{id}</code></td><td>Agregar favorito</td></tr>
+      <tr><td><code>DELETE /api/licitaciones/favorites/{id}</code></td><td>Quitar favorito</td></tr>
+      <tr><td><code>POST /api/nodos/</code></td><td>Crear nodo</td></tr>
+      <tr><td><code>POST /api/nodos/{id}/rematch</code></td><td>Re-match masivo</td></tr>
+      <tr><td><code>POST /api/auth/login</code></td><td>Login con password</td></tr>
+      <tr><td><code>POST /api/auth/token-login</code></td><td>Exchange JWT reader token por cookie</td></tr>
+      <tr><td><code>GET /api/auth/check</code></td><td>Validar sesión actual</td></tr>
+    </table>
+
+    <h2>Variables de entorno (.env.production)</h2>
+    <pre><code>MONGO_USER, MONGO_PASSWORD, MONGO_URL, DB_NAME
+JWT_SECRET_KEY, AUTH_PASSWORD_HASH, TOKEN_EXPIRY_HOURS
+ALLOWED_ORIGINS
+STORAGE_MAX_MB (default 500)
+RUN_HISTORY_KEEP (default 10)
+CACHE_TTL_HOURS (default 168)
+LOG_RETENTION_DAYS (default 7)
+TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID
+SMTP_HOST, SMTP_PORT, SMTP_USER, SMTP_PASSWORD
+SMTP_FROM, NOTIFICATION_EMAIL_TO
+GROQ_API_KEY, FIRECRAWL_API_KEY
+USE_OPENDATALOADER_PDF (default false)</code></pre>
+
+    <h2>Glosario rápido</h2>
+    <table>
+      <tr><th>Término</th><th>Significado</th></tr>
+      <tr><td>Licitación</td><td>Convocatoria pública del Estado</td></tr>
+      <tr><td>Pliego</td><td>Documento con condiciones técnicas y económicas</td></tr>
+      <tr><td>Objeto</td><td>Qué contrata la licitación</td></tr>
+      <tr><td>Expediente</td><td>Identificador del trámite</td></tr>
+      <tr><td>Enriquecimiento</td><td>Extracción automática de datos desde el pliego</td></tr>
+      <tr><td>Nodo</td><td>Mapa semántico de keywords para agrupar por rubro</td></tr>
+      <tr><td>HUNTER</td><td>Búsqueda cross-source + merge de datos</td></tr>
+      <tr><td>CotizAR</td><td>Wizard de 6 pasos para armar ofertas</td></tr>
+      <tr><td>Rubro crítico</td><td>Categoría marcada como prioritaria por el usuario</td></tr>
+      <tr><td>Proceso ID</td><td>Identificador canónico que une versiones del mismo proceso en múltiples fuentes</td></tr>
+    </table>
 
     <div class="page-footer">
-      <a href="/manual/" class="prev">Inicio del manual</a>
-      <span></span>
+      <a href="/manual/pages/lab.html" class="prev">Lab</a>
+      <a href="/manual/pages/changelog.html" class="next">Changelog</a>
     </div>
   </main>
 

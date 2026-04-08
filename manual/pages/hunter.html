@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>HUNTER (Cazador) — Manual Licitómetro</title>
+  <title>HUNTER — Manual Licitómetro</title>
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap">
   <link rel="stylesheet" href="/manual/assets/css/manual.css">
 </head>
@@ -21,21 +21,136 @@
     <div class="breadcrumb">
       <a href="/manual/">Manual</a>
       <span class="sep">›</span>
-      <span>HUNTER (Cazador)</span>
+      <span>HUNTER</span>
     </div>
 
-    <h1>🎯 HUNTER (Cazador)</h1>
-    <p class="lead">Búsqueda cross-source que caza el mismo proceso en TODAS las fuentes y compara precios reales.</p>
+    <h1>🎯 HUNTER — Búsqueda cross-source</h1>
+    <p class="lead">
+      HUNTER es el cazador de licitaciones de Licitómetro. Cuando encontrás un proceso en una fuente (por ejemplo en el Boletín Oficial), HUNTER sale a buscarlo en <strong>todas las demás</strong> (COMPR.AR, ComprasApps, municipios) y fusiona los datos faltantes automáticamente.
+    </p>
+
+    <h2>¿Por qué HUNTER existe?</h2>
+    <p>
+      Muchas licitaciones se publican en <strong>más de una fuente</strong>. El Boletín Oficial anuncia el decreto, COMPR.AR Mendoza publica el pliego electrónico con los ítems, y ComprasApps guarda el histórico. Cada fuente tiene <strong>datos distintos</strong>: el Boletín suele tener encuadre legal y expediente, COMPR.AR tiene ítems estructurados y cronograma, ComprasApps tiene CUCs y jurisdicción.
+    </p>
+    <p>
+      Antes de HUNTER, cada versión del mismo proceso quedaba como una licitación separada. Ahora, con un click en <strong>"Enriquecer datos"</strong>, HUNTER:
+    </p>
+    <ol>
+      <li>Extrae identificadores del texto (decreto, expediente, número de licitación, resolución, CD)</li>
+      <li>Busca esos identificadores en todas las otras licitaciones de la base</li>
+      <li>Si no encuentra por número, hace fallback a búsqueda por keywords del título (MongoDB <code>$text</code> index con score &gt;= 3.0)</li>
+      <li>Por cada match, <strong>mergea los datos faltantes</strong> (nunca sobrescribe datos existentes)</li>
+    </ol>
+
+    <h2>Cómo usarlo</h2>
+    <p>
+      En la vista de detalle de cualquier licitación, hacé click en el botón <strong>🔄 Enriquecer</strong> de los botones flotantes (admin). Esto dispara el pipeline de 4 fases:
+    </p>
+    <ol>
+      <li><strong>Enrichment por fuente</strong> — descarga HTML/PDF y extrae datos (label-based para COMPR.AR, CSS selectors para HTML, pypdf para PDFs)</li>
+      <li><strong>HUNTER cross-source</strong> — busca identificadores + fallback por title keywords</li>
+      <li><strong>Nodo re-matching</strong> — re-evalúa todos los nodos activos</li>
+      <li><strong>Response</strong> — devuelve campos actualizados + resumen de HUNTER</li>
+    </ol>
+
+    <div class="admonition warning">
+      <div class="admonition-title">⚠️ Bug resuelto (Mar 22, 2026)</div>
+      <p>Antes, las licitaciones de COMPR.AR hacían <code>return</code> al final de la fase 1 y <strong>se saltaban HUNTER + nodo matching</strong>. Fix: restructurado en 4 fases secuenciales que siempre corren para TODAS las fuentes.</p>
+    </div>
+
+    <h2 id="identificadores">Identificadores reconocidos</h2>
+    <p>HUNTER busca 5 patrones regex en el texto de la licitación (título + objeto + description):</p>
+    <table>
+      <tr><th>Tipo</th><th>Ejemplos</th></tr>
+      <tr><td><strong>Decreto</strong></td><td><code>Decreto 140/2026</code>, <code>Dec. N° 140/26</code></td></tr>
+      <tr><td><strong>Expediente</strong></td><td><code>Expte 123456/2024</code>, <code>EX-2026-01172061-GDEMZA-CCC</code></td></tr>
+      <tr><td><strong>Licitación</strong></td><td><code>Licitación Pública 45/2026</code>, <code>LP 5/26</code></td></tr>
+      <tr><td><strong>Resolución</strong></td><td><code>Resolución 100/2024</code>, <code>Res. N° 50/26</code></td></tr>
+      <tr><td><strong>Contratación Directa</strong></td><td><code>CD 20/2026</code>, <code>contratación directa nº 15/26</code></td></tr>
+    </table>
+
+    <h3>Normalización de años</h3>
+    <p>Los años de 2 dígitos se normalizan: <code>24-27</code> → <code>2024-2027</code>. Años &gt;= 28 se rechazan (imposibles en el futuro cercano). Años &lt; 24 se marcan como archivados.</p>
+
+    <h2>Título keyword fallback</h2>
+    <p>Si HUNTER no encuentra números de identificación, hace búsqueda por palabras clave del título usando MongoDB <code>$text</code>:</p>
+    <ul>
+      <li>Filtra <strong>stopwords</strong> españolas (<em>de, del, la, en, y, para, con, por...</em>)</li>
+      <li>Requiere palabras de <strong>4+ caracteres</strong></li>
+      <li>Necesita <strong>3+ palabras significativas</strong> para activarse</li>
+      <li>Usa las <strong>top 5 palabras</strong> como query AND</li>
+      <li>Solo acepta matches con <code>textScore &gt;= 3.0</code> (filtro de ruido)</li>
+    </ul>
 
     <div class="admonition info">
-      <div class="admonition-title">📝 En construcción</div>
-      <p>Esta sección está siendo escrita. Próximamente estará disponible con capturas y guía completa paso a paso.</p>
-      <p>Mientras tanto, <a href="/manual/">volvé al inicio</a> o explorá las secciones ya disponibles en el menú lateral.</p>
+      <div class="admonition-title">ℹ️ Ejemplo</div>
+      <p>Título: <em>"Adquisición de calefactores eléctricos para escuelas rurales"</em> → palabras significativas: <code>adquisicion, calefactores, electricos, escuelas, rurales</code>. HUNTER busca esas 5 palabras AND en el índice de texto y devuelve solo matches con score &gt;= 3.0.</p>
+    </div>
+
+    <h2 id="merge">Merge de datos (idempotente)</h2>
+    <p>Cuando HUNTER encuentra un match, llama a <code>merge_source_data()</code> que:</p>
+    <ul>
+      <li>Solo llena campos que están <strong>vacíos o nulos</strong> en el destino</li>
+      <li>Nunca sobrescribe datos existentes</li>
+      <li>Registra el merge en <code>metadata.cross_source_merges[]</code> (últimos 10)</li>
+      <li>Actualiza <code>proceso_id</code> canónico si cambia</li>
+    </ul>
+
+    <p>Esto significa que podés correr "Enriquecer" <strong>N veces</strong> sin duplicar ni corromper datos. Es completamente idempotente.</p>
+
+    <h2>Response del endpoint</h2>
+    <p>El botón Enriquecer llama <code>POST /api/licitaciones/{id}/enrich</code> que devuelve:</p>
+    <pre><code>{
+  "success": true,
+  "fields_updated": 5,
+  "fields": ["description", "objeto", "budget", "opening_date", "expedient_number"],
+  "hunter": {
+    "matches_found": 1,
+    "merged_from": [
+      {
+        "id": "68e1a2...",
+        "fuente": "Boletin Oficial",
+        "title": "Decreto 140/2026"
+      }
+    ],
+    "fields_merged": ["budget", "opening_date", "expedient_number"]
+  }
+}</code></pre>
+
+    <h2>Panel HUNTER en el frontend</h2>
+    <p>En el detalle de la licitación, el botón <strong>🎯 Hunter</strong> abre un panel lateral que muestra:</p>
+    <ul>
+      <li>Estado: cargando / N matches encontrados / sin matches</li>
+      <li>Cards de cada match: fuente, título, score, similitud, campos que podés mergear</li>
+      <li>Botón <strong>"Fusionar"</strong> por match individual (override manual del merge automático)</li>
+      <li>Estadísticas: estrategias usadas (<em>identifier, title-keyword, both</em>)</li>
+      <li>Si no hay matches: botón <strong>"Buscar más profundo"</strong> que lanza una búsqueda web (Firecrawl) para encontrar el proceso en Google</li>
+    </ul>
+
+    <h2 id="precios">Comparar precios</h2>
+    <p>
+      Cuando HUNTER encuentra el mismo proceso en ComprasApps (histórico de adjudicaciones), podés ver <strong>precios reales de compras pasadas</strong>. Esto es la base del motor de <strong>Inteligencia de Precios</strong> de CotizAR: te permite cotizar sabiendo qué pagó el Estado antes por ítems similares.
+    </p>
+
+    <h2>Infraestructura</h2>
+    <table>
+      <tr><th>Archivo</th><th>Función</th></tr>
+      <tr><td><code>backend/services/cross_source_service.py</code></td><td><code>hunt_cross_sources()</code>, <code>find_related()</code>, <code>merge_source_data()</code></td></tr>
+      <tr><td><code>backend/utils/proceso_id.py</code></td><td><code>extract_identifiers_from_text()</code> (5 regex), <code>normalize_proceso_id()</code></td></tr>
+      <tr><td><code>backend/routers/licitaciones.py</code></td><td>Endpoint <code>POST /{id}/enrich</code> con las 4 fases</td></tr>
+    </table>
+
+    <p>Además corre automáticamente después de cada scraping (<code>scheduler_service.auto_link_after_scrape()</code>) pero solo cuando el scraper provee un <code>proceso_id</code>. El enriquecimiento manual siempre corre HUNTER, hay o no hay proceso_id.</p>
+
+    <div class="admonition tip">
+      <div class="admonition-title">💡 Tip de uso</div>
+      <p>Si una licitación parece "incompleta" (sin presupuesto, sin apertura, sin expediente), <strong>siempre probá HUNTER primero</strong>. La mayoría de las veces esos datos están en otra fuente y HUNTER los fusiona automáticamente.</p>
     </div>
 
     <div class="page-footer">
-      <a href="/manual/" class="prev">Inicio del manual</a>
-      <span></span>
+      <a href="/manual/pages/detalle.html" class="prev">Detalle de licitación</a>
+      <a href="/manual/pages/nodos.html" class="next">Nodos semánticos</a>
     </div>
   </main>
 

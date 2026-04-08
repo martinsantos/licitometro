@@ -25,17 +25,143 @@
     </div>
 
     <h1>🌐 Nodos semánticos</h1>
-    <p class="lead">Mapas de keywords para auto-clasificar licitaciones por rubro y enviar digests segmentados.</p>
+    <p class="lead">
+      Los <strong>nodos</strong> son zonas de interés definidas por nubes de keywords. Cada nodo agrupa automáticamente las licitaciones que matchean sus palabras clave, te permite filtrar el listado por rubro y —opcionalmente— te envía digests periódicos por email o Telegram.
+    </p>
+
+    <h2>¿Por qué nodos y no categorías?</h2>
+    <p>
+      Las <strong>categorías</strong> (rubros) son una taxonomía fija de 34 rubros pre-definidos (alimentos, salud, obra pública, IT, etc.). Los <strong>nodos</strong> son tuyos: los creás vos con las palabras que te importan a vos, y una licitación puede pertenecer a <strong>N nodos a la vez</strong> sin perder su rubro principal.
+    </p>
 
     <div class="admonition info">
-      <div class="admonition-title">📝 En construcción</div>
-      <p>Esta sección está siendo escrita. Próximamente estará disponible con capturas y guía completa paso a paso.</p>
-      <p>Mientras tanto, <a href="/manual/">volvé al inicio</a> o explorá las secciones ya disponibles en el menú lateral.</p>
+      <div class="admonition-title">ℹ️ Ejemplo real</div>
+      <p>Si tu empresa hace <strong>modernización de sistemas informáticos</strong>, podés crear un nodo <code>IT Última Milla</code> con 4 grupos de keywords: modernización, software, infraestructura IT, telecomunicaciones. Cada grupo tiene 15-30 keywords y el matcher fuzzy captura todas las variantes (con acentos, plurales, stemming).</p>
     </div>
 
+    <h2>Crear un nodo</h2>
+    <p>Andá a <strong>Nodos</strong> en el header (solo admin) y hacé click en <strong>"+ Nuevo nodo"</strong>.</p>
+
+    <h3>Campos del formulario</h3>
+    <table>
+      <tr><th>Campo</th><th>Descripción</th></tr>
+      <tr><td><strong>Nombre</strong></td><td>Nombre legible del nodo (ej: "Vivero Municipal")</td></tr>
+      <tr><td><strong>Descripción</strong></td><td>Para qué lo usás, en tus propias palabras</td></tr>
+      <tr><td><strong>Color</strong></td><td>Color del badge en cards y filtros (picker)</td></tr>
+      <tr><td><strong>Grupos de keywords</strong></td><td>Subcategorías semánticas dentro del nodo</td></tr>
+      <tr><td><strong>Acciones</strong></td><td>Email, Telegram, o tag automático al matchear</td></tr>
+      <tr><td><strong>Frecuencia de digest</strong></td><td>none / daily (9:15am) / twice_daily (9:15am + 6pm)</td></tr>
+    </table>
+
+    <h3>Grupos de keywords</h3>
+    <p>En lugar de una lista plana, organizás las keywords en <strong>grupos temáticos</strong>:</p>
+    <ul>
+      <li><strong>Grupo 1: Plantas</strong> → <code>vivero, almácigo, plantín, árbol nativo, sauce, álamo, ...</code></li>
+      <li><strong>Grupo 2: Insumos</strong> → <code>sustrato, macetas, abono, fertilizante, ...</code></li>
+      <li><strong>Grupo 3: Equipamiento</strong> → <code>tijera de poda, aspersor, regadera, ...</code></li>
+    </ul>
+    <p>Los grupos son visuales — ayudan a organizar. El matcher trata todas las keywords del nodo como un conjunto único (una licitación matchea si cualquier keyword de cualquier grupo matchea).</p>
+
+    <h2>Cómo funciona el matching</h2>
+    <p>El servicio <code>nodo_matcher.py</code> aplica un pipeline de normalización a cada keyword:</p>
+    <ol>
+      <li><strong>Strip de puntuación</strong>: apóstrofes, guiones, puntos</li>
+      <li><strong>Quitar acentos</strong>: <em>árbol</em> → <em>arbol</em></li>
+      <li><strong>Stemming español</strong>: <em>modernizaciones</em> → <em>moderniza</em>, <em>voces</em> → <em>voz</em></li>
+      <li><strong>Regex con flexibilidad</strong>: permite espacios variables y sufijos plural <code>(es|s)?</code></li>
+      <li><strong>Case-insensitive</strong></li>
+    </ol>
+
+    <p>El matcher busca en <strong>4 campos</strong> de cada licitación: <code>title</code>, <code>objeto</code>, <code>description</code> (primeros 2000 chars) y <code>organization</code>. Si cualquier keyword matchea, el nodo se asigna.</p>
+
+    <div class="admonition tip">
+      <div class="admonition-title">💡 Patrón singleton con cache</div>
+      <p>Los regex se compilan una sola vez y se cachean. Cuando editás un nodo desde la UI, el cache se invalida automáticamente — los cambios toman efecto en el próximo scraping sin reiniciar el backend.</p>
+    </div>
+
+    <h2>Acciones configurables</h2>
+
+    <h3>📧 Email</h3>
+    <p>Config: lista de destinatarios + prefijo de asunto. Ejemplo:</p>
+    <pre><code>to: ["santosma@empresa.ar", "alerts@empresa.ar"]
+subject_prefix: "[VIVERO]"</code></pre>
+    <p>El prefijo se concatena con el título de la licitación matcheada.</p>
+
+    <div class="admonition warning">
+      <div class="admonition-title">⚠️ Emails separados por punto y coma</div>
+      <p>Por legacy, el campo <code>to</code> puede contener direcciones separadas por <code>;</code> dentro de un solo string. El servicio de digest normaliza splitting por <code>;</code> antes de enviar. El form frontend también splitea por <code>,</code> y <code>;</code>.</p>
+    </div>
+
+    <h3>📱 Telegram</h3>
+    <p>Config: <code>chat_id</code> del bot <strong>@Licitobot</strong>. Para obtener tu chat_id, mandá <code>/start</code> al bot y pedí al admin que te pase el número.</p>
+
+    <h3>🏷️ Tag automático</h3>
+    <p>Config: keyword a agregar al campo <code>keywords</code> de la licitación. Útil para marcar procesos con etiquetas custom que después podés buscar.</p>
+
+    <h2 id="digest">Digest notifications</h2>
+    <p>Si configurás <code>digest_frequency</code> distinto de <code>none</code>, el nodo envía un digest periódico con las licitaciones nuevas desde el último envío.</p>
+
+    <h3>Frecuencias</h3>
+    <table>
+      <tr><th>Valor</th><th>Cuándo</th><th>Horarios</th></tr>
+      <tr><td><code>none</code></td><td>Nunca</td><td>—</td></tr>
+      <tr><td><code>daily</code></td><td>1×/día</td><td>9:15 AM</td></tr>
+      <tr><td><code>twice_daily</code></td><td>2×/día</td><td>9:15 AM y 6:00 PM</td></tr>
+    </table>
+
+    <h3>Contenido del digest</h3>
+    <ul>
+      <li><strong>Telegram</strong>: máximo 10 ítems, cada uno con título + organización + presupuesto + link público</li>
+      <li><strong>Email</strong>: HTML con tabla (máximo 20 ítems), header con el color del nodo, columnas: licitación, organización, presupuesto, apertura</li>
+    </ul>
+    <p>Los links incluyen un token JWT reader que loguea automáticamente al usuario — no hace falta recordar contraseña.</p>
+
+    <h2>Re-match completo</h2>
+    <p>Después de editar las keywords de un nodo, podés re-matchear <strong>todas las licitaciones</strong> contra el nodo nuevo:</p>
+    <pre><code>POST /api/nodos/{id}/rematch</code></pre>
+    <p>Desde la UI: botón <strong>"Re-match"</strong> en el NodoCard. Tarda unos segundos y actualiza el contador de matches.</p>
+
+    <h2>Filtrar por nodo en el listado</h2>
+    <p>Una vez creado un nodo, aparece como faceta en el <strong>FilterSidebar</strong> del listado. Click en el nombre del nodo → filtra las licitaciones que matchean.</p>
+
+    <h2>Nodos iniciales (seed)</h2>
+    <p>Al instalar Licitómetro se crean dos nodos de ejemplo:</p>
+    <ul>
+      <li><strong>Servicios IT Última Milla</strong> (azul) — 4 grupos, 93 keywords</li>
+      <li><strong>Vivero</strong> (verde) — 5 grupos, 88 keywords</li>
+    </ul>
+    <p>Podés editarlos, duplicarlos o crear los tuyos desde cero. El script <code>scripts/seed_nodos.py</code> los re-crea si los borraste.</p>
+
+    <div class="admonition tip">
+      <div class="admonition-title">💡 Estadísticas actuales</div>
+      <p>A la fecha hay <strong>1,495 licitaciones matcheadas</strong> sobre ~3,200 totales (46% de cobertura). IT captura ~1,296, Vivero ~259. Creá más nodos para tus propios rubros y subirá la cobertura.</p>
+    </div>
+
+    <h2>API endpoints</h2>
+    <table>
+      <tr><th>Endpoint</th><th>Propósito</th></tr>
+      <tr><td><code>POST /api/nodos/</code></td><td>Crear nodo</td></tr>
+      <tr><td><code>GET /api/nodos/</code></td><td>Listar nodos</td></tr>
+      <tr><td><code>GET /api/nodos/{id}</code></td><td>Leer un nodo</td></tr>
+      <tr><td><code>PUT /api/nodos/{id}</code></td><td>Actualizar (recompila regex)</td></tr>
+      <tr><td><code>DELETE /api/nodos/{id}</code></td><td>Borrar + <code>$pull</code> de todas las licitaciones</td></tr>
+      <tr><td><code>POST /api/nodos/{id}/rematch</code></td><td>Re-match masivo</td></tr>
+      <tr><td><code>GET /api/nodos/{id}/licitaciones</code></td><td>Licitaciones del nodo (paginado)</td></tr>
+      <tr><td><code>GET /api/licitaciones/?nodo=ID</code></td><td>Filtrar listado por nodo</td></tr>
+    </table>
+
+    <h2>Hooks de auto-matching</h2>
+    <p>El matching se dispara automáticamente en 3 lugares:</p>
+    <ol>
+      <li><strong>Al scrapear</strong> — <code>scheduler_service.assign_nodos_to_item_data()</code> modifica el dict antes del insert</li>
+      <li><strong>Al enriquecer</strong> — <code>generic_enrichment.assign_nodos_to_licitacion()</code> corre después porque el <code>description</code> / <code>objeto</code> pueden cambiar</li>
+      <li><strong>Manualmente</strong> — <code>POST /api/nodos/{id}/rematch</code></li>
+    </ol>
+    <p>Los nodos solo <strong>agregan</strong> asignaciones (<code>$addToSet</code>), nunca remueven. Una licitación que entró en un nodo por un match viejo no sale automáticamente si cambiás las keywords.</p>
+
     <div class="page-footer">
-      <a href="/manual/" class="prev">Inicio del manual</a>
-      <span></span>
+      <a href="/manual/pages/hunter.html" class="prev">HUNTER</a>
+      <a href="/manual/pages/cotizar.html" class="next">CotizAR</a>
     </div>
   </main>
 

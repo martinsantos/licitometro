@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Panel de admin — Manual Licitómetro</title>
+  <title>Panel de administración — Manual Licitómetro</title>
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap">
   <link rel="stylesheet" href="/manual/assets/css/manual.css">
 </head>
@@ -21,21 +21,191 @@
     <div class="breadcrumb">
       <a href="/manual/">Manual</a>
       <span class="sep">›</span>
-      <span>Panel de admin</span>
+      <span>Administración</span>
     </div>
 
-    <h1>🔧 Panel de admin</h1>
-    <p class="lead">Gestión completa del sistema: scrapers, monitoreo, logs, calidad de datos, almacenamiento y mucho más.</p>
+    <h1>🔧 Panel de Administración <span class="badge admin">Admin</span></h1>
+    <p class="lead">
+      El panel de admin (<code>/admin</code>) es el centro de control de Licitómetro. Desde aquí monitoreás los scrapers, gestionás fuentes, revisás calidad de datos y operás el sistema.
+    </p>
 
-    <div class="admonition info">
-      <div class="admonition-title">📝 En construcción</div>
-      <p>Esta sección está siendo escrita. Próximamente estará disponible con capturas y guía completa paso a paso.</p>
-      <p>Mientras tanto, <a href="/manual/">volvé al inicio</a> o explorá las secciones ya disponibles en el menú lateral.</p>
+    <div class="admonition warning">
+      <div class="admonition-title">⚠️ Solo admins</div>
+      <p>Todas las acciones de esta sección requieren rol <strong>admin</strong>. Si no ves el link "Admin" en el header, no tenés permisos. Los endpoints están protegidos server-side, no solo el UI.</p>
+    </div>
+
+    <h2>Tabs del panel</h2>
+    <p>El panel tiene 10 tabs agrupados por función:</p>
+
+    <h3>📊 Monitor</h3>
+    <p>Vista general del estado del sistema:</p>
+    <ul>
+      <li><strong>Scrapers activos</strong>: cuántos corrieron hoy, cuántos fallaron, tiempo promedio</li>
+      <li><strong>Licitaciones por día</strong>: gráfico de barras últimos 7 días</li>
+      <li><strong>Errores recientes</strong>: últimos 20 errores con stack trace</li>
+      <li><strong>Cola de enriquecimiento</strong>: items pendientes de enrich level 2</li>
+      <li><strong>Health checks</strong>: MongoDB, nginx, postfix, APScheduler</li>
+    </ul>
+
+    <h3>🌐 Fuentes</h3>
+    <p>Lista de las 24 fuentes configuradas. Por cada fuente:</p>
+    <ul>
+      <li>Nombre + URL base + scraper asignado</li>
+      <li>Última ejecución: timestamp + items nuevos + duración</li>
+      <li>Estado: ✅ OK / ⚠️ Warnings / ❌ Error</li>
+      <li>Botón <strong>"Ejecutar ahora"</strong> — dispara scraping manual</li>
+      <li>Botón <strong>"Ver logs"</strong> — últimas 10 corridas con output completo</li>
+      <li>Switch <strong>activo/inactivo</strong> — pausa sin borrar config</li>
+    </ul>
+
+    <h3>➕ Importar nueva fuente</h3>
+    <p>Wizard para agregar una nueva fuente de datos sin tocar código:</p>
+    <ol>
+      <li><strong>URL del listado</strong>: ej. <code>https://ipvmendoza.gov.ar/licitaciones/</code></li>
+      <li><strong>Tipo de scraper</strong>: generic_html (90% de los casos), o dedicado (COMPR.AR, PDF, etc.)</li>
+      <li><strong>CSS selectors</strong>: el wizard intenta detectar automáticamente, pero podés refinar:
+        <ul>
+          <li><code>item_selector</code> — cómo encontrar cada licitación (ej: <code>article.post</code>)</li>
+          <li><code>title_selector</code> — dentro del item, dónde está el título</li>
+          <li><code>date_selector</code> — dónde está la fecha</li>
+          <li><code>link_selector</code> — cómo extraer el link al detalle</li>
+        </ul>
+      </li>
+      <li><strong>Test en vivo</strong>: el wizard scrapea 1 página y te muestra 3-5 items de preview</li>
+      <li><strong>Guardar</strong>: crea el <code>ScraperConfig</code> en MongoDB y lo activa</li>
+    </ol>
+
+    <div class="admonition tip">
+      <div class="admonition-title">💡 Tip: usar Lab primero</div>
+      <p>Antes de importar una fuente nueva, probá en <a href="/manual/pages/lab.html">Lab</a> con Firecrawl o OpenDataLoader para ver si el sitio es scrapeable. Te ahorra horas de configuración.</p>
+    </div>
+
+    <h3>📜 Logs</h3>
+    <p>Historial completo de ejecuciones de scrapers:</p>
+    <ul>
+      <li>Filtros: fuente, estado, rango de fechas</li>
+      <li>Vista de cada run: items procesados, duplicados, nuevos, errores, duración</li>
+      <li>Output del scraper: stdout/stderr capturado</li>
+      <li>Trace de excepciones con stack completo</li>
+    </ul>
+
+    <h3>📈 Calidad de datos</h3>
+    <p>Dashboard con métricas de integridad:</p>
+    <table>
+      <tr><th>Métrica</th><th>Meta</th></tr>
+      <tr><td>Objeto poblado</td><td>&gt;= 95%</td></tr>
+      <tr><td>Categoría clasificada</td><td>100%</td></tr>
+      <tr><td>Nivel enrich 2+</td><td>&gt;= 80%</td></tr>
+      <tr><td>Fechas válidas (publication + opening)</td><td>100%</td></tr>
+      <tr><td>Duplicados detectados</td><td>&lt;= 2%</td></tr>
+      <tr><td>Items con URL fuente</td><td>100%</td></tr>
+    </table>
+    <p>Botones de acción rápida:</p>
+    <ul>
+      <li><strong>Re-clasificar categorías</strong>: corre <code>CategoryClassifier</code> sobre items sin categoría</li>
+      <li><strong>Backfill objeto</strong>: corre <code>extract_objeto()</code> sobre items sin objeto</li>
+      <li><strong>Re-match nodos</strong>: re-evalúa todos los nodos contra todas las licitaciones</li>
+      <li><strong>Deduplicar</strong>: busca duplicados por content hash y mergea</li>
+    </ul>
+
+    <h3>💾 Almacenamiento</h3>
+    <p>Uso de disco por categoría:</p>
+    <ul>
+      <li>PDFs descargados (pliegos)</li>
+      <li>Cache de HTTP (pliego_url_cache.json)</li>
+      <li>Logs de scrapers</li>
+      <li>Backups de MongoDB</li>
+    </ul>
+    <p>Botón <strong>"Cleanup"</strong> corre <code>storage_cleanup_service</code> que elimina PDFs más viejos que <code>STORAGE_MAX_MB</code> (default 500MB), rota logs con &gt; <code>LOG_RETENTION_DAYS</code> (default 7 días) y limpia cache expirado.</p>
+
+    <h3>⚙️ Configuración de scrapers</h3>
+    <p>Editor inline de los <code>ScraperConfig</code> en MongoDB. Editá CSS selectors, frecuencia, timeouts, headers custom — todo sin redeploy. Los cambios se cargan en el próximo run del scheduler.</p>
+
+    <div class="admonition warning">
+      <div class="admonition-title">⚠️ Scheduler load-at-startup</div>
+      <p>El <code>scheduler_service</code> carga las configs al <strong>inicio del backend</strong>. Si editás una config crítica (ej: cambiás la URL base), puede que necesites reiniciar el backend para que el scheduler vea el cambio. En cambio, el matcher de nodos recompila regex al guardar — esos cambios son inmediatos.</p>
+    </div>
+
+    <h3>🗂️ Gestión de licitaciones</h3>
+    <p>CRUD directo sobre la colección:</p>
+    <ul>
+      <li>Buscar por título, expediente, organización</li>
+      <li>Editar campos manualmente (útil para corregir fechas malas)</li>
+      <li>Cambiar workflow_state (descubierta → evaluando → ... → presentada)</li>
+      <li>Eliminar duplicados manualmente</li>
+      <li>Ver historial de cambios (<code>metadata.estado_history</code>)</li>
+      <li>Re-enriquecer con botón "🔄 Enriquecer"</li>
+      <li>Publicar con link público (genera slug en <code>/p/:slug</code>)</li>
+    </ul>
+
+    <h3>🔬 Sistema</h3>
+    <p>Health, cache, backups:</p>
+    <ul>
+      <li><strong>Health</strong>: ping a MongoDB, test de SMTP, Telegram API reachable</li>
+      <li><strong>Cache</strong>: ver tamaño, invalidar, limpiar</li>
+      <li><strong>Backups</strong>: listar backups disponibles (<code>/opt/licitometro/backups/</code>), trigger manual, restore</li>
+      <li><strong>Variables de entorno</strong>: ver las env vars activas (passwords redacted)</li>
+      <li><strong>Reiniciar servicios</strong>: backend, scheduler, nginx (requiere sudo)</li>
+    </ul>
+
+    <h2>Workflow de estados (manual)</h2>
+    <p>El estado de una licitación es <strong>business-critical</strong>. Nunca se cambia automáticamente — siempre vos, manualmente, desde el panel o desde el stepper del detalle.</p>
+
+    <table>
+      <tr><th>Estado</th><th>Significado</th></tr>
+      <tr><td><strong>descubierta</strong></td><td>Recién scrapeada, sin revisar</td></tr>
+      <tr><td><strong>evaluando</strong></td><td>Estás analizando si cotizar</td></tr>
+      <tr><td><strong>preparando</strong></td><td>Activamente armando la oferta</td></tr>
+      <tr><td><strong>presentada</strong></td><td>Oferta entregada</td></tr>
+      <tr><td><strong>descartada</strong></td><td>Decidiste no presentarte</td></tr>
+    </table>
+
+    <div class="admonition danger">
+      <div class="admonition-title">🚨 Incidente histórico (Feb 12, 2026)</div>
+      <p>Hubo un bug en <code>enrichment_cron_service</code> que auto-transicionaba TODAS las licitaciones de <em>descubierta</em> a <em>evaluando</em> cada 30 minutos. 1,349 items se corrompieron. Se revirtió manualmente y la regla quedó grabada en piedra: <strong>enrichment no toca workflow_state, jamás</strong>.</p>
+    </div>
+
+    <h2>Crons activos</h2>
+    <p>APScheduler corre los siguientes jobs en producción:</p>
+    <table>
+      <tr><th>Job</th><th>Cuándo</th><th>Qué hace</th></tr>
+      <tr><td>Scraping</td><td>8, 10, 12, 15, 19 hs</td><td>Ejecuta los 24 scrapers</td></tr>
+      <tr><td>Auto-update</td><td>8:00 AM</td><td>Re-enriquece items activos</td></tr>
+      <tr><td>Daily digest</td><td>9:00 AM</td><td>Email + Telegram a TELEGRAM_CHAT_ID</td></tr>
+      <tr><td>Nodo digest morning</td><td>9:15 AM</td><td>Digests por nodo (daily + twice_daily)</td></tr>
+      <tr><td>Nodo digest evening</td><td>6:00 PM</td><td>Digests por nodo (twice_daily only)</td></tr>
+      <tr><td>Estado update</td><td>6:00 AM</td><td>Marca vencidas las <code>opening_date &lt; today</code></td></tr>
+      <tr><td>Backup MongoDB</td><td>0, 6, 12, 18 hs</td><td>mongodump + rotación 7 días</td></tr>
+      <tr><td>Health monitor</td><td>cada 5 min</td><td>cron del host: <code>scripts/health_monitor.sh</code></td></tr>
+    </table>
+
+    <h2>Ejecutar scripts manualmente</h2>
+    <p>Para correr scripts de mantenimiento en producción:</p>
+    <pre><code>ssh root@76.13.234.213 \
+  "docker exec -w /app -e PYTHONPATH=/app licitometro-backend-1 \
+   python3 scripts/NOMBRE_SCRIPT.py"</code></pre>
+    <p>El flag <code>-w /app -e PYTHONPATH=/app</code> es crítico — sin eso, los imports de <code>services.*</code> fallan.</p>
+
+    <h2>Backup & restore</h2>
+    <p>Los backups automáticos viven en <code>/opt/licitometro/backups/mongodb_YYYYMMDD_HHMMSS.gz</code>. Retención: 7 días.</p>
+    <pre><code># Backup manual
+ssh root@VPS "bash /opt/licitometro/scripts/backup-mongodb.sh"
+
+# Listar backups
+ssh root@VPS "ls -lh /opt/licitometro/backups/"
+
+# Restore (requiere confirmación "yes")
+ssh root@VPS "bash /opt/licitometro/scripts/restore-mongodb.sh \
+  /opt/licitometro/backups/mongodb_20260408_120000.gz"</code></pre>
+
+    <div class="admonition danger">
+      <div class="admonition-title">🚨 NUNCA usar docker compose down -v</div>
+      <p>Ese comando elimina los volumes de MongoDB → pérdida total de datos. Siempre usar <code>docker restart</code> o el script <code>scripts/deploy-prod.sh</code> que hace backup automático pre-deploy.</p>
     </div>
 
     <div class="page-footer">
-      <a href="/manual/" class="prev">Inicio del manual</a>
-      <span></span>
+      <a href="/manual/pages/nodos.html" class="prev">Nodos</a>
+      <a href="/manual/pages/lab.html" class="next">Lab experimental</a>
     </div>
   </main>
 

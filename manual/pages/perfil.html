@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Mi Perfil — Manual Licitómetro</title>
+  <title>Mi perfil — Manual Licitómetro</title>
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap">
   <link rel="stylesheet" href="/manual/assets/css/manual.css">
 </head>
@@ -21,21 +21,88 @@
     <div class="breadcrumb">
       <a href="/manual/">Manual</a>
       <span class="sep">›</span>
-      <span>Mi Perfil</span>
+      <span>Mi perfil</span>
     </div>
 
-    <h1>👤 Mi Perfil</h1>
-    <p class="lead">Dashboard personal con tu actividad: licitaciones guardadas, cotizaciones en curso y nodos activos.</p>
+    <h1>👤 Mi actividad (Mi perfil)</h1>
+    <p class="lead">
+      Tu dashboard personal con estadísticas de uso, acceso rápido a favoritos, cotizaciones en progreso y nodos personales. Lo abrís desde el header: <strong>Mi actividad</strong>.
+    </p>
+
+    <h2>Dashboard de actividad</h2>
+    <p>Al entrar, ves 4 widgets principales:</p>
+
+    <h3>📊 Stats de uso (últimos 30 días)</h3>
+    <ul>
+      <li>Licitaciones vistas</li>
+      <li>Favoritos guardados</li>
+      <li>Cotizaciones armadas</li>
+      <li>Ofertas presentadas</li>
+    </ul>
+
+    <h3>⭐ Guardadas</h3>
+    <p>Mini-lista de tus últimas 5 favoritas. Click en "Ver todas" → te lleva a <a href="/manual/pages/favoritos.html">/favoritos</a>. Cada card muestra el deadline (countdown) para priorizar.</p>
+
+    <h3>💼 Mis cotizaciones</h3>
+    <p>Las ofertas que estás armando, con estado (draft / presentada / descartada) y link directo al editor CotizAR para continuar.</p>
+
+    <h3>🌐 Mis nodos</h3>
+    <p>Los nodos donde estás incluido como destinatario de digest. Cada uno muestra cuántos matches hubo esta semana y último digest enviado.</p>
+
+    <h2>Rubros críticos</h2>
+    <p>
+      En tu perfil configurás los <strong>rubros críticos</strong>: categorías (de los 34 rubros disponibles) que son prioritarias para vos. Al activar un rubro como crítico:
+    </p>
+    <ul>
+      <li>Las cards del listado muestran badges de <strong>urgencia</strong> (rojo si faltan &lt; 3 días)</li>
+      <li>El digest diario pone esas licitaciones arriba del todo</li>
+      <li>Telegram envía alertas en tiempo real cuando aparece una nueva en esos rubros</li>
+    </ul>
+
+    <div class="admonition tip">
+      <div class="admonition-title">💡 Guardado local</div>
+      <p>Los rubros críticos se guardan en <code>localStorage</code> del navegador. Si usás varios dispositivos, los tenés que configurar en cada uno. A diferencia de favoritos (que son server-side), los rubros críticos son per-dispositivo.</p>
+    </div>
+
+    <h2>Badge "NUEVO" y last-visit</h2>
+    <p>
+      Cada vez que abrís el listado, Licitómetro guarda un <code>lastVisitTimestamp</code> en localStorage. Las licitaciones con <code>first_seen_at &gt; lastVisitTimestamp</code> muestran un badge verde <strong>NUEVO</strong> así sabés qué apareció desde tu última visita.
+    </p>
 
     <div class="admonition info">
-      <div class="admonition-title">📝 En construcción</div>
-      <p>Esta sección está siendo escrita. Próximamente estará disponible con capturas y guía completa paso a paso.</p>
-      <p>Mientras tanto, <a href="/manual/">volvé al inicio</a> o explorá las secciones ya disponibles en el menú lateral.</p>
+      <div class="admonition-title">ℹ️ Diferencia con "Nuevas de hoy"</div>
+      <p>El botón "Nuevas de hoy" del listado filtra por <code>first_seen_at &gt;= today</code> (absoluto: desde las 00:00 de hoy). El badge NUEVO es relativo a <strong>tu última visita</strong>, sea cuando sea.</p>
     </div>
 
+    <h2>Preferencias persistentes</h2>
+    <p>El hook <code>useLicitacionPreferences</code> persiste en localStorage:</p>
+    <ul>
+      <li>Vista preferida (cards / tabla / calendario)</li>
+      <li>Densidad (compact / comfortable)</li>
+      <li>Ordenamiento default (fecha_scraping DESC)</li>
+      <li>Rubros críticos</li>
+      <li>Presets de filtros guardados</li>
+      <li>Estado del sidebar (colapsado / expandido)</li>
+      <li>Año seleccionado (por defecto el actual)</li>
+    </ul>
+
+    <h2>Historial de acciones</h2>
+    <p>Registra las últimas 50 acciones que hiciste:</p>
+    <ul>
+      <li>Licitación vista: título + fecha de apertura</li>
+      <li>Favorita agregada / quitada</li>
+      <li>Cotización creada / guardada / exportada</li>
+      <li>Enrichment disparado</li>
+      <li>HUNTER ejecutado</li>
+      <li>Nodo creado / editado</li>
+    </ul>
+
+    <h2>Botón "Limpiar preferencias"</h2>
+    <p>Al pie del perfil hay un botón que resetea localStorage completo: rubros críticos, presets, última visita, historial. <strong>No</strong> toca favoritos ni cotizaciones (que son server-side). Útil si compartís la compu o querés empezar de cero.</p>
+
     <div class="page-footer">
-      <a href="/manual/" class="prev">Inicio del manual</a>
-      <span></span>
+      <a href="/manual/pages/empresa.html" class="prev">Mi empresa</a>
+      <a href="/manual/pages/stats.html" class="next">Estadísticas</a>
     </div>
   </main>
 

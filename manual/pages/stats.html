@@ -25,17 +25,89 @@
     </div>
 
     <h1>📊 Estadísticas</h1>
-    <p class="lead">Dashboards de actividad del sistema: por fuente, estado, jurisdicción y tendencias temporales.</p>
+    <p class="lead">
+      La sección <code>/stats</code> es el dashboard de analítica agregada de Licitómetro. Muestra tendencias, distribuciones por fuente, estados, jurisdicción y presupuestos.
+    </p>
+
+    <h2>Vistas disponibles</h2>
+
+    <h3>Vista general</h3>
+    <p>Cards con totales:</p>
+    <ul>
+      <li><strong>Total licitaciones</strong> indexadas (desde el inicio)</li>
+      <li><strong>Vigentes hoy</strong> (opening_date &gt; today)</li>
+      <li><strong>Nuevas esta semana</strong> (first_seen_at &gt;= hace 7 días)</li>
+      <li><strong>Monto total publicado</strong> (suma de <code>budget</code>, en ARS)</li>
+      <li><strong>Fuentes activas</strong> (scrapers que corrieron en las últimas 24h)</li>
+    </ul>
+
+    <h3>📅 Por mes (último año)</h3>
+    <p>Gráfico de barras: cantidad de licitaciones publicadas por mes. Cruzado con:</p>
+    <ul>
+      <li>Total publicado (eje Y1)</li>
+      <li>Monto total en ARS (eje Y2)</li>
+      <li>Filtro opcional por fuente o categoría</li>
+    </ul>
+
+    <h3>🏛️ Por fuente</h3>
+    <p>Tabla con las 24 fuentes activas:</p>
+    <table>
+      <tr><th>Columna</th><th>Descripción</th></tr>
+      <tr><td>Fuente</td><td>Nombre + logo</td></tr>
+      <tr><td>Total</td><td>Items totales indexados</td></tr>
+      <tr><td>Último mes</td><td>Nuevos en los últimos 30 días</td></tr>
+      <tr><td>Última corrida</td><td>Timestamp del último scraping</td></tr>
+      <tr><td>% Nivel 2+</td><td>% de items enriquecidos (descripción, presupuesto, fechas)</td></tr>
+      <tr><td>Monto total</td><td>Suma de presupuestos (ARS)</td></tr>
+    </table>
+
+    <h3>🎯 Por estado</h3>
+    <p>Distribución de estados de vigencia:</p>
+    <ul>
+      <li>Vigente (verde)</li>
+      <li>Prorrogada (amarillo)</li>
+      <li>Vencida (gris)</li>
+      <li>Archivada (slate)</li>
+    </ul>
+    <p>Gráfico de donut + tabla con porcentajes. Click en un estado → filtra el listado por ese estado.</p>
+
+    <h3>🗺️ Por jurisdicción</h3>
+    <p>Mapa de calor de Mendoza con los 18 departamentos + indicadores de densidad. Hover sobre cada departamento muestra:</p>
+    <ul>
+      <li>Licitaciones activas</li>
+      <li>Monto total</li>
+      <li>Top 3 organismos</li>
+      <li>Top 3 categorías</li>
+    </ul>
+
+    <h3>📋 Por tipo de procedimiento</h3>
+    <p>Breakdown: Contratación Directa, Licitación Privada, Licitación Pública, Subasta, Compulsa Abreviada, etc. Útil para entender qué modalidad usa más cada organismo.</p>
+
+    <h3>🏷️ Por categoría (rubro)</h3>
+    <p>Top 10 rubros con más actividad + gráfico de barras. Click en un rubro → filtra listado por categoría.</p>
+
+    <h2>API endpoints</h2>
+    <table>
+      <tr><th>Endpoint</th><th>Propósito</th></tr>
+      <tr><td><code>GET /api/licitaciones/stats/estado-distribution</code></td><td>Distribución por estado + año + vigentes hoy</td></tr>
+      <tr><td><code>GET /api/licitaciones/stats/by-source</code></td><td>Breakdown por fuente con totales + último mes</td></tr>
+      <tr><td><code>GET /api/licitaciones/stats/by-category</code></td><td>Conteo + monto por categoría</td></tr>
+      <tr><td><code>GET /api/licitaciones/stats/by-month</code></td><td>Serie temporal mensual</td></tr>
+      <tr><td><code>GET /api/licitaciones/stats/by-jurisdiction</code></td><td>Agrupado por <code>organization</code> + departamento</td></tr>
+      <tr><td><code>GET /api/licitaciones/stats/totals</code></td><td>Cards de vista general</td></tr>
+    </table>
+
+    <h2>Export a CSV</h2>
+    <p>En cada vista hay un botón <strong>"Exportar CSV"</strong> que baja los datos del gráfico en formato plano. Útil para análisis en Excel o Google Sheets.</p>
 
     <div class="admonition info">
-      <div class="admonition-title">📝 En construcción</div>
-      <p>Esta sección está siendo escrita. Próximamente estará disponible con capturas y guía completa paso a paso.</p>
-      <p>Mientras tanto, <a href="/manual/">volvé al inicio</a> o explorá las secciones ya disponibles en el menú lateral.</p>
+      <div class="admonition-title">ℹ️ Cache de 5 minutos</div>
+      <p>Las stats son queries pesadas (agregaciones MongoDB). El backend las cachea por <strong>5 minutos</strong> para evitar overhead. Si necesitás refrescar inmediatamente, usá el botón <strong>"Refrescar"</strong> (admin only).</p>
     </div>
 
     <div class="page-footer">
-      <a href="/manual/" class="prev">Inicio del manual</a>
-      <span></span>
+      <a href="/manual/pages/perfil.html" class="prev">Mi perfil</a>
+      <a href="/manual/pages/admin.html" class="next">Admin</a>
     </div>
   </main>
 

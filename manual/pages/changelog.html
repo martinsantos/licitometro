@@ -25,16 +25,120 @@
     </div>
 
     <h1>📝 Changelog</h1>
-    <p class="lead">Historial de versiones, nuevas features y cambios importantes.</p>
+    <p class="lead">
+      Historial de cambios significativos en Licitómetro. Las entradas están ordenadas de más reciente a más antigua.
+    </p>
+
+    <h2>v2.0 — Abril 2026</h2>
+
+    <h3>🎯 HUNTER cross-source</h3>
+    <p>Nueva capacidad de búsqueda cross-source durante el enriquecimiento. Cuando hacés click en "Enriquecer", el sistema ahora:</p>
+    <ul>
+      <li>Extrae identificadores del texto (decreto, expediente, licitación, resolución, CD)</li>
+      <li>Busca esos identificadores en todas las otras licitaciones</li>
+      <li>Fallback a búsqueda por keywords del título (MongoDB <code>$text</code>, score &gt;= 3.0)</li>
+      <li>Mergea datos faltantes sin sobrescribir existentes (idempotente)</li>
+    </ul>
+    <p><strong>Fix crítico:</strong> Las licitaciones de COMPR.AR ya no bypasean HUNTER + nodo matching. El endpoint <code>POST /{id}/enrich</code> se restructuró en 4 fases secuenciales que siempre corren para TODAS las fuentes.</p>
+
+    <h3>📄 OpenDataLoader PDF</h3>
+    <p>Nueva opción de extracción de PDFs usando <code>opendataloader-pdf</code> (Java 21). Devuelve output estructurado con <code>kids[]</code> hierarchy (headings, paragraphs, tables). Detrás de feature flag <code>USE_OPENDATALOADER_PDF</code> con fallback automático a pypdf. El BOE sigue usando pypdf directamente porque la segmentación del Hospital Notti depende de líneas que opendataloader a veces pierde.</p>
+
+    <h3>🚀 COMPR.AR HTTP-only (sin Selenium)</h3>
+    <p>Eliminación completa de Selenium en el scraper de COMPR.AR Mendoza. Ahora usa HTTP postback directo al mismo endpoint ASP.NET. <strong>Resultado:</strong> scraping 10× más rápido (82s vs 15 min) sin perder datos. Cache de pliego URLs con TTL 7 días, ~99% hit rate.</p>
+    <p>COMPR.AR Nacional también migrado a HTTP-only con fast-fail en 503 (comprar.gob.ar actualmente bloquea datacenter IPs).</p>
+
+    <h3>🔒 Favoritos server-side</h3>
+    <p>Migración de localStorage a MongoDB. Los favoritos ahora se sincronizan con el servidor, sobreviven a cambios de navegador, limpieza de caché y reinstalaciones. Migración automática al primer login.</p>
+
+    <h3>📖 Manual en /manual</h3>
+    <p>Este manual completo. Privado (requiere login), estilo amber, sidebar con búsqueda, 14 páginas + landing. Scroll continuo via <code>/manual/all.html</code> que fetchea todas las páginas y las stitchea en un solo documento.</p>
+
+    <h3>🗺️ Vigencia completa</h3>
+    <p>Sistema de estados (vigente / prorrogada / vencida / archivada) con validadores Pydantic, detección automática de prórrogas, extracción de meta tags para fechas, cron diario 6am que marca vencidas.</p>
+
+    <h3>🛡️ Backup protection</h3>
+    <ul>
+      <li>Docker volumes con nombres explícitos (<code>licitometro_mongo_data</code>)</li>
+      <li>Script <code>backup-mongodb.sh</code> cada 6 horas con rotación 7 días</li>
+      <li>Script <code>deploy-prod.sh</code> con backup automático pre-deploy</li>
+      <li>Deploy NUNCA usa <code>docker compose down</code> — solo <code>restart</code></li>
+    </ul>
+
+    <h3>🔁 CI/CD GitHub Actions</h3>
+    <p>Pipeline automatizado: push a <code>main</code> → build en VPS (no en Actions, costo $0) → deploy con health check + rollback. CI de lint/build en cada PR para bloquear merges con código roto.</p>
+
+    <h2>v1.5 — Febrero 2026</h2>
+
+    <h3>💼 CotizAR (wizard de 6 pasos)</h3>
+    <p>Lanzamiento del asistente de cotizaciones: ítems, propuesta, empresa, marco legal, análisis IA (Groq), oferta final. Exportación a PDF y DOCX. Inteligencia de precios basada en ~2,600 adjudicaciones históricas de ComprasApps.</p>
+
+    <h3>🌐 Nodos semánticos</h3>
+    <p>Sistema de mapas de keywords fuzzy con stemming español, matching contra title/objeto/description/organization. Auto-matching en scraping + enrichment. Digest notifications configurables (none/daily/twice_daily). Acciones: email, Telegram, tag.</p>
+    <p>Nodos iniciales: <strong>Servicios IT Última Milla</strong> (1,296 matches) y <strong>Vivero</strong> (259 matches).</p>
+
+    <h3>🧪 Lab experimental</h3>
+    <p>Quick Test con Firecrawl, Compare scrapers side-by-side, Extract con IA (Groq), PDF Parser A/B, URL resolver test, Enrichment dry-run.</p>
+
+    <h3>📊 Dashboard de estadísticas</h3>
+    <p>Vista <code>/stats</code> con breakdowns por fuente, estado, categoría, jurisdicción, mes, tipo de procedimiento. Export a CSV.</p>
+
+    <h3>📅 Filtros de fecha sincronizados</h3>
+    <p>Los filtros <code>nuevasDesde</code> (first_seen_at) y <code>fechaDesde/fechaHasta</code> (fecha_scraping) ahora se sincronizan automáticamente para días únicos. DailyDigestStrip, QuickPresetButton "Nuevas de hoy" y PresetSelector actúan de forma coherente.</p>
+
+    <h3>🚨 Emergency fix: Auto-workflow-transition bug</h3>
+    <p><code>enrichment_cron_service</code> estaba auto-transicionando TODAS las licitaciones de <em>descubierta</em> → <em>evaluando</em> cada 30 minutos. 1,349 items se corrompieron. Fix: eliminada la lógica de auto-transición, el servicio solo enriquece datos nunca toca workflow_state. Regla grabada en piedra.</p>
+
+    <h2>v1.0 — Enero 2026</h2>
+
+    <h3>🎉 Lanzamiento BETA</h3>
+    <ul>
+      <li>Backend FastAPI + MongoDB (Motor async)</li>
+      <li>Frontend React 18 + TypeScript con Tailwind</li>
+      <li>24 scrapers activos (ComprasApps, COMPR.AR, Boletín, municipios)</li>
+      <li>~3,000 licitaciones indexadas</li>
+      <li>Auto-clasificación por 34 rubros via keyword matching</li>
+      <li>FilterSidebar estilo Booking.com con faceted counts</li>
+      <li>Daily digest 9am por Telegram (@Licitobot) y email</li>
+      <li>Scraping 5 veces al día (8, 10, 12, 15, 19hs), 7 días/semana</li>
+    </ul>
+
+    <h3>🌐 Infraestructura</h3>
+    <ul>
+      <li>Docker Compose production (mongodb + backend + nginx + certbot)</li>
+      <li>VPS Hostinger + Cloudflare DNS</li>
+      <li>SSL Let's Encrypt con auto-renew</li>
+      <li>Nginx rate limiting (10r/s API, 3r/m auth)</li>
+      <li>Firewall firewalld, Docker bridge trusted zone</li>
+      <li>IPv6 habilitado para acceso a sitios que bloquean datacenter IPv4</li>
+      <li>Postfix local relay para emails sin SMTP externo</li>
+    </ul>
+
+    <h3>🔒 Auth</h3>
+    <ul>
+      <li>Contraseña compartida → bcrypt hash → JWT cookie (24h)</li>
+      <li>Tokens públicos de 30 días para links compartibles en notificaciones</li>
+      <li>Middleware en <code>server.py</code> protege todas las rutas /api/ excepto exempted</li>
+    </ul>
+
+    <h2>Roadmap</h2>
+    <p>Features en planificación (no comprometidas):</p>
+    <ul>
+      <li><strong>Firma digital</strong> de ofertas exportadas (compatible con firma AFIP)</li>
+      <li><strong>Alertas por WhatsApp</strong> vía API oficial de Meta</li>
+      <li><strong>Análisis de competencia</strong>: qué empresas ganaron licitaciones similares</li>
+      <li><strong>OCR de anexos escaneados</strong> (Tesseract + postproc IA)</li>
+      <li><strong>Integración directa con COMPR.AR</strong> para presentar ofertas desde Licitómetro</li>
+      <li><strong>API pública</strong> para terceros que quieran consumir el dataset</li>
+    </ul>
 
     <div class="admonition info">
-      <div class="admonition-title">📝 En construcción</div>
-      <p>Esta sección está siendo escrita. Próximamente estará disponible con capturas y guía completa paso a paso.</p>
-      <p>Mientras tanto, <a href="/manual/">volvé al inicio</a> o explorá las secciones ya disponibles en el menú lateral.</p>
+      <div class="admonition-title">ℹ️ ¿Tenés una idea?</div>
+      <p>El roadmap no es cerrado. Si tenés una feature que te ayudaría, contactá al equipo y la evaluamos.</p>
     </div>
 
     <div class="page-footer">
-      <a href="/manual/" class="prev">Inicio del manual</a>
+      <a href="/manual/pages/referencia.html" class="prev">Referencia</a>
       <span></span>
     </div>
   </main>

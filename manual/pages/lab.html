@@ -21,21 +21,90 @@
     <div class="breadcrumb">
       <a href="/manual/">Manual</a>
       <span class="sep">›</span>
-      <span>Lab experimental</span>
+      <span>Lab</span>
     </div>
 
-    <h1>🧪 Lab experimental</h1>
-    <p class="lead">Herramientas de prueba para Firecrawl, comparación de scrapers, extracción IA y parser de PDFs (opendataloader).</p>
+    <h1>🧪 Lab experimental <span class="badge admin">Admin</span></h1>
+    <p class="lead">
+      El Lab (<code>/lab</code>) es el área de pruebas para scrapers, extractores de PDF y parsers de HTML. Podés probar nuevas fuentes sin afectar producción, comparar estrategias y validar resultados antes de pasar a admin.
+    </p>
 
-    <div class="admonition info">
-      <div class="admonition-title">📝 En construcción</div>
-      <p>Esta sección está siendo escrita. Próximamente estará disponible con capturas y guía completa paso a paso.</p>
-      <p>Mientras tanto, <a href="/manual/">volvé al inicio</a> o explorá las secciones ya disponibles en el menú lateral.</p>
+    <h2>Herramientas disponibles</h2>
+
+    <h3>⚡ Quick Test (Firecrawl)</h3>
+    <p>
+      Ingresás una URL → Firecrawl renderiza el sitio con browser headless (maneja JS) → extrae markdown estructurado. Ideal para:
+    </p>
+    <ul>
+      <li>Ver si un sitio es scrapeable antes de crear un scraper</li>
+      <li>Debuggear por qué un scraper devuelve vacío</li>
+      <li>Copiar CSS selectors viendo el HTML procesado</li>
+      <li>Probar sitios JS-heavy (Single Page Apps)</li>
+    </ul>
+    <p>Config: requiere <code>FIRECRAWL_API_KEY</code> en el backend. Si no está configurado, el botón queda deshabilitado.</p>
+
+    <h3>🔄 Compare scrapers</h3>
+    <p>Corre 2 o 3 scrapers distintos contra la misma URL y compara side-by-side:</p>
+    <table>
+      <tr><th>Scraper</th><th>Items</th><th>Duración</th><th>Success rate</th></tr>
+      <tr><td>generic_html</td><td>45</td><td>2.3s</td><td>100%</td></tr>
+      <tr><td>firecrawl</td><td>47</td><td>8.1s</td><td>100%</td></tr>
+      <tr><td>selenium</td><td>47</td><td>34.5s</td><td>100%</td></tr>
+    </table>
+    <p>Te ayuda a elegir la estrategia más rápida que extrae todos los items.</p>
+
+    <h3>🤖 Extract con IA</h3>
+    <p>Pegás un HTML o un PDF largo → Groq extrae los campos que le pidas (JSON schema):</p>
+    <pre><code>{
+  "title": "string",
+  "expediente": "string",
+  "budget": "number|null",
+  "opening_date": "date|null",
+  "items": [{ "descripcion": "string", "cantidad": "number" }]
+}</code></pre>
+    <p>Útil cuando un sitio no tiene estructura clara y los CSS selectors son inviables.</p>
+
+    <h3>📄 PDF Parser A/B</h3>
+    <p>Compara dos extractores de PDF lado a lado para el mismo archivo:</p>
+    <table>
+      <tr><th>Librería</th><th>Fortaleza</th><th>Debilidad</th></tr>
+      <tr><td><strong>pypdf</strong></td><td>Rápido, output plano, preserva todas las líneas</td><td>Sin estructura jerárquica</td></tr>
+      <tr><td><strong>opendataloader-pdf</strong></td><td>Output estructurado con <code>kids[]</code> (headings, tables, paragraphs)</td><td>Lento (Java), pierde algunas líneas en PDFs escaneados</td></tr>
+    </table>
+    <p>La UI muestra los dos outputs side-by-side con diff highlighting. Útil para decidir qué estrategia usar por fuente.</p>
+
+    <div class="admonition warning">
+      <div class="admonition-title">⚠️ Feature flag</div>
+      <p>OpenDataLoader está detrás de <code>USE_OPENDATALOADER_PDF=true</code> en el backend. Por default está en <code>false</code> porque es más lento y ocasionalmente pierde líneas. Para BOE (Boletín Oficial), el código fuerza pypdf siempre porque la segmentación depende de líneas que opendataloader a veces elimina.</p>
+    </div>
+
+    <h3>🔗 URL resolver test</h3>
+    <p>Para debuggear sitios con redirecciones complejas (ASP.NET session-state, Cloudflare challenges). Ingresás una URL y el lab muestra la cadena completa de redirects hasta llegar al HTML final, con cookies y headers de cada hop.</p>
+
+    <h3>📊 Enrichment dry-run</h3>
+    <p>Seleccionás una licitación existente y el Lab corre el pipeline de enriquecimiento en modo <strong>dry-run</strong>: calcula qué campos cambiarían sin escribir a MongoDB. Útil para validar antes de correr enrichment masivo.</p>
+
+    <h2>Workflow típico para agregar una fuente</h2>
+    <ol>
+      <li><strong>Quick Test</strong> la URL del listado → verificar que se renderiza bien</li>
+      <li><strong>Compare scrapers</strong> → identificar la estrategia óptima</li>
+      <li><strong>PDF Parser A/B</strong> si hay pliegos adjuntos → decidir pypdf vs opendataloader</li>
+      <li><strong>Extract con IA</strong> sobre 1-2 items → validar calidad de extracción</li>
+      <li>Con todo claro → ir a <strong>Admin → Importar fuente</strong> con los selectors correctos</li>
+      <li>Activar el scraper y monitorear la primera corrida en <strong>Admin → Logs</strong></li>
+    </ol>
+
+    <h2>Historial de experimentos</h2>
+    <p>El Lab guarda los últimos 50 experimentos ejecutados con sus inputs y resultados. Podés volver a correr uno viejo con un click, o duplicarlo para modificar y comparar.</p>
+
+    <div class="admonition tip">
+      <div class="admonition-title">💡 No afecta producción</div>
+      <p>Todo lo que hacés en el Lab es read-only. Ninguna operación del Lab escribe a la colección <code>licitaciones</code> ni dispara notificaciones. Es un sandbox seguro.</p>
     </div>
 
     <div class="page-footer">
-      <a href="/manual/" class="prev">Inicio del manual</a>
-      <span></span>
+      <a href="/manual/pages/admin.html" class="prev">Admin</a>
+      <a href="/manual/pages/referencia.html" class="next">Referencia</a>
     </div>
   </main>
 
