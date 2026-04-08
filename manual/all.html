@@ -8,25 +8,102 @@
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500&display=swap">
   <link rel="stylesheet" href="/manual/assets/css/manual.css">
   <style>
+    /* ================================================================
+       CONTINUOUS SCROLL LAYOUT
+       ================================================================ */
     html { scroll-behavior: smooth; scroll-padding-top: 24px; }
-    .all-content { max-width: 860px; margin: 0 auto; padding: 0 24px 120px; }
+
+    .all-content { max-width: 860px; margin: 0 auto; padding: 0 24px 160px; }
+
+    /* Section dividers — subtle, no page break feel */
     .doc-section {
-      padding-top: 48px; margin-top: 48px;
+      padding-top: 56px;
+      margin-top: 56px;
       border-top: 1px solid #e7e5e4;
-      scroll-margin-top: 24px;
+      scroll-margin-top: 20px;
     }
-    .doc-section:first-of-type { border-top: none; margin-top: 0; padding-top: 24px; }
+    .doc-section:first-of-type { border-top: none; margin-top: 0; padding-top: 8px; }
+
     .doc-section-label {
       display: inline-block;
-      font-size: 11px; font-weight: 700;
-      letter-spacing: 0.12em; text-transform: uppercase;
-      color: #d97706; padding: 4px 10px;
-      background: #fef3c7; border-radius: 999px;
-      margin-bottom: 16px;
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      color: #d97706;
+      padding: 4px 10px;
+      background: #fef3c7;
+      border-radius: 999px;
+      margin-bottom: 14px;
     }
+
+    /* Each H2 inside a section gets a scroll-margin so the sticky header
+       never occludes the heading when you land on it */
+    .doc-section h2 { scroll-margin-top: 24px; }
+    .doc-section h3 { scroll-margin-top: 24px; }
+
+    /* Hide per-page breadcrumbs and footers */
     .doc-section .breadcrumb,
     .doc-section .page-footer { display: none; }
-    .sidebar a.active { background: #fef3c7 !important; color: #92400e !important; border-left: 3px solid #d97706 !important; }
+
+    /* ================================================================
+       SIDEBAR — hierarchical + scroll-spy active states
+       ================================================================ */
+    .sidebar-nav a {
+      position: relative;
+      transition: background-color 0.15s ease, color 0.15s ease, border-color 0.15s ease;
+      border-left: 3px solid transparent;
+    }
+
+    /* Top-level page link (bold, primary section) */
+    .sidebar-nav a.nav-page {
+      font-weight: 600;
+    }
+
+    /* Sub-anchor links (H2 children under each page) */
+    .sidebar-nav a.nav-sub {
+      padding-left: 32px !important;
+      font-size: 12.5px !important;
+      color: #78716c !important;
+      font-weight: 400;
+      line-height: 1.4;
+    }
+    .sidebar-nav a.nav-sub:hover {
+      color: #d97706 !important;
+      background: #fffbeb !important;
+    }
+
+    /* ACTIVE STATES — what the user asked for: the sidebar listening to scroll */
+    .sidebar-nav a.active {
+      background: #fef3c7 !important;
+      color: #92400e !important;
+      border-left-color: #d97706 !important;
+    }
+    .sidebar-nav a.nav-sub.active {
+      background: #fffbeb !important;
+      color: #d97706 !important;
+      border-left-color: #fbbf24 !important;
+      font-weight: 500;
+    }
+    /* When a page is the parent of the active H2, dim-highlight it */
+    .sidebar-nav a.nav-page.in-view {
+      color: #1c1917;
+      font-weight: 700;
+    }
+
+    /* Sub-anchors only show when parent page is in view — keeps sidebar tidy */
+    .sidebar-nav .nav-children {
+      max-height: 0;
+      overflow: hidden;
+      transition: max-height 0.4s ease;
+    }
+    .sidebar-nav .nav-children.expanded {
+      max-height: 2000px;
+    }
+
+    /* ================================================================
+       LOADER + HERO
+       ================================================================ */
     .doc-loader { padding: 80px 0; text-align: center; color: #78716c; font-size: 14px; }
     .doc-loader .spinner {
       display: inline-block; width: 32px; height: 32px;
@@ -35,10 +112,11 @@
       margin-bottom: 16px;
     }
     @keyframes spin { to { transform: rotate(360deg); } }
+
     .doc-hero {
-      padding: 56px 0 32px;
+      padding: 56px 0 36px;
       border-bottom: 1px solid #f5f5f4;
-      margin-bottom: 16px;
+      margin-bottom: 8px;
     }
     .doc-hero .kicker {
       display: inline-block;
@@ -55,8 +133,54 @@
       font-size: 18px; color: #57534e;
       line-height: 1.6; margin: 0; max-width: 620px;
     }
+
+    /* Live reading progress indicator at the top of the content area */
+    .reading-progress {
+      position: fixed;
+      top: 0; left: 260px; right: 0;
+      height: 3px;
+      background: linear-gradient(90deg, #fbbf24, #d97706);
+      width: 0;
+      z-index: 99;
+      transition: width 0.1s linear;
+    }
+
+    /* Current-section indicator pill in the top-right of the viewport */
+    .section-indicator {
+      position: fixed;
+      top: 16px; right: 20px;
+      padding: 8px 16px;
+      border-radius: 999px;
+      background: rgba(28, 25, 23, 0.92);
+      color: #fafaf9;
+      font-size: 12px;
+      font-weight: 600;
+      letter-spacing: 0.02em;
+      box-shadow: 0 8px 24px -8px rgba(0, 0, 0, 0.35);
+      backdrop-filter: blur(8px);
+      opacity: 0;
+      transform: translateY(-12px);
+      transition: all 0.3s ease;
+      z-index: 90;
+      pointer-events: none;
+      max-width: calc(100vw - 40px);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .section-indicator.visible { opacity: 1; transform: translateY(0); }
+    .section-indicator .dot {
+      display: inline-block;
+      width: 7px; height: 7px; border-radius: 50%;
+      background: #fbbf24;
+      margin-right: 8px;
+      vertical-align: middle;
+    }
+
+    /* Jump-to-top button */
     .jump-top {
-      position: fixed; bottom: 24px; right: 24px;
+      position: fixed;
+      bottom: 24px; right: 24px;
       width: 44px; height: 44px; border-radius: 50%;
       background: #1c1917; color: #fafaf9; border: none;
       cursor: pointer; font-size: 20px; line-height: 1;
@@ -66,14 +190,18 @@
     }
     .jump-top.visible { opacity: 1; transform: translateY(0); }
     .jump-top:hover { background: #d97706; }
+
     @media (max-width: 900px) {
       .doc-hero h1 { font-size: 32px !important; }
       .doc-hero p { font-size: 15px; }
+      .reading-progress { left: 0; }
+      .section-indicator { top: 56px; font-size: 11px; padding: 6px 12px; }
     }
   </style>
 </head>
 <body>
   <div class="scroll-progress"></div>
+  <div class="reading-progress" id="reading-progress"></div>
 
   <header class="mobile-header">
     <button class="mobile-toggle" aria-label="Menú">☰</button>
@@ -84,12 +212,17 @@
   <div class="sidebar-overlay"></div>
   <aside class="sidebar"></aside>
 
+  <div class="section-indicator" id="section-indicator">
+    <span class="dot"></span>
+    <span id="section-indicator-text">Inicio</span>
+  </div>
+
   <main class="content">
     <div class="all-content">
       <header class="doc-hero">
         <div class="kicker">Manual completo · v2.0</div>
         <h1>Licitómetro de principio a fin</h1>
-        <p>Toda la documentación en una sola página. Usá el sidebar izquierdo para saltar directo a una sección, o simplemente scrolleá de arriba a abajo.</p>
+        <p>Toda la documentación en una sola página. Scrolleá de arriba a abajo — el sidebar va marcando en vivo en qué sección estás.</p>
       </header>
 
       <div id="doc-sections">
@@ -124,6 +257,15 @@
       { id: 'changelog',     label: 'Changelog',               section: 'Referencia',     url: '/manual/pages/changelog.html' }
     ];
 
+    // Map: pageId -> DOM <a> in sidebar
+    var pageLinks = {};
+    // Map: anchorId -> DOM <a> in sidebar (h2 children)
+    var subLinks = {};
+    // Map: pageId -> container for child anchors (for expand/collapse)
+    var subContainers = {};
+    // Sorted list of { id, top, type: 'page'|'sub', pageId } — recomputed on layout change
+    var anchorIndex = [];
+
     function el(tag, className, text) {
       var n = document.createElement(tag);
       if (className) n.className = className;
@@ -131,6 +273,20 @@
       return n;
     }
 
+    function slugify(str) {
+      return (str || '')
+        .toLowerCase()
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '')
+        .replace(/[^a-z0-9]+/g, '-')
+        .replace(/^-+|-+$/g, '')
+        .slice(0, 60);
+    }
+
+    // ============================================================
+    // Sidebar build — brand + section groups + page links
+    // Sub-anchor <a>s are added later after each page is loaded
+    // ============================================================
     function buildSidebar() {
       var sidebar = document.querySelector('.sidebar');
       if (!sidebar) return;
@@ -156,36 +312,47 @@
       sidebar.appendChild(searchBox);
 
       var nav = el('div', 'sidebar-nav');
+
+      // Group PAGES by section
       var groups = [];
       var groupMap = {};
       for (var i = 0; i < PAGES.length; i++) {
         var p = PAGES[i];
         if (!groupMap[p.section]) {
-          groupMap[p.section] = [];
-          groups.push({ title: p.section, items: groupMap[p.section] });
+          groupMap[p.section] = { title: p.section, items: [] };
+          groups.push(groupMap[p.section]);
         }
-        groupMap[p.section].push(p);
+        groupMap[p.section].items.push(p);
       }
 
       for (var g = 0; g < groups.length; g++) {
-        var group = groups[g];
         var sec = el('div', 'sidebar-section');
-        sec.appendChild(el('div', 'sidebar-section-title', group.title));
-        for (var j = 0; j < group.items.length; j++) {
-          var item = group.items[j];
+        sec.appendChild(el('div', 'sidebar-section-title', groups[g].title));
+        for (var j = 0; j < groups[g].items.length; j++) {
+          var item = groups[g].items[j];
+
           var a = document.createElement('a');
           a.href = '#' + item.id;
+          a.className = 'nav-page';
           a.appendChild(document.createTextNode(item.label));
           if (item.badge) {
             a.appendChild(document.createTextNode(' '));
             a.appendChild(el('span', 'badge admin', item.badge));
           }
           sec.appendChild(a);
+          pageLinks[item.id] = a;
+
+          // Container for H2 sub-links — populated after page load
+          var container = el('div', 'nav-children');
+          container.setAttribute('data-page', item.id);
+          sec.appendChild(container);
+          subContainers[item.id] = container;
         }
         nav.appendChild(sec);
       }
       sidebar.appendChild(nav);
 
+      // Filter behaviour
       input.addEventListener('input', function() {
         var q = input.value.trim().toLowerCase();
         var links = nav.querySelectorAll('a');
@@ -205,18 +372,9 @@
       });
     }
 
-    function buildErrorSection(page, message) {
-      var section = el('section', 'doc-section');
-      section.id = page.id;
-      section.appendChild(el('div', 'doc-section-label', page.section));
-      section.appendChild(el('h2', null, page.label));
-      var adm = el('div', 'admonition warning');
-      adm.appendChild(el('div', 'admonition-title', '⚠ No se pudo cargar'));
-      adm.appendChild(el('p', null, 'Error: ' + message));
-      section.appendChild(adm);
-      return section;
-    }
-
+    // ============================================================
+    // Page loading — fetch each page, extract <main>, add H2 anchors
+    // ============================================================
     function rewriteLinks(root) {
       var links = root.querySelectorAll('a[href]');
       for (var i = 0; i < links.length; i++) {
@@ -236,6 +394,37 @@
       }
     }
 
+    function addLazyToImages(root) {
+      var imgs = root.querySelectorAll('img');
+      for (var i = 0; i < imgs.length; i++) {
+        if (!imgs[i].hasAttribute('loading')) imgs[i].setAttribute('loading', 'lazy');
+        if (!imgs[i].hasAttribute('decoding')) imgs[i].setAttribute('decoding', 'async');
+      }
+    }
+
+    function addSubLinksForPage(page, section) {
+      var container = subContainers[page.id];
+      if (!container) return;
+      while (container.firstChild) container.removeChild(container.firstChild);
+
+      var headings = section.querySelectorAll('h2');
+      for (var i = 0; i < headings.length; i++) {
+        var h2 = headings[i];
+        var text = (h2.textContent || '').trim();
+        if (!text) continue;
+
+        var subId = page.id + '-' + (h2.id || slugify(text));
+        h2.id = subId;
+
+        var a = document.createElement('a');
+        a.href = '#' + subId;
+        a.className = 'nav-sub';
+        a.textContent = text.length > 40 ? text.slice(0, 38) + '…' : text;
+        container.appendChild(a);
+        subLinks[subId] = { link: a, pageId: page.id };
+      }
+    }
+
     function loadPage(page) {
       return fetch(page.url, { credentials: 'include' }).then(function(res) {
         if (!res.ok) throw new Error(res.status + ' ' + res.statusText);
@@ -249,14 +438,25 @@
         for (var i = 0; i < toRemove.length; i++) toRemove[i].remove();
 
         rewriteLinks(main);
+        addLazyToImages(main);
 
         var section = el('section', 'doc-section');
         section.id = page.id;
         section.appendChild(el('div', 'doc-section-label', page.section));
         while (main.firstChild) section.appendChild(main.firstChild);
+
+        addSubLinksForPage(page, section);
         return section;
       }).catch(function(err) {
-        return buildErrorSection(page, String(err && err.message ? err.message : err));
+        var errEl = el('section', 'doc-section');
+        errEl.id = page.id;
+        errEl.appendChild(el('div', 'doc-section-label', page.section));
+        errEl.appendChild(el('h2', null, page.label));
+        var adm = el('div', 'admonition warning');
+        adm.appendChild(el('div', 'admonition-title', '⚠ No se pudo cargar'));
+        adm.appendChild(el('p', null, 'Error: ' + String(err && err.message ? err.message : err)));
+        errEl.appendChild(adm);
+        return errEl;
       });
     }
 
@@ -279,24 +479,139 @@
       });
     }
 
-    function setupScrollSpy() {
-      if (!('IntersectionObserver' in window)) return;
-      var observer = new IntersectionObserver(function(entries) {
-        for (var i = 0; i < entries.length; i++) {
-          if (entries[i].isIntersecting) {
-            var id = entries[i].target.id;
-            var allLinks = document.querySelectorAll('.sidebar-nav a');
-            for (var j = 0; j < allLinks.length; j++) allLinks[j].classList.remove('active');
-            var active = document.querySelector('.sidebar-nav a[href="#' + id + '"]');
-            if (active) active.classList.add('active');
-          }
-        }
-      }, { rootMargin: '-20% 0px -70% 0px', threshold: 0 });
+    // ============================================================
+    // SCROLL-SPY — the user's key ask. Sidebar listens to scroll.
+    // We build a sorted index of every anchor (page + h2) by its
+    // documentTop, then on each scroll tick we find the lowest one
+    // whose top has passed the activation line (20% from viewport top).
+    // ============================================================
+    function buildAnchorIndex() {
+      anchorIndex = [];
+      for (var i = 0; i < PAGES.length; i++) {
+        var p = PAGES[i];
+        var sectionEl = document.getElementById(p.id);
+        if (!sectionEl) continue;
+        var rect = sectionEl.getBoundingClientRect();
+        var absTop = rect.top + window.scrollY;
+        anchorIndex.push({ id: p.id, top: absTop, type: 'page', pageId: p.id, label: p.label });
 
-      var sections = document.querySelectorAll('.doc-section');
-      for (var k = 0; k < sections.length; k++) observer.observe(sections[k]);
+        var h2s = sectionEl.querySelectorAll('h2');
+        for (var j = 0; j < h2s.length; j++) {
+          var h2 = h2s[j];
+          if (!h2.id) continue;
+          var h2Rect = h2.getBoundingClientRect();
+          var h2Top = h2Rect.top + window.scrollY;
+          anchorIndex.push({ id: h2.id, top: h2Top, type: 'sub', pageId: p.id, label: (h2.textContent || '').trim() });
+        }
+      }
+      anchorIndex.sort(function(a, b) { return a.top - b.top; });
     }
 
+    var currentActivePage = null;
+    var currentActiveAnchor = null;
+
+    function updateActiveState() {
+      if (!anchorIndex.length) return;
+
+      var activationY = window.scrollY + window.innerHeight * 0.20; // 20% from top of viewport
+      var current = anchorIndex[0];
+      for (var i = 0; i < anchorIndex.length; i++) {
+        if (anchorIndex[i].top <= activationY) {
+          current = anchorIndex[i];
+        } else {
+          break;
+        }
+      }
+
+      // Determine active page — either the current (if it's a page) or the parent page of an h2
+      var activePageId = current.type === 'page' ? current.id : current.pageId;
+      var activeAnchorId = current.id;
+
+      if (activePageId !== currentActivePage) {
+        currentActivePage = activePageId;
+        // Clear previous page classes
+        for (var pid in pageLinks) {
+          if (!Object.prototype.hasOwnProperty.call(pageLinks, pid)) continue;
+          pageLinks[pid].classList.remove('active');
+          pageLinks[pid].classList.remove('in-view');
+        }
+        // Collapse all sub containers
+        for (var cid in subContainers) {
+          if (!Object.prototype.hasOwnProperty.call(subContainers, cid)) continue;
+          subContainers[cid].classList.remove('expanded');
+        }
+        if (pageLinks[activePageId]) {
+          pageLinks[activePageId].classList.add('active');
+          pageLinks[activePageId].classList.add('in-view');
+          // Scroll the active link into view inside the sidebar
+          scrollSidebarTo(pageLinks[activePageId]);
+        }
+        if (subContainers[activePageId]) {
+          subContainers[activePageId].classList.add('expanded');
+        }
+        // Update the floating indicator
+        updateIndicator(activePageId, activeAnchorId);
+      }
+
+      if (activeAnchorId !== currentActiveAnchor) {
+        currentActiveAnchor = activeAnchorId;
+        // Clear previous sub-link active
+        for (var sid in subLinks) {
+          if (!Object.prototype.hasOwnProperty.call(subLinks, sid)) continue;
+          subLinks[sid].link.classList.remove('active');
+        }
+        if (current.type === 'sub' && subLinks[activeAnchorId]) {
+          subLinks[activeAnchorId].link.classList.add('active');
+          scrollSidebarTo(subLinks[activeAnchorId].link);
+        }
+        updateIndicator(activePageId, activeAnchorId);
+      }
+    }
+
+    function scrollSidebarTo(link) {
+      var sidebar = document.querySelector('.sidebar');
+      if (!sidebar || !link) return;
+      var sbRect = sidebar.getBoundingClientRect();
+      var linkRect = link.getBoundingClientRect();
+      // Only scroll sidebar if the link is outside its visible area
+      if (linkRect.top < sbRect.top + 80 || linkRect.bottom > sbRect.bottom - 80) {
+        var targetTop = link.offsetTop - sidebar.clientHeight / 2;
+        sidebar.scrollTo({ top: Math.max(0, targetTop), behavior: 'smooth' });
+      }
+    }
+
+    function updateIndicator(pageId, anchorId) {
+      var indicator = document.getElementById('section-indicator');
+      var text = document.getElementById('section-indicator-text');
+      if (!indicator || !text) return;
+      var pageObj = null;
+      for (var i = 0; i < PAGES.length; i++) {
+        if (PAGES[i].id === pageId) { pageObj = PAGES[i]; break; }
+      }
+      if (!pageObj) return;
+
+      var display = pageObj.label;
+      if (anchorId && subLinks[anchorId]) {
+        display = pageObj.label + ' → ' + subLinks[anchorId].link.textContent;
+      }
+      text.textContent = display;
+      indicator.classList.add('visible');
+    }
+
+    // ============================================================
+    // Reading progress bar
+    // ============================================================
+    function updateReadingProgress() {
+      var bar = document.getElementById('reading-progress');
+      if (!bar) return;
+      var max = document.documentElement.scrollHeight - window.innerHeight;
+      var pct = max > 0 ? (window.scrollY / max) * 100 : 0;
+      bar.style.width = pct + '%';
+    }
+
+    // ============================================================
+    // Mobile toggle + jump-top + scroll wiring
+    // ============================================================
     function setupChrome() {
       var toggle = document.querySelector('.mobile-toggle');
       var sidebar = document.querySelector('.sidebar');
@@ -320,12 +635,34 @@
 
       var bar = document.querySelector('.scroll-progress');
       var jump = document.getElementById('jump-top');
+
+      // Single rAF-throttled scroll handler for ALL scroll-driven UI
+      var ticking = false;
       window.addEventListener('scroll', function() {
-        var y = window.scrollY;
-        var max = document.documentElement.scrollHeight - window.innerHeight;
-        if (bar) bar.style.width = (max > 0 ? (y / max) * 100 : 0) + '%';
-        if (jump) jump.classList.toggle('visible', y > 400);
-      });
+        if (!ticking) {
+          window.requestAnimationFrame(function() {
+            var y = window.scrollY;
+            var max = document.documentElement.scrollHeight - window.innerHeight;
+            if (bar) bar.style.width = (max > 0 ? (y / max) * 100 : 0) + '%';
+            if (jump) jump.classList.toggle('visible', y > 400);
+            updateReadingProgress();
+            updateActiveState();
+            ticking = false;
+          });
+          ticking = true;
+        }
+      }, { passive: true });
+
+      // Recompute anchor positions on resize (layout changes)
+      var resizeTimer;
+      window.addEventListener('resize', function() {
+        clearTimeout(resizeTimer);
+        resizeTimer = setTimeout(function() {
+          buildAnchorIndex();
+          updateActiveState();
+        }, 150);
+      }, { passive: true });
+
       if (jump) {
         jump.addEventListener('click', function() {
           window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -333,10 +670,51 @@
       }
     }
 
+    // ============================================================
+    // Init
+    // ============================================================
     function init() {
       buildSidebar();
       setupChrome();
-      loadAllPages().then(setupScrollSpy);
+      loadAllPages().then(function() {
+        // Wait one tick for layout to settle (images, fonts)
+        requestAnimationFrame(function() {
+          buildAnchorIndex();
+          updateActiveState();
+          updateReadingProgress();
+
+          // Rebuild anchor index after images finish loading (they shift layout)
+          var imgs = document.querySelectorAll('#doc-sections img');
+          var pending = imgs.length;
+          if (pending === 0) return;
+          var rebuilt = false;
+          var rebuildSoon = function() {
+            if (rebuilt) return;
+            rebuilt = true;
+            setTimeout(function() {
+              buildAnchorIndex();
+              updateActiveState();
+            }, 100);
+          };
+          for (var i = 0; i < imgs.length; i++) {
+            if (imgs[i].complete) {
+              pending--;
+              if (pending === 0) rebuildSoon();
+            } else {
+              imgs[i].addEventListener('load', function() {
+                pending--;
+                if (pending === 0) rebuildSoon();
+              });
+              imgs[i].addEventListener('error', function() {
+                pending--;
+                if (pending === 0) rebuildSoon();
+              });
+            }
+          }
+          // Fallback: rebuild after 3s regardless
+          setTimeout(function() { buildAnchorIndex(); updateActiveState(); }, 3000);
+        });
+      });
     }
 
     if (document.readyState === 'loading') {
