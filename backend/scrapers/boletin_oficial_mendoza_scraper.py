@@ -187,23 +187,12 @@ class BoletinOficialMendozaScraper(BaseScraper):
         return None
 
     def _extract_text_from_pdf(self, pdf_bytes: bytes) -> str:
-        """Extract text from PDF using pypdf (memory-efficient). Max pages capped."""
-        from pypdf import PdfReader
+        """Extract text from PDF using the unified extractor.
 
-        try:
-            reader = PdfReader(io.BytesIO(pdf_bytes))
-            num_pages = min(len(reader.pages), self.MAX_PDF_PAGES)
-            text_parts = []
-            for i in range(num_pages):
-                page_text = reader.pages[i].extract_text()
-                if page_text:
-                    text_parts.append(page_text)
-            if num_pages < len(reader.pages):
-                logger.info(f"Processed {num_pages}/{len(reader.pages)} pages (capped)")
-            return "\n\n".join(text_parts)
-        except Exception as exc:
-            logger.error(f"PDF text extraction failed: {exc}")
-            return ""
+        Honors USE_OPENDATALOADER_PDF env flag with automatic fallback to pypdf.
+        """
+        from services.enrichment.pdf_zip_enricher import extract_text_from_pdf_bytes
+        return extract_text_from_pdf_bytes(pdf_bytes)
 
     def _extract_text_from_pdf_page(self, pdf_bytes: bytes, page_num: int) -> str:
         """Extract text from a specific page of PDF."""

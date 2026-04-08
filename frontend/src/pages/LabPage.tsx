@@ -97,6 +97,8 @@ const LabPage: React.FC = () => {
   const [pdfLoading, setPdfLoading] = useState(false);
   const [pdfResult, setPdfResult] = useState<any>(null);
   const [showRawPdf, setShowRawPdf] = useState(false);
+  const [pdfCompareResult, setPdfCompareResult] = useState<any>(null);
+  const [pdfCompareLoading, setPdfCompareLoading] = useState(false);
 
   const PDF_PRESETS = [
     { label: 'BOE Mendoza 32566', url: 'https://boe.mendoza.gov.ar/default/public/publico/verpdf/32566' },
@@ -115,6 +117,19 @@ const LabPage: React.FC = () => {
       setPdfResult({ success: false, error: err?.response?.data?.detail || err.message, timing_ms: 0 });
     }
     setPdfLoading(false);
+  };
+
+  const runPdfCompare = async () => {
+    if (!pdfUrl) return;
+    setPdfCompareLoading(true);
+    setPdfCompareResult(null);
+    try {
+      const res = await axios.post('/api/lab/pdf-compare', { url: pdfUrl, timeout: 180 });
+      setPdfCompareResult(res.data);
+    } catch (err: any) {
+      setPdfCompareResult({ success: false, error: err?.response?.data?.detail || err.message });
+    }
+    setPdfCompareLoading(false);
   };
 
   useEffect(() => {
@@ -610,7 +625,82 @@ const LabPage: React.FC = () => {
             >
               {pdfLoading ? 'Parseando…' : 'Parsear PDF'}
             </button>
+            <button
+              onClick={runPdfCompare}
+              disabled={pdfCompareLoading || !pdfUrl}
+              className="px-5 py-2 bg-blue-600 text-white rounded-lg text-sm font-bold hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {pdfCompareLoading ? 'Comparando…' : 'A/B vs pypdf'}
+            </button>
           </div>
+
+          {/* Compare result */}
+          {pdfCompareLoading && (
+            <div className="bg-blue-50 border border-blue-200 rounded-lg p-6 text-center">
+              <div className="inline-block w-8 h-8 border-3 border-blue-300 border-t-blue-600 rounded-full animate-spin mb-2"></div>
+              <p className="text-blue-700 text-sm font-medium">Comparando pypdf vs opendataloader…</p>
+            </div>
+          )}
+
+          {pdfCompareResult && !pdfCompareLoading && (
+            <div className="bg-white border-2 border-blue-300 rounded-lg p-4 space-y-4">
+              <h3 className="text-sm font-bold text-blue-700">Comparación A/B</h3>
+              {pdfCompareResult.error && (
+                <div className="bg-red-50 border border-red-200 rounded p-3 text-red-700 text-sm">{pdfCompareResult.error}</div>
+              )}
+              {pdfCompareResult.pdf_size_bytes && (
+                <div className="text-xs text-gray-500">
+                  PDF: {(pdfCompareResult.pdf_size_bytes / 1024 / 1024).toFixed(2)} MB •
+                  Download: {pdfCompareResult.download_ms}ms
+                </div>
+              )}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {/* pypdf column */}
+                <div className="border border-gray-200 rounded-lg p-3">
+                  <div className="flex items-center justify-between mb-2">
+                    <h4 className="font-bold text-gray-700">pypdf (actual)</h4>
+                    {pdfCompareResult.pypdf?.timing_ms !== undefined && <TimingBadge ms={pdfCompareResult.pypdf.timing_ms} />}
+                  </div>
+                  {pdfCompareResult.pypdf?.error ? (
+                    <div className="text-red-600 text-xs">{pdfCompareResult.pypdf.error}</div>
+                  ) : (
+                    <>
+                      <div className="text-xs text-gray-500 mb-2">
+                        {pdfCompareResult.pypdf?.text_length?.toLocaleString()} chars
+                      </div>
+                      <pre className="text-xs bg-gray-50 p-2 rounded max-h-64 overflow-auto whitespace-pre-wrap">{pdfCompareResult.pypdf?.sample}</pre>
+                    </>
+                  )}
+                </div>
+                {/* opendataloader column */}
+                <div className="border border-amber-200 rounded-lg p-3 bg-amber-50/30">
+                  <div className="flex items-center justify-between mb-2">
+                    <h4 className="font-bold text-amber-700">opendataloader (nuevo)</h4>
+                    {pdfCompareResult.opendataloader?.timing_ms !== undefined && <TimingBadge ms={pdfCompareResult.opendataloader.timing_ms} />}
+                  </div>
+                  {pdfCompareResult.opendataloader?.error ? (
+                    <div className="text-red-600 text-xs">{pdfCompareResult.opendataloader.error}</div>
+                  ) : (
+                    <>
+                      <div className="text-xs text-gray-500 mb-2">
+                        {pdfCompareResult.opendataloader?.text_length?.toLocaleString()} chars •
+                        {pdfCompareResult.opendataloader?.summary?.total_elements} elementos •
+                        {pdfCompareResult.opendataloader?.summary?.pages} páginas
+                      </div>
+                      {pdfCompareResult.opendataloader?.summary?.type_counts && (
+                        <div className="flex flex-wrap gap-1 mb-2">
+                          {Object.entries(pdfCompareResult.opendataloader.summary.type_counts as Record<string, number>).map(([t, c]) => (
+                            <span key={t} className="text-[10px] bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded">{t}: {c}</span>
+                          ))}
+                        </div>
+                      )}
+                      <pre className="text-xs bg-amber-50 p-2 rounded max-h-64 overflow-auto whitespace-pre-wrap">{pdfCompareResult.opendataloader?.sample}</pre>
+                    </>
+                  )}
+                </div>
+              </div>
+            </div>
+          )}
 
           {/* Presets */}
           <div className="flex flex-wrap gap-2">

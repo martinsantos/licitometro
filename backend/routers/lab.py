@@ -218,6 +218,88 @@ async def opendataloader_test(body: OpenDataLoaderRequest):
     return await service.parse_url(body.url, timeout=body.timeout)
 
 
+@router.post("/pdf-compare")
+async def pdf_compare(body: OpenDataLoaderRequest):
+    """Side-by-side comparison: parse same PDF with pypdf AND opendataloader.
+
+    Downloads PDF once, then runs both extractors and returns:
+    - pypdf: plain text length, sample, timing
+    - opendataloader: element count, types, text length, sample, timing
+    """
+    import time
+    from services.enrichment.pdf_zip_enricher import (
+        download_binary, _extract_with_pypdf, _extract_with_opendataloader, MAX_PDF_BYTES
+    )
+
+    # Download once
+    start = time.time()
+    pdf_bytes = await download_binary(None, body.url, MAX_PDF_BYTES)
+    download_ms = int((time.time() - start) * 1000)
+
+    if not pdf_bytes:
+        return {"success": False, "error": "Could not download PDF", "download_ms": download_ms}
+
+    pdf_size = len(pdf_bytes)
+
+    # Run pypdf
+    pypdf_result: Dict[str, Any] = {}
+    try:
+        pypdf_start = time.time()
+        pypdf_text = _extract_with_pypdf(pdf_bytes)
+        pypdf_ms = int((time.time() - pypdf_start) * 1000)
+        pypdf_result = {
+            "success": bool(pypdf_text),
+            "timing_ms": pypdf_ms,
+            "text_length": len(pypdf_text or ""),
+            "sample": (pypdf_text or "")[:1500],
+        }
+    except Exception as e:
+        pypdf_result = {"success": False, "error": f"{type(e).__name__}: {e}", "timing_ms": 0}
+
+    # Run opendataloader
+    odl_result: Dict[str, Any] = {}
+    try:
+        odl_start = time.time()
+        odl_text = _extract_with_opendataloader(pdf_bytes)
+        odl_ms = int((time.time() - odl_start) * 1000)
+        # Also get full structured output for stats
+        from services.opendataloader_service import OpenDataLoaderService
+        svc = OpenDataLoaderService()
+        # Build summary inline (re-parses but gets type counts)
+        import json as _json
+        import tempfile as _tf
+        import os as _os
+        import opendataloader_pdf
+        with _tf.TemporaryDirectory() as td:
+            p = _os.path.join(td, "i.pdf")
+            o = _os.path.join(td, "out")
+            _os.makedirs(o)
+            with open(p, "wb") as f:
+                f.write(pdf_bytes)
+            opendataloader_pdf.convert(input_path=[p], output_dir=o, format="json")
+            json_files = [f for f in _os.listdir(o) if f.endswith(".json")]
+            structured = _json.load(open(_os.path.join(o, json_files[0]))) if json_files else {}
+        summary = svc._build_summary(structured)
+        odl_result = {
+            "success": bool(odl_text),
+            "timing_ms": odl_ms,
+            "text_length": len(odl_text or ""),
+            "sample": (odl_text or "")[:1500],
+            "summary": summary.get("summary"),
+            "metadata": summary.get("metadata"),
+        }
+    except Exception as e:
+        odl_result = {"success": False, "error": f"{type(e).__name__}: {e}", "timing_ms": 0}
+
+    return {
+        "success": True,
+        "pdf_size_bytes": pdf_size,
+        "download_ms": download_ms,
+        "pypdf": pypdf_result,
+        "opendataloader": odl_result,
+    }
+
+
 @router.post("/extract")
 async def firecrawl_extract(body: ExtractRequest):
     """Extract structured licitacion data from URLs via Firecrawl LLM."""

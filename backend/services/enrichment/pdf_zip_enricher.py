@@ -15,6 +15,11 @@ MAX_PDF_BYTES = int(os.environ.get("MAX_PDF_BYTES", 25 * 1024 * 1024))
 MAX_ZIP_BYTES = int(os.environ.get("MAX_ZIP_BYTES", 50 * 1024 * 1024))
 MAX_PDF_PAGES = int(os.environ.get("MAX_PDF_PAGES", 200))
 
+# Feature flag: use opendataloader-pdf (Java-based, structured) instead of pypdf.
+# Falls back to pypdf automatically on failure or if not available.
+# Rollback: set USE_OPENDATALOADER_PDF=false in .env and restart backend.
+USE_OPENDATALOADER_PDF = os.environ.get("USE_OPENDATALOADER_PDF", "false").lower() == "true"
+
 
 async def download_binary(http: ResilientHttpClient, url: str, max_bytes: int) -> Optional[bytes]:
     """Stream-download binary content with size limit."""
@@ -81,7 +86,25 @@ async def download_binary(http: ResilientHttpClient, url: str, max_bytes: int) -
 
 
 def extract_text_from_pdf_bytes(pdf_bytes: bytes) -> str:
-    """Extract text from PDF bytes using pypdf. Page count capped."""
+    """Extract text from PDF bytes.
+
+    If USE_OPENDATALOADER_PDF is enabled, tries opendataloader-pdf first
+    (Java-based, structured output, preserves reading order, ~10-30s/PDF).
+    Falls back to pypdf on any failure (~1-3s/PDF, plain text).
+    """
+    if USE_OPENDATALOADER_PDF:
+        try:
+            text = _extract_with_opendataloader(pdf_bytes)
+            if text and len(text) > 50:
+                return text
+            logger.info("opendataloader returned empty/short result, falling back to pypdf")
+        except Exception as e:
+            logger.warning(f"opendataloader extraction failed ({type(e).__name__}: {e}), falling back to pypdf")
+    return _extract_with_pypdf(pdf_bytes)
+
+
+def _extract_with_pypdf(pdf_bytes: bytes) -> str:
+    """Original pypdf-based extraction. Page count capped at MAX_PDF_PAGES."""
     from pypdf import PdfReader
     try:
         reader = PdfReader(io.BytesIO(pdf_bytes))
@@ -95,8 +118,77 @@ def extract_text_from_pdf_bytes(pdf_bytes: bytes) -> str:
             logger.info(f"PDF capped at {num_pages}/{len(reader.pages)} pages")
         return "\n\n".join(parts)
     except Exception as e:
-        logger.error(f"PDF text extraction failed: {e}")
+        logger.error(f"pypdf text extraction failed: {e}")
         return ""
+
+
+def _extract_with_opendataloader(pdf_bytes: bytes) -> str:
+    """Use opendataloader-pdf (Java) to extract structured kids[], flatten to text in reading order.
+
+    Headings are prefixed with "## " markers so downstream regex/text analysis
+    can detect them better than from pypdf flat output.
+    """
+    import json
+    import tempfile
+    try:
+        import opendataloader_pdf
+    except ImportError:
+        raise RuntimeError("opendataloader-pdf not installed")
+
+    with tempfile.TemporaryDirectory() as td:
+        input_path = os.path.join(td, "input.pdf")
+        output_dir = os.path.join(td, "output")
+        os.makedirs(output_dir, exist_ok=True)
+        with open(input_path, "wb") as f:
+            f.write(pdf_bytes)
+
+        opendataloader_pdf.convert(
+            input_path=[input_path],
+            output_dir=output_dir,
+            format="json",
+        )
+
+        json_files = [f for f in os.listdir(output_dir) if f.endswith(".json")]
+        if not json_files:
+            return ""
+
+        with open(os.path.join(output_dir, json_files[0]), encoding="utf-8") as f:
+            data = json.load(f)
+
+    return _flatten_kids_to_text(data)
+
+
+def _flatten_kids_to_text(data: dict) -> str:
+    """Walk the kids[] tree from opendataloader output and concatenate content
+    in reading order. Headings get '## ' prefix to preserve structure hints.
+    """
+    if not isinstance(data, dict):
+        return ""
+
+    parts: list = []
+    HEADING_TYPES = {"heading", "title", "h1", "h2", "h3", "h4"}
+
+    def walk(el: Any):
+        if not isinstance(el, dict):
+            return
+        etype = (el.get("type") or "").lower()
+        content = el.get("content") or el.get("text") or el.get("value") or ""
+        if isinstance(content, list):
+            content = " ".join(str(c) for c in content if c)
+        if content:
+            content_str = str(content).strip()
+            if content_str:
+                if etype in HEADING_TYPES:
+                    parts.append("\n## " + content_str + "\n")
+                else:
+                    parts.append(content_str)
+        for child in (el.get("kids") or el.get("children") or []):
+            walk(child)
+
+    for kid in data.get("kids", []):
+        walk(kid)
+
+    return "\n".join(parts)
 
 
 async def extract_text_from_pdf_url(http: ResilientHttpClient, url: str) -> Optional[str]:
