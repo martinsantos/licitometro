@@ -46,6 +46,29 @@ class CategoryClassifier:
                     self.keyword_to_rubros[kw_lower] = []
                 self.keyword_to_rubros[kw_lower].append(rubro_nombre)
 
+    # Regex to strip government organization phrases that pollute description-based
+    # classification (e.g. "MINISTERIO DE GOBIERNO, INFRAESTRUCTURA Y DESARROLLO TERRITORIAL"
+    # would wrongly contribute "infraestructura" to CONSTRUCCION).
+    _ORG_PREFIX_RE = re.compile(
+        r"(?:ministerio|secretar[ií]a|direcci[oó]n|subsecretar[ií]a|municipalidad|"
+        r"gobierno|departamento|repartici[oó]n)\s+(?:general\s+)?(?:de\s+)?"
+        r"[a-záéíóúñ][\wáéíóúñ\s,.-]{5,120}?"
+        r"(?=[\.;\n]|\s+y\s+(?:considerando|por\s+ello)|\s+visto|$)",
+        re.IGNORECASE,
+    )
+
+    # Keywords whose matches in description-only context are too ambiguous.
+    # "obra" is a conjugated verb in legal Spanish ("que obra a fs. X"), "infraestructura"
+    # is often part of ministry names. Require these to appear in title/objeto to count.
+    _DESC_ONLY_AMBIGUOUS = {"obra", "infraestructura", "gobierno", "territorial", "desarrollo"}
+
+    def _field_hits(self, text: str, keyword: str) -> int:
+        """Count word-boundary matches of keyword in text."""
+        if not text:
+            return 0
+        pattern = r"\b" + re.escape(keyword) + r"\b"
+        return len(re.findall(pattern, text, re.IGNORECASE))
+
     def classify(
         self,
         title: Optional[str] = None,
@@ -56,42 +79,57 @@ class CategoryClassifier:
         """
         Classify a licitación into a rubro based on its content.
 
+        Uses weighted field scoring:
+          - objeto: weight 10  (most authoritative)
+          - title:  weight 5
+          - keywords: weight 3
+          - description: weight 1 (with org boilerplate stripped)
+
+        Ambiguous keywords ("obra", "infraestructura", etc.) are only counted
+        when they appear in title/objeto, NOT in description-only context.
+
         Returns the best matching rubro name, or None if no match found.
         """
-        # Combine all text for analysis
-        text_parts = []
-        if title:
-            text_parts.append(title)
-        if objeto:
-            text_parts.append(objeto)
-        if description:
-            text_parts.append(description)
-        if keywords:
-            text_parts.extend(keywords)
+        # Strip government organization boilerplate from description to avoid
+        # false positives from ministry names like "MINISTERIO DE GOBIERNO,
+        # INFRAESTRUCTURA Y DESARROLLO TERRITORIAL".
+        desc_clean = description or ""
+        if desc_clean:
+            desc_clean = self._ORG_PREFIX_RE.sub(" ", desc_clean)
 
-        if not text_parts:
+        fields = {
+            "objeto": (objeto or "", 10),
+            "title": (title or "", 5),
+            "keywords": (" ".join(keywords or []), 3),
+            "description": (desc_clean, 1),
+        }
+
+        if not any(text for text, _ in fields.values()):
             return None
 
-        combined_text = " ".join(text_parts).lower()
-
-        # Count matches for each rubro
-        rubro_scores: Dict[str, int] = {}
+        # Pre-compute hits per keyword per field
+        title_objeto_combined = f"{title or ''} {objeto or ''}".lower()
+        rubro_scores: Dict[str, float] = {}
 
         for keyword, rubros in self.keyword_to_rubros.items():
-            # Use word boundary search for more accurate matching
-            pattern = r"\b" + re.escape(keyword) + r"\b"
-            matches = len(re.findall(pattern, combined_text, re.IGNORECASE))
+            kw_lower = keyword.lower()
+            is_ambiguous = kw_lower in self._DESC_ONLY_AMBIGUOUS
 
-            if matches > 0:
+            for field_name, (text, weight) in fields.items():
+                hits = self._field_hits(text, keyword)
+                if hits == 0:
+                    continue
+                # Ambiguous keywords only count in title/objeto (noun context)
+                if is_ambiguous and field_name == "description":
+                    continue
+                contribution = hits * weight
                 for rubro in rubros:
-                    rubro_scores[rubro] = rubro_scores.get(rubro, 0) + matches
+                    rubro_scores[rubro] = rubro_scores.get(rubro, 0) + contribution
 
         if not rubro_scores:
             return None
 
-        # Return the rubro with highest score
-        best_rubro = max(rubro_scores, key=rubro_scores.get)
-        return best_rubro
+        return max(rubro_scores, key=rubro_scores.get)
 
     def get_all_rubros(self) -> List[Dict[str, str]]:
         """Get list of all rubros for frontend display."""

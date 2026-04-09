@@ -28,6 +28,15 @@ logger = logging.getLogger("nodo_matcher")
 # Characters to strip from keywords and text before matching
 _PUNCT_RE = re.compile(r"[''`\"\-\.]")
 
+# Minimum signal required to assign a nodo via keyword matching.
+# A single weak keyword (score ~0.006 on a 165-keyword nodo) is noise and should NOT
+# assign a nodo. Require either:
+#   - at least 2 independent keyword matches, OR
+#   - a score >= MIN_NODO_SCORE (>=2% of total keywords)
+# Category-based matches (score == 1.0) always pass.
+MIN_NODO_SCORE = 0.02
+MIN_NODO_MATCHED_KEYWORDS = 2
+
 
 def _spanish_stem(word: str) -> str:
     """Basic Spanish plural → singular stemming."""
@@ -45,20 +54,17 @@ def _spanish_stem(word: str) -> str:
 def _build_flexible_pattern(keyword: str) -> re.Pattern:
     """Build a regex pattern that matches a keyword with accent, spacing, and plural tolerance.
 
-    Short keywords get word boundaries to prevent matching substrings of unrelated words:
-    - Any single word <=3 chars (e.g. "Vid" should NOT match "serVIDor")
-    - Uppercase acronyms <=4 chars (e.g. "PC" should NOT match "Pcos")
-    Acronyms also skip the plural suffix (PC, ERP don't pluralize).
+    ALL keywords get word boundaries to prevent matching substrings of unrelated words
+    (e.g. "side" must not match inside "considerando", "tramit" must not match "tramita").
+    Uppercase acronyms (<=4 chars, all caps) skip the plural suffix — "PC" doesn't become "PCs".
     """
     clean = _PUNCT_RE.sub("", keyword)           # 1. strip punct
     words = strip_accents(clean).split()          # 2. split + strip accents
     if not words:
         return re.compile(re.escape(keyword), re.IGNORECASE)
 
-    # Short keywords need word boundaries to avoid substring matches
-    needs_boundary = len(words) == 1 and (len(clean) <= 3 or (len(clean) <= 4 and clean == clean.upper()))
-    # Acronyms (all uppercase) also skip plural suffix — "PC" doesn't become "PCs"
-    is_acronym = needs_boundary and clean == clean.upper()
+    # Acronyms (all uppercase <=4) skip plural suffix
+    is_acronym = len(words) == 1 and len(clean) <= 4 and clean == clean.upper()
 
     patterns = []
     for w in words:
@@ -69,8 +75,9 @@ def _build_flexible_pattern(keyword: str) -> re.Pattern:
         patterns.append(rx)
     joined = r'\s*'.join(patterns)                # 6. flexible spacing
 
-    if needs_boundary:
-        joined = r'\b' + joined + r'\b'           # 6b. word boundaries for short keywords
+    # 6b. ALWAYS add word boundaries — prevents substring false positives like
+    # "side" matching "considerando" or "tramit" matching "tramita".
+    joined = r'\b' + joined + r'\b'
 
     return re.compile(joined, re.IGNORECASE)      # 7. compile
 
@@ -147,11 +154,19 @@ class NodoMatcher:
                     matched_ids.append(str(nodo["_id"]))
                     continue
 
-            # Then check keyword patterns
-            for pattern in patterns:
-                if pattern.search(combined):
-                    matched_ids.append(str(nodo["_id"]))
-                    break  # one match per nodo is enough
+            # Then check keyword patterns — apply noise filter
+            if not patterns:
+                continue
+            matched_count = sum(1 for p in patterns if p.search(combined))
+            if matched_count == 0:
+                continue
+            score = matched_count / len(patterns)
+            # Require minimum signal ratio: 2% of nodo keywords must match.
+            # This prevents huge nodos (100+ keywords) from matching every licitación
+            # via 1-2 spurious substring hits. Category matches bypass this (score==1.0).
+            if score < MIN_NODO_SCORE:
+                continue
+            matched_ids.append(str(nodo["_id"]))
         return matched_ids
 
     def match_licitacion_with_scores(
@@ -189,10 +204,19 @@ class NodoMatcher:
             if not patterns:
                 continue
             matched_count = sum(1 for p in patterns if p.search(combined))
-            if matched_count > 0:
-                nodo_id = str(nodo["_id"])
-                matched_ids.append(nodo_id)
-                scores[nodo_id] = round(matched_count / len(patterns), 3)
+            if matched_count == 0:
+                continue
+            score = round(matched_count / len(patterns), 3)
+            # Noise filter: a single weak keyword on a huge nodo is not a match.
+            # Require either multiple keyword matches OR a meaningful score ratio.
+            # Require minimum signal ratio: 2% of nodo keywords must match.
+            # This prevents huge nodos (100+ keywords) from matching every licitación
+            # via 1-2 spurious substring hits. Category matches bypass this (score==1.0).
+            if score < MIN_NODO_SCORE:
+                continue
+            nodo_id = str(nodo["_id"])
+            matched_ids.append(nodo_id)
+            scores[nodo_id] = score
 
         return matched_ids, scores
 

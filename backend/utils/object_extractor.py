@@ -25,15 +25,33 @@ _BOILERPLATE = {
     "licitacion privada", "concurso de precios",
 }
 
-# Verbs/phrases that introduce the procurement object
+# Verbs/phrases that introduce the procurement object.
+# NOTE: "obra" as verb ("la nota que obra a fojas X") is ambiguous in Spanish legalese,
+# so it is NOT listed here as a generic prefix. "Obra:" as a label is handled separately
+# by _OBJETO_LABEL_RE with strict line-start + colon.
+#
+# The capture allows an optional connector "e/y <second_verb> de" so that phrases like
+# "adquisición E instalación de una máquina cafetera" are matched (previously failed because
+# the regex required "adquisición DE" directly).
 _OBJETO_INTRO_RE = re.compile(
-    r"(?:adquisici[oó]n\s+de|provisi[oó]n\s+de|construcci[oó]n\s+de|"
-    r"ampliaci[oó]n\s+de|mantenimiento\s+de|prestaci[oó]n\s+de|"
-    r"ejecuci[oó]n\s+de|reparaci[oó]n\s+de|instalaci[oó]n\s+de|"
-    r"contrataci[oó]n\s+de(?:l?\s+servicio\s+de)?|suministro\s+de|"
-    r"servicio\s+de|alquiler\s+de|locaci[oó]n\s+de|compra\s+de|"
-    r"venta\s+de|obra\s*:?\s)"
-    r"(.{5,200}?)(?:\.|,\s*(?:por|para|en|con|seg[uú]n)|$)",
+    r"(?:adquisici[oó]n|provisi[oó]n|construcci[oó]n|"
+    r"ampliaci[oó]n|mantenimiento|prestaci[oó]n|"
+    r"ejecuci[oó]n|reparaci[oó]n|instalaci[oó]n|"
+    r"contrataci[oó]n(?:\s+del?\s+servicio)?|suministro|"
+    r"servicio|alquiler|locaci[oó]n|compra|venta)"
+    r"(?:\s+[eyo]\s+(?:adquisici[oó]n|provisi[oó]n|construcci[oó]n|"
+    r"ampliaci[oó]n|mantenimiento|prestaci[oó]n|"
+    r"ejecuci[oó]n|reparaci[oó]n|instalaci[oó]n|suministro|"
+    r"servicio|compra))?"
+    r"\s+de\s+"
+    r"(.{5,200}?)"
+    r"(?=[\.\;\:]|\n|,\s*(?:por|para|en|con|seg[uú]n|destinad[oa]s?|conforme|mediante)|$)",
+    re.IGNORECASE,
+)
+
+# Strict "OBJETO:" label (line-start, colon required) — unambiguous
+_OBJETO_STRICT_LABEL_RE = re.compile(
+    r"(?:^|\n)\s*(?:objeto|obra)\s*:\s*(.+?)(?:[\.\n;]|$)",
     re.IGNORECASE,
 )
 
@@ -96,6 +114,45 @@ def _clean_objeto(text: str) -> Optional[str]:
     return text
 
 
+def _strip_boe_header(text: str) -> str:
+    """Strip Boletin Oficial metadata header up to the 'Visto' decree opening.
+
+    BOE web items begin with: "Imprimir Texto Publicado Tema: Decreto Origen: MINISTERIO...
+    DE MES DE YYYY Visto el expediente...". Everything before "Visto" is metadata and
+    contaminates both category classification and objeto fallback extraction.
+    """
+    if not text:
+        return text
+    m = re.search(r"\b[Vv]isto\s+(?:el|la|lo|los)\b", text)
+    if m:
+        return text[m.start():]
+    return text
+
+
+def _find_obra_label(text: str) -> Optional[str]:
+    """Find an "obra: <CONSTRUCTION NAME>" label in text.
+
+    Requires the content after the colon to START with an uppercase letter to filter
+    the verbal usage ("orden N° 15 obra la Solicitud..."). Used for decrees that
+    adjudicate a construction work.
+    """
+    if not text:
+        return None
+    for m in re.finditer(r"(?:^|[\W])obra\s*:\s*", text, re.IGNORECASE):
+        rest = text[m.end():m.end() + 300]
+        if not rest:
+            continue
+        # Content must start with uppercase letter (construction work name)
+        if not rest[0].isupper():
+            continue
+        # Capture until period, semicolon, or newline
+        end_m = re.search(r"[.;\n]", rest)
+        content = rest[:end_m.start()] if end_m else rest[:200]
+        if len(content.strip()) > 10:
+            return content.strip()
+    return None
+
+
 def extract_objeto(
     title: Optional[str] = None,
     description: Optional[str] = None,
@@ -106,9 +163,11 @@ def extract_objeto(
 
     Priority:
     1. metadata.comprar_pliego_fields["Objeto de la contratacion"]
-    2. "Objeto:" label in description
+    2. "Objeto:" label in description (strict, line-anchored)
     3. Verb-phrase extraction ("adquisicion de...", "provision de...")
-    4. First significant sentence in description
+    4. "obra: <UPPERCASE>" construction-work label (mid-sentence, uppercase content only)
+    5. UPPERCASE decree phrase
+    6. First significant sentence (after stripping BOE metadata header)
     """
     meta = metadata or {}
 
@@ -138,7 +197,16 @@ def extract_objeto(
             if obj:
                 return obj
 
-    # 4. UPPERCASE phrase (common in Boletin decrees)
+    # 4. "obra: <UPPERCASE construction name>" — only when content is uppercase
+    #    (filters verbal "obra" usage)
+    if description:
+        obra_content = _find_obra_label(description)
+        if obra_content:
+            obj = _clean_objeto("Obra: " + obra_content)
+            if obj:
+                return obj
+
+    # 5. UPPERCASE phrase (common in Boletin decrees)
     if description:
         m = _UPPERCASE_OBJETO_RE.search(description)
         if m:
@@ -146,17 +214,27 @@ def extract_objeto(
             if obj:
                 return obj
 
-    # 5. Fallback: first significant sentence of description
+    # 6. Fallback: first significant sentence of description.
+    #    Strip BOE metadata header first so we don't get "Imprimir Texto Publicado..."
     if description:
+        clean_desc = _strip_boe_header(description)
         # Split into sentences
-        sentences = re.split(r"(?<=[.!?])\s+", description.strip())
-        for sent in sentences[:3]:
+        sentences = re.split(r"(?<=[.!?;])\s+", clean_desc.strip())
+        for sent in sentences[:5]:
             sent = sent.strip()
-            if len(sent) > 20:
-                lower = sent.lower()
-                # Skip boilerplate
-                if any(bp in lower for bp in _BOILERPLATE):
-                    continue
-                return _clean_objeto(sent)
+            if len(sent) < 20:
+                continue
+            lower = sent.lower()
+            # Skip sentences that are pure boilerplate or header echoes
+            if any(bp in lower for bp in _BOILERPLATE):
+                continue
+            # Skip decree boilerplate fragments
+            if re.match(
+                r"^(?:imprimir|visto|considerando|y\s+considerando|por\s+ello|el\s+gobernador|"
+                r"que\s+(?:en|el|la|los|las)|tema\s*:|origen\s*:)",
+                lower,
+            ):
+                continue
+            return _clean_objeto(sent)
 
     return None

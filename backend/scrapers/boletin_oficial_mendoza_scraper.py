@@ -451,15 +451,26 @@ class BoletinOficialMendozaScraper(BaseScraper):
             except ValueError:
                 pass
 
-        # Organization from first line or ORGANISMO label
+        # Organization from first line or ORGANISMO label.
+        # Stop at: newline, end-of-text, or a date pattern like ", 07 DE ABRIL DE 2026".
         m = re.search(
             r"(?:ORGANISMO|REPARTICI[OÓ]N|DEPARTAMENTO|DIRECCI[OÓ]N|MINISTERIO)\s*"
             r"(?:GENERAL\s*)?(?:DE\s*)?([A-ZÁÉÍÓÚÑ][A-ZÁÉÍÓÚÑ\s,.-]{5,80})",
             text, re.IGNORECASE,
         )
         if m:
-            org = m.group(0).strip()[:80]
-            result["organization"] = org
+            org = m.group(0).strip()
+            # Cut at comma-followed-by-date ("MENDOZA, 07 DE ABRIL DE 2026")
+            org = re.sub(
+                r",\s*\d{1,2}\s+DE\s+(?:ENERO|FEBRERO|MARZO|ABRIL|MAYO|JUNIO|"
+                r"JULIO|AGOSTO|SEPTIEMBRE|OCTUBRE|NOVIEMBRE|DICIEMBRE).*$",
+                "", org, flags=re.IGNORECASE,
+            )
+            # Cut at "Visto" (decree body start)
+            org = re.sub(r"\s+Visto\b.*$", "", org, flags=re.IGNORECASE)
+            org = org.strip().rstrip(",.;: ")[:80]
+            if len(org) > 5:
+                result["organization"] = org
 
         return result
 
@@ -861,10 +872,25 @@ class BoletinOficialMendozaScraper(BaseScraper):
                 if tema_match:
                     tema = tema_match.group(1).strip()
 
-                # Try to extract Origen
+                # Try to extract Origen.
+                # Stop at: comma-followed-by-date ("MENDOZA, 07 DE ABRIL DE 2026"),
+                # "Visto"/"Visto el", or end of uppercase run.
                 origin_match = re.search(r"Origen:\s*([A-ZÁÉÍÓÚÑ0-9 ,.-]+)", details_text or "")
                 if origin_match:
-                    organization = origin_match.group(1).strip()
+                    org_raw = origin_match.group(1).strip()
+                    # Strip "MENDOZA, <date>" tails
+                    org_clean = re.sub(
+                        r",?\s*\d{1,2}\s+DE\s+(?:ENERO|FEBRERO|MARZO|ABRIL|MAYO|JUNIO|"
+                        r"JULIO|AGOSTO|SEPTIEMBRE|OCTUBRE|NOVIEMBRE|DICIEMBRE)\s+DE\s+\d{4}.*$",
+                        "", org_raw, flags=re.IGNORECASE,
+                    )
+                    # Strip trailing lone uppercase letter left over from "Visto" etc.
+                    org_clean = re.sub(r"\s+[A-Z]$", "", org_clean)
+                    # Strip trailing " MENDOZA," if it's a city marker (keep only the ministry)
+                    org_clean = re.sub(r",\s*MENDOZA\s*,?\s*$", "", org_clean, flags=re.IGNORECASE)
+                    org_clean = org_clean.strip().rstrip(",.;: ")
+                    if len(org_clean) > 5:
+                        organization = org_clean[:150]
 
                 # Try to extract page number for PDF deep link
                 page_num = None

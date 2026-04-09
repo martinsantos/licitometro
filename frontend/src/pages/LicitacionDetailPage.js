@@ -526,7 +526,7 @@ const LicitacionDetailPage = ({ userRole }) => {
                   Hunter
                 </button>
 
-                {isAdmin && licitacion?.source_url && (
+                {licitacion?.source_url && (
                   <div className="flex sm:flex-col gap-2">
                     <button
                       onClick={() => enrichLicitacion(2)}
