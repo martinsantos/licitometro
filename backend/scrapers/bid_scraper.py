@@ -16,6 +16,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 from models.scraper_config import ScraperConfig
 from models.licitacion import LicitacionCreate
 from scrapers.base_scraper import BaseScraper
+from utils.dates import utc_now
 
 logger = logging.getLogger("scraper.bid")
 
@@ -159,8 +160,9 @@ class BidScraper(BaseScraper):
                 publication_date=publication_date,
                 opening_date=opening_date,
                 description=description[:2000] if description else None,
+                expedient_number=project_number or None,
                 budget=budget,
-                currency="USD",
+                currency="USD" if budget else None,
                 source_url=source_url,
                 fuente=self.config.name,
                 jurisdiccion="Internacional",
@@ -168,6 +170,7 @@ class BidScraper(BaseScraper):
                 estado=estado,
                 objeto=objeto,
                 fecha_prorroga=None,
+                fecha_scraping=utc_now(),
                 status="active",
                 metadata={
                     "bid_project": project,

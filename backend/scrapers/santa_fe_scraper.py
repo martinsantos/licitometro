@@ -17,6 +17,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 from models.scraper_config import ScraperConfig
 from models.licitacion import LicitacionCreate
 from scrapers.base_scraper import BaseScraper
+from utils.dates import utc_now
 
 logger = logging.getLogger("scraper.santa_fe")
 
@@ -146,6 +147,9 @@ class SantaFeScraper(BaseScraper):
             from utils.object_extractor import extract_objeto
             objeto = extract_objeto(title, description[:500] if description else "", None)
 
+            # Extract budget from description (conservative: requires $ prefix)
+            budget = self._extract_budget(description)
+
             return LicitacionCreate(
                 id_licitacion=f"santafe-{id_suffix}",
                 title=title[:500],
@@ -153,6 +157,8 @@ class SantaFeScraper(BaseScraper):
                 publication_date=publication_date,
                 opening_date=opening_date,
                 description=description[:2000] if description else None,
+                budget=budget,
+                currency="ARS" if budget else None,
                 source_url=link or self.cartelera_url,
                 fuente=self.config.name,
                 jurisdiccion="Santa Fe",
@@ -160,10 +166,33 @@ class SantaFeScraper(BaseScraper):
                 estado=estado,
                 objeto=objeto,
                 fecha_prorroga=None,
+                fecha_scraping=utc_now(),
                 status="active",
             )
         except Exception as e:
             logger.warning(f"Error parsing RSS item: {e}")
+            return None
+
+    def _extract_budget(self, text: str) -> Optional[float]:
+        """Extract monetary amount from text. Conservative: requires '$' prefix."""
+        if not text:
+            return None
+        m = re.search(r"\$\s*([\d.,]+)", text)
+        if not m:
+            return None
+        try:
+            raw = m.group(1)
+            # Argentine format: "." is thousands, "," is decimal
+            if "," in raw and "." in raw:
+                raw = raw.replace(".", "").replace(",", ".")
+            elif "," in raw:
+                raw = raw.replace(",", ".")
+            else:
+                raw = raw.replace(".", "")
+            value = float(raw)
+            # Sanity check: ignore amounts under 1000 (likely page numbers)
+            return value if value >= 1000 else None
+        except (ValueError, TypeError):
             return None
 
     def _html_row_to_licitacion(self, row) -> Optional[LicitacionCreate]:
@@ -188,20 +217,40 @@ class SantaFeScraper(BaseScraper):
 
             id_suffix = re.sub(r"[^a-zA-Z0-9]", "", href[-40:]) if href else str(hash(title))[:12]
 
-            # Resolve dates instead of hardcoding estado
+            # Extract opening_date from row text (same regex as RSS flow)
+            opening_date_raw = None
+            apertura_match = re.search(
+                r"(?:Apertura|Fecha de apertura)[:\s]+(\d{1,2}[/\-]\d{1,2}[/\-]\d{2,4})",
+                text,
+                re.I,
+            )
+            if apertura_match:
+                from utils.dates import parse_date_guess
+                opening_date_raw = parse_date_guess(apertura_match.group(1))
+
+            # Resolve dates
             publication_date = self._resolve_publication_date(
                 parsed_date=None, title=title, description=text[:500],
             )
-            estado = self._compute_estado(publication_date, None)
+            opening_date = self._resolve_opening_date(
+                parsed_date=opening_date_raw, title=title,
+                description=text[:500], publication_date=publication_date,
+            )
+            estado = self._compute_estado(publication_date, opening_date)
 
             from utils.object_extractor import extract_objeto
             objeto = extract_objeto(title, text[:500] if text else "", None)
+
+            budget = self._extract_budget(text)
 
             return LicitacionCreate(
                 id_licitacion=f"santafe-html-{id_suffix}",
                 title=title[:500],
                 organization="Gobierno de Santa Fe",
                 publication_date=publication_date,
+                opening_date=opening_date,
+                budget=budget,
+                currency="ARS" if budget else None,
                 source_url=href or self.cartelera_url,
                 fuente=self.config.name,
                 jurisdiccion="Santa Fe",
@@ -209,6 +258,7 @@ class SantaFeScraper(BaseScraper):
                 estado=estado,
                 objeto=objeto,
                 fecha_prorroga=None,
+                fecha_scraping=utc_now(),
                 status="active",
             )
         except Exception as e:

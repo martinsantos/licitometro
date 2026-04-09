@@ -21,6 +21,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 from models.scraper_config import ScraperConfig
 from models.licitacion import LicitacionCreate
 from scrapers.base_scraper import BaseScraper
+from utils.dates import utc_now
 
 logger = logging.getLogger("scraper.boletin_oficial_nacional")
 
@@ -184,18 +185,38 @@ class BoletinOficialNacionalScraper(BaseScraper):
             pub_date_parsed = None
             objeto = None
 
+            attached_files: List[Dict[str, Any]] = []
             if detail_html:
-                detail = self._parse_detail_page(detail_html)
+                detail = self._parse_detail_page(detail_html, base_url=notice.get("url") or BASE_URL)
                 description = detail.get("description", "")
                 expediente = detail.get("expediente")
                 budget = detail.get("budget")
                 opening_date_parsed = detail.get("opening_date")
                 pub_date_parsed = detail.get("publication_date")
                 objeto = detail.get("objeto")
+                attached_files = detail.get("attached_files", []) or []
                 if detail.get("org"):
                     org = detail["org"]
                 if detail.get("title") and len(detail["title"]) > len(title):
                     title = detail["title"]
+
+            # Extract licitacion_number from title (e.g. "LPU-1-2026", "Licitación Pública N° 5/2024")
+            licitacion_number = None
+            lic_num_match = re.search(
+                r"\b(LP[UN]?|CD|LPR|CP)\s*[-\s]?\s*(\d+[-/]\d+(?:[-/]\d{2,4})?)",
+                title,
+                re.I,
+            )
+            if lic_num_match:
+                licitacion_number = f"{lic_num_match.group(1).upper()}-{lic_num_match.group(2)}"
+            else:
+                num_match = re.search(
+                    r"(?:Licitaci[oó]n\s+(?:P[uú]blica|Privada)|Contrataci[oó]n\s+Directa|Concurso)\s*(?:N[°º.]?)?\s*([\d]+[-/][\d]+(?:[-/][\d]{2,4})?)",
+                    title,
+                    re.I,
+                )
+                if num_match:
+                    licitacion_number = num_match.group(1)
 
             # Parse publication date from URL date string (YYYYMMDD)
             if not pub_date_parsed and notice.get("date_str"):
@@ -239,6 +260,7 @@ class BoletinOficialNacionalScraper(BaseScraper):
                 opening_date=opening_date,
                 description=description[:2000] if description else None,
                 expedient_number=expediente,
+                licitacion_number=licitacion_number,
                 budget=budget,
                 currency="ARS" if budget else None,
                 source_url=notice["url"],
@@ -248,6 +270,8 @@ class BoletinOficialNacionalScraper(BaseScraper):
                 estado=estado,
                 objeto=objeto,
                 fecha_prorroga=None,
+                fecha_scraping=utc_now(),
+                attached_files=attached_files,
                 status="active",
                 metadata={
                     "bo_aviso_id": aviso_id,
@@ -258,7 +282,7 @@ class BoletinOficialNacionalScraper(BaseScraper):
             logger.warning(f"Error building BO notice: {e}")
             return None
 
-    def _parse_detail_page(self, html: str) -> Dict[str, Any]:
+    def _parse_detail_page(self, html: str, base_url: str = BASE_URL) -> Dict[str, Any]:
         """Extract structured fields from a detail page."""
         soup = BeautifulSoup(html, "html.parser")
         result: Dict[str, Any] = {}
@@ -267,6 +291,31 @@ class BoletinOficialNacionalScraper(BaseScraper):
         detail_div = soup.find(id="detalleAviso") or soup.find("body")
         if not detail_div:
             return result
+
+        # Extract PDF / downloadable attachments
+        attached_files: List[Dict[str, Any]] = []
+        seen_urls = set()
+        for a in detail_div.select("a[href]"):
+            href = (a.get("href") or "").strip()
+            if not href:
+                continue
+            href_lower = href.lower()
+            is_pdf = href_lower.endswith(".pdf") or ".pdf?" in href_lower
+            is_download = "descargar" in href_lower or "download" in href_lower
+            if not (is_pdf or is_download):
+                continue
+            full_url = urljoin(base_url, href)
+            if full_url in seen_urls:
+                continue
+            seen_urls.add(full_url)
+            name = a.get_text(strip=True) or href.rsplit("/", 1)[-1]
+            attached_files.append({
+                "name": name[:200],
+                "url": full_url,
+                "type": "pdf" if is_pdf else "link",
+            })
+        if attached_files:
+            result["attached_files"] = attached_files
 
         full_text = detail_div.get_text(" ", strip=True)
         result["description"] = full_text[:2000]

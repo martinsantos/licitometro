@@ -7,6 +7,7 @@ API: https://search.worldbank.org/api/v2/procnotices
 from typing import List, Dict, Any, Optional
 import logging
 import json
+import re
 from datetime import datetime
 import sys
 from pathlib import Path
@@ -16,6 +17,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 from models.scraper_config import ScraperConfig
 from models.licitacion import LicitacionCreate
 from scrapers.base_scraper import BaseScraper
+from utils.dates import utc_now
 
 logger = logging.getLogger("scraper.banco_mundial")
 
@@ -141,6 +143,26 @@ class BancoMundialScraper(BaseScraper):
             from utils.object_extractor import extract_objeto
             objeto = extract_objeto(title, description[:500] if description else "", None)
 
+            # Attempt to extract budget from notice_text (regex conservative)
+            budget = None
+            currency = None
+            try:
+                notice_text_full = notice.get("notice_text", "") or ""
+                m = re.search(
+                    r"(?:USD|US\$|\$)\s*([\d,.]+)\s*(million|mill[oó]n)?",
+                    notice_text_full,
+                    re.I,
+                )
+                if m:
+                    raw_amount = m.group(1).replace(",", "")
+                    budget = float(raw_amount)
+                    if m.group(2):
+                        budget *= 1_000_000
+                    currency = "USD"
+            except (ValueError, TypeError):
+                budget = None
+                currency = None
+
             return LicitacionCreate(
                 id_licitacion=f"wb-{notice_id}",
                 title=title[:500],
@@ -148,6 +170,9 @@ class BancoMundialScraper(BaseScraper):
                 publication_date=publication_date,
                 opening_date=opening_date,
                 description=description[:2000] if description else None,
+                expedient_number=project_id or None,
+                budget=budget,
+                currency=currency,
                 source_url=source_url,
                 fuente=self.config.name,
                 jurisdiccion="Internacional",
@@ -155,6 +180,7 @@ class BancoMundialScraper(BaseScraper):
                 estado=estado,
                 objeto=objeto,
                 fecha_prorroga=None,
+                fecha_scraping=utc_now(),
                 status="active",
                 metadata={
                     "wb_project_id": project_id,
