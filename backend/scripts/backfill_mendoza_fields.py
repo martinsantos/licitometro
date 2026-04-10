@@ -82,19 +82,10 @@ async def main():
 
 async def _pass_regex(col, stats, limit, dry_run):
     """Pass 1: Extract fields using regex patterns and classifiers."""
-    from services.enrichment.text_analyzer import (
-        extract_budget_from_text,
-        extract_opening_date_from_text,
-    )
+    from services.enrichment.text_analyzer import extract_budget_from_text, extract_licitacion_number
     from utils.object_extractor import extract_objeto
+    from utils.dates import parse_date_guess
     from services.category_classifier import get_category_classifier
-
-    # Try importing extract_licitacion_number (may not exist yet)
-    try:
-        from services.enrichment.text_analyzer import extract_licitacion_number
-    except ImportError:
-        extract_licitacion_number = None
-        logger.warning("extract_licitacion_number not available, skipping")
 
     classifier = get_category_classifier()
 
@@ -136,19 +127,32 @@ async def _pass_regex(col, stats, limit, dry_run):
 
         # 2. Budget from description
         if not doc.get("budget") and description:
-            result = extract_budget_from_text(description)
-            if result and result.get("budget"):
-                updates["budget"] = result["budget"]
-                updates["currency"] = result.get("currency", "ARS")
+            budget_val, budget_currency = extract_budget_from_text(description)
+            if budget_val:
+                updates["budget"] = budget_val
+                updates["currency"] = budget_currency
                 updates["metadata.budget_source"] = "regex_backfill"
                 stats["budget_regex"] += 1
 
-        # 3. Opening date from description
+        # 3. Opening date from description (inline regex, same patterns as text_analyzer)
         if not doc.get("opening_date") and description:
-            result = extract_opening_date_from_text(description)
-            if result:
-                updates["opening_date"] = result
-                stats["opening_date_regex"] += 1
+            normalized = re.sub(r'\s+', ' ', description)
+            _opening_patterns = [
+                r"fecha\s*(?:de\s+)?(?:y\s+lugar\s+de\s+)?apertura\s*(?:de\s+ofertas)?\s*[:\s]+(\d{1,2}[/-]\d{1,2}[/-]\d{2,4}(?:\s+(?:a\s+las\s+)?\d{1,2}[:.]\d{2})?)",
+                r"apertura\s+(?:de\s+(?:las\s+)?(?:propuestas|ofertas|sobres)\s+)?(?:se\s+realizará\s+el\s+)?(\d{1,2}\s+de\s+\w+\s+(?:de\s+)?\d{4}(?:\s*[,a]\s*las?\s*\d{1,2}[:.]\d{2})?)",
+                r"apertura\s*[:\s]+(\d{1,2}[/-]\d{1,2}[/-]\d{2,4})",
+                r"apertura[^.]{0,30}?(\d{1,2}\s+de\s+\w+\s+(?:de\s+)?\d{4})",
+                r"(?:apertura|vencimiento)[:\s]*(\d{4}-\d{2}-\d{2})",
+                r"(?:plazo|recepci[oó]n)\s+(?:hasta|vence)\s+(?:el\s+)?(\d{1,2}[/-]\d{1,2}[/-]\d{2,4})",
+            ]
+            for pat in _opening_patterns:
+                m = re.search(pat, normalized, re.IGNORECASE)
+                if m:
+                    dt = parse_date_guess(m.group(1).strip())
+                    if dt:
+                        updates["opening_date"] = dt
+                        stats["opening_date_regex"] += 1
+                        break
 
         # 4. Category
         if not doc.get("category"):
