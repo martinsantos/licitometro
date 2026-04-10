@@ -307,6 +307,117 @@ class ComprasAppsMendozaScraper(BaseScraper):
             logger.error(f"POST search failed: {e}")
             return None
 
+    async def _fetch_detail(self, row: List[Any]) -> Optional[Dict[str, Any]]:
+        """Fetch detail popup for a grid row via GeneXus 'VER' event.
+
+        Returns dict with parsed fields (budget_parsed, currency, expedient_number,
+        description, norma_legal, etc.) or None on failure.
+        """
+        try:
+            anio = str(row[COL_ANIO]) if len(row) > COL_ANIO else ""
+            nro = str(row[COL_SEQ]) if len(row) > COL_SEQ else ""
+            tip_num = str(row[COL_TIPO_CODE]) if len(row) > COL_TIPO_CODE else ""
+            cuc_num = str(row[COL_CUC]) if len(row) > COL_CUC else ""
+
+            if not anio or not nro:
+                return None
+
+            form = {
+                "_EventName": "'VER'",
+                "_EventGridId": "97",
+                "_EventRowId": "",
+                "LIEJER": anio,
+                "LINRO": nro,
+                "LITIP": tip_num,
+                "LICUC": cuc_num,
+                "GXState": self._gxstate_raw,
+                "vEJER": str(self._search_anio),
+                "vLICNRO": "0",
+                "vLICUCFIL": "0",
+                "vESTFILTRO": self._search_estado,
+                "vLICABCONTIPOSEL": "",
+                "vRUBRO": "000000",
+                "vLICUC": self._search_cuc,
+                "vFINANSEL": "",
+                "vFCHDESDE": "  /  /  ",
+                "vFCHHASTA": "  /  /  ",
+            }
+
+            html = await self._post_search(form)
+            if not html:
+                return None
+
+            return self._parse_detail_html(html)
+        except Exception as e:
+            logger.debug(f"Detail fetch failed: {e}")
+            return None
+
+    def _parse_detail_html(self, html: str) -> Dict[str, Any]:
+        """Parse detail popup HTML to extract label-value pairs."""
+        soup = BeautifulSoup(html, "html.parser")
+        result: Dict[str, Any] = {}
+
+        # The popup renders as table cells: label in one td, value in next td
+        cells = soup.find_all("td")
+
+        label_map = {
+            "presupuesto oficial": "budget_raw",
+            "moneda": "currency_raw",
+            "descripci": "description",
+            "expediente": "expedient_raw",
+            "fecha de apertura": "opening_date_str",
+            "hora de apertura": "opening_time_str",
+            "repartici": "reparticion_destino",
+            "norma legal": "norma_legal",
+            "valor del pliego": "valor_pliego",
+            "garant": "garantia_oferta",
+            "plazo de entrega": "plazo_entrega",
+            "lugar de entrega": "lugar_entrega",
+            "forma de pago": "forma_pago",
+            "organismo licitante": "organismo_licitante",
+            "financiamiento": "financiamiento",
+        }
+
+        for i, cell in enumerate(cells):
+            cell_text = cell.get_text(strip=True)
+            cell_lower = cell_text.lower()
+            for label_key, field_name in label_map.items():
+                if label_key in cell_lower and field_name not in result:
+                    # Value is in the next cell(s)
+                    for nc in cells[i + 1 : i + 4]:
+                        val = nc.get_text(strip=True)
+                        if val and val.lower() != cell_lower and len(val) > 0:
+                            result[field_name] = val
+                            break
+                    break
+
+        # Parse budget: "30.000.000,00" → 30000000.00
+        if result.get("budget_raw"):
+            try:
+                raw = result["budget_raw"].replace(".", "").replace(",", ".")
+                budget = float(raw)
+                if budget > 0:
+                    result["budget_parsed"] = budget
+            except (ValueError, TypeError):
+                pass
+
+        # Parse currency: "PESOS" → "ARS", "DOLARES" → "USD"
+        currency_raw = (result.get("currency_raw") or "").upper()
+        if "PESO" in currency_raw:
+            result["currency"] = "ARS"
+        elif "DOLAR" in currency_raw or "USD" in currency_raw:
+            result["currency"] = "USD"
+        else:
+            result["currency"] = "ARS"
+
+        # Parse expediente: "Nro 388815 Letra Año 2026" → "388815/2026"
+        if result.get("expedient_raw"):
+            m = re.search(r"Nro?\s*(\d+).*?A[ñn]o\s*(\d{4})", result["expedient_raw"], re.I)
+            if m:
+                result["expedient_number"] = f"{m.group(1)}/{m.group(2)}"
+
+        return result
+
     def _extract_grid_data(self, html: str) -> List[List[Any]]:
         """Extract grid rows from LicitacionesContainerDataV hidden input."""
         soup = BeautifulSoup(html, "html.parser")
@@ -357,7 +468,8 @@ class ComprasAppsMendozaScraper(BaseScraper):
             logger.info(f"Extracted {len(rows)} rows from HTML table fallback")
         return rows
 
-    def _row_to_licitacion(self, row: List[Any]) -> Optional[LicitacionCreate]:
+    def _row_to_licitacion(self, row: List[Any],
+                           detail_data: Optional[Dict[str, Any]] = None) -> Optional[LicitacionCreate]:
         """Convert a grid row to a LicitacionCreate object."""
         try:
             # Safe accessor
@@ -462,9 +574,27 @@ class ComprasAppsMendozaScraper(BaseScraper):
             # Compute estado
             estado_vigencia = self._compute_estado(publication_date, opening_date, fecha_prorroga=None)
 
-            # Extract objeto from title
+            # Merge detail popup data if available
+            budget = None
+            currency = None
+            expedient_number = None
+            detail_description = None
+
+            if detail_data:
+                budget = detail_data.get("budget_parsed")
+                currency = detail_data.get("currency") if budget else None
+                expedient_number = detail_data.get("expedient_number")
+                detail_description = detail_data.get("description")
+                # Store all detail fields in metadata
+                metadata["detail_popup"] = {
+                    k: v for k, v in detail_data.items()
+                    if k not in ("budget_parsed",)
+                }
+
+            # Extract objeto from title or detail description
             from utils.object_extractor import extract_objeto
-            objeto = extract_objeto(titulo, titulo, None)
+            desc_for_obj = detail_description or titulo
+            objeto = extract_objeto(titulo, desc_for_obj[:1000], None)
 
             return LicitacionCreate(
                 title=titulo,
@@ -472,12 +602,15 @@ class ComprasAppsMendozaScraper(BaseScraper):
                 publication_date=publication_date,
                 opening_date=opening_date,
                 licitacion_number=numero,
-                description=titulo,
+                description=detail_description or titulo,
+                budget=budget,
+                currency=currency,
+                expedient_number=expedient_number,
                 objeto=objeto,
                 source_url=self.BASE_URL,
                 canonical_url=self.BASE_URL,
                 source_urls={"comprasapps_list": self.BASE_URL},
-                url_quality="list_only",
+                url_quality="list_only" if not detail_data else "detail",
                 content_hash=content_hash,
                 status=status,
                 location="Mendoza",
@@ -604,12 +737,17 @@ class ComprasAppsMendozaScraper(BaseScraper):
 
             logger.info(f"Total rows extracted: {len(all_rows)}")
 
+            # NOTE: Detail popup requires Selenium (GeneXus CSRF blocks HTTP AJAX).
+            # Use scripts/backfill_comprasapps_details.py for budget/expediente extraction.
+            detail_cache: Dict[str, Dict[str, Any]] = {}
+
             # Convert rows to licitaciones
             licitaciones: List[LicitacionCreate] = []
             seen_ids = set()
 
             for row in all_rows:
-                lic = self._row_to_licitacion(row)
+                num = str(row[COL_NUMERO]).strip() if len(row) > COL_NUMERO else ""
+                lic = self._row_to_licitacion(row, detail_data=detail_cache.get(num))
                 if not lic:
                     continue
 
