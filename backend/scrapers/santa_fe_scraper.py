@@ -136,16 +136,16 @@ class SantaFeScraper(BaseScraper):
 
             publication_date = self._resolve_publication_date(
                 parsed_date=pub_date, title=title,
-                description=description[:500], opening_date=opening_date_raw,
+                description=description[:1000], opening_date=opening_date_raw,
             )
             opening_date = self._resolve_opening_date(
                 parsed_date=opening_date_raw, title=title,
-                description=description[:500], publication_date=publication_date,
+                description=description[:1000], publication_date=publication_date,
             )
             estado = self._compute_estado(publication_date, opening_date)
 
             from utils.object_extractor import extract_objeto
-            objeto = extract_objeto(title, description[:500] if description else "", None)
+            objeto = extract_objeto(title, description[:1000] if description else "", None)
 
             # Extract budget from description (conservative: requires $ prefix)
             budget = self._extract_budget(description)

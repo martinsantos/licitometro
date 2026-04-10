@@ -182,19 +182,19 @@ class DatosArgentinaScraper(BaseScraper):
             publication_date = self._resolve_publication_date(
                 parsed_date=pub_date,
                 title=title,
-                description=description[:500],
+                description=description[:1000],
                 opening_date=opening_date,
             )
             opening_date_resolved = self._resolve_opening_date(
                 parsed_date=opening_date,
                 title=title,
-                description=description[:500],
+                description=description[:1000],
                 publication_date=publication_date,
             )
             estado = self._compute_estado(publication_date, opening_date_resolved)
 
             from utils.object_extractor import extract_objeto
-            objeto = extract_objeto(title, description[:500] if description else "", None)
+            objeto = extract_objeto(title, description[:1000] if description else "", None)
 
             return LicitacionCreate(
                 id_licitacion=id_licitacion,

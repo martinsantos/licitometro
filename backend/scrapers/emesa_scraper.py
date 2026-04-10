@@ -277,7 +277,7 @@ class EmesaScraper(BaseScraper):
         description = item.get("descripcion", "")
 
         from utils.object_extractor import extract_objeto
-        objeto = extract_objeto(title, description[:500] if description else "", None)
+        objeto = extract_objeto(title, description[:1000] if description else "", None)
 
         # VIGENCIA MODEL: Resolve dates with multi-source fallback
         publication_date = self._resolve_publication_date(

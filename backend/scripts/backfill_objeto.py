@@ -109,7 +109,7 @@ async def backfill():
             effective_title = updates.get("title", title)
             cat = classifier.classify(title=effective_title, objeto=objeto)
             if not cat and description:
-                cat = classifier.classify(title=effective_title, objeto=objeto, description=description[:500])
+                cat = classifier.classify(title=effective_title, objeto=objeto, description=description[:1000])
             if cat:
                 updates["category"] = cat
                 stats[fuente]["category_added"] += 1

@@ -46,6 +46,7 @@ class EnrichmentCronService:
             "started_at": start.isoformat(),
             "title_only": {"processed": 0, "enriched": 0, "errors": 0},
             "http": {"processed": 0, "enriched": 0, "errors": 0},
+            "groq_llm": {"processed": 0, "enriched": 0, "errors": 0, "skipped": 0},
         }
 
         # Pass 1: Title-only enrichment (ComprasApps + items without usable source_url)
@@ -60,6 +61,12 @@ class EnrichmentCronService:
         except Exception as e:
             logger.error(f"HTTP pass failed: {e}")
 
+        # Pass 3: Groq LLM fallback (items with description but missing budget/category)
+        try:
+            await self._pass_groq_llm(stats)
+        except Exception as e:
+            logger.error(f"Groq LLM pass failed: {e}")
+
         stats["finished_at"] = utc_now().isoformat()
         duration = (utc_now() - start).total_seconds()
         stats["duration_seconds"] = round(duration, 1)
@@ -67,7 +74,8 @@ class EnrichmentCronService:
         logger.info(
             f"Enrichment cycle complete in {duration:.0f}s — "
             f"title-only: {stats['title_only']['enriched']}/{stats['title_only']['processed']}, "
-            f"HTTP: {stats['http']['enriched']}/{stats['http']['processed']}"
+            f"HTTP: {stats['http']['enriched']}/{stats['http']['processed']}, "
+            f"Groq: {stats['groq_llm']['enriched']}/{stats['groq_llm']['processed']}"
         )
         return stats
 
@@ -118,7 +126,7 @@ class EnrichmentCronService:
                     objeto = updates.get("objeto", doc.get("objeto", ""))
                     cat = classifier.classify(title=title, objeto=objeto)
                     if not cat:
-                        cat = classifier.classify(title=title, objeto=objeto, description=description[:500])
+                        cat = classifier.classify(title=title, objeto=objeto, description=description[:1000])
                     if cat:
                         updates["category"] = cat
 
@@ -251,6 +259,106 @@ class EnrichmentCronService:
         if config_doc:
             return config_doc.get("selectors", {})
         return None
+
+    async def _pass_groq_llm(self, stats: dict):
+        """Pass 3: Use Groq LLM to extract fields from items with description
+        but missing budget or category. Only runs if GROQ_API_KEY is set."""
+        from services.groq_field_extractor import get_groq_field_extractor
+
+        extractor = get_groq_field_extractor()
+        if not extractor.enabled:
+            logger.info("Groq LLM pass skipped (GROQ_API_KEY not set)")
+            return
+
+        MAX_GROQ_BATCH = 50
+        GROQ_DELAY = 3.0  # 20 req/min = 3s between calls
+        MAX_GROQ_RUNTIME = 10 * 60  # 10 min safety cap
+
+        # Items with description but missing budget OR category, not yet processed by Groq
+        query = {
+            "enrichment_level": {"$gte": 2},
+            "description": {"$ne": None, "$exists": True},
+            "$or": [
+                {"budget": None},
+                {"budget": {"$exists": False}},
+                {"category": None},
+                {"category": {"$exists": False}},
+            ],
+            "metadata.groq_enriched": {"$ne": True},
+        }
+
+        cursor = self.db.licitaciones.find(
+            query,
+            {"title": 1, "description": 1, "objeto": 1, "budget": 1,
+             "opening_date": 1, "category": 1, "metadata": 1},
+        ).sort("first_seen_at", -1).limit(MAX_GROQ_BATCH)
+
+        items = await cursor.to_list(length=MAX_GROQ_BATCH)
+        if not items:
+            logger.info("Groq LLM pass: no items to process")
+            return
+
+        logger.info(f"Groq LLM pass: processing {len(items)} items")
+        groq_start = utc_now()
+
+        for doc in items:
+            elapsed = (utc_now() - groq_start).total_seconds()
+            if elapsed > MAX_GROQ_RUNTIME:
+                logger.warning(f"Groq LLM pass hit runtime cap ({MAX_GROQ_RUNTIME}s)")
+                break
+
+            stats["groq_llm"]["processed"] += 1
+            try:
+                result = await extractor.extract_missing_fields(
+                    title=doc.get("title", ""),
+                    description=doc.get("description", ""),
+                    objeto=doc.get("objeto"),
+                )
+
+                updates: Dict[str, Any] = {"metadata.groq_enriched": True}
+                fields_set = []
+
+                # Budget (only if currently missing)
+                if result.get("budget") and not doc.get("budget"):
+                    updates["budget"] = result["budget"]
+                    updates["currency"] = result.get("currency", "ARS")
+                    updates["metadata.budget_source"] = "groq_llm"
+                    fields_set.append("budget")
+
+                # Opening date (only if currently missing)
+                if result.get("opening_date") and not doc.get("opening_date"):
+                    updates["opening_date"] = result["opening_date"]
+                    fields_set.append("opening_date")
+
+                # Category (only if currently missing)
+                if result.get("category") and not doc.get("category"):
+                    updates["category"] = result["category"]
+                    fields_set.append("category")
+
+                # Objeto (only if currently missing)
+                if result.get("objeto") and not doc.get("objeto"):
+                    updates["objeto"] = result["objeto"]
+                    fields_set.append("objeto")
+
+                await self.db.licitaciones.update_one(
+                    {"_id": doc["_id"]},
+                    {"$set": updates},
+                )
+
+                if fields_set:
+                    stats["groq_llm"]["enriched"] += 1
+                    logger.debug(f"Groq enriched {doc['_id']}: {', '.join(fields_set)}")
+
+            except Exception as e:
+                stats["groq_llm"]["errors"] += 1
+                logger.warning(f"Groq LLM error for {doc.get('_id')}: {e}")
+
+            await asyncio.sleep(GROQ_DELAY)
+
+        logger.info(
+            f"Groq LLM pass done: {stats['groq_llm']['enriched']}/{stats['groq_llm']['processed']} enriched, "
+            f"{stats['groq_llm']['errors']} errors"
+        )
 
 
 # Singleton

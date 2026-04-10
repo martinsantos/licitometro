@@ -186,7 +186,7 @@ class BaseScraper(ABC):
 
         # Priority 3: Extract FULL date from description (first 500 chars)
         if description:
-            desc_preview = description[:500]
+            desc_preview = description[:1000]
             full_date = extract_date_from_text(desc_preview, context="description")
             if full_date:
                 is_valid, _ = validate_date_range(full_date, "publication_date")
@@ -206,7 +206,7 @@ class BaseScraper(ABC):
 
         # Priority 5: Extract YEAR from description
         if description:
-            desc_preview = description[:500]
+            desc_preview = description[:1000]
             year = extract_year_from_text(desc_preview, context="description", source_hint=source_name)
             if year:
                 estimated = datetime(year, 1, 1)
@@ -310,7 +310,7 @@ class BaseScraper(ABC):
             if title:
                 year = extract_year_from_text(title, context="title", source_hint=source_name)
             if not year and description:
-                year = extract_year_from_text(description[:500], context="description", source_hint=source_name)
+                year = extract_year_from_text(description[:1000], context="description", source_hint=source_name)
 
             if year and year == publication_date.year:
                 # Same year, estimate +45 days

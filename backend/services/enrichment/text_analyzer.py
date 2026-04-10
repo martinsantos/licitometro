@@ -22,6 +22,14 @@ def extract_budget_from_text(text: str) -> Tuple[Optional[float], str]:
         r"(?:presupuesto|monto|importe|valor)\s*(?:oficial|estimado|total|aproximado|referencial)?[:\s]*\$?\s*([\d]+(?:\.[\d]{3})*(?:,[\d]{1,2})?)",
         r"\$\s*([\d]+(?:\.[\d]{3})+(?:,[\d]{1,2})?)",
         r"(?:presupuesto|monto|importe)\s*(?:oficial|estimado)?[:\s]*\$?\s*([\d]+\.[\d]{2})\b",
+        # Currency prefix (ARS/AR$)
+        r"(?:ARS|AR\$)\s*([\d]+(?:\.[\d]{3})*(?:,[\d]{1,2})?)",
+        # "pesos" suffix
+        r"([\d]+(?:\.[\d]{3})*(?:,[\d]{1,2})?)\s*pesos",
+        # "presupuesto base/oficial/estimado" without $ sign
+        r"presupuesto\s+(?:base|oficial|estimado)[:\s]*([\d]+(?:\.[\d]{3})*(?:,[\d]{1,2})?)",
+        # "por un monto/total de"
+        r"(?:por\s+un\s+(?:monto|total)\s+de)\s*\$?\s*([\d]+(?:\.[\d]{3})*(?:,[\d]{1,2})?)",
     ]
     for pat in patterns:
         m = re.search(pat, text, re.IGNORECASE)
@@ -62,6 +70,10 @@ def analyze_extracted_text(text: str, lic_doc: dict) -> Dict[str, Any]:
             r"apertura\s+(?:de\s+(?:las\s+)?(?:propuestas|ofertas|sobres)\s+)?(?:se\s+realizará\s+el\s+)?(\d{1,2}\s+de\s+\w+\s+(?:de\s+)?\d{4}(?:\s*[,a]\s*las?\s*\d{1,2}[:.]\d{2})?)",
             r"apertura\s*[:\s]+(\d{1,2}[/-]\d{1,2}[/-]\d{2,4})",
             r"apertura[^.]{0,30}?(\d{1,2}\s+de\s+\w+\s+(?:de\s+)?\d{4})",
+            # ISO format after apertura/vencimiento
+            r"(?:apertura|vencimiento)[:\s]*(\d{4}-\d{2}-\d{2})",
+            # "plazo/recepción hasta/vence el DD/MM/YYYY"
+            r"(?:plazo|recepci[oó]n)\s+(?:hasta|vence)\s+(?:el\s+)?(\d{1,2}[/-]\d{1,2}[/-]\d{2,4})",
         ]
         for pat in patterns:
             m = re.search(pat, normalized, re.IGNORECASE)
@@ -141,6 +153,24 @@ def _ensure_objeto_and_category(updates: Dict[str, Any], lic_doc: dict) -> None:
             cat = classifier.classify(title=title, objeto=objeto, description=desc_short)
         if cat:
             updates["category"] = cat
+
+
+def extract_licitacion_number(text: str) -> Optional[str]:
+    """Extract licitación number from text."""
+    if not text:
+        return None
+    patterns = [
+        r"(?:Licitaci[oó]n|Lic\.?)\s*(?:P[uú]blica|Privada|Nacional)?\s*N[°º.]?\s*(\d+[-/]\d+(?:[-/]\d{2,4})?)",
+        r"\b(LP[UN]?|CD|LPR|CP)\s*[-\s]?\s*(\d+[-/]\d+(?:[-/]\d{2,4})?)",
+        r"(?:Proceso|Contrataci[oó]n)\s*(?:Directa)?\s*N[°º.]?\s*([\d]+[-/][\d]+(?:[-/][\d]{2,4})?)",
+    ]
+    for pattern in patterns:
+        m = re.search(pattern, text, re.IGNORECASE)
+        if m:
+            groups = [g for g in m.groups() if g]
+            if groups:
+                return groups[-1] if len(groups) == 1 else f"{groups[0]}-{groups[1]}"
+    return None
 
 
 def enrich_title_only(lic_doc: dict) -> Dict[str, Any]:

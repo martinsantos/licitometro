@@ -29,6 +29,7 @@ NATIONAL_FUENTES = [
     "banco_mundial_argentina",
     "bid_procurement_argentina",
     "santa_fe_compras",
+    "contrataciones_abiertas_mendoza_ocds",
 ]
 
 

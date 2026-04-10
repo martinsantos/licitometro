@@ -83,7 +83,7 @@ async def main():
                 objeto = updates.get("objeto", doc.get("objeto", ""))
                 cat = classifier.classify(title=title, objeto=objeto)
                 if not cat:
-                    cat = classifier.classify(title=title, objeto=objeto, description=description[:500])
+                    cat = classifier.classify(title=title, objeto=objeto, description=description[:1000])
                 if cat:
                     updates["category"] = cat
                     stats_p1["category"] += 1

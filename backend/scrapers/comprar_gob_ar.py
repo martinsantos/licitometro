@@ -119,7 +119,7 @@ class ComprarGobArScraper(BaseScraper):
             estado = self._compute_estado(publication_date, opening_date, fecha_prorroga=None)
 
             from utils.object_extractor import extract_objeto
-            objeto = extract_objeto(title, description[:500] if description else "", None)
+            objeto = extract_objeto(title, description[:1000] if description else "", None)
 
             # Create the licitacion object
             licitacion_data = {

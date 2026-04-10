@@ -58,9 +58,10 @@ class CategoryClassifier:
     )
 
     # Keywords whose matches in description-only context are too ambiguous.
-    # "obra" is a conjugated verb in legal Spanish ("que obra a fs. X"), "infraestructura"
-    # is often part of ministry names. Require these to appear in title/objeto to count.
-    _DESC_ONLY_AMBIGUOUS = {"obra", "infraestructura", "gobierno", "territorial", "desarrollo"}
+    # "infraestructura" is often part of ministry names, "gobierno"/"territorial"/"desarrollo"
+    # appear in org names. Require these to appear in title/objeto to count.
+    # Note: "obra" was removed — too common in Argentine procurement to filter out.
+    _DESC_ONLY_AMBIGUOUS = {"infraestructura", "gobierno", "territorial", "desarrollo"}
 
     def _field_hits(self, text: str, keyword: str) -> int:
         """Count word-boundary matches of keyword in text."""

@@ -129,19 +129,19 @@ class BancoMundialScraper(BaseScraper):
             publication_date = self._resolve_publication_date(
                 parsed_date=pub_date,
                 title=title,
-                description=description[:500],
+                description=description[:1000],
                 opening_date=submission_date,
             )
             opening_date = self._resolve_opening_date(
                 parsed_date=submission_date,
                 title=title,
-                description=description[:500],
+                description=description[:1000],
                 publication_date=publication_date,
             )
             estado = self._compute_estado(publication_date, opening_date)
 
             from utils.object_extractor import extract_objeto
-            objeto = extract_objeto(title, description[:500] if description else "", None)
+            objeto = extract_objeto(title, description[:1000] if description else "", None)
 
             # Attempt to extract budget from notice_text (regex conservative)
             budget = None

@@ -172,7 +172,13 @@ class GenericEnrichmentService:
                 if better and len(better.strip()) > 10:
                     updates["title"] = better.strip()
 
-        # 9. Check for prorroga
+        # 9. Promote expedient_number from metadata to top-level if missing
+        if not lic_doc.get("expedient_number"):
+            exp = updates.get("metadata", {}).get("expediente") or (lic_doc.get("metadata") or {}).get("expediente")
+            if exp:
+                updates["expedient_number"] = exp
+
+        # 10. Check for prorroga
         html_enricher.detect_prorroga(updates, lic_doc)
 
         # GUARANTEE: Always try objeto+category even if HTML yielded nothing new

@@ -11,7 +11,7 @@
     {
       "id": "50",
       "nombre": "ALIMENTOS Y BEBIDAS",
-      "keywords": ["alimentos", "bebidas", "comestibles", "catering", "refrigerios", "comida", "lácteos", "carnes", "frutas", "verduras", "harina", "aceite comestible", "agua envasada", "raciones", "provisión de alimentos", "comedor", "almuerzo", "viandas", "proteína hidrolizada", "soja"]
+      "keywords": ["alimentos", "bebidas", "comestibles", "catering", "refrigerios", "refrigerio", "comida", "lácteos", "carnes", "frutas", "verduras", "harina", "aceite comestible", "agua envasada", "raciones", "provisión de alimentos", "comedor", "almuerzo", "viandas", "vianda", "proteína hidrolizada", "soja"]
     },
     {
       "id": "80A",
@@ -36,7 +36,7 @@
     {
       "id": "15",
       "nombre": "COMBUSTIBLES Y LUBRICANTES",
-      "keywords": ["combustible", "lubricante", "nafta", "gasoil", "aceite lubricante", "petróleo", "gas", "GNC", "provisión de combustible", "expendio de combustible"]
+      "keywords": ["combustible", "lubricante", "nafta", "gasoil", "gas oil", "aceite lubricante", "petróleo", "gas", "GNC", "provisión de combustible", "expendio de combustible"]
     },
     {
       "id": "43",
@@ -71,7 +71,7 @@
     {
       "id": "42",
       "nombre": "EQUIPAMIENTO MEDICO, FARMACEUTICO Y DE LABORATORIO",
-      "keywords": ["médico", "farmacéutico", "laboratorio", "salud", "hospital", "medicamento", "insumo médico", "quirúrgico", "diagnóstico", "sanitario", "prótesis", "vacuna", "descartable", "hemodinamia", "oftalmología", "monodrogas", "farmacia", "sutura", "endomecánica", "productos médicos", "insumos de monitoreo", "crioanalgesia", "cardiovascular", "neonatología", "hemoterapia", "perfusión enteral", "perfusión parenteral", "audífono", "lentes de contacto", "silicón", "ortopedia", "anatomía patológica", "procesador de tejido", "jeringa", "aguja", "sonda", "férula", "apósito", "lanceta", "catéter", "centro de mezclas", "alta complejidad", "muestras biológicas", "oxígeno medicinal", "oxitocina", "medicamentos varios", "infusor", "insulina", "gastrostomía", "placas radiográficas", "videogastroscopio", "fórmulas magistrales", "vendas", "corset", "neurocirugía", "endovascular", "stent", "odontología", "material biológico", "oftalmológico", "servicio oftalmológico"]
+      "keywords": ["médico", "farmacéutico", "laboratorio", "salud", "hospital", "medicamento", "insumo médico", "insumo hospitalario", "quirúrgico", "diagnóstico", "sanitario", "prótesis", "vacuna", "descartable", "hemodinamia", "oftalmología", "monodrogas", "farmacia", "sutura", "endomecánica", "productos médicos", "insumos de monitoreo", "crioanalgesia", "cardiovascular", "neonatología", "hemoterapia", "perfusión enteral", "perfusión parenteral", "audífono", "lentes de contacto", "silicón", "ortopedia", "anatomía patológica", "procesador de tejido", "jeringa", "aguja", "sonda", "férula", "apósito", "lanceta", "catéter", "centro de mezclas", "alta complejidad", "muestras biológicas", "oxígeno medicinal", "oxitocina", "medicamentos varios", "infusor", "insulina", "gastrostomía", "placas radiográficas", "videogastroscopio", "fórmulas magistrales", "vendas", "corset", "neurocirugía", "endovascular", "stent", "odontología", "material biológico", "oftalmológico", "servicio oftalmológico"]
     },
     {
       "id": "46",
@@ -96,7 +96,7 @@
     {
       "id": "53",
       "nombre": "INDUMENTARIA, CONFECCION Y TEXTILES",
-      "keywords": ["indumentaria", "confección", "textil", "ropa", "uniforme", "calzado", "tela", "vestimenta", "guardapolvo"]
+      "keywords": ["indumentaria", "confección", "textil", "ropa", "uniforme", "calzado", "tela", "vestimenta", "guardapolvo", "ropa de trabajo"]
     },
     {
       "id": "44",

@@ -1021,7 +1021,7 @@ class BoletinOficialMendozaScraper(BaseScraper):
                 keywords=[keyword] if keyword else [],
                 budget=budget,
                 currency="ARS" if budget else None,
-                metadata={"boe_apertura_raw": description[:500] if description else ""},
+                metadata={"boe_apertura_raw": description[:1000] if description else ""},
                 estado=estado,
                 fecha_prorroga=None,
             )
