@@ -700,12 +700,11 @@ export default function OfertaEditor({ licitacion, onSaved }: Props) {
                 {formatARS(budgetOverride ?? budgetHints?.budget ?? licitacion.budget ?? 0)}
               </p>
               {budgetOverride && <span className="text-xs text-blue-600 font-semibold bg-blue-100 px-2 py-0.5 rounded-full">Corregido</span>}
-                {budgetHints?.threshold_label && (
-                  <span className="text-xs px-2 py-1 rounded-full bg-white text-gray-600 border ml-auto">{budgetHints.threshold_label}</span>
-                )}
-              </div>
-            )}
-            {budgetHints?.uf_value && budgetHints.budget_in_ufs != null && !editingBudget && (
+              {budgetHints?.threshold_label && (
+                <span className="text-xs px-2 py-1 rounded-full bg-white text-gray-600 border ml-auto">{budgetHints.threshold_label}</span>
+              )}
+            </div>
+            {budgetHints?.uf_value && budgetHints.budget_in_ufs != null && (
               <p className="text-xs text-gray-500 mt-1.5">UF Mendoza: ${budgetHints.uf_value} · {budgetHints.budget_in_ufs} UF</p>
             )}
           </div>
