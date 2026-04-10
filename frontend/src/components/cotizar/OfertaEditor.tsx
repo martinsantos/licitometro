@@ -666,94 +666,45 @@ export default function OfertaEditor({ licitacion, onSaved }: Props) {
       {/* ─── Step 1: Items ─── */}
       {step === 1 && (
         <div className="space-y-4">
-          {/* Budget banner with edit button */}
+          {/* Budget banner — input always visible */}
           <div className={`rounded-xl px-4 py-3 text-sm ${
             budgetOverride ? 'bg-blue-50 border-2 border-blue-300' :
-            budgetHints?.budget_source === 'official' ? 'bg-emerald-50 border border-emerald-200' :
-            budgetHints?.budget_source === 'estimated_from_pliego' ? 'bg-yellow-50 border border-yellow-200' :
             'bg-gray-50 border border-gray-200'
           }`}>
-            <div className="flex items-center justify-between mb-1">
-              <span className="text-xs font-semibold uppercase tracking-wide text-gray-500">
-                {budgetOverride ? 'Presupuesto Oficial (corregido)' :
-                 budgetHints?.budget_source === 'official' ? 'Presupuesto Oficial' :
-                 budgetHints?.budget_source === 'estimated_from_pliego' ? 'Presupuesto Estimado' :
-                 'Presupuesto Oficial'}
-              </span>
-              <div className="flex items-center gap-2">
-                {budgetHints?.threshold_label && !editingBudget && (
-                  <span className="text-xs px-2 py-1 rounded-full bg-white/70 text-gray-600">{budgetHints.threshold_label}</span>
-                )}
-                {!editingBudget && (
-                  <button
-                    type="button"
-                    onClick={(e) => { e.preventDefault(); e.stopPropagation(); setEditingBudget(true); }}
-                    className="text-xs px-2.5 py-1 bg-white border border-gray-300 rounded-lg hover:bg-blue-50 hover:border-blue-400 hover:text-blue-600 transition-colors font-medium"
-                  >
-                    Editar PO
-                  </button>
-                )}
-              </div>
-            </div>
-
-            {editingBudget ? (
-              <div className="flex items-center gap-2 mt-2">
+            <span className="text-xs font-semibold uppercase tracking-wide text-gray-500">
+              Presupuesto Oficial {budgetOverride ? '(corregido)' : '— editable'}
+            </span>
+            <div className="flex items-center gap-3 mt-1.5 flex-wrap">
+              <div className="flex items-center gap-1">
                 <span className="text-lg font-bold text-gray-600">$</span>
                 <input
-                  type="number"
-                  id="budget-override-input"
-                  className="flex-1 max-w-[220px] px-3 py-2 border-2 border-blue-400 rounded-lg text-lg font-bold focus:ring-2 focus:ring-blue-500 outline-none bg-white"
+                  type="text"
+                  inputMode="decimal"
+                  className="w-48 px-3 py-2 border border-gray-300 rounded-lg text-lg font-bold bg-white focus:border-blue-500 focus:ring-2 focus:ring-blue-200 outline-none"
                   defaultValue={budgetOverride ?? budgetHints?.budget ?? licitacion.budget ?? ''}
-                  autoFocus
-                  placeholder="Monto real del pliego"
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter') {
-                      e.preventDefault();
-                      const val = parseFloat((e.target as HTMLInputElement).value);
-                      if (val > 0) {
-                        setBudgetOverride(val);
-                        setBudgetHints(prev => prev
-                          ? { ...prev, budget: val, budget_source: 'manual_override' }
-                          : { budget: val, budget_source: 'manual_override' } as any);
-                      }
-                      setEditingBudget(false);
-                    }
-                    if (e.key === 'Escape') setEditingBudget(false);
-                  }}
-                />
-                <button
-                  type="button"
-                  onClick={() => {
-                    const input = document.getElementById('budget-override-input') as HTMLInputElement;
-                    const val = parseFloat(input?.value || '0');
+                  placeholder="Ingrese monto real"
+                  onBlur={(e) => {
+                    const raw = e.target.value.replace(/\./g, '').replace(',', '.');
+                    const val = parseFloat(raw);
                     if (val > 0) {
                       setBudgetOverride(val);
                       setBudgetHints(prev => prev
                         ? { ...prev, budget: val, budget_source: 'manual_override' }
                         : { budget: val, budget_source: 'manual_override' } as any);
                     }
-                    setEditingBudget(false);
                   }}
-                  className="px-3 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700"
-                >
-                  Guardar
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setEditingBudget(false)}
-                  className="px-3 py-2 text-gray-500 hover:text-gray-700 text-sm"
-                >
-                  Cancelar
-                </button>
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') (e.target as HTMLInputElement).blur();
+                  }}
+                />
               </div>
-            ) : (
-              <p className="font-bold text-gray-800 text-lg">
-                {formatARS(budgetOverride ?? budgetHints?.budget ?? licitacion.budget ?? 0)}
-                {budgetOverride && <span className="text-xs font-normal text-blue-500 ml-2">corregido manualmente</span>}
-              </p>
-            )}
-            {budgetHints?.uf_value && budgetHints.budget_in_ufs != null && !editingBudget && (
-              <p className="text-xs text-gray-500 mt-1">UF Mendoza: ${budgetHints.uf_value} · {budgetHints.budget_in_ufs} UF</p>
+              {budgetOverride && <span className="text-xs text-blue-600 font-semibold bg-blue-100 px-2 py-0.5 rounded-full">Corregido</span>}
+              {budgetHints?.threshold_label && (
+                <span className="text-xs px-2 py-1 rounded-full bg-white text-gray-600 border ml-auto">{budgetHints.threshold_label}</span>
+              )}
+            </div>
+            {budgetHints?.uf_value && budgetHints.budget_in_ufs != null && (
+              <p className="text-xs text-gray-500 mt-1.5">UF Mendoza: ${budgetHints.uf_value} · {budgetHints.budget_in_ufs} UF</p>
             )}
           </div>
 
