@@ -21,9 +21,19 @@ const FavoritosPage = () => {
     const loadFavoritos = async () => {
       setLoading(true);
       try {
-        // 1. Get favorite IDs from SERVER (source of truth)
-        const favResp = await axios.get(`${API}/licitaciones/favorites`, { withCredentials: true });
-        const serverIds = favResp.data || [];
+        // 1. Get favorites with dates from SERVER (source of truth)
+        const favResp = await axios.get(`${API}/licitaciones/favorites?detail=true`, { withCredentials: true });
+        const serverFavs = favResp.data || [];
+
+        // Build server dates map
+        const serverDates = {};
+        const serverIds = serverFavs.map(f => {
+          if (typeof f === 'object') {
+            serverDates[f.licitacion_id] = f.created_at;
+            return f.licitacion_id;
+          }
+          return f; // backward compat: flat array of IDs
+        });
 
         // 2. Merge any localStorage-only favorites TO server (one-time migration)
         const localIds = JSON.parse(localStorage.getItem('savedLicitaciones') || '[]');
@@ -45,7 +55,7 @@ const FavoritosPage = () => {
         }
 
         // 4. Fetch licitacion details for each favorite
-        const savedDates = JSON.parse(localStorage.getItem('savedLicitacionesDates') || '{}');
+        const localDates = JSON.parse(localStorage.getItem('savedLicitacionesDates') || '{}');
         const promises = serverIds.map(id =>
           axios.get(`${API}/licitaciones/${id}`, { withCredentials: true }).catch(() => null)
         );
@@ -54,7 +64,7 @@ const FavoritosPage = () => {
           .filter(r => r && r.data)
           .map(r => ({
             ...r.data,
-            fecha_guardado: savedDates[r.data.id] || new Date().toISOString()
+            fecha_guardado: serverDates[r.data.id] || localDates[r.data.id] || new Date().toISOString()
           }));
         setFavoritos(validResults);
       } catch (err) {

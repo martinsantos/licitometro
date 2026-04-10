@@ -27,19 +27,35 @@ export function useLicitacionPreferences() {
   const [favorites, setFavorites] = useLocalStorageSet('savedLicitaciones');
   const [criticalRubros, setCriticalRubros] = useLocalStorageSet('criticalRubros');
 
-  // Sync: push localStorage favorites to server (server = backup, not source)
+  // Sync: bidirectional merge between localStorage and server
+  // Server is source of truth — merge server favorites INTO local
   useEffect(() => {
     const backendUrl = (window as any).__BACKEND_URL || process.env.REACT_APP_BACKEND_URL || '';
     fetch(`${backendUrl}/api/licitaciones/favorites`, { credentials: 'include' })
       .then(r => r.ok ? r.json() : Promise.reject())
       .then((serverIds: string[]) => {
         const serverSet = new Set(serverIds);
-        // Push local-only favorites to server (no merge back)
-        Array.from(favorites).forEach(id => {
+        const localSet = new Set(favorites);
+
+        // 1. Push local-only favorites to server
+        Array.from(localSet).forEach(id => {
           if (!serverSet.has(id)) {
             fetch(`${backendUrl}/api/licitaciones/favorites/${id}`, { method: 'POST', credentials: 'include' }).catch(() => {});
           }
         });
+
+        // 2. Pull server-only favorites to local (server is source of truth)
+        let hasNewFromServer = false;
+        serverSet.forEach(id => {
+          if (!localSet.has(id)) {
+            localSet.add(id);
+            hasNewFromServer = true;
+          }
+        });
+
+        if (hasNewFromServer) {
+          setFavorites(() => new Set(localSet));
+        }
       })
       .catch(() => {});
   }, []); // eslint-disable-line

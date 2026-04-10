@@ -63,11 +63,23 @@ async def delete_preset(preset_id: str, request: Request = None):
 
 
 @router.get("/favorites")
-async def get_favorites(request: Request):
-    """Get all favorite licitacion IDs"""
+async def get_favorites(request: Request, detail: bool = False):
+    """Get all favorite licitacion IDs.
+
+    ?detail=true returns objects with {licitacion_id, created_at}.
+    Default returns flat array of IDs for backward compatibility.
+    """
     db = request.app.mongodb
-    cursor = db.favorites.find({}, {"licitacion_id": 1, "_id": 0})
+    cursor = db.favorites.find(
+        {}, {"licitacion_id": 1, "created_at": 1, "_id": 0}
+    ).sort("created_at", -1)
     docs = await cursor.to_list(length=5000)
+    if detail:
+        return [
+            {"licitacion_id": d["licitacion_id"],
+             "created_at": d.get("created_at", "").isoformat() if d.get("created_at") else None}
+            for d in docs
+        ]
     return [doc["licitacion_id"] for doc in docs]
 
 
