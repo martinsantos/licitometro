@@ -1060,7 +1060,7 @@ class BoletinOficialMendozaScraper(BaseScraper):
                     html = await self._fetch_advance_search(keyword=None, tipo_busqueda=t)
                     if html:
                         parsed = self._parse_results_html(html, keyword=None)
-                        licitaciones.extend(parsed)
+                        # Do NOT add web/norma items — only use as seeds for PDF extraction
 
                         # Extract PDFs for deep processing
                         if extract_pdf and segment_processes:
@@ -1084,7 +1084,9 @@ class BoletinOficialMendozaScraper(BaseScraper):
                     if not html:
                         continue
                     parsed = self._parse_results_html(html, keyword=keyword)
-                    licitaciones.extend(parsed)
+                    # NOTE: Do NOT add web/norma items to results — they are metadata
+                    # (decretos, resoluciones) not real licitaciones. Only use them
+                    # as seeds to find PDF URLs for deep extraction.
 
                     # Extract PDFs for deep processing
                     if extract_pdf and segment_processes:
