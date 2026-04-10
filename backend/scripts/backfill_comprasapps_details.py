@@ -65,26 +65,55 @@ def setup_selenium():
 
 
 def extract_detail_from_popup(driver) -> dict:
-    """Extract label-value pairs from the rendered detail popup."""
-    from selenium.webdriver.common.by import By
+    """Extract label-value pairs from the rendered detail popup.
 
+    The GeneXus popup renders as a modal/overlay with a table containing
+    label-value rows. We use the full page source and look for the popup
+    content by searching for characteristic text like "Presupuesto Oficial".
+    """
     result = {}
     try:
-        # The popup renders as a table with label cells and value cells
-        # Wait for popup content to load
-        time.sleep(1)
-
         page_source = driver.page_source
         from bs4 import BeautifulSoup
         soup = BeautifulSoup(page_source, "html.parser")
 
-        # Find "Detalle de Licitación" or "Ver Licitación" heading
-        detail_header = soup.find(string=re.compile(r"Detalle\s+de\s+Licitaci|Ver\s+Licitaci", re.I))
-        if not detail_header:
-            logger.debug("No detail header found in popup")
+        # Strategy 1: Find popup container by characteristic headers
+        # GeneXus popups typically use a div with class containing "popup" or a
+        # new table that appears with "Detalle de Licitación" heading
+        popup_container = None
+
+        # Look for "Detalle de Licitación" text anywhere
+        for tag in soup.find_all(string=re.compile(r"Detalle\s+de\s+Licitaci|Ver\s+Licitaci", re.I)):
+            # Walk up to find the popup container
+            parent = tag.parent
+            for _ in range(10):
+                if parent is None:
+                    break
+                if parent.name in ("div", "table", "fieldset") and parent.find_all("td"):
+                    popup_container = parent
+                    break
+                parent = parent.parent
+            if popup_container:
+                break
+
+        if not popup_container:
+            # Fallback: use full page but look for "Presupuesto Oficial" text
+            presup = soup.find(string=re.compile(r"Presupuesto\s+Oficial", re.I))
+            if presup:
+                parent = presup.parent
+                for _ in range(10):
+                    if parent is None:
+                        break
+                    if parent.name in ("table", "div") and len(parent.find_all("td")) > 10:
+                        popup_container = parent
+                        break
+                    parent = parent.parent
+
+        if not popup_container:
+            logger.debug("No popup container found")
             return result
 
-        # Find all text nodes and their adjacent values
+        # Extract label-value pairs from the popup container
         label_map = {
             "presupuesto oficial": "budget_raw",
             "moneda": "currency_raw",
@@ -103,7 +132,7 @@ def extract_detail_from_popup(driver) -> dict:
             "financiamiento": "financiamiento",
         }
 
-        cells = soup.find_all("td")
+        cells = popup_container.find_all("td")
         for i, cell in enumerate(cells):
             cell_text = cell.get_text(strip=True)
             cell_lower = cell_text.lower()
@@ -116,7 +145,22 @@ def extract_detail_from_popup(driver) -> dict:
                             break
                     break
 
-        # Parse budget
+        # Strategy 2: Also try text-based extraction from full popup text
+        popup_text = popup_container.get_text(" ", strip=True)
+        if not result.get("budget_raw"):
+            m = re.search(r"Presupuesto\s+Oficial\s+([\d.,]+)", popup_text, re.I)
+            if m:
+                result["budget_raw"] = m.group(1)
+        if not result.get("currency_raw"):
+            m = re.search(r"Moneda\s+(\w+)", popup_text, re.I)
+            if m:
+                result["currency_raw"] = m.group(1)
+        if not result.get("description"):
+            m = re.search(r"Descripci[oó]n\s+(.+?)(?:Presupuesto|Valor|Fecha|$)", popup_text, re.I)
+            if m:
+                result["description"] = m.group(1).strip()
+
+        # Parse budget: "30.000.000,00" → 30000000.00
         if result.get("budget_raw"):
             try:
                 raw = result["budget_raw"].replace(".", "").replace(",", ".")
@@ -135,7 +179,7 @@ def extract_detail_from_popup(driver) -> dict:
         else:
             result["currency"] = "ARS"
 
-        # Parse expediente
+        # Parse expediente: "Nro 388815 Letra Año 2026" → "388815/2026"
         if result.get("expedient_raw"):
             m = re.search(r"Nro?\s*(\d+).*?A[ñn]o\s*(\d{4})", result["expedient_raw"], re.I)
             if m:
@@ -148,7 +192,11 @@ def extract_detail_from_popup(driver) -> dict:
 
 
 def scrape_vigente_details(driver, limit=50) -> list:
-    """Navigate ComprasApps, search vigentes, click each lupa, extract details."""
+    """Navigate ComprasApps, search vigentes, click each lupa, extract details.
+
+    Uses JavaScript to click lupas by index (avoids stale element issues).
+    After each click, waits for popup, extracts data, closes popup via JS.
+    """
     from selenium.webdriver.common.by import By
     from selenium.webdriver.support.ui import WebDriverWait
     from selenium.webdriver.support import expected_conditions as EC
@@ -161,91 +209,100 @@ def scrape_vigente_details(driver, limit=50) -> list:
         driver.get(BASE_URL)
         time.sleep(3)
 
-        # Set search filters: Ejercicio=2026, Estado=Vigente
-        ejer_input = driver.find_element(By.NAME, "vEJER")
-        ejer_input.clear()
-        ejer_input.send_keys("2026")
+        # Set search filters via JavaScript (more reliable than Selenium inputs)
+        driver.execute_script("""
+            document.querySelector('[name="vEJER"]').value = '2026';
+            var sel = document.querySelector('[name="vESTFILTRO"]');
+            if (sel) { sel.value = 'V'; }
+        """)
 
-        # Set Estado to Vigente
-        estado_select = driver.find_element(By.NAME, "vESTFILTRO")
-        from selenium.webdriver.support.ui import Select
-        Select(estado_select).select_by_value("V")
-
-        # Click Buscar
-        buscar_btn = driver.find_element(By.NAME, "BUTTON1")
-        buscar_btn.click()
-        time.sleep(3)
+        # Click Buscar via JS
+        driver.execute_script("document.querySelector('[name=\"BUTTON1\"]').click()")
+        time.sleep(4)
 
         page = 1
         while len(results) < limit:
-            # Find all magnifying glass icons (vermas.png)
-            lupas = driver.find_elements(By.CSS_SELECTOR, "img[src*='vermas']")
-            logger.info(f"Page {page}: found {len(lupas)} lupa icons")
+            # Count lupas via JS (no stale element risk)
+            lupa_count = driver.execute_script(
+                "return document.querySelectorAll('img[src*=\"vermas\"]').length"
+            )
+            logger.info(f"Page {page}: {lupa_count} lupa icons")
 
-            if not lupas:
+            if lupa_count == 0:
                 break
 
-            for i, lupa in enumerate(lupas):
+            for i in range(lupa_count):
                 if len(results) >= limit:
                     break
 
                 try:
-                    # Get row identifier from same row
-                    row_tr = lupa.find_element(By.XPATH, "./ancestor::tr")
-                    row_cells = row_tr.find_elements(By.TAG_NAME, "td")
-                    row_id = row_cells[0].text.strip() if row_cells else f"unknown-{i}"
+                    # Get row ID via JS before clicking
+                    row_id = driver.execute_script(f"""
+                        var lupas = document.querySelectorAll('img[src*="vermas"]');
+                        if ({i} >= lupas.length) return null;
+                        var lupa = lupas[{i}];
+                        var tr = lupa.closest('tr');
+                        if (!tr) return 'unknown';
+                        var cells = tr.querySelectorAll('td');
+                        return cells.length > 0 ? cells[0].textContent.trim() : 'unknown';
+                    """)
 
-                    logger.info(f"  Clicking lupa for row {row_id} ({len(results)+1}/{limit})")
+                    if not row_id:
+                        continue
 
-                    # Click the lupa icon
-                    lupa.click()
-                    time.sleep(2)  # Wait for popup
+                    logger.info(f"  [{len(results)+1}/{limit}] Clicking lupa for {row_id}")
 
-                    # Extract detail from popup
+                    # Click lupa via JS (avoids stale element)
+                    clicked = driver.execute_script(f"""
+                        var lupas = document.querySelectorAll('img[src*="vermas"]');
+                        if ({i} >= lupas.length) return false;
+                        lupas[{i}].click();
+                        return true;
+                    """)
+
+                    if not clicked:
+                        continue
+
+                    # Wait for popup to appear (look for "Detalle" or "Ver Licitación")
+                    time.sleep(2.5)
+
+                    # Extract detail from current page state
                     detail = extract_detail_from_popup(driver)
                     detail["row_id"] = row_id
 
-                    if detail.get("budget_parsed") or detail.get("description"):
-                        results.append(detail)
-                        logger.info(f"    Budget: {detail.get('budget_parsed')}, "
-                                   f"Desc: {(detail.get('description') or '')[:50]}")
-                    else:
-                        logger.info(f"    No detail data extracted")
-                        results.append(detail)  # Still save to track what was tried
+                    budget = detail.get("budget_parsed")
+                    desc = (detail.get("description") or "")[:50]
+                    logger.info(f"    Budget: {budget}, Desc: {desc}")
+                    results.append(detail)
 
-                    # Close popup (click X button or press Escape)
-                    try:
-                        close_btn = driver.find_element(By.CSS_SELECTOR, ".popup-close, .modal-close, [title='Cerrar']")
-                        close_btn.click()
-                    except Exception:
-                        try:
-                            from selenium.webdriver.common.keys import Keys
-                            driver.find_element(By.TAG_NAME, "body").send_keys(Keys.ESCAPE)
-                        except Exception:
-                            pass
-                    time.sleep(0.5)
+                    # Close popup: try clicking close button, then Escape
+                    driver.execute_script("""
+                        // Try common close patterns
+                        var closeBtn = document.querySelector('.popup-close, .modal-close, [title="Cerrar"], .gx-popup-close');
+                        if (closeBtn) { closeBtn.click(); return; }
+                        // Try clicking overlay/backdrop
+                        var overlay = document.querySelector('.gx-popup-overlay, .modal-backdrop');
+                        if (overlay) { overlay.click(); return; }
+                        // Fallback: press Escape
+                        document.dispatchEvent(new KeyboardEvent('keydown', {key: 'Escape', keyCode: 27}));
+                    """)
+                    time.sleep(1)
 
                 except Exception as e:
-                    logger.warning(f"  Error on row {i}: {e}")
-                    # Try to recover by refreshing
+                    err_msg = str(e).split('\n')[0][:100]
+                    logger.warning(f"  Error on row {i}: {err_msg}")
+                    # Recovery: press Escape and continue
                     try:
-                        from selenium.webdriver.common.keys import Keys
-                        driver.find_element(By.TAG_NAME, "body").send_keys(Keys.ESCAPE)
+                        driver.execute_script(
+                            "document.dispatchEvent(new KeyboardEvent('keydown', {key: 'Escape', keyCode: 27}))"
+                        )
                     except Exception:
                         pass
                     time.sleep(1)
 
-            # Try pagination (next page)
-            try:
-                next_links = driver.find_elements(By.CSS_SELECTOR, "a[href*='page'], input[value='>>']")
-                if next_links:
-                    next_links[0].click()
-                    time.sleep(3)
-                    page += 1
-                else:
-                    break
-            except Exception:
-                break
+            # GeneXus pagination: no standard "next" link
+            # Would need to POST with GXState pagination — skip for now
+            break
 
     except Exception as e:
         logger.error(f"Selenium scraping error: {e}")

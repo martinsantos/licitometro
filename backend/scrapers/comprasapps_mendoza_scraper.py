@@ -308,10 +308,13 @@ class ComprasAppsMendozaScraper(BaseScraper):
             return None
 
     async def _fetch_detail(self, row: List[Any]) -> Optional[Dict[str, Any]]:
-        """Fetch detail popup for a grid row via GeneXus 'VER' event.
+        """Fetch detail page for a grid row via direct URL to hli00048 servlet.
 
-        Returns dict with parsed fields (budget_parsed, currency, expedient_number,
-        description, norma_legal, etc.) or None on failure.
+        The detail popup loads in an iframe pointing to:
+        hli00048?{año},{CUC},{tipo},{nro},gxPopupLevel=0;
+
+        This URL is publicly accessible — no session/CSRF required.
+        Returns dict with parsed fields or None on failure.
         """
         try:
             anio = str(row[COL_ANIO]) if len(row) > COL_ANIO else ""
@@ -322,28 +325,12 @@ class ComprasAppsMendozaScraper(BaseScraper):
             if not anio or not nro:
                 return None
 
-            form = {
-                "_EventName": "'VER'",
-                "_EventGridId": "97",
-                "_EventRowId": "",
-                "LIEJER": anio,
-                "LINRO": nro,
-                "LITIP": tip_num,
-                "LICUC": cuc_num,
-                "GXState": self._gxstate_raw,
-                "vEJER": str(self._search_anio),
-                "vLICNRO": "0",
-                "vLICUCFIL": "0",
-                "vESTFILTRO": self._search_estado,
-                "vLICABCONTIPOSEL": "",
-                "vRUBRO": "000000",
-                "vLICUC": self._search_cuc,
-                "vFINANSEL": "",
-                "vFCHDESDE": "  /  /  ",
-                "vFCHHASTA": "  /  /  ",
-            }
+            detail_url = (
+                f"https://comprasapps.mendoza.gov.ar/Compras/servlet/"
+                f"hli00048?{anio},{cuc_num},{tip_num},{nro}"
+            )
 
-            html = await self._post_search(form)
+            html = await self.fetch_page(detail_url)
             if not html:
                 return None
 
@@ -353,43 +340,89 @@ class ComprasAppsMendozaScraper(BaseScraper):
             return None
 
     def _parse_detail_html(self, html: str) -> Dict[str, Any]:
-        """Parse detail popup HTML to extract label-value pairs."""
+        """Parse hli00048 detail page HTML.
+
+        GeneXus renders label-value pairs as adjacent <span>/<label>/<td> elements.
+        The page has fields like "Presupuesto Oficial" followed by "30.000.000,00".
+        We use regex on full text as primary strategy since DOM structure varies.
+        """
         soup = BeautifulSoup(html, "html.parser")
         result: Dict[str, Any] = {}
 
-        # The popup renders as table cells: label in one td, value in next td
-        cells = soup.find_all("td")
+        # Get all text content
+        full_text = soup.get_text(" ", strip=True)
 
-        label_map = {
-            "presupuesto oficial": "budget_raw",
-            "moneda": "currency_raw",
-            "descripci": "description",
-            "expediente": "expedient_raw",
-            "fecha de apertura": "opening_date_str",
-            "hora de apertura": "opening_time_str",
-            "repartici": "reparticion_destino",
-            "norma legal": "norma_legal",
-            "valor del pliego": "valor_pliego",
-            "garant": "garantia_oferta",
-            "plazo de entrega": "plazo_entrega",
-            "lugar de entrega": "lugar_entrega",
-            "forma de pago": "forma_pago",
-            "organismo licitante": "organismo_licitante",
-            "financiamiento": "financiamiento",
-        }
+        # Strategy: regex on full text for key fields
+        # Budget: "Presupuesto Oficial 30.000.000,00"
+        m = re.search(
+            r"Presupuesto\s+Oficial\s+([\d]+(?:\.[\d]{3})*(?:,[\d]{1,2})?)",
+            full_text,
+        )
+        if m:
+            result["budget_raw"] = m.group(1)
 
-        for i, cell in enumerate(cells):
-            cell_text = cell.get_text(strip=True)
-            cell_lower = cell_text.lower()
-            for label_key, field_name in label_map.items():
-                if label_key in cell_lower and field_name not in result:
-                    # Value is in the next cell(s)
-                    for nc in cells[i + 1 : i + 4]:
-                        val = nc.get_text(strip=True)
-                        if val and val.lower() != cell_lower and len(val) > 0:
-                            result[field_name] = val
-                            break
-                    break
+        # Currency: "Moneda PESOS"
+        m = re.search(r"Moneda\s+(PESOS|DOLARES|USD|EUROS)", full_text, re.I)
+        if m:
+            result["currency_raw"] = m.group(1)
+
+        # Description: "Descripción XXXXX" (up to next label)
+        m = re.search(
+            r"Descripci[oó]n\s+(.+?)(?:Presupuesto|Valor\s+del\s+pliego|Moneda|$)",
+            full_text,
+            re.I | re.DOTALL,
+        )
+        if m:
+            desc = m.group(1).strip()
+            if len(desc) > 5:
+                result["description"] = desc[:2000]
+
+        # Expediente: "Nro 388815 Letra Año 2026"
+        m = re.search(r"Expediente\s+Nro\s*(\d+)\s*Letra\s*.*?A[ñn]o\s*(\d{4})", full_text, re.I)
+        if m:
+            result["expedient_raw"] = f"Nro {m.group(1)} Año {m.group(2)}"
+
+        # Fecha de apertura: "Fecha de apertura 10/04/26"
+        m = re.search(r"Fecha\s+de\s+apertura\s+(\d{1,2}/\d{1,2}/\d{2,4})", full_text, re.I)
+        if m:
+            result["opening_date_str"] = m.group(1)
+
+        # Hora de apertura: "Hora de apertura 11:00"
+        m = re.search(r"Hora\s+de\s+apertura\s+(\d{1,2}:\d{2})", full_text, re.I)
+        if m:
+            result["opening_time_str"] = m.group(1)
+
+        # Repartición destino
+        m = re.search(r"Repartici[oó]n\s+destino\s+(.+?)(?:Norma|Tipo|$)", full_text, re.I)
+        if m:
+            result["reparticion_destino"] = m.group(1).strip()[:200]
+
+        # Norma Legal: "Tipo Ley N° 9497 Letra Año 2023"
+        m = re.search(r"Norma\s+Legal\s+Tipo\s+(\w+)\s+N[°º]?\s*(\d+)\s*.*?A[ñn]o\s*(\d{4})", full_text, re.I)
+        if m:
+            result["norma_legal"] = f"{m.group(1)} {m.group(2)}/{m.group(3)}"
+
+        # Valor del pliego
+        m = re.search(r"Valor\s+del\s+pliego\s+([\d.,]+)", full_text, re.I)
+        if m:
+            result["valor_pliego"] = m.group(1)
+
+        # Garantía de oferta
+        m = re.search(r"Garant[ií]a\s+de\s+oferta\s+(.+?)(?:Plazo|Lugar|Vigencia|$)", full_text, re.I)
+        if m:
+            result["garantia_oferta"] = m.group(1).strip()[:200]
+
+        # Organismo licitante
+        m = re.search(r"Organismo\s+licitante\s+(.+?)(?:Domicilio|Financiamiento|$)", full_text, re.I)
+        if m:
+            result["organismo_licitante"] = m.group(1).strip()[:200]
+
+        # Financiamiento
+        m = re.search(r"Financiamiento\s+([\w\s]+?)(?:Descargue|Registro|$)", full_text, re.I)
+        if m:
+            result["financiamiento"] = m.group(1).strip()[:100]
+
+        # --- Post-processing ---
 
         # Parse budget: "30.000.000,00" → 30000000.00
         if result.get("budget_raw"):
@@ -401,7 +434,7 @@ class ComprasAppsMendozaScraper(BaseScraper):
             except (ValueError, TypeError):
                 pass
 
-        # Parse currency: "PESOS" → "ARS", "DOLARES" → "USD"
+        # Parse currency
         currency_raw = (result.get("currency_raw") or "").upper()
         if "PESO" in currency_raw:
             result["currency"] = "ARS"
@@ -410,7 +443,7 @@ class ComprasAppsMendozaScraper(BaseScraper):
         else:
             result["currency"] = "ARS"
 
-        # Parse expediente: "Nro 388815 Letra Año 2026" → "388815/2026"
+        # Parse expediente
         if result.get("expedient_raw"):
             m = re.search(r"Nro?\s*(\d+).*?A[ñn]o\s*(\d{4})", result["expedient_raw"], re.I)
             if m:
@@ -737,9 +770,42 @@ class ComprasAppsMendozaScraper(BaseScraper):
 
             logger.info(f"Total rows extracted: {len(all_rows)}")
 
-            # NOTE: Detail popup requires Selenium (GeneXus CSRF blocks HTTP AJAX).
-            # Use scripts/backfill_comprasapps_details.py for budget/expediente extraction.
+            # Fetch detail page (hli00048) for vigente rows to get budget, expediente, etc.
+            fetch_details = selectors.get("fetch_details", True)
             detail_cache: Dict[str, Dict[str, Any]] = {}
+
+            if fetch_details and all_rows:
+                vigente_rows = [r for r in all_rows
+                                if len(r) > COL_ESTADO
+                                and str(r[COL_ESTADO]).strip().lower() in ("vigente", "en proceso")]
+
+                logger.info(f"Fetching detail (hli00048) for {len(vigente_rows)} vigente rows...")
+                fetched = 0
+                errors = 0
+
+                for i, row in enumerate(vigente_rows):
+                    num = str(row[COL_NUMERO]).strip() if len(row) > COL_NUMERO else ""
+                    if not num:
+                        continue
+                    try:
+                        detail = await self._fetch_detail(row)
+                        if detail:
+                            detail_cache[num] = detail
+                            if detail.get("budget_parsed"):
+                                fetched += 1
+                    except Exception as e:
+                        errors += 1
+                        if errors < 5:
+                            logger.warning(f"Detail fetch error for {num}: {e}")
+
+                    await asyncio.sleep(0.5)
+
+                    if (i + 1) % 25 == 0:
+                        logger.info(f"  Detail progress: {i+1}/{len(vigente_rows)} "
+                                   f"({fetched} with budget, {errors} errors)")
+
+                logger.info(f"Detail fetch complete: {fetched}/{len(vigente_rows)} "
+                           f"with budget ({errors} errors)")
 
             # Convert rows to licitaciones
             licitaciones: List[LicitacionCreate] = []
