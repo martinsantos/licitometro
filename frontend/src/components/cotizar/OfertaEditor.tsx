@@ -141,6 +141,8 @@ export default function OfertaEditor({ licitacion, onSaved }: Props) {
   const [analyzing, setAnalyzing] = useState(false);
   const [analyzeError, setAnalyzeError] = useState('');
   const [budgetHints, setBudgetHints] = useState<BudgetHints | null>(null);
+  const [budgetOverride, setBudgetOverride] = useState<number | null>(null);
+  const [editingBudget, setEditingBudget] = useState(false);
   const [loadingHints, setLoadingHints] = useState(false);
   const [hunterOpen, setHunterOpen] = useState(false);
   const [suggestingPropuesta, setSuggestingPropuesta] = useState(false);
@@ -580,12 +582,41 @@ export default function OfertaEditor({ licitacion, onSaved }: Props) {
           <span className="text-xs font-semibold text-gray-400 uppercase tracking-wide">Objeto</span>
           <p className="text-gray-800 mt-0.5 line-clamp-2">{licitacion.objeto || licitacion.title}</p>
         </div>
-        {licitacion.budget ? (
-          <div>
-            <span className="text-xs font-semibold text-gray-400 uppercase tracking-wide">Presupuesto oficial</span>
-            <p className="text-gray-600 mt-0.5">{formatARS(licitacion.budget)} <span className="text-xs text-gray-400">(referencia)</span></p>
-          </div>
-        ) : null}
+        <div>
+          <span className="text-xs font-semibold text-gray-400 uppercase tracking-wide">Presupuesto oficial</span>
+          {editingBudget ? (
+            <div className="flex items-center gap-2 mt-0.5">
+              <span className="text-gray-400 text-sm">$</span>
+              <input
+                type="number"
+                className="w-40 px-2 py-1 border border-blue-300 rounded text-sm focus:ring-2 focus:ring-blue-500 outline-none"
+                defaultValue={budgetOverride ?? licitacion.budget ?? ''}
+                autoFocus
+                onBlur={(e) => {
+                  const val = parseFloat(e.target.value);
+                  if (val > 0) {
+                    setBudgetOverride(val);
+                    setBudgetHints(prev => prev ? { ...prev, budget: val, budget_source: 'manual_override' } : prev);
+                  }
+                  setEditingBudget(false);
+                }}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') (e.target as HTMLInputElement).blur();
+                  if (e.key === 'Escape') setEditingBudget(false);
+                }}
+              />
+            </div>
+          ) : (
+            <p className="text-gray-600 mt-0.5 cursor-pointer hover:text-blue-600 group" onClick={() => setEditingBudget(true)}>
+              {formatARS(budgetOverride ?? licitacion.budget ?? 0)}
+              {budgetOverride ? (
+                <span className="text-xs text-blue-500 ml-1">(corregido)</span>
+              ) : (
+                <span className="text-xs text-gray-400 ml-1">(click para corregir)</span>
+              )}
+            </p>
+          )}
+        </div>
       </div>
 
       {/* Pliego Intelligence Banner */}
