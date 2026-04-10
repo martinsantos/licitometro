@@ -666,7 +666,7 @@ export default function OfertaEditor({ licitacion, onSaved }: Props) {
       {/* ─── Step 1: Items ─── */}
       {step === 1 && (
         <div className="space-y-4">
-          {/* Budget banner — show value, click Editar to change */}
+          {/* Budget banner — prompt to edit */}
           <div className={`rounded-xl px-4 py-3 text-sm ${
             budgetOverride ? 'bg-blue-50 border-2 border-blue-300' :
             'bg-gray-50 border border-gray-200'
@@ -675,28 +675,13 @@ export default function OfertaEditor({ licitacion, onSaved }: Props) {
               <span className="text-xs font-semibold uppercase tracking-wide text-gray-500">
                 Presupuesto Oficial {budgetOverride ? '(corregido)' : ''}
               </span>
-              {!editingBudget && (
-                <button type="button" onClick={() => setEditingBudget(true)}
-                  className="text-xs px-2.5 py-1 bg-white border border-gray-300 rounded-lg hover:bg-blue-50 hover:border-blue-400 text-gray-600 hover:text-blue-600 font-medium">
-                  Editar
-                </button>
-              )}
-            </div>
-            {editingBudget ? (
-              <div className="flex items-center gap-2 mt-1.5">
-                <span className="text-lg font-bold text-gray-600">$</span>
-                <input
-                  type="text"
-                  inputMode="decimal"
-                  autoFocus
-                  className="w-48 px-3 py-2 border-2 border-blue-400 rounded-lg text-lg font-bold bg-white focus:ring-2 focus:ring-blue-200 outline-none"
-                  defaultValue={budgetOverride ?? budgetHints?.budget ?? licitacion.budget ?? ''}
-                  placeholder="Monto real"
-                />
-                <button type="button" className="px-3 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700"
-                  onClick={() => {
-                    const input = document.querySelector<HTMLInputElement>('[inputMode="decimal"]');
-                    const raw = (input?.value || '').replace(/\./g, '').replace(',', '.');
+              <button type="button"
+                className="text-xs px-2.5 py-1 bg-white border border-gray-300 rounded-lg hover:bg-blue-50 hover:border-blue-400 text-gray-600 hover:text-blue-600 font-medium"
+                onClick={() => {
+                  const current = budgetOverride ?? budgetHints?.budget ?? licitacion.budget ?? 0;
+                  const input = window.prompt('Ingrese el presupuesto oficial real (sin puntos ni $):', String(current));
+                  if (input !== null) {
+                    const raw = input.replace(/\./g, '').replace(',', '.').replace(/\$/g, '').trim();
                     const val = parseFloat(raw);
                     if (val > 0) {
                       setBudgetOverride(val);
@@ -704,17 +689,17 @@ export default function OfertaEditor({ licitacion, onSaved }: Props) {
                         ? { ...prev, budget: val, budget_source: 'manual_override' }
                         : { budget: val, budget_source: 'manual_override' } as any);
                     }
-                    setEditingBudget(false);
-                  }}>Guardar</button>
-                <button type="button" onClick={() => setEditingBudget(false)}
-                  className="text-sm text-gray-400 hover:text-gray-600">Cancelar</button>
-              </div>
-            ) : (
-              <div className="flex items-center gap-3 mt-1 flex-wrap">
-                <p className="font-bold text-gray-800 text-lg">
-                  {formatARS(budgetOverride ?? budgetHints?.budget ?? licitacion.budget ?? 0)}
-                </p>
-                {budgetOverride && <span className="text-xs text-blue-600 font-semibold bg-blue-100 px-2 py-0.5 rounded-full">Corregido</span>}
+                  }
+                }}
+              >
+                Editar PO
+              </button>
+            </div>
+            <div className="flex items-center gap-3 mt-1 flex-wrap">
+              <p className="font-bold text-gray-800 text-lg">
+                {formatARS(budgetOverride ?? budgetHints?.budget ?? licitacion.budget ?? 0)}
+              </p>
+              {budgetOverride && <span className="text-xs text-blue-600 font-semibold bg-blue-100 px-2 py-0.5 rounded-full">Corregido</span>}
                 {budgetHints?.threshold_label && (
                   <span className="text-xs px-2 py-1 rounded-full bg-white text-gray-600 border ml-auto">{budgetHints.threshold_label}</span>
                 )}
