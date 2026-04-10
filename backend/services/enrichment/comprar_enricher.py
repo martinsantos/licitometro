@@ -33,7 +33,27 @@ async def enrich_comprar(http: ResilientHttpClient, lic_doc: dict, source_url: s
             return enrich_title_only(lic_doc)
 
     try:
-        html = await http.fetch(fetch_url)
+        # VistaPreviaPliegoCiudadano pages are ~400KB and accessible without proxy.
+        # The Cloudflare Worker proxy truncates large responses, causing 0 labels.
+        # Fetch directly with ssl=False (gov.ar certs are often broken).
+        import aiohttp
+        if "VistaPreviaPliegoCiudadano" in fetch_url:
+            try:
+                connector = aiohttp.TCPConnector(ssl=False)
+                async with aiohttp.ClientSession(connector=connector) as session:
+                    async with session.get(
+                        fetch_url,
+                        timeout=aiohttp.ClientTimeout(total=30),
+                        headers={"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"},
+                    ) as resp:
+                        if resp.status == 200:
+                            html = await resp.text()
+                        else:
+                            html = None
+            except Exception:
+                html = await http.fetch(fetch_url)  # fallback to proxy
+        else:
+            html = await http.fetch(fetch_url)
     except Exception as e:
         logger.warning(f"COMPR.AR fetch failed: {e}")
         return enrich_title_only(lic_doc)

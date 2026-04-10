@@ -46,7 +46,8 @@ class EnrichmentCronService:
             "started_at": start.isoformat(),
             "title_only": {"processed": 0, "enriched": 0, "errors": 0},
             "http": {"processed": 0, "enriched": 0, "errors": 0},
-            "groq_llm": {"processed": 0, "enriched": 0, "errors": 0, "skipped": 0},
+            # Groq LLM removed from cron — reserved for manual HUNTER enrichment only
+            # to preserve 100K tokens/day free tier quota.
         }
 
         # Pass 1: Title-only enrichment (ComprasApps + items without usable source_url)
@@ -61,12 +62,6 @@ class EnrichmentCronService:
         except Exception as e:
             logger.error(f"HTTP pass failed: {e}")
 
-        # Pass 3: Groq LLM fallback (items with description but missing budget/category)
-        try:
-            await self._pass_groq_llm(stats)
-        except Exception as e:
-            logger.error(f"Groq LLM pass failed: {e}")
-
         stats["finished_at"] = utc_now().isoformat()
         duration = (utc_now() - start).total_seconds()
         stats["duration_seconds"] = round(duration, 1)
@@ -74,8 +69,7 @@ class EnrichmentCronService:
         logger.info(
             f"Enrichment cycle complete in {duration:.0f}s — "
             f"title-only: {stats['title_only']['enriched']}/{stats['title_only']['processed']}, "
-            f"HTTP: {stats['http']['enriched']}/{stats['http']['processed']}, "
-            f"Groq: {stats['groq_llm']['enriched']}/{stats['groq_llm']['processed']}"
+            f"HTTP: {stats['http']['enriched']}/{stats['http']['processed']}"
         )
         return stats
 
