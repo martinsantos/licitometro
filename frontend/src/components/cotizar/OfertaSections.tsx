@@ -29,6 +29,7 @@ export default function OfertaSections({ licitacionId, sections, onSectionsChang
   const [pliegos, setPliegos] = useState<PliegoDoc[]>(pliegoDocuments);
   const [pliegoLoading, setPliegoLoading] = useState(false);
   const [pliegoSearched, setPliegoSearched] = useState(pliegoDocuments.length > 0);
+  const [pliegoStatus, setPliegoStatus] = useState('');
   const [uploading, setUploading] = useState(false);
   const [extractedPliegoText, setExtractedPliegoText] = useState('');
   const [pliegoHint, setPliegoHint] = useState<string | null>(null);
@@ -127,10 +128,36 @@ export default function OfertaSections({ licitacionId, sections, onSectionsChang
   // HUNTER: Search for pliego documents
   const handleFindPliegos = useCallback(async () => {
     setPliegoLoading(true);
+    setPliegoStatus('Buscando archivos adjuntos...');
     try {
+      // Simulate progress stages (the backend runs multiple strategies)
+      const statusTimer = setTimeout(() => setPliegoStatus('Buscando en fuentes cruzadas...'), 2000);
+      const statusTimer2 = setTimeout(() => setPliegoStatus('Autenticando en ComprasApps...'), 5000);
+      const statusTimer3 = setTimeout(() => setPliegoStatus('Descargando pliegos PDF...'), 10000);
+      const statusTimer4 = setTimeout(() => setPliegoStatus('Extrayendo texto del pliego...'), 15000);
+
       const result = await api.findPliegos(licitacionId);
-      // Merge HUNTER results with manually uploaded pliegos (don't lose uploads)
-      const hunterPliegos = result.pliegos || [];
+
+      clearTimeout(statusTimer);
+      clearTimeout(statusTimer2);
+      clearTimeout(statusTimer3);
+      clearTimeout(statusTimer4);
+
+      // Filter: remove __metadata__ items (internal data, not actual pliegos)
+      // and extract metadata (movimientos/OC) separately
+      const hunterPliegos = (result.pliegos || []).filter(p => p.type !== 'metadata' && p.name !== '__metadata__');
+      const metadataItems = (result.pliegos || []).filter(p => p.type === 'metadata');
+
+      // Show metadata info as status
+      for (const meta of metadataItems) {
+        const m = (meta as any).metadata || {};
+        const movCount = (m.movimientos || []).length;
+        const ocCount = (m.ordenes_compra || []).length;
+        if (movCount || ocCount) {
+          setPliegoStatus(`ComprasApps: ${movCount} movimiento(s)${ocCount ? `, ${ocCount} orden(es) de compra` : ''}`);
+        }
+      }
+
       setPliegos(prev => {
         const manualUploads = prev.filter(p => p.source === 'manual_upload');
         const existingUrls = new Set(manualUploads.map(p => p.url));
@@ -140,8 +167,11 @@ export default function OfertaSections({ licitacionId, sections, onSectionsChang
       setPliegoSearched(true);
       if (result.hint) setPliegoHint(result.hint);
     } catch { /* silent */ }
-    finally { setPliegoLoading(false); }
-  }, [licitacionId]);
+    finally {
+      setPliegoLoading(false);
+      setTimeout(() => setPliegoStatus(''), 5000); // Clear status after 5s
+    }
+  }, [licitacionId, api]);
 
   // Auto-search pliegos on mount
   useEffect(() => {
@@ -263,7 +293,12 @@ export default function OfertaSections({ licitacionId, sections, onSectionsChang
           <div className="flex gap-2">
             <button onClick={handleFindPliegos} disabled={pliegoLoading}
               className="text-xs px-3 py-1.5 border border-blue-300 text-blue-700 rounded-lg hover:bg-blue-100 disabled:opacity-50 transition-colors">
-              {pliegoLoading ? 'Buscando...' : 'Buscar con HUNTER'}
+              {pliegoLoading ? (
+                <span className="flex items-center gap-1.5">
+                  <span className="w-3 h-3 border-2 border-blue-300 border-t-blue-600 rounded-full animate-spin" />
+                  {pliegoStatus || 'Buscando...'}
+                </span>
+              ) : 'Buscar con HUNTER'}
             </button>
             {pliegos.length > 0 && (
               <button onClick={handleAnalyzeGaps} disabled={gapLoading}
@@ -316,6 +351,12 @@ export default function OfertaSections({ licitacionId, sections, onSectionsChang
           )}
         </div>
 
+        {pliegoStatus && !pliegoLoading && (
+          <p className="text-xs text-emerald-600 bg-emerald-50 rounded-lg px-3 py-2 flex items-center gap-1.5">
+            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+            {pliegoStatus}
+          </p>
+        )}
         {pliegoHint && (
           <p className="text-xs text-amber-600 bg-amber-50 rounded-lg px-3 py-2">{pliegoHint}</p>
         )}
