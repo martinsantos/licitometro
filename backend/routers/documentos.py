@@ -18,9 +18,15 @@ ALLOWED_MIME_TYPES = {
     "application/pdf",
     "image/jpeg",
     "image/png",
-    "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    "application/vnd.openxmlformats-officedocument.wordprocessingml.document",  # DOCX
+    "application/msword",  # DOC
+    "application/vnd.ms-excel",  # XLS
+    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",  # XLSX
+    "text/plain",
+    "application/rtf",
     "application/zip",
     "application/x-zip-compressed",
+    "application/octet-stream",  # Generic binary (browser fallback)
 }
 MAX_FILE_SIZE = 25 * 1024 * 1024  # 25MB
 
@@ -157,6 +163,37 @@ async def download_document(doc_id: str, request: Request):
         media_type=doc.get("mime_type", "application/octet-stream"),
         headers={"Content-Disposition": f'attachment; filename="{doc.get("filename", "document")}"'},
     )
+
+
+@router.get("/{doc_id}/extract-text")
+async def extract_text(doc_id: str, request: Request):
+    """Extract text from an uploaded PDF document using pypdf (0 AI tokens)."""
+    db = _get_db(request)
+    try:
+        doc = await db.documentos.find_one({"_id": ObjectId(doc_id)})
+    except Exception:
+        doc = None
+    if not doc:
+        raise HTTPException(404, "Documento no encontrado")
+
+    file_path = doc.get("file_path", "")
+    if not file_path or not os.path.isfile(file_path):
+        raise HTTPException(404, "Archivo no encontrado en disco")
+
+    mime = doc.get("mime_type", "")
+    if "pdf" not in mime.lower() and not file_path.lower().endswith(".pdf"):
+        raise HTTPException(400, "Solo PDFs soportados para extraccion de texto")
+
+    try:
+        with open(file_path, "rb") as f:
+            pdf_bytes = f.read()
+        from services.enrichment.pdf_zip_enricher import extract_text_from_pdf_bytes
+        text = extract_text_from_pdf_bytes(pdf_bytes)
+        text = (text or "")[:15000]
+        return {"text": text, "chars": len(text)}
+    except Exception as e:
+        logger.error(f"Failed to extract text from PDF {doc_id}: {e}")
+        raise HTTPException(500, f"Error extrayendo texto: {type(e).__name__}")
 
 
 @router.put("/{doc_id}")

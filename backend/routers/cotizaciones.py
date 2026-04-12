@@ -6,6 +6,7 @@ from typing import Any, Dict, List
 
 from bson import ObjectId
 from fastapi import APIRouter, HTTPException, Query, Request
+from fastapi.responses import Response
 from pydantic import BaseModel
 
 from models.cotizacion import CotizacionCreate
@@ -108,6 +109,34 @@ async def vincular_antecedente(licitacion_id: str, body: VincularAntecedenteBody
         raise HTTPException(404, "Cotización no encontrada")
     doc = await db.cotizaciones.find_one({"licitacion_id": licitacion_id})
     return cotizacion_entity(doc)
+
+
+@router.get("/{licitacion_id}/pdf")
+async def generate_pdf(licitacion_id: str, request: Request):
+    """Generate professional offer PDF for a cotizacion."""
+    db = _get_db(request)
+    cot = await db.cotizaciones.find_one({"licitacion_id": licitacion_id})
+    if not cot:
+        raise HTTPException(404, "Cotizacion not found")
+
+    try:
+        lic = await db.licitaciones.find_one({"_id": ObjectId(licitacion_id)})
+    except Exception:
+        lic = None
+    if not lic:
+        lic = {"title": cot.get("licitacion_title", ""), "organization": cot.get("organization", "")}
+    else:
+        lic["id"] = str(lic.pop("_id"))
+
+    from services.offer_pdf_generator import generate_offer_pdf
+    pdf_bytes = generate_offer_pdf(cot, lic)
+
+    filename = f"Oferta_{cot.get('licitacion_title', 'cotizacion')[:40]}.pdf".replace(" ", "_")
+    return Response(
+        content=pdf_bytes,
+        media_type="application/pdf",
+        headers={"Content-Disposition": f'inline; filename="{filename}"'},
+    )
 
 
 @router.get("/{licitacion_id}/price-intelligence")

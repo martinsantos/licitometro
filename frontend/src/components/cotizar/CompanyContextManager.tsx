@@ -15,6 +15,7 @@ const WIZARD_STEPS = [
   { id: 3, label: 'Antecedentes', icon: '📋' },
   { id: 4, label: 'Zonas', icon: '📍' },
   { id: 5, label: 'Tips', icon: '💡' },
+  { id: 6, label: 'HUNTER', icon: '🔑' },
 ];
 
 function formatDate(d?: string) {
@@ -118,7 +119,7 @@ function StepAntecedentes() {
     setLoading(true);
     try {
       const r = await api.searchCompanyAntecedentes(undefined, 'tecnologia informatica telecomunicaciones');
-      setResults(r);
+      setResults(r.results);
     } catch { /* silent */ }
     finally { setLoading(false); setSearched(true); }
   };
@@ -151,6 +152,162 @@ function StepAntecedentes() {
             </div>
           ))}
         </div>
+      )}
+    </div>
+  );
+}
+
+// ─── HUNTER Credentials Manager ───
+
+interface SiteCredential {
+  id: string;
+  site_name: string;
+  site_url: string;
+  username: string;
+  password: string;
+  enabled: boolean;
+  last_used?: string;
+  last_status?: string;
+  notes: string;
+}
+
+function StepCredentials() {
+  const [credentials, setCredentials] = useState<SiteCredential[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [editing, setEditing] = useState<Partial<SiteCredential> | null>(null);
+  const [saving, setSaving] = useState(false);
+
+  const fetchCredentials = useCallback(async () => {
+    try {
+      const resp = await fetch('/api/company-context/credentials');
+      if (resp.ok) setCredentials(await resp.json());
+    } catch { /* silent */ }
+    finally { setLoading(false); }
+  }, []);
+
+  useEffect(() => { fetchCredentials(); }, [fetchCredentials]);
+
+  const handleSave = useCallback(async () => {
+    if (!editing?.site_name || !editing?.username) return;
+    setSaving(true);
+    try {
+      const isNew = !editing.id;
+      const url = isNew ? '/api/company-context/credentials' : `/api/company-context/credentials/${editing.id}`;
+      const method = isNew ? 'POST' : 'PUT';
+      const resp = await fetch(url, {
+        method,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(editing),
+      });
+      if (resp.ok) {
+        setEditing(null);
+        await fetchCredentials();
+      }
+    } catch { /* silent */ }
+    finally { setSaving(false); }
+  }, [editing, fetchCredentials]);
+
+  const handleDelete = useCallback(async (id: string) => {
+    if (!window.confirm('Eliminar esta credencial?')) return;
+    await fetch(`/api/company-context/credentials/${id}`, { method: 'DELETE' });
+    await fetchCredentials();
+  }, [fetchCredentials]);
+
+  return (
+    <div className="space-y-4">
+      <div>
+        <h3 className="font-semibold text-gray-800">Credenciales de Sitios de Compras</h3>
+        <p className="text-sm text-gray-500 mt-1">HUNTER usa estas credenciales para acceder a portales de compras y descargar pliegos automaticamente.</p>
+      </div>
+
+      {loading ? (
+        <div className="text-sm text-gray-400 py-4">Cargando...</div>
+      ) : (
+        <>
+          {/* Credentials list */}
+          <div className="space-y-2">
+            {credentials.map(cred => (
+              <div key={cred.id} className={`border rounded-xl p-4 ${cred.enabled ? 'border-gray-200' : 'border-gray-100 opacity-60'}`}>
+                <div className="flex items-start justify-between gap-3">
+                  <div className="flex-1">
+                    <div className="flex items-center gap-2">
+                      <span className={`w-2 h-2 rounded-full ${cred.enabled ? 'bg-emerald-500' : 'bg-gray-300'}`} />
+                      <span className="font-semibold text-gray-800 text-sm">{cred.site_name}</span>
+                    </div>
+                    <p className="text-xs text-gray-500 mt-0.5">{cred.site_url}</p>
+                    <p className="text-xs text-gray-600 mt-1">Usuario: <span className="font-mono bg-gray-100 px-1 rounded">{cred.username}</span></p>
+                    {cred.last_status && (
+                      <p className={`text-xs mt-1 ${cred.last_status.startsWith('OK') ? 'text-emerald-600' : 'text-red-500'}`}>
+                        {cred.last_status}
+                      </p>
+                    )}
+                    {cred.last_used && (
+                      <p className="text-[10px] text-gray-400 mt-0.5">Ultimo uso: {new Date(cred.last_used).toLocaleString('es-AR')}</p>
+                    )}
+                    {cred.notes && <p className="text-xs text-gray-400 mt-0.5">{cred.notes}</p>}
+                  </div>
+                  <div className="flex gap-1">
+                    <button onClick={() => setEditing(cred)} className="text-xs px-2 py-1 border border-gray-200 rounded-lg hover:bg-gray-100 text-gray-600">Editar</button>
+                    <button onClick={() => handleDelete(cred.id)} className="text-xs px-2 py-1 border border-red-200 rounded-lg hover:bg-red-50 text-red-500">Eliminar</button>
+                  </div>
+                </div>
+              </div>
+            ))}
+            {credentials.length === 0 && (
+              <p className="text-sm text-gray-400 py-4">No hay credenciales configuradas. Agrega una para que HUNTER pueda acceder a portales de compras.</p>
+            )}
+          </div>
+
+          {/* Add/Edit form */}
+          {editing ? (
+            <div className="border-2 border-blue-200 rounded-xl p-4 bg-blue-50/30 space-y-3">
+              <h4 className="text-sm font-semibold text-gray-800">{editing.id ? 'Editar credencial' : 'Nueva credencial'}</h4>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-medium text-gray-600 mb-1">Nombre del sitio</label>
+                  <input value={editing.site_name || ''} onChange={e => setEditing(p => ({ ...p, site_name: e.target.value }))}
+                    placeholder="Ej: COMPR.AR Mendoza" className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm" />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-gray-600 mb-1">URL del sitio</label>
+                  <input value={editing.site_url || ''} onChange={e => setEditing(p => ({ ...p, site_url: e.target.value }))}
+                    placeholder="Ej: comprar.mendoza.gov.ar" className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm" />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-gray-600 mb-1">Usuario</label>
+                  <input value={editing.username || ''} onChange={e => setEditing(p => ({ ...p, username: e.target.value }))}
+                    className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm font-mono" />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-gray-600 mb-1">Contrasena</label>
+                  <input type="password" value={editing.password || ''} onChange={e => setEditing(p => ({ ...p, password: e.target.value }))}
+                    placeholder={editing.id ? '(sin cambios)' : ''} className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm font-mono" />
+                </div>
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-gray-600 mb-1">Notas</label>
+                <input value={editing.notes || ''} onChange={e => setEditing(p => ({ ...p, notes: e.target.value }))}
+                  placeholder="Ej: Cuenta proveedor empresa" className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm" />
+              </div>
+              <label className="flex items-center gap-2 text-sm">
+                <input type="checkbox" checked={editing.enabled !== false} onChange={e => setEditing(p => ({ ...p, enabled: e.target.checked }))} />
+                <span className="text-gray-700">Habilitada</span>
+              </label>
+              <div className="flex gap-2 pt-1">
+                <button onClick={handleSave} disabled={saving} className="px-4 py-2 bg-blue-600 text-white text-sm font-semibold rounded-lg hover:bg-blue-700 disabled:opacity-50">
+                  {saving ? 'Guardando...' : 'Guardar'}
+                </button>
+                <button onClick={() => setEditing(null)} className="px-4 py-2 text-gray-600 text-sm rounded-lg hover:bg-gray-100">Cancelar</button>
+              </div>
+            </div>
+          ) : (
+            <button onClick={() => setEditing({ site_name: '', site_url: '', username: '', password: '', enabled: true, notes: '' })}
+              className="flex items-center gap-2 text-sm text-blue-600 hover:text-blue-800 font-medium">
+              <span className="w-6 h-6 rounded-full border-2 border-current flex items-center justify-center text-xs font-bold leading-none">+</span>
+              Agregar credencial
+            </button>
+          )}
+        </>
       )}
     </div>
   );
@@ -470,6 +627,8 @@ export default function CompanyContextManager() {
           </div>
         )}
 
+        {step === 6 && <StepCredentials />}
+
         {/* Navigation */}
         <div className="flex justify-between pt-2">
           {step > 1 ? (
@@ -477,7 +636,7 @@ export default function CompanyContextManager() {
               <span>←</span> Anterior
             </button>
           ) : <div />}
-          {step < 5 ? (
+          {step < 6 ? (
             <button onClick={() => setStep(step + 1)} className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold rounded-xl transition-colors">
               Siguiente <span>→</span>
             </button>

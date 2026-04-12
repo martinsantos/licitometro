@@ -141,6 +141,8 @@ async def search_antecedentes(body: Dict[str, Any], request: Request):
     """Search for similar past tenders as reference using full-text search."""
     db = _get_db(request)
     licitacion_id = body.get("licitacion_id")
+    skip = body.get("skip", 0)
+    limit = body.get("limit", 10)
     if not licitacion_id:
         raise HTTPException(400, "licitacion_id required")
 
@@ -261,7 +263,9 @@ async def search_antecedentes(body: Dict[str, Any], request: Request):
 
         results.append(entry)
 
-    return results
+    # Apply skip/limit for pagination
+    paginated = results[skip:skip + limit]
+    return {"results": paginated, "total": len(results)}
 
 
 @router.post("/analyze-bid")
@@ -281,9 +285,11 @@ async def analyze_bid(body: Dict[str, Any], request: Request):
 
     items_str = json.dumps(body.get("items", []), ensure_ascii=False)[:500]
 
+    budget = body.get("budget_override") or lic.get("budget") or "N/A"
+
     context = f"""LICITACIÓN:
 Objeto: {lic.get('objeto') or lic.get('title', '')}
-Presupuesto: ${lic.get('budget', 'N/A')}
+Presupuesto: ${budget}
 Tipo: {lic.get('tipo_procedimiento', 'N/A')}
 Organismo: {lic.get('organization', 'N/A')}
 
@@ -301,6 +307,360 @@ Empresa: {body.get('empresa_nombre', 'N/A')}"""
 
     groq = get_groq_enrichment_service()
     return await groq.analyze_bid(context)
+
+
+def _fmt_ars(n: float) -> str:
+    """Format number as Argentine pesos."""
+    return f"${n:,.0f}".replace(",", ".")
+
+
+@router.post("/generate-section")
+async def generate_section(body: Dict[str, Any], request: Request):
+    """Generate content for an offer section. Data-first: uses real data, IA only for narrative."""
+    db = _get_db(request)
+    licitacion_id = body.get("licitacion_id")
+    section_slug = body.get("section_slug")
+    if not licitacion_id or not section_slug:
+        raise HTTPException(400, "licitacion_id and section_slug required")
+
+    try:
+        lic = await db.licitaciones.find_one({"_id": ObjectId(licitacion_id)})
+    except Exception:
+        lic = None
+    if not lic:
+        raise HTTPException(404, "Licitacion not found")
+
+    cot = await db.cotizaciones.find_one({"licitacion_id": licitacion_id}) or {}
+    company = cot.get("company_data", {}) or {}
+    tech = cot.get("tech_data", {}) or {}
+    items = cot.get("items", [])
+    budget = cot.get("budget_override") or lic.get("budget") or 0
+    subtotal = cot.get("subtotal", 0)
+    iva_rate = cot.get("iva_rate", 21)
+    iva_amount = cot.get("iva_amount", 0)
+    total = cot.get("total", 0)
+    objeto = lic.get("objeto") or lic.get("title", "")
+    organismo = lic.get("organization", "")
+    company_name = company.get("nombre", "ULTIMA MILLA S.A.")
+    cuit = company.get("cuit", "")
+    from datetime import datetime
+    fecha = datetime.now().strftime("%d/%m/%Y")
+
+    # ─── DATA-FIRST SECTIONS (no AI needed) ───
+
+    if section_slug == "portada":
+        lines = [
+            objeto.upper(),
+            "",
+            "OFERTA TECNICA, ECONOMICA Y ESTRATEGICA",
+            "",
+            company_name,
+            "",
+            f"Expediente: {lic.get('licitacion_number', '')}",
+            f"Objeto: {objeto}",
+            f"Organismo contratante: {organismo}",
+            f"Oferente: {company_name}",
+            f"CUIT: {cuit}",
+            f"Fecha de presentacion: {fecha}",
+        ]
+        return {"content": "\n".join(lines), "section_slug": section_slug}
+
+    if section_slug == "oferta_economica":
+        lines = ["Detalle de la oferta economica:", ""]
+        for i, item in enumerate(items, 1):
+            desc = item.get("descripcion", "-")
+            cant = item.get("cantidad", 0)
+            unit = item.get("unidad", "u.")
+            precio = item.get("precio_unitario", 0)
+            sub = cant * precio
+            if desc.strip():
+                lines.append(f"{i}. {desc} — {cant} {unit} x {_fmt_ars(precio)} = {_fmt_ars(sub)}")
+        lines.append("")
+        lines.append(f"Subtotal: {_fmt_ars(subtotal)}")
+        lines.append(f"IVA ({iva_rate}%): {_fmt_ars(iva_amount)}")
+        lines.append(f"TOTAL: {_fmt_ars(total)}")
+        lines.append("")
+        lines.append(f"Presupuesto oficial: {_fmt_ars(budget)}")
+        if tech.get("validez"):
+            lines.append(f"Validez de la oferta: {tech['validez']} dias")
+        return {"content": "\n".join(lines), "section_slug": section_slug}
+
+    if section_slug == "equipo_trabajo":
+        content = """Rol | Responsabilidades | Dedicacion
+Lider de Proyecto (PM) | Coordinacion general, interlocucion con el organismo, gestion de riesgos | 100%
+Arquitecto de Software | Diseño de arquitectura, definicion de stack, seguridad | 50%
+Analista Funcional | Relevamiento de requerimientos, documentacion, casos de uso | 75%
+Desarrollador Senior Backend | Desarrollo de API, logica de negocio, base de datos | 100%
+Desarrollador Frontend | Desarrollo de interfaces web, dashboards, UX/UI | 100%
+Analista QA | Testing, pruebas de carga, automatizacion de pruebas | 75%"""
+        return {"content": content, "section_slug": section_slug}
+
+    if section_slug == "metodologia":
+        content = f"""{company_name} aplicara metodologia agil (SCRUM) con Integracion y Entrega Continua (CI/CD).
+
+Gestion del proyecto:
+- Sprints de 2 semanas con entregables funcionales
+- Sprint Planning al inicio de cada ciclo
+- Daily standups de 15 minutos
+- Sprint Review con demostracion al cliente cada quincena
+
+Aseguramiento de calidad:
+- Pruebas unitarias automatizadas
+- Pruebas de integracion
+- Revision de codigo (code review)
+- Auditoria de seguridad (SAST)
+
+Gestion de configuracion:
+- Git como control de versiones (GitFlow)
+- Pipelines CI/CD automatizados
+- Ambientes separados: desarrollo, staging, produccion"""
+        return {"content": content, "section_slug": section_slug}
+
+    if section_slug == "antecedentes":
+        # Build from REAL data: um_antecedentes + vinculados
+        lines = [f"{company_name} es una empresa argentina radicada en Mendoza, con mas de 16 años de experiencia en diseño, desarrollo y mantenimiento de soluciones tecnologicas.", ""]
+        lines.append("Antecedentes relevantes para esta contratacion:")
+        lines.append("")
+
+        # Get from um_antecedentes
+        try:
+            from services.um_antecedentes import get_um_antecedente_service
+            svc = get_um_antecedente_service(db)
+            await svc.ensure_indexes()
+            # Search relevant to this licitacion's object
+            search_kw = " ".join([w for w in objeto.split() if len(w) > 3][:5]) or "software desarrollo sistema"
+            result = await svc.search(keywords=search_kw, limit=8)
+            ants = result.get("results", [])
+            # Also search by governo sector
+            if len(ants) < 4:
+                result2 = await svc.search(keywords="gobierno sector publico", limit=6)
+                existing = {a.get("id") for a in ants}
+                for a in result2.get("results", []):
+                    if a.get("id") not in existing:
+                        ants.append(a)
+            for i, ant in enumerate(ants[:6], 1):
+                title = ant.get("title", "")
+                client = ant.get("organization", "")
+                sector = ant.get("category", "")
+                detail_url = ant.get("detail_url") or ant.get("url", "")
+                image_url = ant.get("image_url", "")
+                lines.append(f"{i}. {title}")
+                if client:
+                    lines.append(f"   Cliente: {client}")
+                if sector:
+                    lines.append(f"   Sector: {sector}")
+                if detail_url:
+                    lines.append(f"   URL: {detail_url}")
+                if image_url:
+                    lines.append(f"   IMG: {image_url}")
+                lines.append("")
+        except Exception as e:
+            logger.warning(f"Failed to load antecedentes: {e}")
+            lines.append("[Completar con antecedentes reales de la empresa]")
+
+        return {"content": "\n".join(lines), "section_slug": section_slug}
+
+    # ─── AI-ASSISTED SECTIONS (with verified real data as context) ───
+
+    # Build context from VERIFIED data only — never expose internal pricing
+    parts = [
+        f"Empresa oferente: {company_name}",
+        f"Objeto de la contratacion: {objeto}",
+        f"Organismo contratante: {organismo}",
+        f"Tipo de procedimiento: {lic.get('tipo_procedimiento', '')}",
+    ]
+
+    # Add description from licitacion
+    if lic.get("description") and len(lic["description"]) > 50:
+        parts.append(f"\nDESCRIPCION DE LA LICITACION:\n{lic['description'][:1500]}")
+
+    # Add pliego text if available (from uploaded PDFs)
+    pliego_docs = cot.get("pliego_documents") or []
+    if pliego_docs:
+        # Try to extract text from first pliego
+        try:
+            from services.pliego_finder import find_pliegos
+            pliego_result = await find_pliegos(db, licitacion_id)
+            if pliego_result.get("text_extracted"):
+                parts.append(f"\nTEXTO DEL PLIEGO (extraido del PDF):\n{pliego_result['text_extracted'][:2000]}")
+        except Exception:
+            pass
+
+    # Add methodology and plazo from what user filled in Step 2
+    if tech.get("methodology"):
+        parts.append(f"\nMETODOLOGIA PROPUESTA POR EL OFERENTE:\n{tech['methodology'][:500]}")
+    if tech.get("plazo"):
+        parts.append(f"PLAZO PROPUESTO: {tech['plazo'][:200]}")
+    if tech.get("lugar"):
+        parts.append(f"LUGAR DE PRESTACION: {tech['lugar'][:200]}")
+
+    # Add dates from licitacion
+    if lic.get("opening_date"):
+        parts.append(f"Fecha apertura: {lic['opening_date']}")
+
+    # Add items summary (what we're offering, not prices)
+    valid_items = [i for i in items if i.get("descripcion", "").strip()]
+    if valid_items:
+        parts.append(f"\nITEMS COTIZADOS ({len(valid_items)} renglones):")
+        for i, item in enumerate(valid_items, 1):
+            parts.append(f"  {i}. {item['descripcion']} — {item.get('cantidad', 0)} {item.get('unidad', 'u.')}")
+
+    # Add vinculados (real antecedentes linked to this offer)
+    vinc_ids = cot.get("antecedentes_vinculados") or []
+    if vinc_ids:
+        try:
+            lic_oids = [ObjectId(i) for i in vinc_ids[:10] if len(i) == 24]
+            if lic_oids:
+                vinc_docs = await db.licitaciones.find(
+                    {"_id": {"$in": lic_oids}}, {"title": 1, "organization": 1}
+                ).to_list(10)
+                if vinc_docs:
+                    parts.append(f"\nANTECEDENTES VINCULADOS ({len(vinc_docs)} proyectos previos de la empresa):")
+                    for v in vinc_docs:
+                        parts.append(f"  - {v.get('title', '')} ({v.get('organization', '')})")
+        except Exception:
+            pass
+
+    # Company context from profiles
+    company_ctx = await _get_company_context_str(db, organismo, lic.get("tipo_procedimiento", ""))
+    if company_ctx:
+        parts.append(f"\n{company_ctx}")
+
+    context = "\n".join(parts)
+    groq = get_groq_enrichment_service()
+    content = await groq.generate_offer_section(section_slug, context)
+    return {"content": content, "section_slug": section_slug}
+
+
+@router.get("/offer-template-default")
+async def get_default_template(request: Request, slug: str = ""):
+    """Get an offer template by slug (default: software_it)."""
+    db = _get_db(request)
+    query = {"slug": slug} if slug else {"slug": "software_it"}
+    template = await db.offer_templates.find_one(query)
+    if not template:
+        # Fallback to any template
+        template = await db.offer_templates.find_one()
+    if not template:
+        return {"error": "No template found. Run seed script."}
+    template["id"] = str(template.pop("_id"))
+    return template
+
+
+@router.get("/offer-templates-list")
+async def list_offer_templates(request: Request):
+    """List all available offer templates (summary)."""
+    db = _get_db(request)
+    cursor = db.offer_templates.find({}, {
+        "name": 1, "slug": 1, "template_type": 1, "description": 1,
+        "tags": 1, "sections": 1, "usage_count": 1,
+    }).sort("usage_count", -1)
+    docs = await cursor.to_list(50)
+    return [
+        {
+            "id": str(d["_id"]),
+            "name": d.get("name", ""),
+            "slug": d.get("slug", ""),
+            "template_type": d.get("template_type", ""),
+            "description": d.get("description", ""),
+            "tags": d.get("tags", []),
+            "sections_count": len(d.get("sections", [])),
+            "usage_count": d.get("usage_count", 0),
+        }
+        for d in docs
+    ]
+
+
+@router.post("/find-pliegos")
+async def find_pliegos_endpoint(body: Dict[str, Any], request: Request):
+    """Find pliego documents for a licitacion using HUNTER strategies."""
+    db = _get_db(request)
+    licitacion_id = body.get("licitacion_id")
+    if not licitacion_id:
+        raise HTTPException(400, "licitacion_id required")
+
+    from services.pliego_finder import find_pliegos
+    return await find_pliegos(db, licitacion_id)
+
+
+@router.post("/analyze-pliego-gaps")
+async def analyze_pliego_gaps(body: Dict[str, Any], request: Request):
+    """Analyze pliego text vs current offer sections to find gaps."""
+    db = _get_db(request)
+    licitacion_id = body.get("licitacion_id")
+    pliego_text = body.get("pliego_text", "")
+
+    if not licitacion_id:
+        raise HTTPException(400, "licitacion_id required")
+
+    # If no text provided, try to find and extract from pliego
+    if not pliego_text:
+        from services.pliego_finder import find_pliegos
+        result = await find_pliegos(db, licitacion_id)
+        pliego_text = result.get("text_extracted", "")
+
+    if not pliego_text or len(pliego_text) < 50:
+        return {"gaps": [], "completeness": 0, "error": "No se pudo extraer texto del pliego. Subi el PDF manualmente."}
+
+    # Load current offer sections
+    cot = await db.cotizaciones.find_one({"licitacion_id": licitacion_id})
+    current_sections = []
+    if cot:
+        current_sections = cot.get("offer_sections", [])
+
+    filled_slugs = [s.get("slug") for s in current_sections if s.get("content", "").strip()]
+
+    groq = get_groq_enrichment_service()
+    client = groq._get_client()
+    if not client:
+        return {"gaps": [], "completeness": 0, "error": "IA no disponible"}
+
+    sections_summary = ", ".join(filled_slugs) if filled_slugs else "ninguna"
+
+    import asyncio as _asyncio
+    try:
+        response = await _asyncio.to_thread(
+            client.chat.completions.create,
+            model="llama-3.3-70b-versatile",
+            messages=[{"role": "user", "content": f"""Analiza este pliego de licitación y compara con las secciones ya completadas de la oferta.
+
+PLIEGO (extracto):
+{pliego_text[:4000]}
+
+SECCIONES YA COMPLETADAS: {sections_summary}
+
+Responde SOLO con JSON valido:
+{{
+  "requirements": [
+    {{"requirement": "descripcion del requisito", "section_slug": "slug sugerido", "status": "missing|partial|complete", "importance": "alta|media|baja"}}
+  ],
+  "suggested_sections": [
+    {{"slug": "nuevo_slug", "title": "Titulo sugerido", "reason": "por que se necesita"}}
+  ],
+  "completeness": 0-100
+}}"""}],
+            max_tokens=1500,
+            temperature=0.2,
+        )
+        content = response.choices[0].message.content.strip()
+        result = groq._extract_json(content)
+        if result and isinstance(result, dict):
+            return result
+        return {"gaps": [], "completeness": 0, "raw": content[:500]}
+    except Exception as e:
+        err_str = str(e)
+        if "rate_limit" in err_str.lower() or "429" in err_str:
+            # Try Cerebras fallback
+            prompt = f"""Analiza este pliego y compara con las secciones completadas.\n\nPLIEGO:\n{pliego_text[:3000]}\n\nSECCIONES COMPLETADAS: {sections_summary}\n\nResponde JSON: {{"requirements": [{{"requirement": "desc", "section_slug": "slug", "status": "missing", "importance": "alta"}}], "suggested_sections": [], "completeness": 0}}"""
+            cerebras_result = await groq._cerebras_completion(
+                [{"role": "user", "content": prompt}], max_tokens=1500, temperature=0.2
+            )
+            if cerebras_result:
+                parsed = groq._extract_json(cerebras_result)
+                if parsed and isinstance(parsed, dict):
+                    return parsed
+            return {"gaps": [], "completeness": 0, "error": "Limite de IA alcanzado. Intenta manana."}
+        return {"gaps": [], "completeness": 0, "error": "Error al analizar. Intenta de nuevo."}
 
 
 @router.post("/extract-pliego-info")
@@ -485,6 +845,32 @@ async def extract_pliego_info(body: Dict[str, Any], request: Request):
                 logger.warning(f"Failed to scrape landing page {durl_clean}: {_e}")
 
     pdf_texts = []
+
+    # Check manually uploaded pliego documents in cotizacion (read from disk, no HTTP)
+    try:
+        cot = await db.cotizaciones.find_one({"licitacion_id": licitacion_id})
+        if cot:
+            for pdoc in (cot.get("pliego_documents") or []):
+                url = pdoc.get("url", "")
+                if url and "/api/documentos/" in url and "download" in url:
+                    import re as _re_doc
+                    m = _re_doc.search(r'/api/documentos/([a-f0-9]+)/download', url)
+                    if m:
+                        try:
+                            doc = await db.documentos.find_one({"_id": ObjectId(m.group(1))})
+                            if doc and doc.get("file_path") and os.path.isfile(doc["file_path"]):
+                                with open(doc["file_path"], "rb") as f:
+                                    pdf_bytes = f.read()
+                                from services.enrichment.pdf_zip_enricher import extract_text_from_pdf_bytes
+                                text = extract_text_from_pdf_bytes(pdf_bytes)
+                                if text and text.strip():
+                                    pdf_texts.append(text)
+                                    logger.info(f"CotizAR: extracted {len(text)} chars from uploaded pliego {pdoc.get('name', '')}")
+                        except Exception as e:
+                            logger.warning(f"Failed to extract text from uploaded pliego: {e}")
+    except Exception as e:
+        logger.warning(f"Failed to check cotizacion pliego_documents: {e}")
+
     download_tasks = []
     seen_urls = set()
     for f in all_attached:
@@ -672,6 +1058,46 @@ async def get_company_antecedentes_sectors(request: Request):
     return await service.get_sectors()
 
 
+@router.post("/antecedentes-by-ids")
+async def get_antecedentes_by_ids(body: Dict[str, Any], request: Request):
+    """Resolve antecedente IDs to full objects. Searches both licitaciones and um_antecedentes."""
+    db = _get_db(request)
+    ids = body.get("ids", [])
+    if not ids:
+        return []
+
+    results = []
+    lic_oids = []
+    for i in ids:
+        try:
+            lic_oids.append(ObjectId(i))
+        except Exception:
+            continue
+    if lic_oids:
+        docs = await db.licitaciones.find({"_id": {"$in": lic_oids}}).to_list(len(lic_oids))
+        for d in docs:
+            results.append({
+                "id": str(d["_id"]),
+                "title": d.get("title", ""),
+                "objeto": d.get("objeto", ""),
+                "organization": d.get("organization", ""),
+                "budget": d.get("budget"),
+                "category": d.get("category", ""),
+                "image_url": "",
+                "source": "licitaciones",
+            })
+
+    found_ids = {r["id"] for r in results}
+    missing = [i for i in ids if i not in found_ids]
+    if missing:
+        from services.um_antecedentes import get_um_antecedente_service
+        service = get_um_antecedente_service(db)
+        um_results = await service.get_by_ids(missing)
+        results.extend(um_results)
+
+    return results
+
+
 @router.post("/search-company-antecedentes")
 async def search_company_antecedentes(body: Dict[str, Any], request: Request):
     """Search Ultima Milla company antecedentes from ultimamilla.com.ar + SGI."""
@@ -679,6 +1105,8 @@ async def search_company_antecedentes(body: Dict[str, Any], request: Request):
     licitacion_id = body.get("licitacion_id")
     keywords = body.get("keywords")
     sector = body.get("sector")
+    skip = body.get("skip", 0)
+    limit = body.get("limit", 15)
 
     # If only licitacion_id, derive keywords from licitacion
     if licitacion_id and not keywords:
@@ -699,8 +1127,7 @@ async def search_company_antecedentes(body: Dict[str, Any], request: Request):
     from services.um_antecedentes import get_um_antecedente_service
     service = get_um_antecedente_service(db)
     await service.ensure_indexes()
-    results = await service.search(keywords=keywords, sector=sector, limit=15)
-    return results
+    return await service.search(keywords=keywords, sector=sector, limit=limit, skip=skip)
 
 
 @router.post("/extract-marco-legal")
@@ -740,8 +1167,9 @@ async def extract_marco_legal(body: Dict[str, Any], request: Request):
         parts.append(f"Objeto: {lic['objeto']}")
     if lic.get("organization"):
         parts.append(f"Organismo: {lic['organization']}")
-    if lic.get("budget"):
-        parts.append(f"Presupuesto oficial: ${lic['budget']}")
+    budget = body.get("budget_override") or lic.get("budget")
+    if budget:
+        parts.append(f"Presupuesto oficial: ${budget}")
     if lic.get("duracion_contrato"):
         parts.append(f"Duración contrato: {lic['duracion_contrato']}")
     if lic.get("opening_date"):
@@ -760,7 +1188,6 @@ async def extract_marco_legal(body: Dict[str, Any], request: Request):
 
     # Determine if Mendoza provincial (UF) or federal (módulos)
     threshold_info = None
-    budget = lic.get("budget")
     encuadre = (metadata.get("encuadre_legal") or lic.get("encuadre_legal") or "").lower()
     jurisdiccion = (lic.get("jurisdiccion") or "").lower()
     fuente = (lic.get("fuente") or "").lower()

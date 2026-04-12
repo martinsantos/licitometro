@@ -169,3 +169,45 @@ async def enrich_comprar(http: ResilientHttpClient, lic_doc: dict, source_url: s
         logger.info(f"COMPR.AR enrichment: {len(fields)} pliego fields, {len(updates)} updates")
 
     return updates
+
+
+async def enrich_comprar_authenticated(db, lic_doc: dict, source_url: str) -> Dict[str, Any]:
+    """Try authenticated enrichment via VistaPreviaPliego (internal view).
+
+    Only runs when credentials exist for the domain. Extracts additional fields
+    not visible in the public VistaPreviaPliegoCiudadano view (cronograma,
+    garantías, items, requisitos, circulares).
+
+    This is called AFTER enrich_comprar() during manual enrichment only.
+    Anti-ban: 2.5s delay, never called from cron.
+    """
+    import re
+    from urllib.parse import urlparse
+
+    if not db:
+        return {}
+
+    parsed = urlparse(source_url)
+    domain = parsed.netloc
+    if not domain:
+        return {}
+
+    # Check if credentials exist for this domain
+    cred = await db.site_credentials.find_one({
+        "enabled": True,
+        "site_url": {"$regex": re.escape(domain), "$options": "i"},
+    })
+    if not cred:
+        return {}
+
+    try:
+        from services.comprar_pliego_downloader import ComprarPliegoDownloader
+        downloader = ComprarPliegoDownloader(db)
+        pliegos = await downloader.download_anexos(source_url)
+        if pliegos:
+            logger.info(f"COMPR.AR auth enrichment: downloaded {len(pliegos)} anexos from {domain}")
+            return {"attached_files_extra": pliegos}
+    except Exception as e:
+        logger.warning(f"COMPR.AR auth enrichment failed: {e}")
+
+    return {}

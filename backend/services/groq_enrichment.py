@@ -60,28 +60,58 @@ Responde SOLO con JSON válido (sin markdown, sin backticks):
 {{"precio": {{"score": 75, "color": "green", "detail": "Evaluación del precio ofertado vs presupuesto oficial..."}}, "metodologia": {{"score": 60, "color": "yellow", "detail": "Evaluación de la propuesta técnica del oferente..."}}, "empresa": {{"score": 80, "color": "green", "detail": "Evaluación del perfil de la empresa oferente..."}}, "cronograma": {{"score": 70, "color": "green", "detail": "Evaluación del plazo comprometido..."}}, "win_probability": 65, "riesgos": [{{"tipo": "Precio", "nivel": "medio", "detalle": "Riesgo identificado para el oferente..."}}], "recomendaciones": ["Qué debería mejorar el oferente para ganar..."], "veredicto": "Recomendado/No recomendado presentarse", "resumen": "Resumen ejecutivo para el oferente sobre si conviene presentarse y por qué"}}"""
 
 
+CEREBRAS_API_URL = "https://api.cerebras.ai/v1/chat/completions"
+CEREBRAS_MODEL = "llama3.1-8b"
+
+
 class GroqEnrichmentService:
-    """LLM enrichment via Groq free tier."""
+    """LLM enrichment via Groq free tier with Cerebras fallback."""
 
     def __init__(self):
         self._api_key = os.getenv("GROQ_API_KEY")
-        self.enabled = bool(self._api_key)
+        self._cerebras_key = os.getenv("CEREBRAS_API_KEY")
+        self.enabled = bool(self._api_key) or bool(self._cerebras_key)
         self._client = None
         if not self.enabled:
-            logger.info("Groq enrichment disabled (GROQ_API_KEY not set)")
+            logger.info("LLM enrichment disabled (no GROQ_API_KEY or CEREBRAS_API_KEY)")
 
     def _get_client(self):
-        if not self.enabled:
+        if not self._api_key:
             return None
         if self._client is None:
             try:
                 from groq import Groq
                 self._client = Groq(api_key=self._api_key)
             except ImportError:
-                logger.warning("groq package not installed — LLM enrichment disabled")
-                self.enabled = False
+                logger.warning("groq package not installed")
                 return None
         return self._client
+
+    async def _cerebras_completion(self, messages: list, max_tokens: int = 1000, temperature: float = 0.3) -> Optional[str]:
+        """Fallback: call Cerebras API directly via HTTP when Groq rate-limited."""
+        if not self._cerebras_key:
+            return None
+        import aiohttp
+        try:
+            async with aiohttp.ClientSession() as session:
+                async with session.post(
+                    CEREBRAS_API_URL,
+                    headers={"Authorization": f"Bearer {self._cerebras_key}", "Content-Type": "application/json"},
+                    json={"model": CEREBRAS_MODEL, "messages": messages, "max_tokens": max_tokens, "temperature": temperature},
+                    timeout=aiohttp.ClientTimeout(total=30),
+                ) as resp:
+                    if resp.status == 200:
+                        data = await resp.json()
+                        content = data["choices"][0]["message"]["content"].strip()
+                        logger.info(f"Cerebras fallback succeeded ({len(content)} chars)")
+                        return content
+                    else:
+                        err = await resp.text()
+                        logger.warning(f"Cerebras API returned {resp.status}: {err[:200]}")
+                        return None
+        except Exception as e:
+            logger.warning(f"Cerebras fallback failed: {e}")
+            return None
 
     def _extract_json(self, content: str, expect_array: bool = False):
         """Extract JSON object or array from LLM response text.
@@ -228,7 +258,16 @@ class GroqEnrichmentService:
             return {"error": "Respuesta IA no válida", "raw": content[:500]}
         except Exception as e:
             logger.warning(f"Groq analyze_bid failed: {e}")
-            return {"error": str(e), "veredicto": "Error", "resumen": f"Error en análisis: {e}"}
+            if "rate_limit" in str(e).lower() or "429" in str(e):
+                # Try Cerebras
+                cerebras_result = await self._cerebras_completion(
+                    [{"role": "user", "content": PROMPT_ANALYZE.format(context=context)}], max_tokens=1000
+                )
+                if cerebras_result:
+                    parsed = self._extract_json(cerebras_result)
+                    if parsed and isinstance(parsed, dict):
+                        return parsed
+            return {"error": "Limite de IA alcanzado. Intenta manana.", "veredicto": "No disponible", "resumen": "Cuota de IA agotada por hoy."}
 
     async def extract_marco_legal(self, context: str) -> Dict[str, Any]:
         """Extract legal framework analysis for bidding preparation."""
@@ -251,7 +290,15 @@ class GroqEnrichmentService:
             return {"error": "Respuesta IA no válida", "raw": content[:500]}
         except Exception as e:
             logger.warning(f"Groq extract_marco_legal failed: {e}")
-            return {"error": str(e)}
+            if "rate_limit" in str(e).lower() or "429" in str(e):
+                cerebras_result = await self._cerebras_completion(
+                    [{"role": "user", "content": PROMPT_MARCO_LEGAL.format(context=context)}], max_tokens=1200, temperature=0.2
+                )
+                if cerebras_result:
+                    parsed = self._extract_json(cerebras_result)
+                    if parsed and isinstance(parsed, dict):
+                        return parsed
+            return {"error": "Limite de IA alcanzado. Intenta manana."}
 
     async def extract_pliego_info(self, pliego_text: str, known_fields: str = "") -> Dict[str, Any]:
         """Deep extraction of pliego information for bidders."""
@@ -350,6 +397,63 @@ Responde SOLO con JSON válido (sin markdown, sin backticks):
                 pass
 
         return content
+
+    async def generate_offer_section(self, section_slug: str, context: str) -> str:
+        """Generate content for a specific offer section using AI."""
+        section_prompts = {
+            "introduccion": "Redacta 2 parrafos: presentacion formal respondiendo al llamado. Menciona el organismo y el objeto EXACTO como aparece en los datos. NO inventes expedientes ni numeros que no esten en el contexto.",
+            "resumen_ejecutivo": "Redacta 3 puntos breves: 1) experiencia en proyectos similares (menciona SOLO los que aparecen en ANTECEDENTES VINCULADOS), 2) capacidad tecnica del equipo, 3) compromiso con el plazo. Maximo 150 palabras.",
+            "comprension_alcance": "Basandote EXCLUSIVAMENTE en la DESCRIPCION DE LA LICITACION y TEXTO DEL PLIEGO, describí que entendemos que se necesita y que funcionalidades proponemos. Si no hay texto del pliego, indica que se completa segun pliego especifico. Maximo 250 palabras.",
+            "propuesta_tecnica": "Describí la solucion tecnica propuesta basandote en la METODOLOGIA PROPUESTA del contexto. Stack tecnologico, componentes, integraciones. Maximo 250 palabras. NO inventes tecnologias que no esten mencionadas.",
+            "plan_trabajo": "Basandote en el PLAZO PROPUESTO del contexto, estructura en 3-4 etapas:\nEtapa 1: [Nombre] (Dias 1-X)\n- Actividades\n- Entregables\nUsa el plazo REAL del contexto, no inventes plazos.",
+        }
+
+        base_prompt = section_prompts.get(section_slug)
+        if not base_prompt:
+            # For custom/unknown sections, be very restrictive
+            base_prompt = f"Redacta la seccion '{section_slug}' basandote EXCLUSIVAMENTE en los datos del CONTEXTO. Si no hay datos suficientes para esta seccion, escribi: '[Completar con informacion especifica del pliego]'. Maximo 200 palabras."
+
+        full_prompt = f"""Redactas ofertas tecnicas para licitaciones publicas argentinas.
+
+REGLAS OBLIGATORIAS:
+1. USA EXCLUSIVAMENTE datos del CONTEXTO. Si un dato no esta en el contexto, NO lo incluyas.
+2. NUNCA inventes nombres de proyectos, clientes, organismos, fechas ni montos.
+3. NUNCA menciones precios, presupuestos ni montos en secciones que no sean la oferta economica.
+4. Si no tenes informacion suficiente, escribi "[Completar segun pliego]" en vez de inventar.
+5. Maximo 3 oraciones por parrafo. Sin frases de relleno.
+6. Texto plano. Sin markdown. Sin emojis.
+
+TAREA: {base_prompt}
+
+CONTEXTO (UNICA fuente de verdad):
+{context[:3000]}"""
+
+        messages = [{"role": "user", "content": full_prompt}]
+
+        # Try Groq first, then Cerebras fallback
+        client = self._get_client()
+        if client:
+            try:
+                response = await asyncio.to_thread(
+                    client.chat.completions.create,
+                    model=GROQ_MODEL,
+                    messages=messages,
+                    max_tokens=800,
+                    temperature=0.15,
+                )
+                return response.choices[0].message.content.strip()
+            except Exception as e:
+                err_str = str(e)
+                logger.warning(f"Groq failed for {section_slug}: {err_str[:100]}")
+                if "rate_limit" in err_str.lower() or "429" in err_str:
+                    logger.info("Groq rate-limited, trying Cerebras fallback...")
+
+        # Fallback to Cerebras (same conservative params)
+        cerebras_result = await self._cerebras_completion(messages, max_tokens=800, temperature=0.15)
+        if cerebras_result:
+            return cerebras_result
+
+        return "[Limite de IA alcanzado. Completa esta seccion manualmente o intenta manana.]"
 
 
 _groq_service: Optional[GroqEnrichmentService] = None

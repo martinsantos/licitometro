@@ -5,6 +5,9 @@ import {
 } from '../../hooks/useCotizarAPI';
 import DocumentRepository from './DocumentRepository';
 import HunterPanel from '../hunter/HunterPanel';
+import NotaCotizacion from './NotaCotizacion';
+import OfertaSections, { PliegoDoc } from './OfertaSections';
+import { OfferSection } from '../../hooks/useCotizarAPI';
 
 interface Licitacion {
   id: string;
@@ -53,7 +56,7 @@ const STEPS = [
   { id: 3, label: 'Empresa', icon: '🏢' },
   { id: 4, label: 'Marco Legal', icon: '⚖️' },
   { id: 5, label: 'Análisis IA', icon: '🤖' },
-  { id: 6, label: 'Oferta', icon: '📄' },
+  { id: 6, label: 'Secciones', icon: '📑' },
 ];
 
 function formatARS(n: number) {
@@ -132,7 +135,10 @@ export default function OfertaEditor({ licitacion, onSaved }: Props) {
   const api = useCotizarAPI();
   const [phase, setPhase] = useState<'loading' | 'ready'>('loading');
   const [errorMsg, setErrorMsg] = useState('');
-  const [step, setStep] = useState(1);
+  const [step, setStep] = useState(() => {
+    const saved = sessionStorage.getItem(`cotizar_step_${licitacion.id}`);
+    return saved ? parseInt(saved, 10) : 1;
+  });
   const [items, setItems] = useState<CotizarItem[]>([emptyItem()]);
   const [ivaRate, setIvaRate] = useState(21);
   const [techData, setTechData] = useState<TechnicalData>({ methodology: '', plazo: '', lugar: '', validez: '30', notas: '' });
@@ -168,8 +174,47 @@ export default function OfertaEditor({ licitacion, onSaved }: Props) {
   const [showCompanyAntecedentes, setShowCompanyAntecedentes] = useState(false);
   const [companyAntSectors, setCompanyAntSectors] = useState<Array<{ sector: string; count: number }>>([]);
   const [selectedCompanyAntSector, setSelectedCompanyAntSector] = useState<string>('');
+  const [antecedentesTotal, setAntecedentesTotal] = useState(0);
+  const [companyAntTotal, setCompanyAntTotal] = useState(0);
+  const [vinculadosCache, setVinculadosCache] = useState<Record<string, Antecedente>>({});
+  const [offerSections, setOfferSections] = useState<OfferSection[]>([]);
+  const [pliegoDocuments, setPliegoDocuments] = useState<PliegoDoc[]>([]);
+  const [templateName, setTemplateName] = useState('');
+  const [showTemplateSelector, setShowTemplateSelector] = useState(false);
+  const [availableTemplates, setAvailableTemplates] = useState<Array<{id: string; name: string; slug: string; template_type: string; description: string; sections_count: number}>>([]);
   const offerRef = useRef<HTMLDivElement>(null);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Persist current step in sessionStorage
+  useEffect(() => {
+    sessionStorage.setItem(`cotizar_step_${licitacion.id}`, String(step));
+  }, [step, licitacion.id]);
+
+  // Resolve vinculado IDs to full antecedente objects
+  const resolveAntecedente = useCallback((id: string): Antecedente | undefined => {
+    return antecedentes.find(a => a.id === id)
+      || companyAntecedentes.find(a => a.id === id)
+      || vinculadosCache[id];
+  }, [antecedentes, companyAntecedentes, vinculadosCache]);
+
+  // Auto-fetch missing vinculado details
+  const vinculadosCacheRef = useRef(vinculadosCache);
+  vinculadosCacheRef.current = vinculadosCache;
+  useEffect(() => {
+    const cache = vinculadosCacheRef.current;
+    const allLoaded = [...antecedentes, ...companyAntecedentes];
+    const missing = vinculados.filter(id =>
+      !allLoaded.find(a => a.id === id) && !cache[id]
+    );
+    if (missing.length === 0) return;
+    api.getAntecedentesByIds(missing).then(results => {
+      setVinculadosCache(prev => {
+        const next = { ...prev };
+        results.forEach(r => { next[r.id] = r; });
+        return next;
+      });
+    }).catch(() => {});
+  }, [vinculados, antecedentes.length, companyAntecedentes.length]);
 
   // Normalize licitacion items
   const normalizeLicItems = useCallback((rawItems: Array<Record<string, unknown>>): CotizarItem[] => {
@@ -223,6 +268,7 @@ export default function OfertaEditor({ licitacion, onSaved }: Props) {
   useEffect(() => {
     let cancelled = false;
     async function init() {
+      let hasSavedSections = false;
       try {
         setPhase('loading');
         const mongoCot = await api.getCotizacionFromMongo(licitacion.id);
@@ -249,6 +295,17 @@ export default function OfertaEditor({ licitacion, onSaved }: Props) {
           if (mongoCot.marco_legal) setMarcoLegal(mongoCot.marco_legal);
           if (mongoCot.antecedentes_vinculados) setVinculados(mongoCot.antecedentes_vinculados);
           if (mongoCot.price_intelligence) setPriceIntelligence(mongoCot.price_intelligence);
+          if ((mongoCot as unknown as Record<string, unknown>).budget_override != null) setBudgetOverride((mongoCot as unknown as Record<string, unknown>).budget_override as number);
+          const savedSections = (mongoCot as unknown as Record<string, unknown>).offer_sections as OfferSection[] | undefined;
+          if (savedSections && savedSections.length > 0) {
+            setOfferSections(savedSections);
+            setShowTemplateSelector(false);
+            hasSavedSections = true;
+          }
+          const savedPliegos = (mongoCot as unknown as Record<string, unknown>).pliego_documents as PliegoDoc[] | undefined;
+          if (savedPliegos && savedPliegos.length > 0) setPliegoDocuments(savedPliegos);
+          const savedChecks = (mongoCot as unknown as Record<string, unknown>).marco_legal_checks as Record<string, boolean> | undefined;
+          if (savedChecks) setMarcoLegalChecks(savedChecks);
         } else if (licitacion.items && licitacion.items.length > 0) {
           const normalized = normalizeLicItems(licitacion.items as Array<Record<string, unknown>>);
           if (normalized.length > 0) setItems(normalized);
@@ -279,6 +336,12 @@ export default function OfertaEditor({ licitacion, onSaved }: Props) {
           }
         }).catch(() => {});
         api.listDocuments().then(d => { if (!cancelled) setCompanyDocs(d); }).catch(() => {});
+        // Load templates list for selector
+        api.listTemplates().then(t => { if (!cancelled) setAvailableTemplates(t); }).catch(() => {});
+        // If no sections saved/loaded, show template selector
+        if (!hasSavedSections) {
+          setShowTemplateSelector(true);
+        }
       } catch (e: unknown) {
         if (!cancelled) {
           if (licitacion.items && licitacion.items.length > 0) {
@@ -336,6 +399,10 @@ export default function OfertaEditor({ licitacion, onSaved }: Props) {
         marco_legal: marcoLegal,
         antecedentes_vinculados: vinculados,
         price_intelligence: priceIntelligence,
+        budget_override: budgetOverride,
+        offer_sections: offerSections,
+        pliego_documents: pliegoDocuments,
+        marco_legal_checks: marcoLegalChecks,
         status: 'borrador',
       });
 
@@ -353,7 +420,7 @@ export default function OfertaEditor({ licitacion, onSaved }: Props) {
     } finally {
       if (!silent) setSaving(false);
     }
-  }, [items, ivaRate, techData, companyData, analysis, pliegoInfo, marcoLegal, vinculados, priceIntelligence, licitacion, onSaved]);
+  }, [items, ivaRate, techData, companyData, analysis, pliegoInfo, marcoLegal, marcoLegalChecks, vinculados, priceIntelligence, budgetOverride, offerSections, pliegoDocuments, licitacion, onSaved]);
 
   // Auto-save debounced
   useEffect(() => {
@@ -361,7 +428,7 @@ export default function OfertaEditor({ licitacion, onSaved }: Props) {
     if (debounceRef.current) clearTimeout(debounceRef.current);
     debounceRef.current = setTimeout(() => doSave(true), 2500);
     return () => { if (debounceRef.current) clearTimeout(debounceRef.current); };
-  }, [items, ivaRate, techData, companyData, analysis, pliegoInfo, marcoLegal, vinculados, priceIntelligence, phase]);
+  }, [items, ivaRate, techData, companyData, analysis, pliegoInfo, marcoLegal, marcoLegalChecks, vinculados, priceIntelligence, budgetOverride, offerSections, pliegoDocuments, phase]);
 
   // Load company profiles from localStorage
   useEffect(() => {
@@ -398,13 +465,15 @@ export default function OfertaEditor({ licitacion, onSaved }: Props) {
     }
   }, [licitacion.id]);
 
-  const handleLoadAntecedentes = useCallback(async () => {
-    if (antecedentes.length > 0) { setShowAntecedentes(p => !p); return; }
+  const handleLoadAntecedentes = useCallback(async (loadMore = false) => {
+    if (!loadMore && antecedentes.length > 0) { setShowAntecedentes(p => !p); return; }
     setLoadingAntecedentes(true);
     setShowAntecedentes(true);
     try {
-      const results = await api.searchAntecedentes(licitacion.id);
-      setAntecedentes(results);
+      const skip = loadMore ? antecedentes.length : 0;
+      const { results, total } = await api.searchAntecedentes(licitacion.id, skip);
+      setAntecedentes(prev => loadMore ? [...prev, ...results] : results);
+      setAntecedentesTotal(total);
     } catch (e) {
       setErrorMsg(e instanceof Error ? e.message : 'Error buscando antecedentes');
     } finally {
@@ -412,19 +481,21 @@ export default function OfertaEditor({ licitacion, onSaved }: Props) {
     }
   }, [licitacion.id, antecedentes.length]);
 
-  const handleLoadCompanyAntecedentes = useCallback(async (sector?: string) => {
-    if (!sector && companyAntecedentes.length > 0 && !selectedCompanyAntSector) {
+  const handleLoadCompanyAntecedentes = useCallback(async (sector?: string, loadMore = false) => {
+    if (!sector && !loadMore && companyAntecedentes.length > 0 && !selectedCompanyAntSector) {
       setShowCompanyAntecedentes(p => !p);
       return;
     }
     setLoadingCompanyAntecedentes(true);
     setShowCompanyAntecedentes(true);
     try {
-      const [results, sectors] = await Promise.all([
-        api.searchCompanyAntecedentes(licitacion.id, undefined, sector || undefined),
+      const skip = loadMore ? companyAntecedentes.length : 0;
+      const [response, sectors] = await Promise.all([
+        api.searchCompanyAntecedentes(licitacion.id, undefined, sector || undefined, skip),
         companyAntSectors.length ? Promise.resolve(companyAntSectors) : api.getCompanyAntecedenteSectors(),
       ]);
-      setCompanyAntecedentes(results);
+      setCompanyAntecedentes(prev => loadMore ? [...prev, ...response.results] : response.results);
+      setCompanyAntTotal(response.total);
       if (!companyAntSectors.length && sectors.length) setCompanyAntSectors(sectors);
     } catch (e) {
       setErrorMsg(e instanceof Error ? e.message : 'Error buscando antecedentes empresa');
@@ -438,8 +509,9 @@ export default function OfertaEditor({ licitacion, onSaved }: Props) {
     setSelectedCompanyAntSector(newSector);
     setLoadingCompanyAntecedentes(true);
     try {
-      const results = await api.searchCompanyAntecedentes(licitacion.id, undefined, newSector || undefined);
-      setCompanyAntecedentes(results);
+      const response = await api.searchCompanyAntecedentes(licitacion.id, undefined, newSector || undefined);
+      setCompanyAntecedentes(response.results);
+      setCompanyAntTotal(response.total);
     } catch (e) {
       setErrorMsg(e instanceof Error ? e.message : 'Error');
     } finally {
@@ -484,10 +556,29 @@ export default function OfertaEditor({ licitacion, onSaved }: Props) {
     }
   }, [licitacion.id, budgetHints]);
 
+  const handleApplyTemplate = useCallback(async (slug: string) => {
+    try {
+      const t = await api.getDefaultTemplate(slug);
+      if (t.sections) {
+        setOfferSections(t.sections.map(s => ({
+          slug: s.slug,
+          title: s.name,
+          content: s.default_content || '',
+          generated_by: 'template' as const,
+          order: s.order,
+          required: s.required,
+        })));
+        setTemplateName(t.name);
+        setShowTemplateSelector(false);
+      }
+    } catch { /* silent */ }
+  }, []);
+
   const handleLoadMarcoLegal = useCallback(async () => {
     setLoadingMarcoLegal(true);
     try {
-      const result = await api.extractMarcoLegal(licitacion.id);
+      const effectiveBudget = budgetOverride ?? budgetHints?.budget ?? licitacion.budget ?? null;
+      const result = await api.extractMarcoLegal(licitacion.id, effectiveBudget);
       if (!result.error) setMarcoLegal(result);
       else setErrorMsg(result.error);
     } catch (e) {
@@ -495,7 +586,7 @@ export default function OfertaEditor({ licitacion, onSaved }: Props) {
     } finally {
       setLoadingMarcoLegal(false);
     }
-  }, [licitacion.id]);
+  }, [licitacion.id, budgetOverride, budgetHints, licitacion.budget]);
 
   const handleLoadPriceIntelligence = useCallback(async () => {
     setLoadingPrices(true);
@@ -510,8 +601,10 @@ export default function OfertaEditor({ licitacion, onSaved }: Props) {
     setAnalyzing(true);
     setAnalyzeError('');
     try {
+      const effectiveBudget = budgetOverride ?? budgetHints?.budget ?? licitacion.budget ?? null;
       const result = await api.analyzeBidAI(licitacion.id, {
         items, total, metodologia: techData.methodology, empresa_nombre: companyData.nombre,
+        budget_override: effectiveBudget,
       });
       setAnalysis(result);
     } catch (e) {
@@ -519,7 +612,7 @@ export default function OfertaEditor({ licitacion, onSaved }: Props) {
     } finally {
       setAnalyzing(false);
     }
-  }, [licitacion.id, items, total, techData.methodology, companyData.nombre]);
+  }, [licitacion.id, items, total, techData.methodology, companyData.nombre, budgetOverride, budgetHints, licitacion.budget]);
 
   const handleSaveProfile = useCallback(() => {
     if (!companyData.nombre) return;
@@ -661,6 +754,17 @@ export default function OfertaEditor({ licitacion, onSaved }: Props) {
             )}
           </React.Fragment>
         ))}
+      </div>
+
+      {/* Global save indicator */}
+      <div className="flex items-center justify-end gap-2 text-xs">
+        {savedAt && <span className="text-gray-400">Guardado {savedAt}</span>}
+        {autoSaveFailed && <span className="text-red-500">Error al guardar</span>}
+        <button onClick={() => doSave()} disabled={saving}
+          className="px-3 py-1 bg-gray-800 text-white rounded-lg hover:bg-gray-900 disabled:opacity-50 transition-colors flex items-center gap-1">
+          {saving && <div className="w-3 h-3 border-2 border-white/40 border-t-white rounded-full animate-spin" />}
+          Guardar
+        </button>
       </div>
 
       {/* ─── Step 1: Items ─── */}
@@ -964,7 +1068,7 @@ export default function OfertaEditor({ licitacion, onSaved }: Props) {
 
           {/* Antecedentes section */}
           <div className="border-t border-gray-100 pt-4">
-            <button onClick={handleLoadAntecedentes} className="flex items-center gap-2 text-sm text-gray-600 hover:text-gray-800 transition-colors">
+            <button onClick={() => handleLoadAntecedentes()} className="flex items-center gap-2 text-sm text-gray-600 hover:text-gray-800 transition-colors">
               <span className={`transition-transform ${showAntecedentes ? 'rotate-90' : ''}`}>▶</span>
               Antecedentes similares
               {antecedentes.length > 0 && <span className="text-xs bg-gray-100 px-1.5 py-0.5 rounded-full">{antecedentes.length}</span>}
@@ -974,10 +1078,10 @@ export default function OfertaEditor({ licitacion, onSaved }: Props) {
             {vinculados.length > 0 && (
               <div className="flex flex-wrap gap-1.5 mt-2">
                 {vinculados.map(id => {
-                  const ant = antecedentes.find(a => a.id === id);
+                  const ant = resolveAntecedente(id);
                   return (
                     <span key={id} className="inline-flex items-center gap-1 text-xs bg-blue-50 text-blue-700 px-2 py-1 rounded-full">
-                      {ant ? (ant.objeto || ant.title).slice(0, 30) : id.slice(0, 8)}...
+                      {ant ? (ant.objeto || ant.title || '').slice(0, 30) + '...' : 'Cargando...'}
                       <button onClick={() => handleDesvincular(id)} className="text-blue-400 hover:text-blue-600">✕</button>
                     </span>
                   );
@@ -995,33 +1099,41 @@ export default function OfertaEditor({ licitacion, onSaved }: Props) {
                 ) : antecedentes.length === 0 ? (
                   <p className="text-sm text-gray-400 py-2">No se encontraron antecedentes similares.</p>
                 ) : (
-                  antecedentes.map(ant => (
-                    <div key={ant.id} className="bg-gray-50 rounded-lg p-3 text-sm">
-                      <div className="flex items-start justify-between gap-2">
-                        <p className="font-medium text-gray-800 line-clamp-1 flex-1">{ant.objeto || ant.title}</p>
-                        {vinculados.includes(ant.id) ? (
-                          <span className="text-xs text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-full shrink-0">Vinculado</span>
-                        ) : (
-                          <button onClick={() => handleVincular(ant.id)} className="text-xs text-blue-600 hover:text-blue-800 border border-blue-200 px-2 py-0.5 rounded-full shrink-0 transition-colors">
-                            Vincular
-                          </button>
-                        )}
+                  <>
+                    {antecedentes.map(ant => (
+                      <div key={ant.id} className="bg-gray-50 rounded-lg p-3 text-sm">
+                        <div className="flex items-start justify-between gap-2">
+                          <p className="font-medium text-gray-800 line-clamp-1 flex-1">{ant.objeto || ant.title}</p>
+                          {vinculados.includes(ant.id) ? (
+                            <span className="text-xs text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-full shrink-0">Vinculado</span>
+                          ) : (
+                            <button onClick={() => handleVincular(ant.id)} className="text-xs text-blue-600 hover:text-blue-800 border border-blue-200 px-2 py-0.5 rounded-full shrink-0 transition-colors">
+                              Vincular
+                            </button>
+                          )}
+                        </div>
+                        <div className="flex items-center gap-3 mt-1 text-xs text-gray-500 flex-wrap">
+                          <span>{ant.organization}</span>
+                          {ant.budget != null && <span className="font-medium">{formatARS(ant.budget)}</span>}
+                          {ant.price_ratio != null && (
+                            <span className={`font-medium ${ant.price_ratio > 1.2 ? 'text-red-500' : ant.price_ratio < 0.8 ? 'text-emerald-500' : 'text-gray-600'}`}>
+                              {(ant.price_ratio * 100).toFixed(0)}% vs actual
+                            </span>
+                          )}
+                          {ant.publication_date && <span>{new Date(ant.publication_date).toLocaleDateString('es-AR')}</span>}
+                          {ant.relevance_score != null && (
+                            <span className="text-purple-500">Rel: {ant.relevance_score.toFixed(1)}</span>
+                          )}
+                        </div>
                       </div>
-                      <div className="flex items-center gap-3 mt-1 text-xs text-gray-500 flex-wrap">
-                        <span>{ant.organization}</span>
-                        {ant.budget != null && <span className="font-medium">{formatARS(ant.budget)}</span>}
-                        {ant.price_ratio != null && (
-                          <span className={`font-medium ${ant.price_ratio > 1.2 ? 'text-red-500' : ant.price_ratio < 0.8 ? 'text-emerald-500' : 'text-gray-600'}`}>
-                            {(ant.price_ratio * 100).toFixed(0)}% vs actual
-                          </span>
-                        )}
-                        {ant.publication_date && <span>{new Date(ant.publication_date).toLocaleDateString('es-AR')}</span>}
-                        {ant.relevance_score != null && (
-                          <span className="text-purple-500">Rel: {ant.relevance_score.toFixed(1)}</span>
-                        )}
-                      </div>
-                    </div>
-                  ))
+                    ))}
+                    {antecedentes.length < antecedentesTotal && (
+                      <button onClick={() => handleLoadAntecedentes(true)} disabled={loadingAntecedentes}
+                        className="w-full text-center text-xs text-blue-600 hover:text-blue-800 py-2 border border-dashed border-blue-200 rounded-lg transition-colors disabled:opacity-50">
+                        {loadingAntecedentes ? 'Cargando...' : `Cargar mas (${antecedentes.length} de ${antecedentesTotal})`}
+                      </button>
+                    )}
+                  </>
                 )}
               </div>
             )}
@@ -1032,7 +1144,7 @@ export default function OfertaEditor({ licitacion, onSaved }: Props) {
             <button onClick={() => handleLoadCompanyAntecedentes()} className="flex items-center gap-2 text-sm text-gray-600 hover:text-gray-800 transition-colors">
               <span className={`transition-transform ${showCompanyAntecedentes ? 'rotate-90' : ''}`}>▶</span>
               Antecedentes de la Empresa (Ultima Milla)
-              {companyAntecedentes.length > 0 && <span className="text-xs bg-blue-100 text-blue-600 px-1.5 py-0.5 rounded-full">{companyAntecedentes.length}</span>}
+              {companyAntTotal > 0 && <span className="text-xs bg-blue-100 text-blue-600 px-1.5 py-0.5 rounded-full">{companyAntTotal}</span>}
             </button>
 
             {showCompanyAntecedentes && (
@@ -1040,7 +1152,7 @@ export default function OfertaEditor({ licitacion, onSaved }: Props) {
                 {/* Sector filter chips */}
                 {companyAntSectors.length > 0 && (
                   <div className="flex flex-wrap gap-1.5">
-                    {companyAntSectors.slice(0, 10).map(s => (
+                    {companyAntSectors.map(s => (
                       <button
                         key={s.sector}
                         onClick={() => handleSectorFilter(s.sector)}
@@ -1135,6 +1247,12 @@ export default function OfertaEditor({ licitacion, onSaved }: Props) {
                       </div>
                     </div>
                   ))
+                )}
+                {companyAntecedentes.length > 0 && companyAntecedentes.length < companyAntTotal && (
+                  <button onClick={() => handleLoadCompanyAntecedentes(selectedCompanyAntSector || undefined, true)} disabled={loadingCompanyAntecedentes}
+                    className="w-full text-center text-xs text-blue-600 hover:text-blue-800 py-2 border border-dashed border-blue-200 rounded-lg transition-colors disabled:opacity-50">
+                    {loadingCompanyAntecedentes ? 'Cargando...' : `Cargar mas (${companyAntecedentes.length} de ${companyAntTotal})`}
+                  </button>
                 )}
               </div>
             )}
@@ -1474,7 +1592,7 @@ export default function OfertaEditor({ licitacion, onSaved }: Props) {
 
               <div className="grid grid-cols-2 gap-3">
                 {(['precio', 'metodologia', 'empresa', 'cronograma'] as const).map(key => {
-                  const s = analysis[key];
+                  const s = analysis[key] || { score: 0, detail: 'Sin datos' };
                   const label = key === 'precio' ? 'Precio' : key === 'metodologia' ? 'Metodologia' : key === 'empresa' ? 'Empresa' : 'Cronograma';
                   return (
                     <div key={key} className="border border-gray-200 rounded-xl p-3">
@@ -1526,27 +1644,19 @@ export default function OfertaEditor({ licitacion, onSaved }: Props) {
         </div>
       )}
 
-      {/* ─── Step 6: Nota de Cotizacion ─── */}
+      {/* ─── Step 6: Oferta Profesional ─── */}
       {step === 6 && (
         <div className="space-y-5">
           <div className="flex items-center justify-between">
-            <h3 className="font-semibold text-gray-800">Nota de Cotizacion</h3>
+            <h3 className="font-semibold text-gray-800">Oferta Profesional</h3>
             <div className="flex gap-2">
-              <button
-                onClick={() => {
-                  if (!offerRef.current) return;
-                  const range = document.createRange();
-                  range.selectNodeContents(offerRef.current);
-                  const sel = window.getSelection();
-                  sel?.removeAllRanges();
-                  sel?.addRange(range);
-                  document.execCommand('copy');
-                  sel?.removeAllRanges();
-                }}
-                className="text-xs px-3 py-1.5 border border-gray-200 rounded-lg text-gray-600 hover:bg-gray-100 transition-colors"
+              <a
+                href={`/api/cotizaciones/${licitacion.id}/pdf`}
+                target="_blank" rel="noopener noreferrer"
+                className="text-xs px-3 py-1.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
               >
-                Copiar texto
-              </button>
+                Descargar PDF
+              </a>
               <a
                 href={`/api/documentos/pagare/${licitacion.id}`}
                 target="_blank" rel="noopener noreferrer"
@@ -1554,234 +1664,59 @@ export default function OfertaEditor({ licitacion, onSaved }: Props) {
               >
                 Pagare
               </a>
-              <button onClick={() => window.print()} className="text-xs px-3 py-1.5 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 transition-colors">
-                Imprimir / PDF
-              </button>
             </div>
           </div>
 
-          {/* Formal offer document */}
-          <div ref={offerRef} className="bg-white border border-gray-300 rounded-xl p-8 text-sm leading-relaxed print:border-none print:shadow-none print:p-0" style={{ fontFamily: 'Georgia, serif' }}>
-            <div className="text-center border-b-2 border-gray-800 pb-4 mb-6">
-              <h2 className="text-lg font-bold tracking-wide uppercase" style={{ letterSpacing: '0.15em' }}>NOTA DE COTIZACION</h2>
-            </div>
-
-            <div className="mb-6 space-y-3">
-              <p className="text-right text-gray-600">Mendoza, {new Date().toLocaleDateString('es-AR', { day: 'numeric', month: 'long', year: 'numeric' })}</p>
-              <div>
-                <p className="font-semibold">Senores:</p>
-                <p>{licitacion.organization || 'Organismo licitante'}</p>
-                <p className="text-gray-600 mt-1">Ref: {licitacion.title}</p>
-                {licitacion.objeto && <p className="text-gray-600">Objeto: {licitacion.objeto}</p>}
-              </div>
-            </div>
-
-            <div className="mb-6 space-y-3">
-              <p>De nuestra mayor consideracion:</p>
-              <p className="text-justify">
-                Por medio de la presente, <strong>{companyData.nombre || '[EMPRESA]'}</strong>
-                {companyData.cuit ? ` (CUIT: ${companyData.cuit})` : ''}
-                {companyData.domicilio ? `, con domicilio en ${companyData.domicilio}` : ''}
-                , tiene el agrado de cotizar lo siguiente:
-              </p>
-            </div>
-
-            {/* Items table */}
-            <div className="mb-6">
-              <p className="font-bold uppercase text-xs tracking-wide mb-2" style={{ letterSpacing: '0.1em' }}>DETALLE DE LA OFERTA</p>
-              <table className="w-full border-collapse border border-gray-400 text-sm">
-                <thead>
-                  <tr className="bg-gray-100">
-                    <th className="border border-gray-400 px-2 py-1.5 text-center w-8">#</th>
-                    <th className="border border-gray-400 px-2 py-1.5 text-left">Descripcion</th>
-                    <th className="border border-gray-400 px-2 py-1.5 text-center w-16">Cant.</th>
-                    <th className="border border-gray-400 px-2 py-1.5 text-center w-14">Ud.</th>
-                    <th className="border border-gray-400 px-2 py-1.5 text-right w-28">P.Unitario</th>
-                    <th className="border border-gray-400 px-2 py-1.5 text-right w-28">Subtotal</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {items.map((item, idx) => (
-                    <tr key={idx}>
-                      <td className="border border-gray-400 px-2 py-1 text-center text-gray-500">{idx + 1}</td>
-                      <td className="border border-gray-400 px-2 py-1">{item.descripcion || '-'}</td>
-                      <td className="border border-gray-400 px-2 py-1 text-center tabular-nums">{item.cantidad}</td>
-                      <td className="border border-gray-400 px-2 py-1 text-center">{item.unidad}</td>
-                      <td className="border border-gray-400 px-2 py-1 text-right tabular-nums">{formatARS(item.precio_unitario || 0)}</td>
-                      <td className="border border-gray-400 px-2 py-1 text-right tabular-nums">{formatARS((item.cantidad || 0) * (item.precio_unitario || 0))}</td>
-                    </tr>
-                  ))}
-                </tbody>
-                <tfoot>
-                  <tr>
-                    <td colSpan={4} />
-                    <td className="border border-gray-400 px-2 py-1 text-right font-medium">Subtotal</td>
-                    <td className="border border-gray-400 px-2 py-1 text-right tabular-nums">{formatARS(subtotal)}</td>
-                  </tr>
-                  <tr>
-                    <td colSpan={4} />
-                    <td className="border border-gray-400 px-2 py-1 text-right font-medium">IVA ({ivaRate}%)</td>
-                    <td className="border border-gray-400 px-2 py-1 text-right tabular-nums">{formatARS(ivaAmount)}</td>
-                  </tr>
-                  <tr className="bg-gray-100 font-bold">
-                    <td colSpan={4} />
-                    <td className="border border-gray-400 px-2 py-2 text-right">TOTAL</td>
-                    <td className="border border-gray-400 px-2 py-2 text-right tabular-nums">{formatARS(total)}</td>
-                  </tr>
-                </tfoot>
-              </table>
-            </div>
-
-            {/* Marco Legal section in document */}
-            {marcoLegal && (
-              <div className="mb-6">
-                <p className="font-bold uppercase text-xs tracking-wide mb-2" style={{ letterSpacing: '0.1em' }}>MARCO LEGAL</p>
-                {marcoLegal.encuadre_legal && <p className="mb-1"><span className="text-gray-600 text-xs font-semibold">Encuadre:</span> {marcoLegal.encuadre_legal}</p>}
-                {marcoLegal.tipo_procedimiento_explicado && <p className="mb-1"><span className="text-gray-600 text-xs font-semibold">Procedimiento:</span> {marcoLegal.tipo_procedimiento_explicado}</p>}
-                {marcoLegal.normativa_aplicable && marcoLegal.normativa_aplicable.length > 0 && (
-                  <p className="text-xs text-gray-600">Normativa: {marcoLegal.normativa_aplicable.join(', ')}</p>
-                )}
-              </div>
-            )}
-
-            {/* Documentacion presentada */}
-            {marcoLegal?.documentacion_obligatoria && marcoLegal.documentacion_obligatoria.length > 0 && (
-              <div className="mb-6">
-                <p className="font-bold uppercase text-xs tracking-wide mb-2" style={{ letterSpacing: '0.1em' }}>DOCUMENTACION ADJUNTA</p>
-                <ul className="space-y-0.5">
-                  {marcoLegal.documentacion_obligatoria.map((doc, i) => (
-                    <li key={i} className="text-sm flex items-center gap-2">
-                      <span>{marcoLegalChecks[`doc-${i}`] ? '☑' : '☐'}</span>
-                      {doc.documento}
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            )}
-
-            {/* Garantias */}
-            {marcoLegal?.garantias_requeridas && marcoLegal.garantias_requeridas.length > 0 && (
-              <div className="mb-6">
-                <p className="font-bold uppercase text-xs tracking-wide mb-2" style={{ letterSpacing: '0.1em' }}>GARANTIAS</p>
-                {marcoLegal.garantias_requeridas.map((g, i) => (
-                  <p key={i} className="text-sm">{g.tipo}: {g.porcentaje || 'Segun pliego'}{g.forma ? ` (${g.forma})` : ''}</p>
+          {/* Template selector */}
+          {showTemplateSelector && availableTemplates.length > 0 && (
+            <div className="border-2 border-blue-200 bg-blue-50/30 rounded-xl p-4 space-y-3">
+              <h4 className="text-sm font-semibold text-gray-800">Elegí una plantilla para tu oferta</h4>
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                {availableTemplates.map(t => (
+                  <button key={t.id} onClick={() => handleApplyTemplate(t.slug)}
+                    className="text-left border border-gray-200 rounded-xl p-3 hover:border-blue-400 hover:bg-blue-50 transition-colors">
+                    <p className="font-semibold text-sm text-gray-800">{t.name}</p>
+                    <p className="text-xs text-gray-500 mt-0.5">{t.description}</p>
+                    <p className="text-[10px] text-gray-400 mt-1">{t.sections_count} secciones</p>
+                  </button>
                 ))}
-              </div>
-            )}
-
-            {/* Technical proposal */}
-            {(techData.methodology || techData.plazo || techData.lugar) && (
-              <div className="mb-6">
-                <p className="font-bold uppercase text-xs tracking-wide mb-2" style={{ letterSpacing: '0.1em' }}>PROPUESTA TECNICA</p>
-                {techData.methodology && (
-                  <div className="mb-2">
-                    <p className="text-gray-600 text-xs font-semibold">Metodologia:</p>
-                    <p className="text-justify whitespace-pre-line">{techData.methodology}</p>
-                  </div>
-                )}
-                <div className="grid grid-cols-2 gap-x-6 gap-y-1 text-sm">
-                  {techData.plazo && <p><span className="text-gray-600 font-semibold text-xs">Plazo:</span> {techData.plazo}</p>}
-                  {techData.lugar && <p><span className="text-gray-600 font-semibold text-xs">Lugar:</span> {techData.lugar}</p>}
-                  {techData.validez && <p><span className="text-gray-600 font-semibold text-xs">Validez:</span> {techData.validez} dias</p>}
-                </div>
-                {techData.notas && (
-                  <div className="mt-2">
-                    <p className="text-gray-600 text-xs font-semibold">Condiciones:</p>
-                    <p className="text-justify">{techData.notas}</p>
-                  </div>
-                )}
-              </div>
-            )}
-
-            {/* Price fundamentation */}
-            {priceIntelligence && priceIntelligence.price_range && (
-              <div className="mb-6">
-                <p className="font-bold uppercase text-xs tracking-wide mb-2" style={{ letterSpacing: '0.1em' }}>FUNDAMENTACION DE PRECIOS</p>
-                <p className="text-sm text-justify">
-                  Los precios ofertados se fundamentan en el analisis de {priceIntelligence.price_range.sample_size} antecedentes
-                  de contrataciones similares, con un rango de referencia entre {formatARS(priceIntelligence.price_range.min)} y {formatARS(priceIntelligence.price_range.max)}
-                  (mediana: {formatARS(priceIntelligence.price_range.median)}).
-                  {priceIntelligence.adjustment_coefficient && priceIntelligence.adjustment_coefficient !== 1 && (
-                    ` Se aplico un coeficiente de ajuste IPC de ${priceIntelligence.adjustment_coefficient.toFixed(2)}.`
-                  )}
-                </p>
-                {priceIntelligence.sources && priceIntelligence.sources.length > 0 && (
-                  <p className="text-xs text-gray-600 mt-1">
-                    Fuentes: {priceIntelligence.sources.map(s => `${s.source} (${s.count})`).join(', ')}
-                  </p>
-                )}
-                {vinculados.length > 0 && (
-                  <div className="mt-2">
-                    <p className="text-xs font-semibold text-gray-700 mb-1">Antecedentes vinculados ({vinculados.length}):</p>
-                    <ul className="text-xs text-gray-600 space-y-0.5 list-disc list-inside">
-                      {vinculados.map(id => {
-                        const ant = antecedentes.find(a => a.id === id) || companyAntecedentes.find(a => a.id === id);
-                        return (
-                          <li key={id}>
-                            {ant ? (ant.title || ant.objeto || id).slice(0, 80) : id.slice(0, 12) + '...'}
-                            {ant?.organization && <span className="text-gray-400"> — {ant.organization}</span>}
-                          </li>
-                        );
-                      })}
-                    </ul>
-                  </div>
-                )}
-              </div>
-            )}
-
-            {/* Company data */}
-            {companyData.nombre && (
-              <div className="mb-6">
-                <p className="font-bold uppercase text-xs tracking-wide mb-2" style={{ letterSpacing: '0.1em' }}>DATOS DEL OFERENTE</p>
-                <p className="font-semibold">{companyData.nombre}</p>
-                {companyData.cuit && <p>CUIT: {companyData.cuit}</p>}
-                {companyData.domicilio && <p>{companyData.domicilio}</p>}
-                <div className="flex gap-6 flex-wrap">
-                  {companyData.telefono && <p>{companyData.telefono}</p>}
-                  {companyData.email && <p>{companyData.email}</p>}
-                </div>
-              </div>
-            )}
-
-            {/* Signature */}
-            <div className="mt-12 pt-4">
-              <p className="text-sm text-gray-500 mb-1">Sin otro particular, saludamos atentamente.</p>
-              <div className="mt-10 w-64">
-                <div className="border-t border-gray-800" />
-                <p className="text-center mt-1 text-xs text-gray-600">Firma y sello</p>
-                {companyData.nombre && <p className="text-center text-xs font-medium">{companyData.nombre}</p>}
-              </div>
-            </div>
-          </div>
-
-          {/* Analysis summary */}
-          {analysis && (
-            <div className={`border rounded-xl p-4 text-sm print:hidden ${
-              analysis.win_probability >= 70 ? 'border-emerald-200 bg-emerald-50' :
-              analysis.win_probability >= 40 ? 'border-yellow-200 bg-yellow-50' :
-              'border-red-200 bg-red-50'
-            }`}>
-              <span className="text-xs font-semibold text-gray-500 uppercase tracking-wide block mb-1">Analisis IA</span>
-              <div className="flex items-center justify-between">
-                <span className="font-medium text-gray-800">{analysis.veredicto}</span>
-                <span className={`text-lg font-bold ${analysis.win_probability >= 70 ? 'text-emerald-600' : analysis.win_probability >= 40 ? 'text-yellow-600' : 'text-red-600'}`}>{analysis.win_probability}% prob.</span>
               </div>
             </div>
           )}
 
-          {savedAt && <p className="text-xs text-gray-400 print:hidden">Guardado {savedAt}</p>}
+          {!showTemplateSelector && (
+            <>
+              <p className="text-sm text-gray-500">Edita las secciones de tu oferta. Podes generar contenido con IA, agregar/quitar secciones, y reordenarlas.</p>
 
-          <div className="flex flex-col sm:flex-row gap-3 pt-2 print:hidden">
-            <button onClick={() => setStep(1)} className="flex items-center justify-center gap-2 px-4 py-2 text-gray-600 hover:text-gray-800 text-sm font-medium rounded-xl hover:bg-gray-100 border border-gray-200 transition-colors">
-              Editar
+              <OfertaSections
+                licitacionId={licitacion.id}
+                sections={offerSections}
+                onSectionsChange={setOfferSections}
+                pliegoDocuments={pliegoDocuments}
+                onPliegosChange={setPliegoDocuments}
+                templateName={templateName}
+                onChangeTemplate={() => setShowTemplateSelector(true)}
+              />
+            </>
+          )}
+
+          {savedAt && <p className="text-xs text-gray-400">Guardado {savedAt}</p>}
+
+          <div className="flex flex-col sm:flex-row gap-3 pt-2">
+            <button onClick={() => setStep(5)} className="flex items-center justify-center gap-2 px-4 py-2 text-gray-600 hover:text-gray-800 text-sm font-medium rounded-xl hover:bg-gray-100 border border-gray-200 transition-colors">
+              <span>←</span> Anterior
             </button>
             <button onClick={() => doSave()} disabled={saving} className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 bg-gray-800 hover:bg-gray-900 text-white text-sm font-semibold rounded-xl disabled:opacity-60 transition-colors">
               {saving ? <div className="w-4 h-4 border-2 border-white/40 border-t-white rounded-full animate-spin" /> : null}
               Guardar oferta
             </button>
-            <button onClick={() => window.print()} className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-semibold rounded-xl transition-colors">
-              Imprimir / Generar PDF
-            </button>
+            <a
+              href={`/api/cotizaciones/${licitacion.id}/pdf`}
+              target="_blank" rel="noopener noreferrer"
+              className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-semibold rounded-xl transition-colors"
+            >
+              Descargar PDF
+            </a>
           </div>
         </div>
       )}

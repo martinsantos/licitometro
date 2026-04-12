@@ -25,6 +25,11 @@ class CotizacionCreate(BaseModel):
     marco_legal: Optional[dict] = None
     antecedentes_vinculados: List[str] = Field(default_factory=list)
     price_intelligence: Optional[dict] = None
+    budget_override: Optional[float] = None
+    offer_sections: List[dict] = Field(default_factory=list)
+    pliego_documents: List[dict] = Field(default_factory=list)
+    marco_legal_checks: dict = Field(default_factory=dict)
+    template_id: Optional[str] = None
     status: str = "borrador"
 
 

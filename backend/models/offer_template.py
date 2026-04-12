@@ -6,11 +6,14 @@ from pydantic import BaseModel, Field
 
 class OfferTemplateSection(BaseModel):
     """A section within an offer template"""
+    slug: str = Field("", description="Unique section identifier")
     name: str = Field(..., description="Section name")
     description: Optional[str] = Field(None, description="Section description")
     required: bool = Field(True, description="Whether this section is required")
     order: int = Field(0, description="Display order")
     checklist_items: List[str] = Field(default=[], description="Checklist items for this section")
+    default_content: Optional[str] = Field(None, description="Default boilerplate content")
+    content_hints: List[str] = Field(default=[], description="Guidance bullets for what to include")
 
 
 class OfferTemplateBase(BaseModel):

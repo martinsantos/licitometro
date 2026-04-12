@@ -7,6 +7,30 @@ export interface CotizarItem {
   subtotal?: number;
 }
 
+export interface OfferSection {
+  slug: string;
+  title: string;
+  content: string;
+  generated_by: 'template' | 'ai' | 'manual';
+  order: number;
+  required: boolean;
+}
+
+export interface OfferTemplateData {
+  id: string;
+  name: string;
+  slug: string;
+  sections: Array<{
+    slug: string;
+    name: string;
+    description?: string;
+    required: boolean;
+    order: number;
+    default_content?: string;
+    content_hints: string[];
+  }>;
+}
+
 export interface MarketRates {
   usd: number;
   eur?: number;
@@ -252,15 +276,24 @@ export function useCotizarAPI() {
       });
     },
 
-    async searchAntecedentes(licitacionId: string): Promise<Antecedente[]> {
+    async searchAntecedentes(licitacionId: string, skip = 0, limit = 10): Promise<{ results: Antecedente[]; total: number }> {
       return apiFetchMain('/cotizar-ai/search-antecedentes', {
         method: 'POST',
-        body: JSON.stringify({ licitacion_id: licitacionId }),
+        body: JSON.stringify({ licitacion_id: licitacionId, skip, limit }),
+      });
+    },
+
+    async getAntecedentesByIds(ids: string[]): Promise<Antecedente[]> {
+      if (!ids.length) return [];
+      return apiFetchMain('/cotizar-ai/antecedentes-by-ids', {
+        method: 'POST',
+        body: JSON.stringify({ ids }),
       });
     },
 
     async analyzeBidAI(licitacionId: string, data: {
       items: CotizarItem[]; total: number; metodologia: string; empresa_nombre: string;
+      budget_override?: number | null;
     }): Promise<AIAnalysisResult> {
       return apiFetchMain('/cotizar-ai/analyze-bid', {
         method: 'POST',
@@ -274,10 +307,10 @@ export function useCotizarAPI() {
 
     // --- Marco Legal ---
 
-    async extractMarcoLegal(licitacionId: string): Promise<MarcoLegal> {
+    async extractMarcoLegal(licitacionId: string, budgetOverride?: number | null): Promise<MarcoLegal> {
       return apiFetchMain('/cotizar-ai/extract-marco-legal', {
         method: 'POST',
-        body: JSON.stringify({ licitacion_id: licitacionId }),
+        body: JSON.stringify({ licitacion_id: licitacionId, budget_override: budgetOverride }),
       });
     },
 
@@ -320,7 +353,12 @@ export function useCotizarAPI() {
       marco_legal?: MarcoLegal | null;
       antecedentes_vinculados?: string[];
       price_intelligence?: PriceIntelligence | null;
+      budget_override?: number | null;
+      offer_sections?: OfferSection[];
+      pliego_documents?: unknown[];
+      marco_legal_checks?: Record<string, boolean>;
       status?: string;
+      [key: string]: unknown;
     }): Promise<MongoCotizacion> {
       return apiFetchMain(`/cotizaciones/${licitacionId}`, {
         method: 'PUT',
@@ -393,15 +431,66 @@ export function useCotizarAPI() {
 
     // --- Company Antecedentes (Ultima Milla) ---
 
-    async searchCompanyAntecedentes(licitacionId?: string, keywords?: string, sector?: string): Promise<Antecedente[]> {
+    async searchCompanyAntecedentes(licitacionId?: string, keywords?: string, sector?: string, skip = 0, limit = 15): Promise<{ results: Antecedente[]; total: number }> {
       return apiFetchMain('/cotizar-ai/search-company-antecedentes', {
         method: 'POST',
-        body: JSON.stringify({ licitacion_id: licitacionId, keywords, sector }),
+        body: JSON.stringify({ licitacion_id: licitacionId, keywords, sector, skip, limit }),
       });
     },
 
     async getCompanyAntecedenteSectors(): Promise<Array<{ sector: string; count: number }>> {
       return apiFetchMain('/cotizar-ai/company-antecedentes/sectors');
+    },
+
+    // --- Offer Sections ---
+
+    async getDefaultTemplate(slug?: string): Promise<OfferTemplateData> {
+      const qs = slug ? `?slug=${slug}` : '';
+      return apiFetchMain(`/cotizar-ai/offer-template-default${qs}`);
+    },
+
+    async listTemplates(): Promise<Array<{
+      id: string; name: string; slug: string; template_type: string;
+      description: string; tags: string[]; sections_count: number;
+    }>> {
+      return apiFetchMain('/cotizar-ai/offer-templates-list');
+    },
+
+    async generateSection(licitacionId: string, sectionSlug: string): Promise<{ content: string }> {
+      return apiFetchMain('/cotizar-ai/generate-section', {
+        method: 'POST',
+        body: JSON.stringify({ licitacion_id: licitacionId, section_slug: sectionSlug }),
+      });
+    },
+
+    async findPliegos(licitacionId: string): Promise<{
+      pliegos: Array<{ name: string; url: string; type: string; priority: number; label: string; source: string }>;
+      text_extracted: string | null;
+      strategy_used: string;
+      hint?: string | null;
+    }> {
+      return apiFetchMain('/cotizar-ai/find-pliegos', {
+        method: 'POST',
+        body: JSON.stringify({ licitacion_id: licitacionId }),
+      });
+    },
+
+    async analyzePliegoGaps(licitacionId: string, pliegoText?: string): Promise<{
+      requirements?: Array<{ requirement: string; section_slug: string; status: string; importance: string }>;
+      suggested_sections?: Array<{ slug: string; title: string; reason: string }>;
+      completeness?: number;
+      error?: string;
+    }> {
+      return apiFetchMain('/cotizar-ai/analyze-pliego-gaps', {
+        method: 'POST',
+        body: JSON.stringify({ licitacion_id: licitacionId, pliego_text: pliegoText }),
+      });
+    },
+
+    // --- Document text extraction ---
+
+    async extractDocumentText(docId: string): Promise<{ text: string; chars: number }> {
+      return apiFetchMain(`/documentos/${docId}/extract-text`);
     },
 
     // --- Company Context ---

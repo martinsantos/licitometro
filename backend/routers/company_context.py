@@ -259,3 +259,101 @@ async def match_zone(
     if best:
         return company_context_entity(best)
     return None
+
+
+# ─── Site Credentials (HUNTER integration) ───
+
+
+@router.get("/credentials")
+async def list_credentials(request: Request):
+    """List all site credentials for HUNTER."""
+    db = _get_db(request)
+    docs = await db.site_credentials.find().to_list(50)
+    return [
+        {
+            "id": str(d["_id"]),
+            "site_name": d.get("site_name", ""),
+            "site_url": d.get("site_url", ""),
+            "username": d.get("username", ""),
+            "password": "••••••••",  # Never expose passwords in GET
+            "enabled": d.get("enabled", True),
+            "last_used": d.get("last_used"),
+            "last_status": d.get("last_status", ""),
+            "notes": d.get("notes", ""),
+        }
+        for d in docs
+    ]
+
+
+@router.post("/credentials")
+async def create_credential(body: dict, request: Request):
+    """Create a new site credential."""
+    db = _get_db(request)
+    now = datetime.now(timezone.utc)
+    doc = {
+        "site_name": body.get("site_name", ""),
+        "site_url": body.get("site_url", ""),
+        "username": body.get("username", ""),
+        "password": body.get("password", ""),
+        "enabled": body.get("enabled", True),
+        "notes": body.get("notes", ""),
+        "created_at": now,
+        "updated_at": now,
+        "last_used": None,
+        "last_status": "",
+    }
+    result = await db.site_credentials.insert_one(doc)
+    doc["id"] = str(result.inserted_id)
+    doc.pop("_id", None)
+    doc["password"] = "••••••••"
+    return doc
+
+
+@router.put("/credentials/{cred_id}")
+async def update_credential(cred_id: str, body: dict, request: Request):
+    """Update a site credential."""
+    db = _get_db(request)
+    update = {"updated_at": datetime.now(timezone.utc)}
+    for field in ("site_name", "site_url", "username", "enabled", "notes"):
+        if field in body:
+            update[field] = body[field]
+    # Only update password if provided and not masked
+    if body.get("password") and body["password"] != "••••••••":
+        update["password"] = body["password"]
+
+    result = await db.site_credentials.update_one(
+        {"_id": ObjectId(cred_id)}, {"$set": update}
+    )
+    if result.matched_count == 0:
+        raise HTTPException(404, "Credential not found")
+    return {"ok": True}
+
+
+@router.delete("/credentials/{cred_id}")
+async def delete_credential(cred_id: str, request: Request):
+    """Delete a site credential."""
+    db = _get_db(request)
+    result = await db.site_credentials.delete_one({"_id": ObjectId(cred_id)})
+    if result.deleted_count == 0:
+        raise HTTPException(404, "Credential not found")
+    return {"ok": True}
+
+
+@router.get("/credentials/for-site")
+async def get_credential_for_site(request: Request, site_url: str = Query("")):
+    """Get active credential for a specific site URL (internal use by HUNTER)."""
+    db = _get_db(request)
+    if not site_url:
+        return None
+    # Match by site_url substring
+    doc = await db.site_credentials.find_one({
+        "enabled": True,
+        "site_url": {"$regex": re.escape(site_url.split("//")[-1].split("/")[0]), "$options": "i"},
+    })
+    if doc:
+        return {
+            "username": doc.get("username", ""),
+            "password": doc.get("password", ""),
+            "site_name": doc.get("site_name", ""),
+        }
+    return None

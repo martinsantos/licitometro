@@ -117,10 +117,10 @@ def licitacion_entity(licitacion) -> dict:
         # Vigencia
         "estado": licitacion.get("estado", "vigente"),
         "fecha_prorroga": licitacion.get("fecha_prorroga"),
-        # Timestamps
-        "created_at": licitacion.get("created_at"),
-        "updated_at": licitacion.get("updated_at"),
-        "first_seen_at": licitacion.get("first_seen_at", licitacion.get("created_at"))
+        # Timestamps — fallback to fecha_scraping if missing
+        "created_at": licitacion.get("created_at") or licitacion.get("fecha_scraping") or licitacion.get("updated_at"),
+        "updated_at": licitacion.get("updated_at") or licitacion.get("fecha_scraping"),
+        "first_seen_at": licitacion.get("first_seen_at") or licitacion.get("created_at") or licitacion.get("fecha_scraping")
     }
 
 def licitaciones_entity(licitaciones) -> list:
@@ -312,6 +312,11 @@ def cotizacion_entity(doc) -> dict:
         "marco_legal": doc.get("marco_legal"),
         "antecedentes_vinculados": doc.get("antecedentes_vinculados", []),
         "price_intelligence": doc.get("price_intelligence"),
+        "budget_override": doc.get("budget_override"),
+        "offer_sections": doc.get("offer_sections", []),
+        "pliego_documents": doc.get("pliego_documents", []),
+        "marco_legal_checks": doc.get("marco_legal_checks", {}),
+        "template_id": doc.get("template_id"),
         "status": doc.get("status", "borrador"),
         "created_at": doc.get("created_at"),
         "updated_at": doc.get("updated_at"),

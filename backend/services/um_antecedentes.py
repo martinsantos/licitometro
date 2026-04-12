@@ -75,20 +75,38 @@ class UMAntecedenteService:
         results = await self.collection.aggregate(pipeline).to_list(100)
         return [{"sector": r["_id"], "count": r["count"]} for r in results]
 
+    async def get_by_ids(self, ids: List[str]) -> List[dict]:
+        """Fetch antecedentes by their MongoDB ObjectIds."""
+        from bson import ObjectId as OID
+        object_ids = []
+        for i in ids:
+            try:
+                object_ids.append(OID(i))
+            except Exception:
+                continue
+        if not object_ids:
+            return []
+        docs = await self.collection.find({"_id": {"$in": object_ids}}).to_list(len(object_ids))
+        return [self._to_antecedente(d) for d in docs]
+
     async def search(
         self,
         keywords: Optional[str] = None,
         sector: Optional[str] = None,
         limit: int = 15,
-    ) -> List[dict]:
-        """Search cached antecedentes. Refreshes cache if stale."""
+        skip: int = 0,
+    ) -> dict:
+        """Search cached antecedentes. Refreshes cache if stale. Returns {results, total}."""
         latest = await self.collection.find_one(
             {}, sort=[("cached_at", -1)], projection={"cached_at": 1}
         )
+        cached_at = latest.get("cached_at") if latest else None
+        if cached_at and cached_at.tzinfo is None:
+            cached_at = cached_at.replace(tzinfo=timezone.utc)
         needs_refresh = (
             not latest
-            or not latest.get("cached_at")
-            or (utc_now() - latest["cached_at"]) > timedelta(hours=CACHE_TTL_HOURS)
+            or not cached_at
+            or (utc_now() - cached_at) > timedelta(hours=CACHE_TTL_HOURS)
         )
         if needs_refresh:
             try:
@@ -109,15 +127,17 @@ class UMAntecedenteService:
             sort_key = [("score", {"$meta": "textScore"})]
 
         try:
-            cursor = self.collection.find(query, projection).sort(sort_key).limit(limit)
+            total = await self.collection.count_documents(query) if query else await self.collection.estimated_document_count()
+            cursor = self.collection.find(query, projection).sort(sort_key).skip(skip).limit(limit)
             docs = await cursor.to_list(limit)
         except Exception:
             fallback_q: dict = {}
             if sector:
                 fallback_q["sector"] = {"$regex": re.escape(sector), "$options": "i"}
-            docs = await self.collection.find(fallback_q).sort("cached_at", -1).limit(limit).to_list(limit)
+            total = await self.collection.count_documents(fallback_q) if fallback_q else 0
+            docs = await self.collection.find(fallback_q).sort("cached_at", -1).skip(skip).limit(limit).to_list(limit)
 
-        return [self._to_antecedente(d) for d in docs]
+        return {"results": [self._to_antecedente(d) for d in docs], "total": total}
 
     async def _refresh_cache(self):
         """Refresh cache: scrape website first, then enrich with SGI API."""
