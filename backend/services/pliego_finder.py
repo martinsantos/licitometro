@@ -179,6 +179,75 @@ async def find_pliegos(db, licitacion_id: str, http_session=None) -> dict:
         except Exception as e:
             logger.warning(f"COMPR.AR authenticated download failed: {e}")
 
+    # Strategy 3c: Search COMPR.AR + detect pliego URLs in description
+    real_pliegos_so_far = [p for p in all_pliegos if p.get("type") != "metadata" and p.get("priority", 99) <= 6]
+    if not real_pliegos_so_far:
+        desc = lic.get("description", "")
+
+        # A) Detect pliego download URLs mentioned in description
+        # e.g. "PLIEGOS: PODRÁN SER DESCARGADOS DE www.irrigacion.gov.ar/dgi/es/licitaciones"
+        desc_urls = re.findall(r'(?:www\.[a-z0-9.-]+\.[a-z]{2,}(?:/[^\s,;)]*)?|https?://[^\s,;)]+)', desc, re.I)
+        for durl in desc_urls:
+            if not durl.startswith("http"):
+                durl = "https://" + durl
+            if durl not in seen_urls and "mendoza.gov.ar" not in durl.lower().replace("irrigacion", "X"):
+                # Skip generic gov.ar — but keep specific portals like irrigacion
+                pass
+            if durl not in seen_urls:
+                seen_urls.add(durl)
+                domain = re.sub(r'https?://(www\.)?', '', durl).split('/')[0]
+                all_pliegos.append({
+                    "name": f"Pliego en {domain}",
+                    "url": durl,
+                    "type": "link",
+                    "priority": 3,
+                    "label": "Portal de Pliegos",
+                    "source": "description_url",
+                })
+                logger.info(f"Strategy 3c: found pliego URL in description: {durl[:60]}")
+
+        # B) Search COMPR.AR portal if we have identifiers and no comprar_url
+        if not comprar_url:
+            lic_number = lic.get("licitacion_number", "")
+            proceso_id = lic.get("proceso_id", "")
+
+            search_number = ""
+            # Extract lic number from description
+            m = re.search(r'LICITACI[OÓ]N\s+P[UÚ]BLICA\s+N[°º]?\s*:?\s*(\d+\s*/\s*\d{4})', desc, re.I)
+            if m:
+                search_number = m.group(1).replace(" ", "")
+            elif lic_number and "/" in lic_number:
+                search_number = lic_number
+
+            if search_number:
+                try:
+                    logger.info(f"Strategy 3c: searching COMPR.AR portal for '{search_number}'")
+                    from routers.comprar import _search_and_resolve_pliego
+                    resolved = await _search_and_resolve_pliego(
+                        search_number,
+                        "https://comprar.mendoza.gov.ar/Compras.aspx?qs=W1HXHGHtH10=",
+                    )
+                    if resolved and "VistaPreviaPliego" in resolved:
+                        logger.info(f"Strategy 3c: found COMPR.AR pliego: {resolved[:60]}")
+                        from services.comprar_pliego_downloader import ComprarPliegoDownloader
+                        downloader = ComprarPliegoDownloader(db)
+                        dl_pliegos = await downloader.download_anexos(resolved)
+                        for p in dl_pliegos:
+                            if p.get("url") and p["url"] not in seen_urls:
+                                seen_urls.add(p["url"])
+                                all_pliegos.append(p)
+                        if not dl_pliegos:
+                            all_pliegos.append({
+                                "name": f"Pliego COMPR.AR ({search_number})",
+                                "url": resolved,
+                                "type": "pdf",
+                                "priority": 2,
+                                "label": "Pliego Particular",
+                                "source": "comprar_search",
+                            })
+                except Exception as e:
+                    logger.warning(f"Strategy 3c COMPR.AR search failed: {e}")
+
     # Strategy 3b: ComprasApps authenticated download (pliegos + OC + movimientos)
     if has_comprasapps:
         try:
