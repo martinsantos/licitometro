@@ -287,8 +287,8 @@ def build_offer_html(cotizacion: dict, licitacion: dict, company_profile: dict =
                     <td style="padding:8px 6px;border-bottom:1px solid #e5e7eb">{_escape(item.get("descripcion","")[:100])}</td>
                     <td style="text-align:center;padding:8px 6px;border-bottom:1px solid #e5e7eb">{q}</td>
                     <td style="text-align:center;padding:8px 6px;border-bottom:1px solid #e5e7eb">{_escape(item.get("unidad","u."))}</td>
-                    <td style="text-align:right;padding:8px 6px;border-bottom:1px solid #e5e7eb">{_fmt(p)}</td>
-                    <td style="text-align:right;padding:8px 6px;border-bottom:1px solid #e5e7eb">{_fmt(q*p)}</td>
+                    <td style="text-align:right;padding:8px 6px;border-bottom:1px solid #e5e7eb;white-space:nowrap">{_fmt(p)}</td>
+                    <td style="text-align:right;padding:8px 6px;border-bottom:1px solid #e5e7eb;white-space:nowrap">{_fmt(q*p)}</td>
                 </tr>'''
 
             sections_html.append(f'''
@@ -307,18 +307,18 @@ def build_offer_html(cotizacion: dict, licitacion: dict, company_profile: dict =
                         {rows_html}
                         <tr class="totals-row">
                             <td colspan="4"></td>
-                            <td style="text-align:right;padding:6px;font-weight:600">Subtotal</td>
-                            <td style="text-align:right;padding:6px">{_fmt(subtotal)}</td>
+                            <td style="text-align:right;padding:6px;font-weight:600;white-space:nowrap">Subtotal</td>
+                            <td style="text-align:right;padding:6px;white-space:nowrap">{_fmt(subtotal)}</td>
                         </tr>
                         <tr class="totals-row">
                             <td colspan="4"></td>
-                            <td style="text-align:right;padding:6px;font-weight:600">IVA ({iva_rate}%)</td>
-                            <td style="text-align:right;padding:6px">{_fmt(iva_amount)}</td>
+                            <td style="text-align:right;padding:6px;font-weight:600;white-space:nowrap">IVA ({iva_rate}%)</td>
+                            <td style="text-align:right;padding:6px;white-space:nowrap">{_fmt(iva_amount)}</td>
                         </tr>
                         <tr class="total-final">
                             <td colspan="4"></td>
-                            <td style="text-align:right;padding:8px;font-weight:700;font-size:12px">TOTAL</td>
-                            <td style="text-align:right;padding:8px;font-weight:700;font-size:12px">{_fmt(total)}</td>
+                            <td style="text-align:right;padding:8px;font-weight:700;font-size:12px;white-space:nowrap">TOTAL</td>
+                            <td style="text-align:right;padding:8px;font-weight:700;font-size:12px;white-space:nowrap">{_fmt(total)}</td>
                         </tr>
                     </tbody>
                 </table>
