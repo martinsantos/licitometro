@@ -128,8 +128,8 @@ async def generate_pdf(licitacion_id: str, request: Request):
     else:
         lic["id"] = str(lic.pop("_id"))
 
-    from services.offer_pdf_generator import generate_offer_pdf
-    pdf_bytes = generate_offer_pdf(cot, lic)
+    from services.offer_pdf_chromium import generate_offer_pdf_chromium
+    pdf_bytes = generate_offer_pdf_chromium(cot, lic)
 
     filename = f"Oferta_{cot.get('licitacion_title', 'cotizacion')[:40]}.pdf".replace(" ", "_")
     return Response(

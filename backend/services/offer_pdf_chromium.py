@@ -1,0 +1,514 @@
+"""Professional Offer PDF Generator using Chromium headless.
+
+Generates HTML with embedded CSS, renders to PDF via Selenium CDP.
+Much higher quality than ReportLab: proper fonts, responsive tables,
+professional typography, page breaks, headers/footers.
+"""
+
+import asyncio
+import base64
+import io
+import json
+import logging
+import os
+import re
+import tempfile
+from datetime import datetime
+from typing import Optional
+
+logger = logging.getLogger("offer_pdf_chromium")
+
+CHROMIUM_BINARY = "/usr/bin/chromium"
+CHROMEDRIVER_PATH = "/usr/bin/chromedriver"
+
+MESES_ES = {
+    1: "enero", 2: "febrero", 3: "marzo", 4: "abril",
+    5: "mayo", 6: "junio", 7: "julio", 8: "agosto",
+    9: "septiembre", 10: "octubre", 11: "noviembre", 12: "diciembre",
+}
+
+
+def _fmt(n: float) -> str:
+    """Format number as ARS currency."""
+    return f"$ {n:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
+
+
+def _escape(text: str) -> str:
+    """HTML-escape text."""
+    return (text or "").replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+
+
+def _render_section_content(content: str) -> str:
+    """Convert plain text content to HTML paragraphs, bullets, bold."""
+    if not content:
+        return ""
+    lines = content.split("\n")
+    html_parts = []
+    for line in lines:
+        line = line.strip()
+        if not line:
+            continue
+        # Bold: **text**
+        line = re.sub(r'\*\*(.+?)\*\*', r'<strong>\1</strong>', _escape(line))
+        if line.startswith("- ") or line.startswith("* "):
+            html_parts.append(f'<li>{line[2:]}</li>')
+        elif line.startswith("Etapa ") or re.match(r'^\d+[.)]\s', line):
+            html_parts.append(f'<p class="etapa">{line}</p>')
+        else:
+            html_parts.append(f'<p>{line}</p>')
+
+    # Wrap consecutive <li> in <ul>
+    result = []
+    in_list = False
+    for part in html_parts:
+        if part.startswith("<li>"):
+            if not in_list:
+                result.append("<ul>")
+                in_list = True
+            result.append(part)
+        else:
+            if in_list:
+                result.append("</ul>")
+                in_list = False
+            result.append(part)
+    if in_list:
+        result.append("</ul>")
+
+    return "\n".join(result)
+
+
+def build_offer_html(cotizacion: dict, licitacion: dict, company_profile: dict = None) -> str:
+    """Build complete HTML document for the offer PDF."""
+    company = cotizacion.get("company_data") or {}
+    tech = cotizacion.get("tech_data") or {}
+    items = [i for i in (cotizacion.get("items") or []) if i.get("descripcion", "").strip()]
+    sections = cotizacion.get("offer_sections") or []
+    marco = cotizacion.get("marco_legal") or {}
+
+    company_name = company.get("nombre", "Empresa")
+    cuit = company.get("cuit", "")
+    objeto = _escape(licitacion.get("objeto") or licitacion.get("title", ""))
+    organismo = _escape(licitacion.get("organization", ""))
+    lic_num = _escape(licitacion.get("licitacion_number", ""))
+    now = datetime.now()
+    fecha = f"{now.day} de {MESES_ES[now.month]} de {now.year}"
+
+    subtotal = cotizacion.get("subtotal", 0)
+    iva_rate = cotizacion.get("iva_rate", 21)
+    iva_amount = cotizacion.get("iva_amount", 0)
+    total = cotizacion.get("total", 0)
+
+    # Build sections HTML
+    sections_html = []
+    num = 1
+    for sec in sorted(sections, key=lambda s: s.get("order", 0)):
+        slug = sec.get("slug", "")
+        content = (sec.get("content") or "").strip()
+        title = _escape(sec.get("title", slug))
+
+        if slug == "portada":
+            continue
+
+        if slug == "oferta_economica":
+            # Items table
+            rows_html = ""
+            for i, item in enumerate(items):
+                q = item.get("cantidad", 0)
+                p = item.get("precio_unitario", 0)
+                bg = '#f8fafc' if i % 2 else '#ffffff'
+                rows_html += f'''<tr style="background:{bg}">
+                    <td style="text-align:center;padding:8px 6px;border-bottom:1px solid #e5e7eb">{i+1}</td>
+                    <td style="padding:8px 6px;border-bottom:1px solid #e5e7eb">{_escape(item.get("descripcion","")[:100])}</td>
+                    <td style="text-align:center;padding:8px 6px;border-bottom:1px solid #e5e7eb">{q}</td>
+                    <td style="text-align:center;padding:8px 6px;border-bottom:1px solid #e5e7eb">{_escape(item.get("unidad","u."))}</td>
+                    <td style="text-align:right;padding:8px 6px;border-bottom:1px solid #e5e7eb">{_fmt(p)}</td>
+                    <td style="text-align:right;padding:8px 6px;border-bottom:1px solid #e5e7eb">{_fmt(q*p)}</td>
+                </tr>'''
+
+            sections_html.append(f'''
+            <div class="section">
+                <div class="section-header"><span class="section-num">{num}</span> OFERTA ECONOMICA</div>
+                <table class="items-table">
+                    <thead><tr>
+                        <th style="width:30px">#</th>
+                        <th>Descripcion</th>
+                        <th style="width:50px">Cant.</th>
+                        <th style="width:40px">Ud.</th>
+                        <th style="width:85px">P. Unitario</th>
+                        <th style="width:85px">Subtotal</th>
+                    </tr></thead>
+                    <tbody>
+                        {rows_html}
+                        <tr class="totals-row">
+                            <td colspan="4"></td>
+                            <td style="text-align:right;padding:6px;font-weight:600">Subtotal</td>
+                            <td style="text-align:right;padding:6px">{_fmt(subtotal)}</td>
+                        </tr>
+                        <tr class="totals-row">
+                            <td colspan="4"></td>
+                            <td style="text-align:right;padding:6px;font-weight:600">IVA ({iva_rate}%)</td>
+                            <td style="text-align:right;padding:6px">{_fmt(iva_amount)}</td>
+                        </tr>
+                        <tr class="total-final">
+                            <td colspan="4"></td>
+                            <td style="text-align:right;padding:8px;font-weight:700;font-size:12px">TOTAL</td>
+                            <td style="text-align:right;padding:8px;font-weight:700;font-size:12px">{_fmt(total)}</td>
+                        </tr>
+                    </tbody>
+                </table>
+                {"<p class='validez'>Validez de la oferta: " + _escape(tech.get('validez','30')) + " dias</p>" if tech.get('validez') else ""}
+            </div>''')
+        elif content:
+            sections_html.append(f'''
+            <div class="section">
+                <div class="section-header"><span class="section-num">{num}</span> {title.upper()}</div>
+                <div class="section-body">{_render_section_content(content)}</div>
+            </div>''')
+        else:
+            continue
+        num += 1
+
+    # Firma
+    firma_html = f'''
+    <div class="firma-section">
+        <div style="margin-top:60px;text-align:center">
+            <div style="border-top:1px solid #374151;width:250px;margin:0 auto;padding-top:8px">
+                <p style="font-weight:600;margin:0">{_escape(company_name)}</p>
+                {"<p style='color:#6b7280;font-size:9px;margin:2px 0'>CUIT: " + _escape(cuit) + "</p>" if cuit else ""}
+                <p style="color:#6b7280;font-size:9px;margin:2px 0">Representante Legal</p>
+            </div>
+        </div>
+        <p style="text-align:center;color:#9ca3af;font-size:8px;margin-top:30px">
+            Mendoza, {fecha}
+        </p>
+    </div>'''
+
+    return f'''<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');
+
+@page {{
+    size: A4;
+    margin: 20mm 18mm 25mm 18mm;
+}}
+
+* {{ margin: 0; padding: 0; box-sizing: border-box; }}
+
+body {{
+    font-family: 'Inter', -apple-system, sans-serif;
+    font-size: 10px;
+    line-height: 1.5;
+    color: #1f2937;
+}}
+
+/* ─── Cover Page ─── */
+.cover {{
+    page-break-after: always;
+    display: flex;
+    flex-direction: column;
+    min-height: 85vh;
+    padding-top: 40px;
+}}
+.cover-bar {{
+    height: 5px;
+    background: linear-gradient(90deg, #1d4ed8, #6366f1);
+    margin-bottom: 80px;
+    border-radius: 2px;
+}}
+.cover h1 {{
+    font-size: 22px;
+    font-weight: 800;
+    color: #111827;
+    line-height: 1.3;
+    margin-bottom: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.02em;
+}}
+.cover .subtitle {{
+    font-size: 11px;
+    font-weight: 600;
+    color: #1d4ed8;
+    text-transform: uppercase;
+    letter-spacing: 0.15em;
+    margin-bottom: 25px;
+}}
+.cover .company-name {{
+    font-size: 18px;
+    font-weight: 700;
+    color: #374151;
+    margin-bottom: 50px;
+}}
+.cover-info {{
+    margin-top: auto;
+    border-top: 2px solid #1d4ed8;
+    padding-top: 15px;
+}}
+.cover-info table {{ width: 100%; border-collapse: collapse; }}
+.cover-info td {{
+    padding: 5px 0;
+    font-size: 10px;
+    vertical-align: top;
+}}
+.cover-info td:first-child {{
+    font-weight: 600;
+    color: #6b7280;
+    width: 100px;
+    white-space: nowrap;
+}}
+
+/* ─── Sections ─── */
+.section {{
+    margin-bottom: 20px;
+    page-break-inside: avoid;
+}}
+.section-header {{
+    font-size: 12px;
+    font-weight: 700;
+    color: #1d4ed8;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    padding-bottom: 6px;
+    border-bottom: 2px solid #dbeafe;
+    margin-bottom: 10px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}}
+.section-num {{
+    background: #1d4ed8;
+    color: white;
+    width: 22px;
+    height: 22px;
+    border-radius: 50%;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 10px;
+    font-weight: 700;
+    flex-shrink: 0;
+}}
+.section-body p {{
+    margin-bottom: 6px;
+    text-align: justify;
+    font-size: 10px;
+    line-height: 1.6;
+}}
+.section-body ul {{
+    margin: 4px 0 8px 20px;
+    padding: 0;
+}}
+.section-body li {{
+    margin-bottom: 3px;
+    font-size: 10px;
+    line-height: 1.5;
+}}
+.section-body .etapa {{
+    font-weight: 600;
+    color: #374151;
+    margin-top: 8px;
+    padding: 4px 8px;
+    background: #f1f5f9;
+    border-left: 3px solid #1d4ed8;
+    border-radius: 0 4px 4px 0;
+}}
+
+/* ─── Items Table ─── */
+.items-table {{
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 9px;
+    margin-top: 8px;
+}}
+.items-table thead th {{
+    background: #1d4ed8;
+    color: white;
+    padding: 8px 6px;
+    text-align: left;
+    font-weight: 600;
+    font-size: 9px;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+}}
+.items-table tbody td {{
+    font-size: 9px;
+}}
+.totals-row td {{
+    border-top: 1px solid #d1d5db;
+    font-size: 10px;
+}}
+.total-final td {{
+    background: #1d4ed8 !important;
+    color: white !important;
+    font-size: 12px !important;
+}}
+.validez {{
+    margin-top: 10px;
+    font-size: 9px;
+    color: #6b7280;
+}}
+
+/* ─── Firma ─── */
+.firma-section {{
+    page-break-inside: avoid;
+    margin-top: 40px;
+}}
+
+/* ─── Header/Footer (via @page margin boxes not supported, use fixed position) ─── */
+.page-header {{
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 15mm;
+    border-bottom: 2px solid #1d4ed8;
+    padding: 0 18mm;
+    display: flex;
+    align-items: flex-end;
+    padding-bottom: 3px;
+}}
+.page-header span {{
+    font-size: 7px;
+    font-weight: 700;
+    color: #6b7280;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+}}
+.page-footer {{
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    height: 15mm;
+    border-top: 1px solid #e5e7eb;
+    padding: 5px 18mm 0;
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+}}
+.page-footer span {{
+    font-size: 7px;
+    color: #9ca3af;
+}}
+</style>
+</head>
+<body>
+
+<div class="page-header">
+    <span>{_escape(company_name).upper()}</span>
+</div>
+<div class="page-footer">
+    <span>{objeto[:60]}</span>
+    <span>{fecha}</span>
+</div>
+
+<!-- Cover Page -->
+<div class="cover">
+    <div class="cover-bar"></div>
+    <h1>{objeto}</h1>
+    <div class="subtitle">Oferta tecnica, economica y estrategica integral</div>
+    <div class="company-name">{_escape(company_name).upper()}</div>
+    <div class="cover-info">
+        <table>
+            <tr><td>Expediente:</td><td>{lic_num}</td></tr>
+            <tr><td>Objeto:</td><td>{objeto[:150]}</td></tr>
+            <tr><td>Organismo:</td><td>{organismo}</td></tr>
+            <tr><td>Oferente:</td><td>{_escape(company_name)}</td></tr>
+            {"<tr><td>CUIT:</td><td>" + _escape(cuit) + "</td></tr>" if cuit else ""}
+            <tr><td>Fecha:</td><td>{fecha}</td></tr>
+        </table>
+    </div>
+</div>
+
+<!-- Sections -->
+{"".join(sections_html)}
+
+<!-- Firma -->
+{firma_html}
+
+</body>
+</html>'''
+
+
+def generate_offer_pdf_chromium(cotizacion: dict, licitacion: dict, company_profile: dict = None) -> bytes:
+    """Generate PDF using Chromium headless (Selenium CDP).
+
+    Renders HTML → PDF with professional typography and layout.
+    Falls back to ReportLab if Chromium is not available.
+    """
+    html = build_offer_html(cotizacion, licitacion, company_profile)
+
+    try:
+        pdf_bytes = _render_pdf_with_selenium(html)
+        if pdf_bytes:
+            logger.info(f"Generated PDF with Chromium: {len(pdf_bytes)} bytes")
+            return pdf_bytes
+    except Exception as e:
+        logger.warning(f"Chromium PDF failed ({type(e).__name__}: {e}), falling back to ReportLab")
+
+    # Fallback to ReportLab
+    from services.offer_pdf_generator import generate_offer_pdf
+    return generate_offer_pdf(cotizacion, licitacion, company_profile)
+
+
+def _render_pdf_with_selenium(html: str) -> Optional[bytes]:
+    """Render HTML to PDF using Selenium + Chromium CDP."""
+    from selenium import webdriver
+    from selenium.webdriver.chrome.options import Options
+    from selenium.webdriver.chrome.service import Service
+
+    options = Options()
+    for opt in ["--headless=new", "--no-sandbox", "--disable-dev-shm-usage",
+                "--disable-gpu", "--disable-extensions"]:
+        options.add_argument(opt)
+    if os.path.isfile(CHROMIUM_BINARY):
+        options.binary_location = CHROMIUM_BINARY
+    options.add_experimental_option("excludeSwitches", ["enable-automation"])
+
+    service_kwargs = {}
+    if os.path.isfile(CHROMEDRIVER_PATH):
+        service_kwargs["executable_path"] = CHROMEDRIVER_PATH
+
+    driver = None
+    try:
+        service = Service(**service_kwargs)
+        driver = webdriver.Chrome(service=service, options=options)
+
+        # Write HTML to temp file and load it
+        with tempfile.NamedTemporaryFile(suffix=".html", delete=False, mode="w", encoding="utf-8") as f:
+            f.write(html)
+            tmp_path = f.name
+
+        driver.get(f"file://{tmp_path}")
+
+        # Use CDP to generate PDF with print settings
+        pdf_params = {
+            "printBackground": True,
+            "preferCSSPageSize": True,
+            "paperWidth": 8.27,   # A4 in inches
+            "paperHeight": 11.69,
+            "marginTop": 0.4,
+            "marginBottom": 0.6,
+            "marginLeft": 0.4,
+            "marginRight": 0.4,
+            "displayHeaderFooter": False,
+        }
+        result = driver.execute_cdp_cmd("Page.printToPDF", pdf_params)
+        pdf_data = base64.b64decode(result["data"])
+
+        # Cleanup temp file
+        try:
+            os.unlink(tmp_path)
+        except OSError:
+            pass
+
+        return pdf_data
+
+    finally:
+        if driver:
+            try:
+                driver.quit()
+            except Exception:
+                pass
