@@ -164,19 +164,40 @@ async def find_pliegos(db, licitacion_id: str, http_session=None) -> dict:
             logger.warning(f"COMPR.AR authenticated download failed: {e}")
 
     # Strategy 3b: ComprasApps authenticated download (pliegos + OC + movimientos)
-    if "comprasapps" in (source_url or "").lower():
+    if "comprasapps" in fuente:
         try:
             from services.comprasapps_pliego_downloader import ComprasAppsAuthClient
             client = ComprasAppsAuthClient(db)
-            ca_results = await client.download_pliegos(source_url)
-            for p in ca_results:
-                if p.get("type") == "metadata":
-                    # Store OC and movimientos separately — caller will persist to metadata
-                    all_pliegos.append(p)
-                elif p.get("url") and p["url"] not in seen_urls:
-                    seen_urls.add(p["url"])
-                    all_pliegos.append(p)
-            await client.close()
+            # Build detail URL params from licitacion metadata
+            params = ComprasAppsAuthClient.build_detail_params_from_licitacion(lic)
+            if params:
+                if await client._load_credentials():
+                    if await client.login():
+                        detail = await client.fetch_detail_authenticated(**params)
+                        # Collect metadata (OC, movimientos)
+                        metadata_extra = {}
+                        if detail.get("ordenes_compra"):
+                            metadata_extra["ordenes_compra"] = detail["ordenes_compra"]
+                        if detail.get("movimientos"):
+                            metadata_extra["movimientos"] = detail["movimientos"]
+                        if metadata_extra:
+                            all_pliegos.append({
+                                "name": "__metadata__",
+                                "url": "",
+                                "type": "metadata",
+                                "priority": 999,
+                                "label": "Datos autenticados",
+                                "source": "comprasapps_authenticated",
+                                "metadata": metadata_extra,
+                            })
+                        # Download pliegos if available
+                        if detail.get("descargas_visible"):
+                            pliegos = await client._download_anexos(params)
+                            for p in pliegos:
+                                if p.get("url") and p["url"] not in seen_urls:
+                                    seen_urls.add(p["url"])
+                                    all_pliegos.append(p)
+                    await client.close()
         except Exception as e:
             logger.warning(f"ComprasApps authenticated download failed: {e}")
 
