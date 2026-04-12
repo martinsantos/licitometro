@@ -189,56 +189,77 @@ def generate_org_chart_svg(roles: List[dict] = None, title: str = "Organigrama d
         ]
 
     W = 520
-    box_w, box_h = 130, 45
-    # First role is the leader (top), rest are below
     leader = roles[0] if roles else {"role": "PM", "dedicacion": "100%"}
     team = roles[1:] if len(roles) > 1 else []
 
-    cols = min(len(team), 4) or 1
+    # Adaptive layout: max 3 cols to avoid clipping
+    cols = min(len(team), 3) or 1
     rows_count = (len(team) + cols - 1) // cols
-    H = 130 + rows_count * (box_h + 30)
+
+    # Size boxes based on column count
+    gap_x = 12
+    box_w = min(155, (W - 40 - (cols - 1) * gap_x) // cols)
+    box_h = 50
+    leader_w = min(180, box_w + 20)
+
+    H = 140 + rows_count * (box_h + 35)
 
     svg = f'<text x="{W//2}" y="18" text-anchor="middle" font-size="10" font-family="{FONT}" fill="{DARK}" font-weight="700">{_esc(title)}</text>'
 
-    # Leader box
-    lx = (W - box_w) // 2
+    # Leader box (centered, wider)
+    lx = (W - leader_w) // 2
     ly = 35
-    svg += f'<rect x="{lx}" y="{ly}" width="{box_w}" height="{box_h}" rx="8" fill="{BLUE}"/>'
-    svg += f'<text x="{lx + box_w//2}" y="{ly + 20}" text-anchor="middle" font-size="9" font-family="{FONT}" fill="{WHITE}" font-weight="700">{_esc(_truncate(leader["role"], 18))}</text>'
-    svg += f'<text x="{lx + box_w//2}" y="{ly + 34}" text-anchor="middle" font-size="7" font-family="{FONT}" fill="{BLUE_LIGHT}">{_esc(leader.get("dedicacion", ""))}</text>'
+    svg += f'<rect x="{lx}" y="{ly}" width="{leader_w}" height="{box_h}" rx="8" fill="{BLUE}"/>'
+    # Auto font size: smaller if name is long
+    leader_name = leader["role"]
+    lfs = 9 if len(leader_name) <= 20 else 7.5
+    svg += f'<text x="{lx + leader_w//2}" y="{ly + 22}" text-anchor="middle" font-size="{lfs}" font-family="{FONT}" fill="{WHITE}" font-weight="700">{_esc(leader_name)}</text>'
+    svg += f'<text x="{lx + leader_w//2}" y="{ly + 38}" text-anchor="middle" font-size="7" font-family="{FONT}" fill="{BLUE_LIGHT}">{_esc(leader.get("dedicacion", ""))}</text>'
 
-    # Connector line down
+    # Connector line down from leader
     if team:
-        svg += f'<line x1="{W//2}" y1="{ly + box_h}" x2="{W//2}" y2="{ly + box_h + 15}" stroke="{GRAY}" stroke-width="1.5"/>'
+        svg += f'<line x1="{W//2}" y1="{ly + box_h}" x2="{W//2}" y2="{ly + box_h + 18}" stroke="{GRAY}" stroke-width="1.5"/>'
 
     # Team boxes
-    gap_x = 15
     total_w = cols * box_w + (cols - 1) * gap_x
     start_x = (W - total_w) // 2
-    team_y = ly + box_h + 25
+    team_y = ly + box_h + 28
 
-    # Horizontal connector
-    if len(team) > 1:
-        first_cx = start_x + box_w // 2
-        last_col = min(len(team), cols) - 1
-        last_cx = start_x + last_col * (box_w + gap_x) + box_w // 2
-        svg += f'<line x1="{first_cx}" y1="{team_y - 10}" x2="{last_cx}" y2="{team_y - 10}" stroke="{GRAY}" stroke-width="1.5"/>'
+    for row_idx in range(rows_count):
+        row_start = row_idx * cols
+        row_members = team[row_start:row_start + cols]
+        row_total_w = len(row_members) * box_w + (len(row_members) - 1) * gap_x
+        row_start_x = (W - row_total_w) // 2
+        my = team_y + row_idx * (box_h + 30)
 
-    for i, member in enumerate(team):
-        col = i % cols
-        row = i // cols
-        mx = start_x + col * (box_w + gap_x)
-        my = team_y + row * (box_h + 25)
-        color = PALETTE[(i + 1) % len(PALETTE)]
+        # Horizontal connector for this row
+        if len(row_members) > 1:
+            first_cx = row_start_x + box_w // 2
+            last_cx = row_start_x + (len(row_members) - 1) * (box_w + gap_x) + box_w // 2
+            svg += f'<line x1="{first_cx}" y1="{my - 10}" x2="{last_cx}" y2="{my - 10}" stroke="{GRAY}" stroke-width="1.5"/>'
 
-        # Vertical connector
-        svg += f'<line x1="{mx + box_w//2}" y1="{my - 10}" x2="{mx + box_w//2}" y2="{my}" stroke="{GRAY}" stroke-width="1"/>'
+        # Vertical connector from horizontal bar to leader (first row only)
+        if row_idx == 0:
+            svg += f'<line x1="{W//2}" y1="{ly + box_h + 18}" x2="{W//2}" y2="{my - 10}" stroke="{GRAY}" stroke-width="1.5"/>'
 
-        svg += f'<rect x="{mx}" y="{my}" width="{box_w}" height="{box_h}" rx="8" fill="{WHITE}" stroke="{color}" stroke-width="2"/>'
-        svg += f'<text x="{mx + box_w//2}" y="{my + 20}" text-anchor="middle" font-size="8" font-family="{FONT}" fill="{DARK}" font-weight="600">{_esc(_truncate(member["role"], 18))}</text>'
-        ded = member.get("dedicacion", "")
-        if ded:
-            svg += f'<text x="{mx + box_w//2}" y="{my + 34}" text-anchor="middle" font-size="7" font-family="{FONT}" fill="{GRAY}">{_esc(ded)}</text>'
+        for col_idx, member in enumerate(row_members):
+            mx = row_start_x + col_idx * (box_w + gap_x)
+            color = PALETTE[(row_start + col_idx + 1) % len(PALETTE)]
+            role_name = member["role"]
+
+            # Vertical connector from horizontal bar
+            svg += f'<line x1="{mx + box_w//2}" y1="{my - 10}" x2="{mx + box_w//2}" y2="{my}" stroke="{GRAY}" stroke-width="1"/>'
+
+            # Box
+            svg += f'<rect x="{mx}" y="{my}" width="{box_w}" height="{box_h}" rx="8" fill="{WHITE}" stroke="{color}" stroke-width="2"/>'
+
+            # Role name — auto font size
+            fs = 8 if len(role_name) <= 22 else 6.5 if len(role_name) <= 30 else 5.5
+            svg += f'<text x="{mx + box_w//2}" y="{my + 22}" text-anchor="middle" font-size="{fs}" font-family="{FONT}" fill="{DARK}" font-weight="600">{_esc(role_name)}</text>'
+
+            ded = member.get("dedicacion", "")
+            if ded:
+                svg += f'<text x="{mx + box_w//2}" y="{my + 38}" text-anchor="middle" font-size="7" font-family="{FONT}" fill="{GRAY}">{_esc(ded)}</text>'
 
     return f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 {W} {H}" width="{W}" height="{H}">{svg}</svg>'
 
