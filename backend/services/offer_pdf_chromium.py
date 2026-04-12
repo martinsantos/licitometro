@@ -533,18 +533,18 @@ p {{ orphans: 3; widows: 3; }}
 .section-header {{
     font-size: 14pt;
     font-weight: 700;
-    color: {brand_primary};
+    color: #1d4ed8;
     text-transform: uppercase;
     letter-spacing: 0.06em;
     padding-bottom: 8px;
-    border-bottom: 2.5px solid {brand_primary}22;
+    border-bottom: 2.5px solid #dbeafe;
     margin-bottom: 14px;
     display: flex;
     align-items: center;
     gap: 10px;
 }}
 .section-num {{
-    background: linear-gradient(135deg, {brand_primary}, {brand_accent});
+    background: linear-gradient(135deg, #1d4ed8, #3b82f6);
     color: white;
     width: 28px;
     height: 28px;
@@ -578,7 +578,7 @@ p {{ orphans: 3; widows: 3; }}
     padding: 8px 12px;
     font-size: 11pt;
     background: #f1f5f9;
-    border-left: 3px solid {brand_primary};
+    border-left: 3px solid #1d4ed8;
     border-radius: 0 6px 6px 0;
 }}
 
@@ -590,7 +590,7 @@ p {{ orphans: 3; widows: 3; }}
     margin-top: 10px;
 }}
 .items-table thead th {{
-    background: linear-gradient(135deg, {brand_primary}, {brand_accent});
+    background: linear-gradient(135deg, #1d4ed8, #3b82f6);
     color: white;
     padding: 10px 8px;
     text-align: left;
@@ -615,7 +615,7 @@ p {{ orphans: 3; widows: 3; }}
     padding: 8px;
 }}
 .total-final td {{
-    background: linear-gradient(135deg, {brand_primary}, {brand_accent}) !important;
+    background: linear-gradient(135deg, #1d4ed8, #2563eb) !important;
     color: white !important;
     font-size: 14pt !important;
     padding: 12px 8px !important;
@@ -642,7 +642,7 @@ p {{ orphans: 3; widows: 3; }}
     margin: 10px 0 14px;
 }}
 .content-table th {{
-    background: linear-gradient(135deg, {brand_primary}, {brand_accent});
+    background: linear-gradient(135deg, #1d4ed8, #3b82f6);
     color: white;
     padding: 9px 10px;
     text-align: left;
@@ -666,13 +666,13 @@ p {{ orphans: 3; widows: 3; }}
     margin-bottom: 12px;
     padding: 12px;
     border: 1px solid #e5e7eb;
-    border-left: 4px solid {brand_primary};
+    border-left: 4px solid #1d4ed8;
     border-radius: 0 8px 8px 0;
     background: #f8fafc;
     page-break-inside: avoid;
 }}
 .ant-num {{
-    background: {brand_primary};
+    background: #1d4ed8;
     color: white;
     width: 24px;
     height: 24px;
@@ -706,7 +706,7 @@ p {{ orphans: 3; widows: 3; }}
 .ant-title {{
     font-weight: 700;
     font-size: 11pt;
-    color: {brand_primary};
+    color: #1d4ed8;
     text-decoration: none;
     display: block;
     margin-bottom: 5px;
@@ -727,8 +727,8 @@ p {{ orphans: 3; widows: 3; }}
     white-space: nowrap;
 }}
 .ant-chip-sector {{
-    background: {brand_primary}18;
-    color: {brand_primary};
+    background: #dbeafe;
+    color: #1d4ed8;
 }}
 .ant-chip-budget {{
     background: #d1fae5;
