@@ -43,10 +43,15 @@ def _render_section_content(content: str) -> str:
     if not content:
         return ""
 
-    # Strip AI placeholder artifacts and error messages
+    # Strip AI artifacts: placeholders, errors, and instruction headers
     content = re.sub(r'\[Completar[^\]]*\]', '', content)
     content = re.sub(r'\[Error:[^\]]*\]', '', content)
     content = re.sub(r'\[Error\s+api\s+\d+:[^\]]*\]', '', content)
+    # Remove AI instruction headers leaked into content
+    content = re.sub(r'^PARRAFO\s+\d+\s*\([^)]*\)\s*$', '', content, flags=re.MULTILINE)
+    content = re.sub(r'^\*\*PARRAFO\s+\d+[^*]*\*\*\s*$', '', content, flags=re.MULTILINE)
+    content = re.sub(r'^\*\*(REFORMULACION|DESAFIOS|ALCANCE|SOLUCION|ARQUITECTURA|JUSTIFICACION|CONTEXTO|PROPUESTA)[^*]*\*\*\s*$', '', content, flags=re.MULTILINE)
+    content = re.sub(r'^(REFORMULACION|DESAFIOS IMPLICITOS|ALCANCE PROPUESTO|SOLUCION PROPUESTA|ARQUITECTURA|JUSTIFICACION TECNICA|CONTEXTO|PROPUESTA CONCRETA|ENTREGABLE)\s*$', '', content, flags=re.MULTILINE)
 
     lines = content.split("\n")
     html_parts = []
