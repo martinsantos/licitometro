@@ -149,13 +149,29 @@ async def find_pliegos(db, licitacion_id: str, http_session=None) -> dict:
         except Exception as e:
             logger.warning(f"Failed to fetch source_url for pliegos: {e}")
 
-    # Strategy 3: COMPR.AR authenticated download (Mendoza + Nacional)
+    # Detect ALL connected sources (not just primary fuente)
     fuente = str(lic.get("fuente", "")).lower()
-    if "compr" in fuente and source_url and ("comprar.mendoza" in source_url or "comprar.gob.ar" in source_url):
+    all_fuentes = " ".join([fuente] + [f.lower() for f in (lic.get("fuentes") or [])])
+    all_source_urls = " ".join([source_url] + [str(v) for v in (lic.get("source_urls") or {}).values()])
+    has_comprar = "comprar.mendoza" in all_source_urls or "comprar.gob.ar" in all_source_urls
+    has_comprasapps = "comprasapps" in all_fuentes or "comprasapps" in all_source_urls
+
+    # Strategy 3: COMPR.AR authenticated download (Mendoza + Nacional)
+    comprar_url = source_url if "comprar.mendoza" in source_url or "comprar.gob.ar" in source_url else ""
+    if not comprar_url and has_comprar:
+        # Find COMPR.AR pliego URL from source_urls or metadata
+        for v in (lic.get("source_urls") or {}).values():
+            if isinstance(v, str) and ("comprar.mendoza" in v or "comprar.gob.ar" in v):
+                comprar_url = v
+                break
+        if not comprar_url:
+            meta = lic.get("metadata") or {}
+            comprar_url = meta.get("comprar_pliego_url", "")
+    if comprar_url and ("comprar.mendoza" in comprar_url or "comprar.gob.ar" in comprar_url):
         try:
             from services.comprar_pliego_downloader import ComprarPliegoDownloader
             downloader = ComprarPliegoDownloader(db)
-            comprar_pliegos = await downloader.download_anexos(source_url)
+            comprar_pliegos = await downloader.download_anexos(comprar_url)
             for p in comprar_pliegos:
                 if p.get("url") and p["url"] not in seen_urls:
                     seen_urls.add(p["url"])
@@ -164,12 +180,27 @@ async def find_pliegos(db, licitacion_id: str, http_session=None) -> dict:
             logger.warning(f"COMPR.AR authenticated download failed: {e}")
 
     # Strategy 3b: ComprasApps authenticated download (pliegos + OC + movimientos)
-    if "comprasapps" in fuente:
+    if has_comprasapps:
         try:
             from services.comprasapps_pliego_downloader import ComprasAppsAuthClient
             client = ComprasAppsAuthClient(db)
-            # Build detail URL params from licitacion metadata
+            # Build detail URL params — try current item first, then find related ComprasApps item
             params = ComprasAppsAuthClient.build_detail_params_from_licitacion(lic)
+            if not params:
+                # Current item isn't from ComprasApps — find the linked one
+                lic_num = lic.get("licitacion_number", "")
+                proceso_id = lic.get("proceso_id", "")
+                ca_item = None
+                if proceso_id:
+                    ca_item = await db.licitaciones.find_one({"fuente": "ComprasApps Mendoza", "proceso_id": proceso_id})
+                if not ca_item and lic_num:
+                    ca_item = await db.licitaciones.find_one({
+                        "fuente": "ComprasApps Mendoza",
+                        "licitacion_number": {"$regex": f"^{re.escape(lic_num)}/"},
+                    })
+                if ca_item:
+                    params = ComprasAppsAuthClient.build_detail_params_from_licitacion(ca_item)
+                    logger.info(f"Found ComprasApps item {ca_item.get('licitacion_number')} for cross-source pliego search")
             if params:
                 if await client._load_credentials():
                     if await client.login():
