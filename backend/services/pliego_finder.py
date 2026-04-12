@@ -183,16 +183,41 @@ async def find_pliegos(db, licitacion_id: str, http_session=None) -> dict:
     real_pliegos_so_far = [p for p in all_pliegos if p.get("type") != "metadata" and p.get("priority", 99) <= 6]
     if not real_pliegos_so_far:
         desc = lic.get("description", "")
+        objeto = lic.get("objeto", "") or lic.get("title", "")
+        org = lic.get("organization", "")
 
-        # A) Detect pliego download URLs mentioned in description
-        # e.g. "PLIEGOS: PODRÁN SER DESCARGADOS DE www.irrigacion.gov.ar/dgi/es/licitaciones"
-        desc_urls = re.findall(r'(?:www\.[a-z0-9.-]+\.[a-z]{2,}(?:/[^\s,;)]*)?|https?://[^\s,;)]+)', desc, re.I)
+        # A) Detect pliego download URLs in description — ONLY near this licitacion's context
+        # For BOE items, description may contain the FULL gazette (multiple licitaciones)
+        # Extract only the segment relevant to THIS licitacion
+        relevant_desc = desc
+        if len(desc) > 1000 and objeto:
+            # Find the section of description that mentions this licitacion's objeto
+            obj_words = [w for w in objeto.split() if len(w) > 4][:3]
+            best_pos = -1
+            for word in obj_words:
+                pos = desc.lower().find(word.lower())
+                if pos >= 0:
+                    best_pos = pos
+                    break
+            if best_pos >= 0:
+                # Take 800 chars around the match (tight window to avoid other licitaciones)
+                start = max(0, best_pos - 200)
+                relevant_desc = desc[start:start + 800]
+            elif org:
+                # Try organization name
+                pos = desc.lower().find(org.lower()[:20])
+                if pos >= 0:
+                    start = max(0, pos - 200)
+                    relevant_desc = desc[start:start + 1500]
+                else:
+                    relevant_desc = desc[:500]  # Just the beginning if nothing matches
+            else:
+                relevant_desc = desc[:500]
+
+        desc_urls = re.findall(r'(?:www\.[a-z0-9.-]+\.[a-z]{2,}(?:/[^\s,;)]*)?|https?://[^\s,;)]+)', relevant_desc, re.I)
         for durl in desc_urls:
             if not durl.startswith("http"):
                 durl = "https://" + durl
-            if durl not in seen_urls and "mendoza.gov.ar" not in durl.lower().replace("irrigacion", "X"):
-                # Skip generic gov.ar — but keep specific portals like irrigacion
-                pass
             if durl not in seen_urls:
                 seen_urls.add(durl)
                 domain = re.sub(r'https?://(www\.)?', '', durl).split('/')[0]
@@ -204,7 +229,7 @@ async def find_pliegos(db, licitacion_id: str, http_session=None) -> dict:
                     "label": "Portal de Pliegos",
                     "source": "description_url",
                 })
-                logger.info(f"Strategy 3c: found pliego URL in description: {durl[:60]}")
+                logger.info(f"Strategy 3c: found pliego URL near objeto context: {durl[:60]}")
 
         # B) Search COMPR.AR portal if we have identifiers and no comprar_url
         if not comprar_url:
