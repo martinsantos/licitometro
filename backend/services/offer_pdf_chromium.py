@@ -39,23 +39,61 @@ def _escape(text: str) -> str:
 
 
 def _render_section_content(content: str) -> str:
-    """Convert plain text content to HTML paragraphs, bullets, bold."""
+    """Convert plain text content to HTML paragraphs, bullets, bold, tables."""
     if not content:
         return ""
+
+    # Strip AI placeholder artifacts
+    content = re.sub(r'\[Completar[^\]]*\]', '', content)
+
     lines = content.split("\n")
     html_parts = []
+    table_rows = []
+
+    def flush_table():
+        """Convert accumulated pipe-delimited rows into HTML table."""
+        if not table_rows:
+            return
+        html = '<table class="content-table"><thead><tr>'
+        for cell in table_rows[0]:
+            html += f'<th>{cell}</th>'
+        html += '</tr></thead><tbody>'
+        for row in table_rows[1:]:
+            html += '<tr>'
+            for cell in row:
+                html += f'<td>{cell}</td>'
+            html += '</tr>'
+        html += '</tbody></table>'
+        html_parts.append(html)
+        table_rows.clear()
+
     for line in lines:
         line = line.strip()
         if not line:
+            flush_table()
             continue
+
+        # Detect pipe-delimited table rows (e.g. "Col1 | Col2 | Col3")
+        if "|" in line and line.count("|") >= 2:
+            cells = [c.strip() for c in line.split("|") if c.strip()]
+            if cells:
+                # Bold: **text**
+                cells = [re.sub(r'\*\*(.+?)\*\*', r'<strong>\1</strong>', _escape(c)) for c in cells]
+                table_rows.append(cells)
+                continue
+
+        flush_table()
+
         # Bold: **text**
         line = re.sub(r'\*\*(.+?)\*\*', r'<strong>\1</strong>', _escape(line))
         if line.startswith("- ") or line.startswith("* "):
             html_parts.append(f'<li>{line[2:]}</li>')
-        elif line.startswith("Etapa ") or re.match(r'^\d+[.)]\s', line):
+        elif line.startswith("Etapa ") or re.match(r'^Etapa\s', line):
             html_parts.append(f'<p class="etapa">{line}</p>')
         else:
             html_parts.append(f'<p>{line}</p>')
+
+    flush_table()
 
     # Wrap consecutive <li> in <ul>
     result = []
@@ -356,53 +394,33 @@ body {{
     margin-top: 40px;
 }}
 
-/* ─── Header/Footer (via @page margin boxes not supported, use fixed position) ─── */
-.page-header {{
-    position: fixed;
-    top: 0;
-    left: 0;
-    right: 0;
-    height: 15mm;
-    border-bottom: 2px solid #1d4ed8;
-    padding: 0 18mm;
-    display: flex;
-    align-items: flex-end;
-    padding-bottom: 3px;
+/* ─── Content Table (pipe-delimited) ─── */
+.content-table {{
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 9px;
+    margin: 8px 0 12px;
 }}
-.page-header span {{
-    font-size: 7px;
-    font-weight: 700;
-    color: #6b7280;
-    text-transform: uppercase;
-    letter-spacing: 0.1em;
+.content-table th {{
+    background: #1d4ed8;
+    color: white;
+    padding: 7px 8px;
+    text-align: left;
+    font-weight: 600;
+    font-size: 9px;
 }}
-.page-footer {{
-    position: fixed;
-    bottom: 0;
-    left: 0;
-    right: 0;
-    height: 15mm;
-    border-top: 1px solid #e5e7eb;
-    padding: 5px 18mm 0;
-    display: flex;
-    justify-content: space-between;
-    align-items: flex-start;
+.content-table td {{
+    padding: 6px 8px;
+    border-bottom: 1px solid #e5e7eb;
+    font-size: 9px;
+    vertical-align: top;
 }}
-.page-footer span {{
-    font-size: 7px;
-    color: #9ca3af;
+.content-table tr:nth-child(even) td {{
+    background: #f8fafc;
 }}
 </style>
 </head>
 <body>
-
-<div class="page-header">
-    <span>{_escape(company_name).upper()}</span>
-</div>
-<div class="page-footer">
-    <span>{objeto[:60]}</span>
-    <span>{fecha}</span>
-</div>
 
 <!-- Cover Page -->
 <div class="cover">
@@ -440,8 +458,12 @@ def generate_offer_pdf_chromium(cotizacion: dict, licitacion: dict, company_prof
     """
     html = build_offer_html(cotizacion, licitacion, company_profile)
 
+    company = cotizacion.get("company_data") or {}
+    company_name = company.get("nombre", "Empresa")
+    objeto = licitacion.get("objeto") or licitacion.get("title", "")
+
     try:
-        pdf_bytes = _render_pdf_with_selenium(html)
+        pdf_bytes = _render_pdf_with_selenium(html, company_name, objeto)
         if pdf_bytes:
             logger.info(f"Generated PDF with Chromium: {len(pdf_bytes)} bytes")
             return pdf_bytes
@@ -453,7 +475,7 @@ def generate_offer_pdf_chromium(cotizacion: dict, licitacion: dict, company_prof
     return generate_offer_pdf(cotizacion, licitacion, company_profile)
 
 
-def _render_pdf_with_selenium(html: str) -> Optional[bytes]:
+def _render_pdf_with_selenium(html: str, company_name: str = "", objeto: str = "") -> Optional[bytes]:
     """Render HTML to PDF using Selenium + Chromium CDP."""
     from selenium import webdriver
     from selenium.webdriver.chrome.options import Options
@@ -484,16 +506,22 @@ def _render_pdf_with_selenium(html: str) -> Optional[bytes]:
         driver.get(f"file://{tmp_path}")
 
         # Use CDP to generate PDF with print settings
+        # Header/footer use CDP's built-in template (avoids overlap with body)
+        company_esc = _escape(company_name).upper()
+        header_html = f'<div style="font-size:7px;font-family:Inter,sans-serif;color:#6b7280;font-weight:700;text-transform:uppercase;letter-spacing:0.1em;width:100%;border-bottom:2px solid #1d4ed8;padding:0 10mm 3px;text-align:left">{company_esc}</div>'
+        footer_html = f'<div style="font-size:7px;font-family:Inter,sans-serif;color:#9ca3af;width:100%;border-top:1px solid #e5e7eb;padding:3px 10mm 0;display:flex;justify-content:space-between"><span>{_escape(objeto[:55])}</span><span>Pag. <span class="pageNumber"></span> / <span class="totalPages"></span></span></div>'
         pdf_params = {
             "printBackground": True,
             "preferCSSPageSize": True,
             "paperWidth": 8.27,   # A4 in inches
             "paperHeight": 11.69,
-            "marginTop": 0.4,
-            "marginBottom": 0.6,
+            "marginTop": 0.6,
+            "marginBottom": 0.5,
             "marginLeft": 0.4,
             "marginRight": 0.4,
-            "displayHeaderFooter": False,
+            "displayHeaderFooter": True,
+            "headerTemplate": header_html,
+            "footerTemplate": footer_html,
         }
         result = driver.execute_cdp_cmd("Page.printToPDF", pdf_params)
         pdf_data = base64.b64decode(result["data"])
