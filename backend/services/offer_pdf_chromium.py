@@ -115,6 +115,118 @@ def _render_section_content(content: str) -> str:
     return "\n".join(result)
 
 
+def _render_antecedentes(content: str) -> str:
+    """Parse structured antecedentes and render as professional cards with images."""
+    if not content:
+        return ""
+
+    content = re.sub(r'\[Completar[^\]]*\]', '', content)
+
+    # Parse numbered projects: "1. TITLE\n   Cliente: X\n   Sector: Y\n   URL: ...\n   IMG: ..."
+    projects = []
+    current = None
+    intro_lines = []
+
+    for line in content.split("\n"):
+        line = line.strip()
+        if not line:
+            continue
+
+        # Detect numbered project: "1. Title" or "1. TITLE"
+        m = re.match(r'^(\d+)\.\s+(.+)', line)
+        if m:
+            if current:
+                projects.append(current)
+            current = {"num": m.group(1), "title": m.group(2).strip(), "fields": {}}
+            continue
+
+        if current:
+            # Parse "Key: Value" lines
+            km = re.match(r'^(Cliente|Sector|URL|IMG|Presupuesto|Monto|Certificado|Estado|Periodo|Fecha):\s*(.+)', line, re.I)
+            if km:
+                current["fields"][km.group(1).lower()] = km.group(2).strip()
+            else:
+                # Extra description line
+                current.setdefault("extra", []).append(line)
+        else:
+            intro_lines.append(line)
+
+    if current:
+        projects.append(current)
+
+    # Build HTML
+    html = ""
+
+    # Intro paragraph
+    for line in intro_lines:
+        line = re.sub(r'\*\*(.+?)\*\*', r'<strong>\1</strong>', _escape(line))
+        html += f'<p>{line}</p>\n'
+
+    if not projects:
+        # No structured projects, render as plain text
+        return _render_section_content(content)
+
+    # Render each project as a card
+    for proj in projects:
+        fields = proj["fields"]
+        title = _escape(proj["title"])
+        url = fields.get("url", "")
+        img = fields.get("img", "")
+        cliente = _escape(fields.get("cliente", ""))
+        sector = _escape(fields.get("sector", ""))
+        presupuesto = fields.get("presupuesto", "") or fields.get("monto", "")
+        certificado = fields.get("certificado", "")
+        estado = fields.get("estado", "")
+        periodo = fields.get("periodo", "") or fields.get("fecha", "")
+
+        # Title — link if URL available
+        if url:
+            title_html = f'<a href="{_escape(url)}" class="ant-title">{title}</a>'
+        else:
+            title_html = f'<span class="ant-title">{title}</span>'
+
+        # Image
+        img_html = ""
+        if img:
+            img_html = f'<img src="{_escape(img)}" class="ant-img" alt="{title[:30]}" />'
+
+        # Metadata chips
+        chips = []
+        if cliente:
+            chips.append(f'<span class="ant-chip"><strong>Cliente:</strong> {cliente}</span>')
+        if sector:
+            chips.append(f'<span class="ant-chip ant-chip-sector">{sector}</span>')
+        if presupuesto:
+            chips.append(f'<span class="ant-chip ant-chip-budget">{_escape(presupuesto)}</span>')
+        if certificado:
+            chips.append(f'<span class="ant-chip">Certificado: {_escape(certificado)}</span>')
+        if estado:
+            chips.append(f'<span class="ant-chip">Estado: {_escape(estado)}</span>')
+        if periodo:
+            chips.append(f'<span class="ant-chip">{_escape(periodo)}</span>')
+
+        # Extra lines
+        extra_html = ""
+        for line in proj.get("extra", []):
+            extra_html += f'<p class="ant-extra">{_escape(line)}</p>'
+
+        html += f'''
+        <div class="ant-card">
+            <div class="ant-num">{proj["num"]}</div>
+            <div class="ant-body">
+                {img_html}
+                <div class="ant-content">
+                    {title_html}
+                    <div class="ant-chips">{" ".join(chips)}</div>
+                    {extra_html}
+                </div>
+            </div>
+        </div>
+        '''
+
+    return html
+
+
 def build_offer_html(cotizacion: dict, licitacion: dict, company_profile: dict = None) -> str:
     """Build complete HTML document for the offer PDF."""
     company = cotizacion.get("company_data") or {}
@@ -195,6 +307,12 @@ def build_offer_html(cotizacion: dict, licitacion: dict, company_profile: dict =
                     </tbody>
                 </table>
                 {"<p class='validez'>Validez de la oferta: " + _escape(tech.get('validez','30')) + " dias</p>" if tech.get('validez') else ""}
+            </div>''')
+        elif slug in ("antecedentes", "perfil_empresa", "antecedentes_empresa"):
+            sections_html.append(f'''
+            <div class="section">
+                <div class="section-header"><span class="section-num">{num}</span> {title.upper()}</div>
+                <div class="section-body">{_render_antecedentes(content)}</div>
             </div>''')
         elif content:
             sections_html.append(f'''
@@ -417,6 +535,88 @@ body {{
 }}
 .content-table tr:nth-child(even) td {{
     background: #f8fafc;
+}}
+
+/* ─── Antecedentes Cards ─── */
+.ant-card {{
+    display: flex;
+    gap: 10px;
+    margin-bottom: 12px;
+    padding: 12px;
+    border: 1px solid #e5e7eb;
+    border-left: 4px solid #1d4ed8;
+    border-radius: 0 8px 8px 0;
+    background: #f8fafc;
+    page-break-inside: avoid;
+}}
+.ant-num {{
+    background: #1d4ed8;
+    color: white;
+    width: 24px;
+    height: 24px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 10px;
+    font-weight: 700;
+    flex-shrink: 0;
+    margin-top: 2px;
+}}
+.ant-body {{
+    display: flex;
+    gap: 12px;
+    flex: 1;
+    min-width: 0;
+}}
+.ant-img {{
+    width: 80px;
+    height: 55px;
+    object-fit: cover;
+    border-radius: 6px;
+    flex-shrink: 0;
+    border: 1px solid #e5e7eb;
+}}
+.ant-content {{
+    flex: 1;
+    min-width: 0;
+}}
+.ant-title {{
+    font-weight: 700;
+    font-size: 10px;
+    color: #1d4ed8;
+    text-decoration: none;
+    display: block;
+    margin-bottom: 4px;
+    line-height: 1.3;
+}}
+.ant-chips {{
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+    margin-top: 4px;
+}}
+.ant-chip {{
+    font-size: 8px;
+    padding: 2px 6px;
+    border-radius: 4px;
+    background: #e5e7eb;
+    color: #374151;
+    white-space: nowrap;
+}}
+.ant-chip-sector {{
+    background: #dbeafe;
+    color: #1d4ed8;
+}}
+.ant-chip-budget {{
+    background: #d1fae5;
+    color: #065f46;
+    font-weight: 600;
+}}
+.ant-extra {{
+    font-size: 9px;
+    color: #6b7280;
+    margin: 2px 0 0;
 }}
 </style>
 </head>
