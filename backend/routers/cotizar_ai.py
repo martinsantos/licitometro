@@ -418,45 +418,93 @@ Gestion de configuracion:
 
     if section_slug == "antecedentes":
         # Build from REAL data: um_antecedentes + vinculados
+        # First use vinculados (user-selected, highest relevance)
+        vinc_ids = cot.get("antecedentes_vinculados") or []
         lines = [f"{company_name} es una empresa argentina radicada en Mendoza, con mas de 16 años de experiencia en diseño, desarrollo y mantenimiento de soluciones tecnologicas.", ""]
         lines.append("Antecedentes relevantes para esta contratacion:")
         lines.append("")
 
-        # Get from um_antecedentes
         try:
             from services.um_antecedentes import get_um_antecedente_service
             svc = get_um_antecedente_service(db)
             await svc.ensure_indexes()
-            # Search relevant to this licitacion's object
-            search_kw = " ".join([w for w in objeto.split() if len(w) > 3][:5]) or "software desarrollo sistema"
-            result = await svc.search(keywords=search_kw, limit=8)
-            ants = result.get("results", [])
-            # Also search by governo sector
-            if len(ants) < 4:
-                result2 = await svc.search(keywords="gobierno sector publico", limit=6)
-                existing = {a.get("id") for a in ants}
+
+            all_ants = []
+            seen_ids = set()
+
+            # Priority 1: User-linked antecedentes (manually selected = most relevant)
+            if vinc_ids:
+                vinc_results = await svc.get_by_ids(vinc_ids[:6])
+                for a in vinc_results:
+                    aid = str(a.get("id", a.get("_id", "")))
+                    if aid not in seen_ids:
+                        seen_ids.add(aid)
+                        all_ants.append(a)
+
+            # Priority 2: Search by thematic keywords from objeto + category
+            if len(all_ants) < 4:
+                # Build search with category-specific keywords
+                category = lic.get("category", "")
+                tipo = lic.get("tipo_procedimiento", "")
+                search_terms = []
+                # Extract meaningful words from objeto
+                for w in objeto.split():
+                    if len(w) > 4 and w.lower() not in ("para", "sobre", "desde", "hasta", "entre"):
+                        search_terms.append(w)
+                # Add category keywords
+                if category:
+                    search_terms.extend(w for w in category.split() if len(w) > 3)
+                search_kw = " ".join(search_terms[:6]) or "software desarrollo tecnologia"
+                result = await svc.search(keywords=search_kw, limit=8)
+                for a in result.get("results", []):
+                    aid = str(a.get("id", a.get("_id", "")))
+                    if aid not in seen_ids:
+                        seen_ids.add(aid)
+                        all_ants.append(a)
+
+            # Priority 3: Search by organismo type (gobierno, salud, etc.)
+            if len(all_ants) < 3:
+                org_lower = organismo.lower()
+                org_search = "gobierno sector publico"
+                if "salud" in org_lower or "hospital" in org_lower:
+                    org_search = "salud hospital"
+                elif "educacion" in org_lower or "escuela" in org_lower or "universidad" in org_lower:
+                    org_search = "educacion universidad"
+                elif "irrigacion" in org_lower or "agua" in org_lower:
+                    org_search = "infraestructura agua riego"
+                result2 = await svc.search(keywords=org_search, limit=4)
                 for a in result2.get("results", []):
-                    if a.get("id") not in existing:
-                        ants.append(a)
-            for i, ant in enumerate(ants[:6], 1):
+                    aid = str(a.get("id", a.get("_id", "")))
+                    if aid not in seen_ids:
+                        seen_ids.add(aid)
+                        all_ants.append(a)
+
+            # Format: max 5 antecedentes, with relevance note
+            for i, ant in enumerate(all_ants[:5], 1):
                 title = ant.get("title", "")
                 client = ant.get("organization", "")
                 sector = ant.get("category", "")
                 detail_url = ant.get("detail_url") or ant.get("url", "")
                 image_url = ant.get("image_url", "")
+                budget = ant.get("budget_adjusted") or ant.get("budget")
                 lines.append(f"{i}. {title}")
                 if client:
                     lines.append(f"   Cliente: {client}")
                 if sector:
                     lines.append(f"   Sector: {sector}")
+                if budget and budget > 0:
+                    lines.append(f"   Presupuesto: ${budget:,.0f}".replace(",", "."))
                 if detail_url:
                     lines.append(f"   URL: {detail_url}")
                 if image_url:
                     lines.append(f"   IMG: {image_url}")
                 lines.append("")
+
         except Exception as e:
             logger.warning(f"Failed to load antecedentes: {e}")
-            lines.append("[Completar con antecedentes reales de la empresa]")
+
+        if len(lines) <= 4:
+            lines.append("La empresa cuenta con amplia experiencia en proyectos similares.")
 
         return {"content": "\n".join(lines), "section_slug": section_slug}
 
@@ -470,9 +518,15 @@ Gestion de configuracion:
         f"Tipo de procedimiento: {lic.get('tipo_procedimiento', '')}",
     ]
 
+    # Add category and budget context
+    if lic.get("category"):
+        parts.append(f"Categoria/rubro: {lic['category']}")
+    if lic.get("budget"):
+        parts.append(f"Presupuesto oficial: ${lic['budget']:,.0f}".replace(",", "."))
+
     # Add description from licitacion
     if lic.get("description") and len(lic["description"]) > 50:
-        parts.append(f"\nDESCRIPCION DE LA LICITACION:\n{lic['description'][:1500]}")
+        parts.append(f"\nDESCRIPCION DE LA LICITACION:\n{lic['description'][:2000]}")
 
     # Add pliego text if available (from uploaded PDFs or authenticated downloads)
     try:
@@ -480,7 +534,7 @@ Gestion de configuracion:
         pliego_result = await find_pliegos(db, licitacion_id)
         pliego_text = pliego_result.get("text_extracted", "")
         if pliego_text and len(pliego_text) > 100:
-            parts.append(f"\nTEXTO DEL PLIEGO (extraido del PDF):\n{pliego_text[:4000]}")
+            parts.append(f"\nTEXTO DEL PLIEGO (extraido del PDF — usar para detalles concretos):\n{pliego_text[:5000]}")
     except Exception:
         pass
 

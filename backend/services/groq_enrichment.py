@@ -399,35 +399,93 @@ Responde SOLO con JSON válido (sin markdown, sin backticks):
         return content
 
     async def generate_offer_section(self, section_slug: str, context: str) -> str:
-        """Generate content for a specific offer section using AI."""
+        """Generate content for a specific offer section using AI.
+
+        Follows McKinsey-level structure: Context → Propuesta concreta → Justificación → Entregable.
+        """
         section_prompts = {
-            "introduccion": "Redacta 2 parrafos: presentacion formal respondiendo al llamado. Menciona el organismo y el objeto EXACTO como aparece en los datos. NO inventes expedientes ni numeros que no esten en el contexto.",
-            "resumen_ejecutivo": "Redacta 3 puntos breves: 1) experiencia en proyectos similares (menciona SOLO los que aparecen en ANTECEDENTES VINCULADOS), 2) capacidad tecnica del equipo, 3) compromiso con el plazo. Maximo 150 palabras.",
-            "comprension_alcance": "Basandote EXCLUSIVAMENTE en la DESCRIPCION DE LA LICITACION y TEXTO DEL PLIEGO, describí que entendemos que se necesita y que funcionalidades proponemos. Si no hay texto del pliego, indica que se completa segun pliego especifico. Maximo 250 palabras.",
-            "propuesta_tecnica": "Describí la solucion tecnica propuesta basandote en la METODOLOGIA PROPUESTA del contexto. Stack tecnologico, componentes, integraciones. Maximo 250 palabras. NO inventes tecnologias que no esten mencionadas.",
-            "plan_trabajo": "Basandote en el PLAZO PROPUESTO del contexto, estructura en 3-4 etapas:\nEtapa 1: [Nombre] (Dias 1-X)\n- Actividades\n- Entregables\nUsa el plazo REAL del contexto, no inventes plazos.",
+            "introduccion": """Redacta 2 parrafos con esta estructura:
+PARRAFO 1 (Gancho contextual + propuesta de valor):
+- Abri con una referencia concreta al organismo y su contexto (que hace, que desafios tiene).
+- Presenta a la empresa con datos concretos: años de experiencia, cantidad de proyectos, areas de expertise.
+- Conecta las capacidades con el objeto EXACTO de la licitacion.
+PARRAFO 2 (Alineacion especifica):
+- Menciona las competencias tecnicas que pide el pliego (del TEXTO DEL PLIEGO si existe).
+- Describe brevemente el approach propuesto (no generico).
+- Cierra con compromiso de cumplimiento.
+REGLA: No uses frases vacias como 'estamos comprometidos a colaborar'. Usa voz activa: 'entregaremos', 'implementaremos', 'garantizamos'. Maximo 200 palabras.""",
+
+            "resumen_ejecutivo": """Redacta 3 diferenciadores concretos como elevator pitch de 1 pagina:
+1) EXPERTISE DEMOSTRADO: Menciona proyectos de ANTECEDENTES VINCULADOS con resultados medibles. Si no hay antecedentes directos, reencuadra los existentes destacando componentes relevantes para ESTA licitacion.
+2) STACK TECNICO ALINEADO: Enumera las competencias que pide el pliego y muestra como el equipo las cubre con tecnologias especificas (no genericas).
+3) METODOLOGIA DE ENTREGA: Describe el approach concreto: sprints, entregables, validaciones con el cliente.
+REGLA: Cada punto debe contener datos concretos, no promesas vagas. Maximo 200 palabras.""",
+
+            "comprension_alcance": """Estructura en 3 bloques:
+1) REFORMULACION DEL PROBLEMA (en palabras propias, NO copiar el pliego):
+- Que necesita el organismo, que desafios enfrenta, que datos/sistemas/procesos estan involucrados.
+2) DESAFIOS IMPLICITOS (los que el pliego no dice pero un experto detecta):
+- Heterogeneidad de fuentes, frecuencias de actualizacion, integracion con sistemas existentes, etc.
+3) ALCANCE PROPUESTO:
+- Que se incluye, que entregables tangibles recibira el organismo en cada etapa.
+USA el TEXTO DEL PLIEGO para extraer requisitos especificos. Maximo 300 palabras.""",
+
+            "propuesta_tecnica": """Estructura en bloques tecnicos concretos:
+1) SOLUCION PROPUESTA: Que se va a construir/implementar. Componentes especificos con nombres de tecnologias reales.
+2) ARQUITECTURA: Describir capas, flujo de datos, puntos de integracion. Ser especifico con el stack.
+3) JUSTIFICACION TECNICA: Por que esta solucion es la mejor para ESTE caso. Referenciar experiencia o estandares.
+USA la METODOLOGIA PROPUESTA del contexto como base. Si el pliego menciona tecnologias especificas, incluirlas.
+NO uses tecnologias genericas ('herramientas de visualizacion'). Usa nombres concretos ('Metabase', 'PowerBI', 'Grafana').
+Maximo 300 palabras.""",
+
+            "plan_trabajo": """Estructura en etapas con entregables TANGIBLES:
+Etapa 1: [Nombre descriptivo] (Dias X-Y)
+- Actividades concretas (no 'analisis', sino 'relevamiento de N fuentes de datos')
+- Entregable: [documento/sistema/pipeline concreto que recibe el cliente]
+- Hito de validacion: [punto donde el cliente revisa y aprueba]
+
+REGLAS:
+- Usa el PLAZO PROPUESTO del contexto. Si dice 12 semanas, las etapas deben sumar 12 semanas.
+- Minimo 3, maximo 5 etapas.
+- Entregables tangibles: no 'informe de progreso', sino 'Pipeline funcional procesando datos de 3 fuentes'.
+- Granularidad proporcional al plazo: proyecto de 1 mes = etapas semanales, proyecto de 3 meses = etapas quincenales.""",
+
+            "evaluacion_riesgos": """Identifica 3-4 riesgos ESPECIFICOS de ESTE proyecto (no genericos).
+Para cada riesgo:
+- Descripcion concreta del riesgo en el contexto del proyecto
+- Probabilidad: Alta/Media/Baja
+- Impacto: Alto/Medio/Bajo
+- Estrategia de mitigacion concreta (que accion se toma)
+Ejemplo de riesgo especifico: 'Incompatibilidad entre el formato de datos del sistema X y la base de datos propuesta, probabilidad Media, impacto Alto, mitigacion: prueba de integracion en semana 2 con datos reales.'
+NO uses riesgos genericos como 'falta de informacion' o 'incumplimiento de plazos'. Maximo 250 palabras.""",
         }
 
         base_prompt = section_prompts.get(section_slug)
         if not base_prompt:
-            # For custom/unknown sections, use the context to generate relevant content
             slug_label = section_slug.replace("_", " ").title()
-            base_prompt = f"Redacta la seccion '{slug_label}' basandote en los datos del CONTEXTO. Extraé la informacion relevante del pliego y la descripcion. Si hay texto del pliego, usalo para dar detalles concretos (requisitos, plazos, condiciones). Maximo 250 palabras."
+            base_prompt = f"""Redacta la seccion '{slug_label}' con esta estructura:
+1) CONTEXTO: 1-2 oraciones conectando la seccion con el problema del cliente.
+2) PROPUESTA CONCRETA: Que va a hacer la empresa. Con tecnologias, metodologias y herramientas especificas.
+3) JUSTIFICACION: Por que esta solucion es la mejor. Referenciar experiencia o estandares.
+4) ENTREGABLE: Que recibe el cliente como resultado.
+USA el TEXTO DEL PLIEGO si existe. Maximo 250 palabras."""
 
-        full_prompt = f"""Redactas ofertas tecnicas para licitaciones publicas argentinas.
+        full_prompt = f"""Sos un consultor senior que redacta ofertas tecnicas de nivel McKinsey para licitaciones publicas argentinas.
 
-REGLAS OBLIGATORIAS:
-1. USA datos del CONTEXTO como base. Extraé requisitos, plazos y condiciones del pliego.
-2. NUNCA inventes nombres de proyectos, clientes, organismos, fechas ni montos que no esten en el contexto.
-3. NUNCA menciones precios, presupuestos ni montos en secciones que no sean la oferta economica.
-4. Cuando hay TEXTO DEL PLIEGO, usalo para dar detalles concretos y especificos.
-5. Maximo 3 oraciones por parrafo. Sin frases de relleno.
-6. Texto plano. Sin markdown. Sin emojis.
+REGLAS DE REDACCION PROFESIONAL:
+1. ESPECIFICIDAD sobre generalidad: No 'herramientas de visualizacion', si 'Metabase/PowerBI'. No 'experiencia en programacion', si 'dominio de Python (pandas, numpy, airflow)'.
+2. VOZ ACTIVA Y ASERTIVA: No 'estamos comprometidos a trabajar de manera eficiente'. Si 'entregaremos el dashboard funcional en la semana 6'.
+3. ENTREGABLES TANGIBLES: No 'informe de progreso'. Si 'Pipeline funcional procesando datos de 3 fuentes en ambiente de prueba'.
+4. NO PARAFRASEAR EL PLIEGO: Si una frase solo repite lo que dice el pliego, reemplazala con tu interpretacion experta.
+5. NO REPETIR CONCEPTOS: Cada idea aparece UNA sola vez en todo el documento.
+6. NUNCA inventes proyectos, clientes, organismos, fechas ni montos que no esten en el contexto.
+7. NUNCA menciones precios ni presupuestos fuera de la oferta economica.
+8. Texto plano. Sin markdown, emojis ni asteriscos. Maximo 3 oraciones por parrafo.
 
 TAREA: {base_prompt}
 
 CONTEXTO (UNICA fuente de verdad):
-{context[:5000]}"""
+{context[:6000]}"""
 
         messages = [{"role": "user", "content": full_prompt}]
 
