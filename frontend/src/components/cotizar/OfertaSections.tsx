@@ -53,28 +53,34 @@ export default function OfertaSections({ licitacionId, sections, onSectionsChang
   }, [sections, onSectionsChange]);
 
   const handleGenerate = useCallback(async (slug: string) => {
+    if (!licitacionId) return; // Guard: don't call API without licitacionId
     setGenerating(slug);
     try {
       const { content } = await api.generateSection(licitacionId, slug);
-      updateSection(slug, { content, generated_by: 'ai' });
-    } catch (e) {
-      updateSection(slug, { content: `[Error: ${e instanceof Error ? e.message : 'Error al generar'}]`, generated_by: 'ai' });
+      if (content && !content.startsWith('[Error')) {
+        updateSection(slug, { content, generated_by: 'ai' });
+      }
+    } catch {
+      // Don't overwrite existing content with error messages
     } finally {
       setGenerating(null);
     }
-  }, [licitacionId, updateSection]);
+  }, [licitacionId, api, updateSection]);
 
   const [generatingAll, setGeneratingAll] = useState(false);
   const handleGenerateAll = useCallback(async () => {
+    if (!licitacionId) return;
     setGeneratingAll(true);
     const updated = [...sections];
     for (let i = 0; i < updated.length; i++) {
       setGenerating(updated[i].slug);
       try {
         const { content } = await api.generateSection(licitacionId, updated[i].slug);
-        updated[i] = { ...updated[i], content, generated_by: 'ai' as const };
-        onSectionsChange([...updated]);
-      } catch { /* continue with next */ }
+        if (content && !content.startsWith('[Error')) {
+          updated[i] = { ...updated[i], content, generated_by: 'ai' as const };
+          onSectionsChange([...updated]);
+        }
+      } catch { /* continue with next — don't save errors as content */ }
     }
     setGenerating(null);
     setGeneratingAll(false);

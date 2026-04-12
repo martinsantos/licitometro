@@ -43,8 +43,10 @@ def _render_section_content(content: str) -> str:
     if not content:
         return ""
 
-    # Strip AI placeholder artifacts
+    # Strip AI placeholder artifacts and error messages
     content = re.sub(r'\[Completar[^\]]*\]', '', content)
+    content = re.sub(r'\[Error:[^\]]*\]', '', content)
+    content = re.sub(r'\[Error\s+api\s+\d+:[^\]]*\]', '', content)
 
     lines = content.split("\n")
     html_parts = []
@@ -265,6 +267,12 @@ def build_offer_html(cotizacion: dict, licitacion: dict, company_profile: dict =
         title = _escape(sec.get("title", slug))
 
         if slug == "portada":
+            continue
+
+        # Skip sections with error content or empty after stripping
+        content = re.sub(r'\[Error[^\]]*\]', '', content).strip()
+        content = re.sub(r'\[Completar[^\]]*\]', '', content).strip()
+        if not content and slug != "oferta_economica":
             continue
 
         if slug == "oferta_economica":
