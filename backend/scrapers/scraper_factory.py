@@ -23,6 +23,9 @@ from .mendoza_compra_v2 import MendozaCompraScraperV2
 # ComprasApps Mendoza (hli00049 servlet)
 from .comprasapps_mendoza_scraper import ComprasAppsMendozaScraper
 
+# Irrigación Mendoza (REST API)
+from .irrigacion_api_scraper import IrrigacionApiScraper
+
 # EPRE Mendoza
 from .epre_scraper import EpreScraper
 
@@ -67,6 +70,11 @@ def create_scraper(config: ScraperConfig) -> Optional[BaseScraper]:
     
     # === MENDOZA - Provincia ===
     
+    # Irrigación Mendoza (REST API)
+    if "irrigacion" in config_name_lower or "irrigacion.gov.ar" in config_url_lower:
+        logger.info(f"Using IrrigacionApiScraper for {config.name}")
+        return IrrigacionApiScraper(config)
+
     # ComprasApps Mendoza (hli00049 servlet - Buscador de Licitaciones)
     if "comprasapps.mendoza.gov.ar" in config_url_lower or "comprasapps" in config_name_lower:
         logger.info(f"Using ComprasAppsMendozaScraper for {config.name}")

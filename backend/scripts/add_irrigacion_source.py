@@ -1,71 +1,69 @@
-#!/usr/bin/env python3
-"""
-Add Irrigación (Departamento General de Irrigación) scraper config.
-
-WordPress blog at irrigacion.gov.ar/web/category/licitaciones/
-Uses GenericHtmlScraper with inline_mode.
-
-Usage (from Docker):
-  docker exec -w /app -e PYTHONPATH=/app licitometro-backend-1 python scripts/add_irrigacion_source.py
-"""
-
+"""Add Irrigacion Mendoza as a scraper source and run initial scrape."""
 import asyncio
 import os
-import sys
-from datetime import datetime
-from pathlib import Path
-from uuid import uuid4
-
-sys.path.insert(0, str(Path(__file__).parent.parent))
+import time
+import hashlib
+from datetime import datetime, timezone
 from motor.motor_asyncio import AsyncIOMotorClient
-from utils.time import utc_now
 
 
-async def main():
-    mongo_url = os.environ.get("MONGO_URL", "mongodb://localhost:27017/licitaciones_db")
-    db_name = os.environ.get("DB_NAME", "licitaciones_db")
+async def run():
+    db = AsyncIOMotorClient(os.environ["MONGO_URL"])[os.environ["DB_NAME"]]
 
-    client = AsyncIOMotorClient(mongo_url)
-    db = client[db_name]
-
-    existing = await db.scraper_configs.find_one({"name": "Irrigacion"})
+    existing = await db.scraper_configs.find_one({"name": {"$regex": "Irrigaci"}})
     if existing:
-        print(f"SKIP (exists): Irrigacion (id={existing.get('_id')})")
-        client.close()
-        return
+        print(f"Config exists: {existing.get('name')}")
+    else:
+        config = {
+            "name": "Irrigacion Mendoza API",
+            "url": "https://serviciosweb.cloud.irrigacion.gov.ar/services/expedientes/api/public/licitacions",
+            "active": True,
+            "schedule": "0 8,12,19 * * *",
+            "created_at": datetime.now(timezone.utc),
+            "selectors": {},
+        }
+        result = await db.scraper_configs.insert_one(config)
+        print(f"Created config: {result.inserted_id}")
 
-    doc = {
-        "_id": str(uuid4()),
-        "name": "Irrigacion",
-        "url": "https://www.irrigacion.gov.ar/web/category/licitaciones/",
-        "active": True,
-        "schedule": "0 8 * * 1-5",
-        "max_items": 50,
-        "selectors": {
-            "scraper_type": "generic_html",
-            "inline_mode": True,
-            "list_item_selector": "article, .vc_gitem-zone-mini",
-            "list_title_selector": "h4 a, .entry-title a, h2 a",
-            "list_date_selector": ".vc_gitem-post-date, time, .published",
-            "list_link_selector": "h4 a[href], .entry-title a[href], h2 a[href]",
-            "organization": "Departamento General de Irrigación",
-            "tipo_procedimiento": "Licitación",
-            "id_prefix": "irrigacion-",
-        },
-        "pagination": {"max_pages": 3},
-        "source_type": "website",
-        "created_at": utc_now(),
-        "updated_at": utc_now(),
-    }
+    print("\nRunning scraper...")
+    from scrapers.irrigacion_api_scraper import IrrigacionApiScraper
+    from models.scraper_config import ScraperConfig
 
-    await db.scraper_configs.insert_one(doc)
-    print(f"Created Irrigacion config: id={doc['_id']}")
-    print(f"  URL: {doc['url']}")
-    print(f"  Schedule: {doc['schedule']}")
-    print(f"  Max items: {doc['max_items']}")
+    config_doc = await db.scraper_configs.find_one({"name": {"$regex": "Irrigaci"}})
+    sc = ScraperConfig(**{k: v for k, v in config_doc.items() if k != "_id"})
+    scraper = IrrigacionApiScraper(sc)
 
-    client.close()
+    t0 = time.time()
+    items = await scraper.run()
+    elapsed = time.time() - t0
+    print(f"Scraped: {len(items)} items in {elapsed:.1f}s")
 
+    new_ct, upd_ct = 0, 0
+    for item in items:
+        try:
+            d = item.model_dump()
+            if d.get("source_url"):
+                d["source_url"] = str(d["source_url"])
+            h = hashlib.md5(f"{d.get('title','')}|{d.get('licitacion_number','')}|Irrigacion".encode()).hexdigest()
+            d["content_hash"] = h
+            d["fecha_scraping"] = datetime.now(timezone.utc)
+            ex = await db.licitaciones.find_one({"content_hash": h})
+            if ex:
+                await db.licitaciones.update_one({"_id": ex["_id"]}, {"$set": {"fecha_scraping": datetime.now(timezone.utc)}})
+                upd_ct += 1
+            else:
+                d["first_seen_at"] = d["created_at"] = d["updated_at"] = datetime.now(timezone.utc)
+                d["enrichment_level"] = 2
+                d["workflow_state"] = "descubierta"
+                d["nodos"] = []
+                d["keywords"] = []
+                await db.licitaciones.insert_one(d)
+                new_ct += 1
+        except Exception as e:
+            print(f"  Insert error: {e}")
 
-if __name__ == "__main__":
-    asyncio.run(main())
+    print(f"New: {new_ct}, Updated: {upd_ct}")
+    count = await db.licitaciones.count_documents({"fuente": {"$regex": "Irrigaci"}})
+    print(f"Total Irrigacion in DB: {count}")
+
+asyncio.run(run())
