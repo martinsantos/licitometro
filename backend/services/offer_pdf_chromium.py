@@ -380,193 +380,251 @@ def build_offer_html(cotizacion: dict, licitacion: dict, company_profile: dict =
 
 @page {{
     size: A4;
-    margin: 20mm 18mm 25mm 18mm;
+    margin: 25mm 22mm 28mm 22mm;
 }}
 
 * {{ margin: 0; padding: 0; box-sizing: border-box; }}
 
 body {{
     font-family: 'Inter', -apple-system, sans-serif;
-    font-size: 10px;
-    line-height: 1.5;
+    font-size: 11.5pt;
+    line-height: 1.7;
     color: #1f2937;
 }}
 
-/* ─── Cover Page ─── */
+p {{ orphans: 3; widows: 3; }}
+
+/* ═══ COVER — McKinsey Level ═══ */
 .cover {{
     page-break-after: always;
     display: flex;
     flex-direction: column;
-    min-height: 85vh;
-    padding-top: 40px;
+    min-height: 88vh;
+    padding-top: 30px;
+    position: relative;
 }}
-.cover-bar {{
-    height: 5px;
-    background: linear-gradient(90deg, #1d4ed8, #6366f1);
-    margin-bottom: 80px;
-    border-radius: 2px;
+.cover-accent-bar {{
+    position: absolute;
+    left: -22mm;
+    top: -25mm;
+    bottom: -28mm;
+    width: 8px;
+    background: linear-gradient(180deg, #1d4ed8 0%, #6366f1 50%, #1d4ed8 100%);
+}}
+.cover-logo {{
+    width: 68px;
+    height: 68px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, #1d4ed8, #3b82f6);
+    color: white;
+    font-size: 26px;
+    font-weight: 800;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin-bottom: 50px;
+    box-shadow: 0 4px 15px rgba(29, 78, 216, 0.25);
 }}
 .cover h1 {{
-    font-size: 22px;
-    font-weight: 800;
-    color: #111827;
-    line-height: 1.3;
-    margin-bottom: 10px;
-    text-transform: uppercase;
-    letter-spacing: 0.02em;
+    font-size: 28px;
+    font-weight: 900;
+    color: #0f172a;
+    line-height: 1.2;
+    margin-bottom: 14px;
+    letter-spacing: -0.01em;
 }}
-.cover .subtitle {{
+.cover-type {{
     font-size: 11px;
-    font-weight: 600;
+    font-weight: 700;
     color: #1d4ed8;
     text-transform: uppercase;
-    letter-spacing: 0.15em;
-    margin-bottom: 25px;
+    letter-spacing: 0.3em;
+    margin-bottom: 8px;
 }}
-.cover .company-name {{
-    font-size: 18px;
-    font-weight: 700;
-    color: #374151;
-    margin-bottom: 50px;
+.cover-separator {{
+    height: 2px;
+    margin: 35px 0;
+    background: linear-gradient(90deg, #1d4ed8, #93c5fd, transparent);
+    border-radius: 1px;
 }}
-.cover-info {{
-    margin-top: auto;
-    border-top: 2px solid #1d4ed8;
-    padding-top: 15px;
+.cover-meta {{
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 0;
+    margin: 10px 0 40px;
 }}
-.cover-info table {{ width: 100%; border-collapse: collapse; }}
-.cover-info td {{
-    padding: 5px 0;
-    font-size: 10px;
-    vertical-align: top;
+.meta-item {{
+    padding: 10px 12px 10px 0;
+    border-bottom: 1px solid #e5e7eb;
 }}
-.cover-info td:first-child {{
+.meta-item:nth-child(even) {{
+    padding-left: 20px;
+    border-left: 1px solid #e5e7eb;
+}}
+.meta-label {{
+    display: block;
+    font-size: 7.5pt;
+    text-transform: uppercase;
+    letter-spacing: 0.12em;
+    color: #9ca3af;
     font-weight: 600;
-    color: #6b7280;
-    width: 100px;
-    white-space: nowrap;
+    margin-bottom: 3px;
+}}
+.meta-value {{
+    display: block;
+    font-size: 11pt;
+    color: #1f2937;
+    font-weight: 500;
+}}
+.cover-footer {{
+    margin-top: auto;
+    padding-top: 20px;
+    border-top: 1px solid #e5e7eb;
+}}
+.cover-company {{
+    font-size: 20px;
+    font-weight: 800;
+    color: #374151;
+    letter-spacing: -0.01em;
+}}
+.cover-date {{
+    font-size: 10pt;
+    color: #9ca3af;
+    margin-top: 4px;
 }}
 
-/* ─── Sections ─── */
+/* ═══ SECTIONS ═══ */
 .section {{
-    margin-bottom: 20px;
+    margin-bottom: 28px;
     page-break-inside: avoid;
 }}
 .section-header {{
-    font-size: 12px;
+    font-size: 14pt;
     font-weight: 700;
     color: #1d4ed8;
     text-transform: uppercase;
-    letter-spacing: 0.05em;
-    padding-bottom: 6px;
-    border-bottom: 2px solid #dbeafe;
-    margin-bottom: 10px;
+    letter-spacing: 0.06em;
+    padding-bottom: 8px;
+    border-bottom: 2.5px solid #dbeafe;
+    margin-bottom: 14px;
     display: flex;
     align-items: center;
-    gap: 8px;
+    gap: 10px;
 }}
 .section-num {{
-    background: #1d4ed8;
+    background: linear-gradient(135deg, #1d4ed8, #3b82f6);
     color: white;
-    width: 22px;
-    height: 22px;
+    width: 28px;
+    height: 28px;
     border-radius: 50%;
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    font-size: 10px;
+    font-size: 12px;
     font-weight: 700;
     flex-shrink: 0;
 }}
 .section-body p {{
-    margin-bottom: 6px;
+    margin-bottom: 10px;
     text-align: justify;
-    font-size: 10px;
-    line-height: 1.6;
+    font-size: 11.5pt;
+    line-height: 1.7;
 }}
 .section-body ul {{
-    margin: 4px 0 8px 20px;
+    margin: 8px 0 12px 24px;
     padding: 0;
 }}
 .section-body li {{
-    margin-bottom: 3px;
-    font-size: 10px;
-    line-height: 1.5;
+    margin-bottom: 5px;
+    font-size: 11.5pt;
+    line-height: 1.65;
 }}
 .section-body .etapa {{
     font-weight: 600;
     color: #374151;
-    margin-top: 8px;
-    padding: 4px 8px;
+    margin-top: 10px;
+    padding: 8px 12px;
+    font-size: 11pt;
     background: #f1f5f9;
     border-left: 3px solid #1d4ed8;
-    border-radius: 0 4px 4px 0;
+    border-radius: 0 6px 6px 0;
 }}
 
-/* ─── Items Table ─── */
+/* ═══ ITEMS TABLE ═══ */
 .items-table {{
     width: 100%;
     border-collapse: collapse;
-    font-size: 9px;
-    margin-top: 8px;
+    font-size: 10.5pt;
+    margin-top: 10px;
 }}
 .items-table thead th {{
-    background: #1d4ed8;
+    background: linear-gradient(135deg, #1d4ed8, #3b82f6);
     color: white;
-    padding: 8px 6px;
+    padding: 10px 8px;
     text-align: left;
     font-weight: 600;
-    font-size: 9px;
+    font-size: 10pt;
     text-transform: uppercase;
     letter-spacing: 0.05em;
 }}
+.items-table thead th:first-child {{
+    border-radius: 6px 0 0 0;
+}}
+.items-table thead th:last-child {{
+    border-radius: 0 6px 0 0;
+}}
 .items-table tbody td {{
-    font-size: 9px;
+    font-size: 10.5pt;
+    padding: 8px;
 }}
 .totals-row td {{
-    border-top: 1px solid #d1d5db;
-    font-size: 10px;
+    border-top: 1.5px solid #d1d5db;
+    font-size: 11pt;
+    padding: 8px;
 }}
 .total-final td {{
-    background: #1d4ed8 !important;
+    background: linear-gradient(135deg, #1d4ed8, #2563eb) !important;
     color: white !important;
-    font-size: 12px !important;
+    font-size: 14pt !important;
+    padding: 12px 8px !important;
 }}
 .validez {{
-    margin-top: 10px;
-    font-size: 9px;
+    margin-top: 12px;
+    font-size: 10pt;
     color: #6b7280;
+    font-style: italic;
 }}
 
-/* ─── Firma ─── */
+/* ═══ FIRMA ═══ */
 .firma-section {{
     page-break-inside: avoid;
-    margin-top: 40px;
+    page-break-before: auto;
+    margin-top: 50px;
 }}
 
-/* ─── Content Table (pipe-delimited) ─── */
+/* ═══ CONTENT TABLE ═══ */
 .content-table {{
     width: 100%;
     border-collapse: collapse;
-    font-size: 9px;
-    margin: 8px 0 12px;
+    font-size: 10.5pt;
+    margin: 10px 0 14px;
 }}
 .content-table th {{
-    background: #1d4ed8;
+    background: linear-gradient(135deg, #1d4ed8, #3b82f6);
     color: white;
-    padding: 7px 8px;
+    padding: 9px 10px;
     text-align: left;
     font-weight: 600;
-    font-size: 9px;
+    font-size: 10pt;
 }}
 .content-table td {{
-    padding: 6px 8px;
+    padding: 8px 10px;
     border-bottom: 1px solid #e5e7eb;
-    font-size: 9px;
+    font-size: 10.5pt;
     vertical-align: top;
 }}
 .content-table tr:nth-child(even) td {{
-    background: #f8fafc;
+    background: #fafbfc;
 }}
 
 /* ─── Antecedentes Cards ─── */
@@ -615,11 +673,11 @@ body {{
 }}
 .ant-title {{
     font-weight: 700;
-    font-size: 10px;
+    font-size: 11pt;
     color: #1d4ed8;
     text-decoration: none;
     display: block;
-    margin-bottom: 4px;
+    margin-bottom: 5px;
     line-height: 1.3;
 }}
 .ant-chips {{
@@ -629,8 +687,8 @@ body {{
     margin-top: 4px;
 }}
 .ant-chip {{
-    font-size: 8px;
-    padding: 2px 6px;
+    font-size: 8.5pt;
+    padding: 3px 8px;
     border-radius: 4px;
     background: #e5e7eb;
     color: #374151;
@@ -683,19 +741,22 @@ body {{
 
 <!-- Cover Page -->
 <div class="cover">
-    <div class="cover-bar"></div>
+    <div class="cover-accent-bar"></div>
+    <div class="cover-logo">{_escape(company_name)[:2].upper()}</div>
     <h1>{objeto}</h1>
-    <div class="subtitle">Oferta tecnica, economica y estrategica integral</div>
-    <div class="company-name">{_escape(company_name).upper()}</div>
-    <div class="cover-info">
-        <table>
-            <tr><td>Expediente:</td><td>{lic_num}</td></tr>
-            <tr><td>Objeto:</td><td>{objeto[:150]}</td></tr>
-            <tr><td>Organismo:</td><td>{organismo}</td></tr>
-            <tr><td>Oferente:</td><td>{_escape(company_name)}</td></tr>
-            {"<tr><td>CUIT:</td><td>" + _escape(cuit) + "</td></tr>" if cuit else ""}
-            <tr><td>Fecha:</td><td>{fecha}</td></tr>
-        </table>
+    <div class="cover-type">Propuesta Tecnica y Economica</div>
+    <div class="cover-separator"></div>
+    <div class="cover-meta">
+        <div class="meta-item"><span class="meta-label">Expediente</span><span class="meta-value">{lic_num}</span></div>
+        <div class="meta-item"><span class="meta-label">Organismo</span><span class="meta-value">{organismo}</span></div>
+        <div class="meta-item"><span class="meta-label">Oferente</span><span class="meta-value">{_escape(company_name)}</span></div>
+        {"<div class='meta-item'><span class='meta-label'>CUIT</span><span class='meta-value'>" + _escape(cuit) + "</span></div>" if cuit else "<div class='meta-item'></div>"}
+        <div class="meta-item"><span class="meta-label">Fecha de Presentacion</span><span class="meta-value">{fecha}</span></div>
+        <div class="meta-item"><span class="meta-label">Procedimiento</span><span class="meta-value">{_escape(licitacion.get('tipo_procedimiento', 'Licitacion Publica'))}</span></div>
+    </div>
+    <div class="cover-footer">
+        <div class="cover-company">{_escape(company_name).upper()}</div>
+        <div class="cover-date">Mendoza, {fecha}</div>
     </div>
 </div>
 
@@ -774,8 +835,8 @@ def _render_pdf_with_selenium(html: str, company_name: str = "", objeto: str = "
             "preferCSSPageSize": True,
             "paperWidth": 8.27,   # A4 in inches
             "paperHeight": 11.69,
-            "marginTop": 0.6,
-            "marginBottom": 0.5,
+            "marginTop": 0.75,
+            "marginBottom": 0.65,
             "marginLeft": 0.4,
             "marginRight": 0.4,
             "displayHeaderFooter": True,
