@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import {
-  useCotizarAPI, CompanyProfile, CompanyContext, Documento,
+  useCotizarAPI, CompanyProfile, CompanyContext, Documento, BrandConfig,
 } from '../../hooks/useCotizarAPI';
 import DocumentRepository from './DocumentRepository';
 
@@ -11,11 +11,12 @@ const TIPOS_PROCESO = [
 
 const WIZARD_STEPS = [
   { id: 1, label: 'Empresa', icon: '🏢' },
-  { id: 2, label: 'Documentos', icon: '📁' },
-  { id: 3, label: 'Antecedentes', icon: '📋' },
-  { id: 4, label: 'Zonas', icon: '📍' },
-  { id: 5, label: 'Tips', icon: '💡' },
-  { id: 6, label: 'HUNTER', icon: '🔑' },
+  { id: 2, label: 'Marca', icon: '🎨' },
+  { id: 3, label: 'Documentos', icon: '📁' },
+  { id: 4, label: 'Antecedentes', icon: '📋' },
+  { id: 5, label: 'Zonas', icon: '📍' },
+  { id: 6, label: 'Tips', icon: '💡' },
+  { id: 7, label: 'HUNTER', icon: '🔑' },
 ];
 
 function formatDate(d?: string) {
@@ -68,6 +69,142 @@ function StepEmpresa({ profile, onChange }: { profile: CompanyProfile; onChange:
           <label className="block text-sm font-medium text-gray-700 mb-1">Rubros inscriptos</label>
           <input type="text" value={profile.rubros_inscriptos.join(', ')} onChange={e => set('rubros_inscriptos', e.target.value.split(',').map(s => s.trim()).filter(Boolean))} placeholder="Informatica, Telecomunicaciones, Servicios" className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400" />
           <p className="text-xs text-gray-400 mt-1">Separar con comas</p>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function StepBrand({ brand, onChange }: { brand: BrandConfig; onChange: (b: BrandConfig) => void }) {
+  const set = (field: keyof BrandConfig, value: string) => onChange({ ...brand, [field]: value });
+  const [svgInput, setSvgInput] = useState('');
+  const fileInputRef = React.useRef<HTMLInputElement>(null);
+
+  const handleSvgPaste = () => {
+    const trimmed = svgInput.trim();
+    if (trimmed.startsWith('<svg') || trimmed.startsWith('<?xml')) {
+      set('logo_svg', trimmed);
+      setSvgInput('');
+    } else if (trimmed.startsWith('data:image/svg') || trimmed.startsWith('PHN2')) {
+      const dataUri = trimmed.startsWith('data:') ? trimmed : `data:image/svg+xml;base64,${trimmed}`;
+      set('logo_svg', dataUri);
+      setSvgInput('');
+    }
+  };
+
+  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      const result = reader.result as string;
+      set('logo_svg', result);
+    };
+    if (file.type === 'image/svg+xml' || file.name.endsWith('.svg')) {
+      reader.readAsText(file);
+    } else {
+      reader.readAsDataURL(file);
+    }
+  };
+
+  // Sanitize SVG for preview: render via img tag with base64 to avoid script execution
+  const logoPreviewSafe = React.useMemo(() => {
+    if (!brand.logo_svg) return null;
+    if (brand.logo_svg.startsWith('data:')) {
+      return <img src={brand.logo_svg} alt="Logo" style={{ maxHeight: 60, maxWidth: '100%' }} />;
+    }
+    if (brand.logo_svg.startsWith('<svg') || brand.logo_svg.startsWith('<?xml')) {
+      const b64 = btoa(unescape(encodeURIComponent(brand.logo_svg)));
+      return <img src={`data:image/svg+xml;base64,${b64}`} alt="Logo" style={{ maxHeight: 60, maxWidth: '100%' }} />;
+    }
+    // Assume base64
+    return <img src={`data:image/svg+xml;base64,${brand.logo_svg}`} alt="Logo" style={{ maxHeight: 60, maxWidth: '100%' }} />;
+  }, [brand.logo_svg]);
+
+  return (
+    <div className="space-y-5">
+      <div>
+        <h3 className="font-semibold text-gray-800">Identidad Corporativa</h3>
+        <p className="text-sm text-gray-500 mt-1">Logo, colores y sitio web de la empresa. Se aplican automaticamente a cada PDF de oferta.</p>
+      </div>
+
+      {/* Logo */}
+      <div>
+        <label className="block text-sm font-medium text-gray-700 mb-2">Logo de la empresa</label>
+        {brand.logo_svg ? (
+          <div className="border border-gray-200 rounded-xl p-4 bg-white">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-4" style={{ maxWidth: '70%' }}>
+                {logoPreviewSafe}
+              </div>
+              <button onClick={() => set('logo_svg', '')} className="text-xs text-red-500 hover:text-red-700 px-2 py-1 border border-red-200 rounded-lg">Quitar</button>
+            </div>
+          </div>
+        ) : (
+          <div className="space-y-3">
+            <div className="flex gap-2">
+              <button onClick={() => fileInputRef.current?.click()} className="px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-xl hover:bg-blue-700 transition-colors">
+                Subir archivo SVG/PNG
+              </button>
+              <input ref={fileInputRef} type="file" accept=".svg,.png,.jpg,.jpeg" onChange={handleFileUpload} className="hidden" />
+            </div>
+            <div className="relative">
+              <textarea value={svgInput} onChange={e => setSvgInput(e.target.value)} placeholder="O pega el codigo SVG aqui..." rows={3} className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-blue-400 resize-none" />
+              {svgInput && (
+                <button onClick={handleSvgPaste} className="absolute bottom-2 right-2 px-3 py-1 bg-blue-600 text-white text-xs font-medium rounded-lg hover:bg-blue-700">
+                  Aplicar
+                </button>
+              )}
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* Website URL */}
+      <div>
+        <label className="block text-sm font-medium text-gray-700 mb-1">Sitio web</label>
+        <input type="url" value={brand.website_url} onChange={e => set('website_url', e.target.value)} placeholder="www.ultimamilla.com.ar" className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400" />
+        <p className="text-xs text-gray-400 mt-1">Aparece en el pie de pagina del PDF</p>
+      </div>
+
+      {/* Colors */}
+      <div className="grid grid-cols-2 gap-4">
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1">Color primario</label>
+          <div className="flex items-center gap-3">
+            <input type="color" value={brand.primary_color} onChange={e => set('primary_color', e.target.value)} className="w-10 h-10 rounded-lg border border-gray-200 cursor-pointer" />
+            <input type="text" value={brand.primary_color} onChange={e => set('primary_color', e.target.value)} className="flex-1 border border-gray-200 rounded-lg px-3 py-2 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-blue-400" />
+          </div>
+          <p className="text-xs text-gray-400 mt-1">Headers, titulos, barras de acento</p>
+        </div>
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1">Color secundario</label>
+          <div className="flex items-center gap-3">
+            <input type="color" value={brand.accent_color} onChange={e => set('accent_color', e.target.value)} className="w-10 h-10 rounded-lg border border-gray-200 cursor-pointer" />
+            <input type="text" value={brand.accent_color} onChange={e => set('accent_color', e.target.value)} className="flex-1 border border-gray-200 rounded-lg px-3 py-2 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-blue-400" />
+          </div>
+          <p className="text-xs text-gray-400 mt-1">Detalles y acentos</p>
+        </div>
+      </div>
+
+      {/* Live Preview */}
+      <div>
+        <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Vista previa del encabezado PDF</p>
+        <div className="border border-gray-200 rounded-xl overflow-hidden bg-white">
+          <div style={{ borderBottom: `3px solid ${brand.primary_color}`, padding: '12px 16px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+              {logoPreviewSafe ? (
+                <div style={{ maxHeight: 28, overflow: 'hidden' }}>{logoPreviewSafe}</div>
+              ) : (
+                <div style={{ width: 28, height: 28, borderRadius: '50%', background: brand.primary_color, color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 800 }}>UM</div>
+              )}
+            </div>
+            <span style={{ fontSize: 10, color: '#9ca3af', fontWeight: 600, textTransform: 'uppercase' as const, letterSpacing: '0.1em' }}>PROPUESTA TECNICA Y ECONOMICA</span>
+          </div>
+          <div style={{ borderTop: `1px solid #e5e7eb`, padding: '8px 16px', display: 'flex', justifyContent: 'space-between', fontSize: 10, color: '#9ca3af' }}>
+            <span>{brand.website_url || 'www.empresa.com.ar'}</span>
+            <span>Pag. 1 / 12</span>
+          </div>
         </div>
       </div>
     </div>
@@ -412,7 +549,29 @@ function ZoneEditor({
   );
 }
 
+// ─── Helper: Logo preview (reused in multiple places) ───
+
+function LogoPreview({ svg, maxHeight = 30 }: { svg?: string; maxHeight?: number }) {
+  const src = React.useMemo(() => {
+    if (!svg) return '';
+    if (svg.startsWith('data:')) return svg;
+    if (svg.startsWith('<svg') || svg.startsWith('<?xml')) {
+      return `data:image/svg+xml;base64,${btoa(unescape(encodeURIComponent(svg)))}`;
+    }
+    return `data:image/svg+xml;base64,${svg}`;
+  }, [svg]);
+  if (!src) return null;
+  return <img src={src} alt="Logo" style={{ maxHeight, maxWidth: '100%' }} />;
+}
+
 // ─── Main Component ───
+
+const EMPTY_PROFILE: CompanyProfile = {
+  company_id: '', nombre: '', cuit: '', email: '', telefono: '',
+  domicilio: '', numero_proveedor_estado: '', rubros_inscriptos: [],
+  representante_legal: '', cargo_representante: '', onboarding_completed: false,
+  brand_config: null,
+};
 
 export default function CompanyContextManager() {
   const api = useCotizarAPI();
@@ -421,36 +580,40 @@ export default function CompanyContextManager() {
   const [error, setError] = useState('');
   const [savedMsg, setSavedMsg] = useState('');
 
-  // Onboarding state
-  const [isOnboarding, setIsOnboarding] = useState(false);
+  // Multi-company state
+  const [companies, setCompanies] = useState<CompanyProfile[]>([]);
+  const [editingProfile, setEditingProfile] = useState<CompanyProfile | null>(null);
   const [step, setStep] = useState(1);
 
-  // Data
-  const [profile, setProfile] = useState<CompanyProfile>({
-    company_id: 'default', nombre: '', cuit: '', email: '', telefono: '',
-    domicilio: '', numero_proveedor_estado: '', rubros_inscriptos: [],
-    representante_legal: '', cargo_representante: '', onboarding_completed: false,
-  });
+  // Zone data (for the wizard)
   const [zones, setZones] = useState<CompanyContext[]>([]);
   const [availableZones, setAvailableZones] = useState<string[]>([]);
   const [showDocRepo, setShowDocRepo] = useState(false);
+
+  // Alias for backward compat with wizard steps
+  const profile = editingProfile || EMPTY_PROFILE;
+  const setProfile = (p: CompanyProfile | ((prev: CompanyProfile) => CompanyProfile)) => {
+    setEditingProfile(prev => typeof p === 'function' ? p(prev || EMPTY_PROFILE) : p);
+  };
 
   // Load data
   useEffect(() => {
     async function init() {
       try {
-        const [p, z, az, status] = await Promise.all([
-          api.getCompanyProfile(),
+        const [profiles, z, az] = await Promise.all([
+          api.listCompanyProfiles(),
           api.listZoneContexts(),
           api.getAvailableZones(),
-          api.getOnboardingStatus(),
         ]);
-        setProfile(p);
+        setCompanies(profiles);
         setZones(z);
         setAvailableZones(az);
-        setIsOnboarding(!status.completed);
       } catch (e) {
-        setError(e instanceof Error ? e.message : 'Error al cargar');
+        // Fallback: try legacy singleton
+        try {
+          const p = await api.getCompanyProfile();
+          if (p.nombre) setCompanies([p]);
+        } catch { /* silent */ }
       } finally {
         setLoading(false);
       }
@@ -459,19 +622,43 @@ export default function CompanyContextManager() {
   }, []);
 
   const handleSaveProfile = useCallback(async () => {
+    if (!editingProfile) return;
     setSaving(true);
     setError('');
     try {
-      const saved = await api.saveCompanyProfile(profile);
-      setProfile(saved);
-      setSavedMsg('Perfil guardado');
+      let saved: CompanyProfile;
+      if (editingProfile.id) {
+        saved = await api.updateCompanyProfile(editingProfile.id, editingProfile);
+      } else {
+        saved = await api.createCompanyProfile(editingProfile);
+      }
+      setCompanies(prev => {
+        const idx = prev.findIndex(c => c.id === saved.id);
+        if (idx >= 0) { const n = [...prev]; n[idx] = saved; return n; }
+        return [...prev, saved];
+      });
+      setEditingProfile(saved);
+      setSavedMsg('Empresa guardada');
       setTimeout(() => setSavedMsg(''), 3000);
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Error al guardar');
     } finally {
       setSaving(false);
     }
-  }, [profile]);
+  }, [editingProfile]);
+
+  const handleDeleteCompany = useCallback(async (company: CompanyProfile) => {
+    if (!company.id) return;
+    if (!window.confirm(`Eliminar la empresa "${company.nombre || 'Sin nombre'}"? Esta accion no se puede deshacer.`)) return;
+    try {
+      await api.deleteCompanyProfile(company.id);
+      setCompanies(prev => prev.filter(c => c.id !== company.id));
+      setSavedMsg('Empresa eliminada');
+      setTimeout(() => setSavedMsg(''), 3000);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Error al eliminar');
+    }
+  }, []);
 
   const handleSaveZone = useCallback(async (zone: CompanyContext) => {
     setSaving(true);
@@ -513,30 +700,11 @@ export default function CompanyContextManager() {
     }]);
   }, []);
 
-  const handleFinishOnboarding = useCallback(async () => {
-    setSaving(true);
-    try {
-      // Save profile
-      await api.saveCompanyProfile({ ...profile, onboarding_completed: true });
-      // Save all zones
-      for (const zone of zones) {
-        if (zone.zona) {
-          if (zone.id) {
-            await api.updateZoneContext(zone.id, zone);
-          } else {
-            const created = await api.createZoneContext(zone);
-            zone.id = created.id;
-          }
-        }
-      }
-      setProfile(p => ({ ...p, onboarding_completed: true }));
-      setIsOnboarding(false);
-    } catch (e) {
-      setError(e instanceof Error ? e.message : 'Error al finalizar');
-    } finally {
-      setSaving(false);
-    }
-  }, [profile, zones]);
+  const handleFinishEditing = useCallback(async () => {
+    await handleSaveProfile();
+    setEditingProfile(null);
+    setStep(1);
+  }, [handleSaveProfile]);
 
   if (loading) {
     return (
@@ -547,13 +715,18 @@ export default function CompanyContextManager() {
     );
   }
 
-  // ─── WIZARD MODE ───
-  if (isOnboarding) {
+  // ─── EDITING MODE (wizard for one company) ───
+  if (editingProfile) {
     return (
       <div className="max-w-3xl mx-auto space-y-6">
-        <div>
-          <h2 className="text-xl font-bold text-gray-800">Configuracion de Empresa</h2>
-          <p className="text-sm text-gray-500 mt-1">Configura tu empresa una vez y reutiliza en cada cotizacion.</p>
+        <div className="flex items-center justify-between">
+          <div>
+            <h2 className="text-xl font-bold text-gray-800">{editingProfile.id ? 'Editar Empresa' : 'Nueva Empresa'}</h2>
+            <p className="text-sm text-gray-500 mt-1">{editingProfile.nombre || 'Configura los datos de la empresa'}</p>
+          </div>
+          <button onClick={() => { setEditingProfile(null); setStep(1); }} className="text-sm text-gray-500 hover:text-gray-800 px-3 py-1.5 border border-gray-200 rounded-lg">
+            Volver
+          </button>
         </div>
 
         {error && (
@@ -562,6 +735,7 @@ export default function CompanyContextManager() {
             <button onClick={() => setError('')} className="text-red-400">x</button>
           </div>
         )}
+        {savedMsg && <p className="text-xs text-emerald-600 bg-emerald-50 rounded-lg px-3 py-1.5">{savedMsg}</p>}
 
         {/* Step navigator */}
         <div className="flex items-center gap-0 overflow-x-auto">
@@ -587,9 +761,10 @@ export default function CompanyContextManager() {
 
         {/* Step content */}
         {step === 1 && <StepEmpresa profile={profile} onChange={setProfile} />}
-        {step === 2 && <StepDocumentos showDocRepo={showDocRepo} setShowDocRepo={setShowDocRepo} />}
-        {step === 3 && <StepAntecedentes />}
-        {step === 4 && (
+        {step === 2 && <StepBrand brand={profile.brand_config || { logo_svg: '', website_url: '', primary_color: '#1d4ed8', accent_color: '#DC2626' }} onChange={b => setProfile(p => ({ ...p, brand_config: b }))} />}
+        {step === 3 && <StepDocumentos showDocRepo={showDocRepo} setShowDocRepo={setShowDocRepo} />}
+        {step === 4 && <StepAntecedentes />}
+        {step === 5 && (
           <div className="space-y-4">
             <h3 className="font-semibold text-gray-800">Zonas y Tipos de Proceso</h3>
             <p className="text-sm text-gray-500">Configura requisitos por jurisdiccion y tipo de procedimiento.</p>
@@ -608,7 +783,7 @@ export default function CompanyContextManager() {
             </button>
           </div>
         )}
-        {step === 5 && (
+        {step === 6 && (
           <div className="space-y-4">
             <h3 className="font-semibold text-gray-800">Tips Operativos</h3>
             <p className="text-sm text-gray-500">Los tips se configuran dentro de cada zona (paso anterior). Aca podes revisar el resumen.</p>
@@ -627,7 +802,7 @@ export default function CompanyContextManager() {
           </div>
         )}
 
-        {step === 6 && <StepCredentials />}
+        {step === 7 && <StepCredentials />}
 
         {/* Navigation */}
         <div className="flex justify-between pt-2">
@@ -636,15 +811,20 @@ export default function CompanyContextManager() {
               <span>←</span> Anterior
             </button>
           ) : <div />}
-          {step < 6 ? (
-            <button onClick={() => setStep(step + 1)} className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold rounded-xl transition-colors">
-              Siguiente <span>→</span>
+          <div className="flex gap-2">
+            <button onClick={handleSaveProfile} disabled={saving} className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold rounded-xl transition-colors disabled:opacity-50">
+              {saving ? 'Guardando...' : 'Guardar'}
             </button>
-          ) : (
-            <button onClick={handleFinishOnboarding} disabled={saving} className="flex items-center gap-2 px-6 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-semibold rounded-xl transition-colors disabled:opacity-50">
-              {saving ? 'Guardando...' : 'Finalizar configuracion'}
-            </button>
-          )}
+            {step < 7 ? (
+              <button onClick={() => setStep(step + 1)} className="flex items-center gap-2 px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 text-sm font-medium rounded-xl transition-colors">
+                Siguiente <span>→</span>
+              </button>
+            ) : (
+              <button onClick={handleFinishEditing} disabled={saving} className="flex items-center gap-2 px-6 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-semibold rounded-xl transition-colors disabled:opacity-50">
+                {saving ? 'Guardando...' : 'Finalizar'}
+              </button>
+            )}
+          </div>
         </div>
 
         <DocumentRepository open={showDocRepo} onClose={() => setShowDocRepo(false)} />
@@ -652,9 +832,19 @@ export default function CompanyContextManager() {
     );
   }
 
-  // ─── DASHBOARD MODE ───
+  // ─── DASHBOARD MODE — Multi-company list ───
   return (
     <div className="max-w-3xl mx-auto space-y-6">
+      <div className="flex items-center justify-between">
+        <div>
+          <h2 className="text-xl font-bold text-gray-800">Empresas</h2>
+          <p className="text-sm text-gray-500 mt-1">Gestiona las empresas que participan en licitaciones. Cada una con su propia marca, rubros y configuracion.</p>
+        </div>
+        <button onClick={() => { setEditingProfile({ ...EMPTY_PROFILE }); setStep(1); }} className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white text-sm font-semibold rounded-xl hover:bg-blue-700 transition-colors">
+          + Nueva empresa
+        </button>
+      </div>
+
       {error && (
         <div className="bg-red-50 border border-red-200 rounded-xl p-3 text-sm text-red-700 flex justify-between">
           <span>{error}</span>
@@ -663,61 +853,80 @@ export default function CompanyContextManager() {
       )}
       {savedMsg && <p className="text-xs text-emerald-600 bg-emerald-50 rounded-lg px-3 py-1.5">{savedMsg}</p>}
 
-      {/* Company header */}
-      <div className="bg-gray-50 rounded-xl p-5">
-        <div className="flex items-center justify-between mb-3">
-          <div>
-            <h2 className="font-bold text-gray-800 text-lg">{profile.nombre || 'Empresa'}</h2>
-            <p className="text-sm text-gray-500">{profile.cuit} · Proveedor N° {profile.numero_proveedor_estado || 'N/A'}</p>
-          </div>
-          <button onClick={() => setIsOnboarding(true)} className="text-xs text-blue-600 hover:text-blue-800 px-3 py-1.5 border border-blue-200 rounded-lg transition-colors">
-            Editar empresa
+      {/* Companies list */}
+      {companies.length === 0 ? (
+        <div className="text-center py-16 border-2 border-dashed border-gray-200 rounded-xl">
+          <div className="text-4xl mb-3">🏢</div>
+          <p className="text-gray-500 text-sm mb-4">No hay empresas configuradas</p>
+          <button onClick={() => { setEditingProfile({ ...EMPTY_PROFILE }); setStep(1); }} className="text-sm text-blue-600 hover:text-blue-800 font-semibold">
+            + Agregar primera empresa
           </button>
         </div>
-        {profile.rubros_inscriptos.length > 0 && (
-          <div className="flex flex-wrap gap-1.5">
-            {profile.rubros_inscriptos.map(r => (
-              <span key={r} className="text-xs bg-white border border-gray-200 text-gray-600 px-2 py-0.5 rounded-full">{r}</span>
-            ))}
-          </div>
-        )}
-      </div>
+      ) : (
+        <div className="space-y-3">
+          {companies.map(company => (
+            <div key={company.id || company.company_id} className="border border-gray-200 rounded-xl overflow-hidden hover:border-blue-300 transition-colors">
+              <div className="flex items-center justify-between p-5">
+                <div className="flex items-center gap-4 flex-1 min-w-0">
+                  {/* Logo or initials */}
+                  {company.brand_config?.logo_svg ? (
+                    <div className="flex-shrink-0" style={{ maxWidth: 120 }}>
+                      <LogoPreview svg={company.brand_config.logo_svg} maxHeight={36} />
+                    </div>
+                  ) : (
+                    <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-blue-600 to-blue-400 text-white flex items-center justify-center text-lg font-bold flex-shrink-0">
+                      {(company.nombre || '?').substring(0, 2).toUpperCase()}
+                    </div>
+                  )}
 
-      {/* Quick actions */}
-      <div className="flex gap-2 flex-wrap">
-        <button onClick={() => setShowDocRepo(true)} className="flex items-center gap-1.5 text-xs px-3 py-2 rounded-lg border border-gray-200 text-gray-600 hover:bg-gray-50 transition-colors">
-          📁 Documentos
-        </button>
-        <button onClick={handleAddZone} className="flex items-center gap-1.5 text-xs px-3 py-2 rounded-lg border border-blue-200 text-blue-600 hover:bg-blue-50 transition-colors">
-          + Agregar zona
-        </button>
-      </div>
+                  {/* Company info */}
+                  <div className="min-w-0">
+                    <h3 className="font-bold text-gray-800 text-base truncate">{company.nombre || 'Sin nombre'}</h3>
+                    <div className="flex items-center gap-3 mt-0.5">
+                      {company.cuit && <span className="text-xs text-gray-500 font-mono">{company.cuit}</span>}
+                      {company.brand_config?.website_url && (
+                        <span className="text-xs text-blue-500">{company.brand_config.website_url}</span>
+                      )}
+                    </div>
+                    {/* Rubros */}
+                    {company.rubros_inscriptos.length > 0 && (
+                      <div className="flex flex-wrap gap-1 mt-2">
+                        {company.rubros_inscriptos.slice(0, 4).map(r => (
+                          <span key={r} className="text-[10px] bg-gray-100 text-gray-600 px-2 py-0.5 rounded-full">{r}</span>
+                        ))}
+                        {company.rubros_inscriptos.length > 4 && (
+                          <span className="text-[10px] text-gray-400">+{company.rubros_inscriptos.length - 4} mas</span>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                </div>
 
-      {/* Zone grid */}
-      <div>
-        <h3 className="text-sm font-semibold text-gray-500 uppercase tracking-wide mb-3">Zonas configuradas ({zones.length})</h3>
-        {zones.length === 0 ? (
-          <div className="text-center py-8 border-2 border-dashed border-gray-200 rounded-xl">
-            <p className="text-gray-400 text-sm mb-3">No hay zonas configuradas</p>
-            <button onClick={handleAddZone} className="text-sm text-blue-600 hover:text-blue-800 font-medium">+ Agregar primera zona</button>
-          </div>
-        ) : (
-          <div className="space-y-3">
-            {zones.map((zone, idx) => (
-              <ZoneEditor
-                key={zone.id || idx}
-                zone={zone}
-                availableZones={availableZones}
-                onChange={z => {
-                  setZones(prev => { const n = [...prev]; n[idx] = z; return n; });
-                  // Auto-save on change (debounced via blur)
-                  handleSaveZone(z);
-                }}
-                onDelete={() => handleDeleteZone(zone)}
-              />
-            ))}
-          </div>
-        )}
+                {/* Actions */}
+                <div className="flex items-center gap-2 flex-shrink-0 ml-4">
+                  {/* Brand colors preview */}
+                  {company.brand_config && (
+                    <div className="flex gap-1 mr-2">
+                      <div className="w-4 h-4 rounded-full border border-gray-200" style={{ background: company.brand_config.primary_color }} />
+                      <div className="w-4 h-4 rounded-full border border-gray-200" style={{ background: company.brand_config.accent_color }} />
+                    </div>
+                  )}
+                  <button onClick={() => { setEditingProfile(company); setStep(1); }} className="text-xs px-3 py-1.5 border border-blue-200 text-blue-600 rounded-lg hover:bg-blue-50 transition-colors font-medium">
+                    Editar
+                  </button>
+                  <button onClick={() => handleDeleteCompany(company)} className="text-xs px-2 py-1.5 border border-red-200 text-red-500 rounded-lg hover:bg-red-50 transition-colors">
+                    Eliminar
+                  </button>
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Credentials section (global, not per-company) */}
+      <div className="pt-4 border-t border-gray-200">
+        <StepCredentials />
       </div>
 
       <DocumentRepository open={showDocRepo} onClose={() => setShowDocRepo(false)} />

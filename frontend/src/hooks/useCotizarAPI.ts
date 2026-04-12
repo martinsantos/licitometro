@@ -94,6 +94,13 @@ export interface Antecedente {
   project_id?: string;
 }
 
+export interface BrandConfig {
+  logo_svg: string;
+  website_url: string;
+  primary_color: string;
+  accent_color: string;
+}
+
 export interface CompanyProfile {
   id?: string | null;
   company_id: string;
@@ -107,6 +114,7 @@ export interface CompanyProfile {
   representante_legal: string;
   cargo_representante: string;
   onboarding_completed: boolean;
+  brand_config?: BrandConfig | null;
 }
 
 export interface AntecedenteRef {
@@ -497,6 +505,28 @@ export function useCotizarAPI() {
 
     async getCompanyProfile(): Promise<CompanyProfile> {
       return apiFetchMain('/company-context/profile');
+    },
+
+    async listCompanyProfiles(): Promise<CompanyProfile[]> {
+      return apiFetchMain('/company-context/profiles');
+    },
+
+    async createCompanyProfile(data: Partial<CompanyProfile>): Promise<CompanyProfile> {
+      return apiFetchMain('/company-context/profiles', {
+        method: 'POST',
+        body: JSON.stringify(data),
+      });
+    },
+
+    async updateCompanyProfile(id: string, data: Partial<CompanyProfile>): Promise<CompanyProfile> {
+      return apiFetchMain(`/company-context/profiles/${id}`, {
+        method: 'PUT',
+        body: JSON.stringify(data),
+      });
+    },
+
+    async deleteCompanyProfile(id: string): Promise<void> {
+      return apiFetchMain(`/company-context/profiles/${id}`, { method: 'DELETE' });
     },
 
     async saveCompanyProfile(data: Partial<CompanyProfile>): Promise<CompanyProfile> {

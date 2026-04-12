@@ -236,6 +236,19 @@ def _render_antecedentes(content: str) -> str:
     return html
 
 
+def _svg_to_base64_img(svg_str: str, height: int = 40) -> str:
+    """Convert SVG string to base64 img tag for safe embedding."""
+    if not svg_str:
+        return ""
+    if svg_str.startswith("data:"):
+        return f'<img src="{svg_str}" style="height:{height}px;max-width:250px" />'
+    if svg_str.startswith("<svg") or svg_str.startswith("<?xml"):
+        b64 = base64.b64encode(svg_str.encode("utf-8")).decode("ascii")
+        return f'<img src="data:image/svg+xml;base64,{b64}" style="height:{height}px;max-width:250px" />'
+    # Assume raw base64
+    return f'<img src="data:image/svg+xml;base64,{svg_str}" style="height:{height}px;max-width:250px" />'
+
+
 def build_offer_html(cotizacion: dict, licitacion: dict, company_profile: dict = None) -> str:
     """Build complete HTML document for the offer PDF."""
     company = cotizacion.get("company_data") or {}
@@ -251,6 +264,14 @@ def build_offer_html(cotizacion: dict, licitacion: dict, company_profile: dict =
     lic_num = _escape(licitacion.get("licitacion_number", ""))
     now = datetime.now()
     fecha = f"{now.day} de {MESES_ES[now.month]} de {now.year}"
+
+    # Brand identity from company profile
+    brand = (company_profile or {}).get("brand_config") or {}
+    brand_primary = brand.get("primary_color", "#1d4ed8")
+    brand_accent = brand.get("accent_color", "#DC2626")
+    brand_website = brand.get("website_url", "")
+    brand_logo_svg = brand.get("logo_svg", "")
+    brand_logo_html = _svg_to_base64_img(brand_logo_svg, 50) if brand_logo_svg else ""
 
     subtotal = cotizacion.get("subtotal", 0)
     iva_rate = cotizacion.get("iva_rate", 21)
@@ -414,20 +435,26 @@ p {{ orphans: 3; widows: 3; }}
     top: -25mm;
     bottom: -28mm;
     width: 8px;
-    background: linear-gradient(180deg, #1d4ed8 0%, #6366f1 50%, #1d4ed8 100%);
+    background: linear-gradient(180deg, {brand_primary} 0%, {brand_accent} 50%, {brand_primary} 100%);
 }}
 .cover-logo {{
+    margin-bottom: 50px;
+}}
+.cover-logo img {{
+    height: 50px;
+    max-width: 280px;
+}}
+.cover-logo-fallback {{
     width: 68px;
     height: 68px;
     border-radius: 50%;
-    background: linear-gradient(135deg, #1d4ed8, #3b82f6);
+    background: linear-gradient(135deg, {brand_primary}, {brand_accent});
     color: white;
     font-size: 26px;
     font-weight: 800;
     display: flex;
     align-items: center;
     justify-content: center;
-    margin-bottom: 50px;
     box-shadow: 0 4px 15px rgba(29, 78, 216, 0.25);
 }}
 .cover h1 {{
@@ -441,7 +468,7 @@ p {{ orphans: 3; widows: 3; }}
 .cover-type {{
     font-size: 11px;
     font-weight: 700;
-    color: #1d4ed8;
+    color: {brand_primary};
     text-transform: uppercase;
     letter-spacing: 0.3em;
     margin-bottom: 8px;
@@ -449,7 +476,7 @@ p {{ orphans: 3; widows: 3; }}
 .cover-separator {{
     height: 2px;
     margin: 35px 0;
-    background: linear-gradient(90deg, #1d4ed8, #93c5fd, transparent);
+    background: linear-gradient(90deg, {brand_primary}, {brand_accent}44, transparent);
     border-radius: 1px;
 }}
 .cover-meta {{
@@ -506,18 +533,18 @@ p {{ orphans: 3; widows: 3; }}
 .section-header {{
     font-size: 14pt;
     font-weight: 700;
-    color: #1d4ed8;
+    color: {brand_primary};
     text-transform: uppercase;
     letter-spacing: 0.06em;
     padding-bottom: 8px;
-    border-bottom: 2.5px solid #dbeafe;
+    border-bottom: 2.5px solid {brand_primary}22;
     margin-bottom: 14px;
     display: flex;
     align-items: center;
     gap: 10px;
 }}
 .section-num {{
-    background: linear-gradient(135deg, #1d4ed8, #3b82f6);
+    background: linear-gradient(135deg, {brand_primary}, {brand_accent});
     color: white;
     width: 28px;
     height: 28px;
@@ -551,7 +578,7 @@ p {{ orphans: 3; widows: 3; }}
     padding: 8px 12px;
     font-size: 11pt;
     background: #f1f5f9;
-    border-left: 3px solid #1d4ed8;
+    border-left: 3px solid {brand_primary};
     border-radius: 0 6px 6px 0;
 }}
 
@@ -563,7 +590,7 @@ p {{ orphans: 3; widows: 3; }}
     margin-top: 10px;
 }}
 .items-table thead th {{
-    background: linear-gradient(135deg, #1d4ed8, #3b82f6);
+    background: linear-gradient(135deg, {brand_primary}, {brand_accent});
     color: white;
     padding: 10px 8px;
     text-align: left;
@@ -588,7 +615,7 @@ p {{ orphans: 3; widows: 3; }}
     padding: 8px;
 }}
 .total-final td {{
-    background: linear-gradient(135deg, #1d4ed8, #2563eb) !important;
+    background: linear-gradient(135deg, {brand_primary}, {brand_accent}) !important;
     color: white !important;
     font-size: 14pt !important;
     padding: 12px 8px !important;
@@ -615,7 +642,7 @@ p {{ orphans: 3; widows: 3; }}
     margin: 10px 0 14px;
 }}
 .content-table th {{
-    background: linear-gradient(135deg, #1d4ed8, #3b82f6);
+    background: linear-gradient(135deg, {brand_primary}, {brand_accent});
     color: white;
     padding: 9px 10px;
     text-align: left;
@@ -639,13 +666,13 @@ p {{ orphans: 3; widows: 3; }}
     margin-bottom: 12px;
     padding: 12px;
     border: 1px solid #e5e7eb;
-    border-left: 4px solid #1d4ed8;
+    border-left: 4px solid {brand_primary};
     border-radius: 0 8px 8px 0;
     background: #f8fafc;
     page-break-inside: avoid;
 }}
 .ant-num {{
-    background: #1d4ed8;
+    background: {brand_primary};
     color: white;
     width: 24px;
     height: 24px;
@@ -679,7 +706,7 @@ p {{ orphans: 3; widows: 3; }}
 .ant-title {{
     font-weight: 700;
     font-size: 11pt;
-    color: #1d4ed8;
+    color: {brand_primary};
     text-decoration: none;
     display: block;
     margin-bottom: 5px;
@@ -700,8 +727,8 @@ p {{ orphans: 3; widows: 3; }}
     white-space: nowrap;
 }}
 .ant-chip-sector {{
-    background: #dbeafe;
-    color: #1d4ed8;
+    background: {brand_primary}18;
+    color: {brand_primary};
 }}
 .ant-chip-budget {{
     background: #d1fae5;
@@ -747,7 +774,7 @@ p {{ orphans: 3; widows: 3; }}
 <!-- Cover Page -->
 <div class="cover">
     <div class="cover-accent-bar"></div>
-    <div class="cover-logo">{_escape(company_name)[:2].upper()}</div>
+    <div class="cover-logo">{"" if not brand_logo_html else brand_logo_html}{"" if brand_logo_html else '<div class="cover-logo-fallback">' + _escape(company_name)[:2].upper() + '</div>'}</div>
     <h1>{objeto}</h1>
     <div class="cover-type">Propuesta Tecnica y Economica</div>
     <div class="cover-separator"></div>
@@ -761,6 +788,7 @@ p {{ orphans: 3; widows: 3; }}
     </div>
     <div class="cover-footer">
         <div class="cover-company">{_escape(company_name).upper()}</div>
+        {"<div class='cover-website' style='font-size:10pt;color:" + brand_primary + ";font-weight:600;margin-top:2px'>" + _escape(brand_website) + "</div>" if brand_website else ""}
         <div class="cover-date">Mendoza, {fecha}</div>
     </div>
 </div>
@@ -787,8 +815,11 @@ def generate_offer_pdf_chromium(cotizacion: dict, licitacion: dict, company_prof
     company_name = company.get("nombre", "Empresa")
     objeto = licitacion.get("objeto") or licitacion.get("title", "")
 
+    # Extract brand config for header/footer
+    brand = (company_profile or {}).get("brand_config") or {}
+
     try:
-        pdf_bytes = _render_pdf_with_selenium(html, company_name, objeto)
+        pdf_bytes = _render_pdf_with_selenium(html, company_name, objeto, brand)
         if pdf_bytes:
             logger.info(f"Generated PDF with Chromium: {len(pdf_bytes)} bytes")
             return pdf_bytes
@@ -800,11 +831,16 @@ def generate_offer_pdf_chromium(cotizacion: dict, licitacion: dict, company_prof
     return generate_offer_pdf(cotizacion, licitacion, company_profile)
 
 
-def _render_pdf_with_selenium(html: str, company_name: str = "", objeto: str = "") -> Optional[bytes]:
+def _render_pdf_with_selenium(html: str, company_name: str = "", objeto: str = "", brand: dict = None) -> Optional[bytes]:
     """Render HTML to PDF using Selenium + Chromium CDP."""
     from selenium import webdriver
     from selenium.webdriver.chrome.options import Options
     from selenium.webdriver.chrome.service import Service
+
+    brand = brand or {}
+    brand_primary = brand.get("primary_color", "#1d4ed8")
+    brand_logo_svg = brand.get("logo_svg", "")
+    brand_website = brand.get("website_url", "")
 
     options = Options()
     for opt in ["--headless=new", "--no-sandbox", "--disable-dev-shm-usage",
@@ -833,8 +869,16 @@ def _render_pdf_with_selenium(html: str, company_name: str = "", objeto: str = "
         # Use CDP to generate PDF with print settings
         # Header/footer use CDP's built-in template (avoids overlap with body)
         company_esc = _escape(company_name).upper()
-        header_html = f'<div style="font-size:7px;font-family:Inter,sans-serif;color:#6b7280;font-weight:700;text-transform:uppercase;letter-spacing:0.1em;width:100%;border-bottom:2px solid #1d4ed8;padding:0 10mm 3px;text-align:left">{company_esc}</div>'
-        footer_html = f'<div style="font-size:7px;font-family:Inter,sans-serif;color:#9ca3af;width:100%;border-top:1px solid #e5e7eb;padding:3px 10mm 0;display:flex;justify-content:space-between"><span>{_escape(objeto[:55])}</span><span>Pag. <span class="pageNumber"></span> / <span class="totalPages"></span></span></div>'
+        # Header: logo (if available) + company name
+        if brand_logo_svg:
+            logo_img = _svg_to_base64_img(brand_logo_svg, 18)
+            header_content = f'{logo_img}'
+        else:
+            header_content = f'<span style="font-size:7px;font-weight:700;text-transform:uppercase;letter-spacing:0.1em">{company_esc}</span>'
+        header_html = f'<div style="font-family:Inter,sans-serif;color:#6b7280;width:100%;border-bottom:2px solid {brand_primary};padding:0 10mm 3px;text-align:left;display:flex;align-items:center">{header_content}</div>'
+        # Footer: website + page number
+        footer_left = _escape(brand_website) if brand_website else _escape(objeto[:55])
+        footer_html = f'<div style="font-size:7px;font-family:Inter,sans-serif;color:#9ca3af;width:100%;border-top:1px solid #e5e7eb;padding:3px 10mm 0;display:flex;justify-content:space-between"><span>{footer_left}</span><span>Pag. <span class="pageNumber"></span> / <span class="totalPages"></span></span></div>'
         pdf_params = {
             "printBackground": True,
             "preferCSSPageSize": True,

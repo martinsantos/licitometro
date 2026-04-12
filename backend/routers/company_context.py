@@ -28,28 +28,92 @@ def _get_db(request: Request):
     return request.app.mongodb
 
 
-# ─── Company Profile (singleton for Phase 1) ───
+# ─── Company Profiles (multi-company) ───
+
+
+@router.get("/profiles")
+async def list_profiles(request: Request):
+    """List all company profiles."""
+    db = _get_db(request)
+    docs = await db.company_profiles.find().sort("nombre", 1).to_list(50)
+    return [company_profile_entity(d) for d in docs]
+
+
+@router.post("/profiles")
+async def create_profile(body: CompanyProfileCreate, request: Request):
+    """Create a new company profile."""
+    db = _get_db(request)
+    now = datetime.now(timezone.utc)
+    data = body.model_dump()
+    # Generate unique company_id from ObjectId
+    data["created_at"] = now
+    data["updated_at"] = now
+    result = await db.company_profiles.insert_one(data)
+    # Set company_id to the generated _id string
+    cid = str(result.inserted_id)
+    await db.company_profiles.update_one(
+        {"_id": result.inserted_id}, {"$set": {"company_id": cid}}
+    )
+    doc = await db.company_profiles.find_one({"_id": result.inserted_id})
+    return company_profile_entity(doc)
+
+
+@router.put("/profiles/{profile_id}")
+async def update_profile_by_id(profile_id: str, body: CompanyProfileCreate, request: Request):
+    """Update a company profile by ID."""
+    db = _get_db(request)
+    try:
+        existing = await db.company_profiles.find_one({"_id": ObjectId(profile_id)})
+    except Exception:
+        existing = None
+    if not existing:
+        raise HTTPException(404, "Empresa no encontrada")
+
+    data = body.model_dump()
+    data["updated_at"] = datetime.now(timezone.utc)
+    data["company_id"] = existing.get("company_id", str(existing["_id"]))
+    await db.company_profiles.update_one(
+        {"_id": ObjectId(profile_id)}, {"$set": data}
+    )
+    doc = await db.company_profiles.find_one({"_id": ObjectId(profile_id)})
+    return company_profile_entity(doc)
+
+
+@router.delete("/profiles/{profile_id}")
+async def delete_profile(profile_id: str, request: Request):
+    """Delete a company profile."""
+    db = _get_db(request)
+    result = await db.company_profiles.delete_one({"_id": ObjectId(profile_id)})
+    if result.deleted_count == 0:
+        raise HTTPException(404, "Empresa no encontrada")
+    return {"deleted": True}
+
+
+# ─── Legacy singleton endpoints (backward compat) ───
 
 
 @router.get("/profile")
 async def get_profile(request: Request):
-    """Get company profile (singleton)."""
+    """Get company profile (singleton — backward compat)."""
     db = _get_db(request)
     doc = await db.company_profiles.find_one({"company_id": "default"})
+    if not doc:
+        # Return first profile if exists
+        doc = await db.company_profiles.find_one()
     if not doc:
         return {
             "id": None, "company_id": "default", "nombre": "", "cuit": "",
             "email": "", "telefono": "", "domicilio": "",
             "numero_proveedor_estado": "", "rubros_inscriptos": [],
             "representante_legal": "", "cargo_representante": "",
-            "onboarding_completed": False,
+            "onboarding_completed": False, "brand_config": None,
         }
     return company_profile_entity(doc)
 
 
 @router.put("/profile")
 async def upsert_profile(body: CompanyProfileCreate, request: Request):
-    """Upsert company profile."""
+    """Upsert company profile (singleton — backward compat)."""
     db = _get_db(request)
     now = datetime.now(timezone.utc)
     data = body.model_dump()
@@ -71,7 +135,7 @@ async def upsert_profile(body: CompanyProfileCreate, request: Request):
 
 @router.patch("/profile")
 async def patch_profile(body: CompanyProfileUpdate, request: Request):
-    """Partial update of company profile."""
+    """Partial update of company profile (singleton — backward compat)."""
     db = _get_db(request)
     update_data = {k: v for k, v in body.model_dump().items() if v is not None}
     if not update_data:

@@ -36,6 +36,7 @@ class CompanyProfileCreate(BaseModel):
     representante_legal: str = ""
     cargo_representante: str = ""
     onboarding_completed: bool = False
+    brand_config: Optional[dict] = None  # {logo_svg, website_url, primary_color, accent_color}
 
 
 class CompanyProfileUpdate(BaseModel):
@@ -49,6 +50,7 @@ class CompanyProfileUpdate(BaseModel):
     representante_legal: Optional[str] = None
     cargo_representante: Optional[str] = None
     onboarding_completed: Optional[bool] = None
+    brand_config: Optional[dict] = None
 
 
 class CompanyContextCreate(BaseModel):

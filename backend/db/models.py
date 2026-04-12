@@ -241,6 +241,7 @@ def company_profile_entity(doc) -> dict:
         "representante_legal": doc.get("representante_legal", ""),
         "cargo_representante": doc.get("cargo_representante", ""),
         "onboarding_completed": doc.get("onboarding_completed", False),
+        "brand_config": doc.get("brand_config"),
         "created_at": doc.get("created_at"),
         "updated_at": doc.get("updated_at"),
     }
