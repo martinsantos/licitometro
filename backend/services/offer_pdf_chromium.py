@@ -185,9 +185,11 @@ def _render_antecedentes(content: str) -> str:
         else:
             title_html = f'<span class="ant-title">{title}</span>'
 
-        # Image
+        # Image (wrapped in link if URL available)
         img_html = ""
-        if img:
+        if img and url:
+            img_html = f'<a href="{_escape(url)}" class="ant-img-link"><img src="{_escape(img)}" class="ant-img" alt="{title[:30]}" /></a>'
+        elif img:
             img_html = f'<img src="{_escape(img)}" class="ant-img" alt="{title[:30]}" />'
 
         # Metadata chips
@@ -247,6 +249,12 @@ def build_offer_html(cotizacion: dict, licitacion: dict, company_profile: dict =
     iva_rate = cotizacion.get("iva_rate", 21)
     iva_amount = cotizacion.get("iva_amount", 0)
     total = cotizacion.get("total", 0)
+
+    # Auto-select diagrams (minimum 3 per offer)
+    from services.diagram_generator import auto_select_diagrams, generate_diagram
+    template_type = cotizacion.get("template_type", "servicio")
+    auto_diagrams = auto_select_diagrams(sections, template_type)
+    fig_num = 1
 
     # Build sections HTML
     sections_html = []
@@ -322,6 +330,22 @@ def build_offer_html(cotizacion: dict, licitacion: dict, company_profile: dict =
             </div>''')
         else:
             continue
+
+        # Auto-inject diagram after this section if assigned
+        for d_slug, d_type, d_caption in auto_diagrams:
+            if d_slug == slug:
+                try:
+                    svg = generate_diagram(d_type, content, d_caption)
+                    if svg:
+                        sections_html.append(f'''
+                        <div class="diagram-container">
+                            {svg}
+                            <p class="diagram-caption">Fig. {fig_num} — {_escape(d_caption)}</p>
+                        </div>''')
+                        fig_num += 1
+                except Exception:
+                    pass  # Skip diagram on error, don't break PDF
+
         num += 1
 
     # Firma
@@ -617,6 +641,33 @@ body {{
     font-size: 9px;
     color: #6b7280;
     margin: 2px 0 0;
+}}
+.ant-img-link {{
+    display: block;
+    flex-shrink: 0;
+}}
+
+/* ─── Diagrams ─── */
+.diagram-container {{
+    margin: 16px 0;
+    padding: 16px 12px;
+    background: linear-gradient(135deg, #f8fafc, #eff6ff);
+    border: 1px solid #dbeafe;
+    border-radius: 10px;
+    text-align: center;
+    page-break-inside: avoid;
+}}
+.diagram-container svg {{
+    max-width: 100%;
+    height: auto;
+}}
+.diagram-caption {{
+    font-size: 8px;
+    color: #6b7280;
+    text-align: center;
+    margin-top: 8px;
+    font-style: italic;
+    letter-spacing: 0.05em;
 }}
 </style>
 </head>
