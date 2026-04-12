@@ -410,23 +410,24 @@ Responde SOLO con JSON válido (sin markdown, sin backticks):
 
         base_prompt = section_prompts.get(section_slug)
         if not base_prompt:
-            # For custom/unknown sections, be very restrictive
-            base_prompt = f"Redacta la seccion '{section_slug}' basandote EXCLUSIVAMENTE en los datos del CONTEXTO. Si no hay datos suficientes para esta seccion, escribi: '[Completar con informacion especifica del pliego]'. Maximo 200 palabras."
+            # For custom/unknown sections, use the context to generate relevant content
+            slug_label = section_slug.replace("_", " ").title()
+            base_prompt = f"Redacta la seccion '{slug_label}' basandote en los datos del CONTEXTO. Extraé la informacion relevante del pliego y la descripcion. Si hay texto del pliego, usalo para dar detalles concretos (requisitos, plazos, condiciones). Maximo 250 palabras."
 
         full_prompt = f"""Redactas ofertas tecnicas para licitaciones publicas argentinas.
 
 REGLAS OBLIGATORIAS:
-1. USA EXCLUSIVAMENTE datos del CONTEXTO. Si un dato no esta en el contexto, NO lo incluyas.
-2. NUNCA inventes nombres de proyectos, clientes, organismos, fechas ni montos.
+1. USA datos del CONTEXTO como base. Extraé requisitos, plazos y condiciones del pliego.
+2. NUNCA inventes nombres de proyectos, clientes, organismos, fechas ni montos que no esten en el contexto.
 3. NUNCA menciones precios, presupuestos ni montos en secciones que no sean la oferta economica.
-4. Si no tenes informacion suficiente, escribi "[Completar segun pliego]" en vez de inventar.
+4. Cuando hay TEXTO DEL PLIEGO, usalo para dar detalles concretos y especificos.
 5. Maximo 3 oraciones por parrafo. Sin frases de relleno.
 6. Texto plano. Sin markdown. Sin emojis.
 
 TAREA: {base_prompt}
 
 CONTEXTO (UNICA fuente de verdad):
-{context[:3000]}"""
+{context[:5000]}"""
 
         messages = [{"role": "user", "content": full_prompt}]
 

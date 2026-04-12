@@ -224,41 +224,78 @@ async def find_pliegos(db, licitacion_id: str, http_session=None) -> dict:
     # Sort by priority
     all_pliegos.sort(key=lambda p: p["priority"])
 
-    # Try to extract text from the highest-priority PDF
+    # Try to extract text from the highest-priority PDFs (try multiple if first fails)
     text_extracted = None
-    if all_pliegos:
-        best = all_pliegos[0]
-        if best.get("type") == "pdf" and best.get("url"):
-            url = best["url"]
-            # Manual uploads: read from disk directly (avoids auth middleware in Docker)
-            if best.get("source") == "manual_upload" and "/api/documentos/" in url:
-                try:
-                    doc_id_match = re.search(r'/api/documentos/([a-f0-9]+)/download', url)
-                    if doc_id_match:
-                        from bson import ObjectId as _OID
-                        doc = await db.documentos.find_one({"_id": _OID(doc_id_match.group(1))})
-                        if doc and doc.get("file_path") and os.path.isfile(doc["file_path"]):
-                            with open(doc["file_path"], "rb") as f:
-                                pdf_bytes = f.read()
-                            from services.enrichment.pdf_zip_enricher import extract_text_from_pdf_bytes
-                            text_extracted = extract_text_from_pdf_bytes(pdf_bytes)
-                            if text_extracted:
-                                text_extracted = text_extracted[:10000]
-                                logger.info(f"Extracted {len(text_extracted)} chars from uploaded pliego")
-                except Exception as e:
-                    logger.warning(f"Failed to extract text from uploaded pliego: {e}")
-            # Remote/downloaded pliegos: fetch via HTTP
-            if not text_extracted:
-                try:
-                    from scrapers.resilient_http import ResilientHttpClient
-                    http = ResilientHttpClient()
-                    from services.enrichment.pdf_zip_enricher import extract_text_from_pdf_url
-                    text_extracted = await extract_text_from_pdf_url(http, url)
-                    await http.close()
+    from services.enrichment.pdf_zip_enricher import extract_text_from_pdf_bytes
+
+    for best in [p for p in all_pliegos if p.get("type") == "pdf" and p.get("url")]:
+        if text_extracted and len(text_extracted) > 200:
+            break  # Got good text, stop trying
+
+        url = best.get("url", "")
+        local_path = best.get("local_path", "")
+
+        # Priority A: Read from local disk (authenticated downloads + manual uploads)
+        if local_path and os.path.isfile(local_path):
+            try:
+                with open(local_path, "rb") as f:
+                    pdf_bytes = f.read()
+                text_extracted = extract_text_from_pdf_bytes(pdf_bytes)
+                if text_extracted:
+                    text_extracted = text_extracted[:10000]
+                    logger.info(f"Extracted {len(text_extracted)} chars from local pliego: {local_path}")
+                    break
+            except Exception as e:
+                logger.warning(f"Failed to read local pliego {local_path}: {e}")
+
+        # Priority B: Manual uploads stored in /api/documentos/
+        if not text_extracted and "/api/documentos/" in url:
+            try:
+                doc_id_match = re.search(r'/api/documentos/([a-f0-9]+)/download', url)
+                if doc_id_match:
+                    from bson import ObjectId as _OID
+                    doc = await db.documentos.find_one({"_id": _OID(doc_id_match.group(1))})
+                    if doc and doc.get("file_path") and os.path.isfile(doc["file_path"]):
+                        with open(doc["file_path"], "rb") as f:
+                            pdf_bytes = f.read()
+                        text_extracted = extract_text_from_pdf_bytes(pdf_bytes)
+                        if text_extracted:
+                            text_extracted = text_extracted[:10000]
+                            logger.info(f"Extracted {len(text_extracted)} chars from uploaded pliego")
+                            break
+            except Exception as e:
+                logger.warning(f"Failed to extract text from uploaded pliego: {e}")
+
+        # Priority C: Authenticated downloads stored in /api/storage/pliegos/
+        if not text_extracted and "/api/storage/pliegos/" in url:
+            try:
+                filename = url.split("/")[-1]
+                storage_dir = os.environ.get("STORAGE_DIR", "/home/ubuntu/licitometro/storage")
+                local = os.path.join(storage_dir, "pliegos", filename)
+                if os.path.isfile(local):
+                    with open(local, "rb") as f:
+                        pdf_bytes = f.read()
+                    text_extracted = extract_text_from_pdf_bytes(pdf_bytes)
                     if text_extracted:
                         text_extracted = text_extracted[:10000]
-                except Exception as e:
-                    logger.warning(f"Failed to extract text from pliego PDF: {e}")
+                        logger.info(f"Extracted {len(text_extracted)} chars from storage pliego: {local}")
+                        break
+            except Exception as e:
+                logger.warning(f"Failed to read storage pliego: {e}")
+
+        # Priority D: Remote HTTP fetch (for external URLs)
+        if not text_extracted and url.startswith("http"):
+            try:
+                from scrapers.resilient_http import ResilientHttpClient
+                http = ResilientHttpClient()
+                from services.enrichment.pdf_zip_enricher import extract_text_from_pdf_url
+                text_extracted = await extract_text_from_pdf_url(http, url)
+                await http.close()
+                if text_extracted:
+                    text_extracted = text_extracted[:10000]
+                    break
+            except Exception as e:
+                logger.warning(f"Failed to extract text from pliego PDF {url[:60]}: {e}")
 
     # Fallback: use licitacion description + metadata as context if no PDF text
     if not text_extracted:

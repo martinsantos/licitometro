@@ -474,17 +474,15 @@ Gestion de configuracion:
     if lic.get("description") and len(lic["description"]) > 50:
         parts.append(f"\nDESCRIPCION DE LA LICITACION:\n{lic['description'][:1500]}")
 
-    # Add pliego text if available (from uploaded PDFs)
-    pliego_docs = cot.get("pliego_documents") or []
-    if pliego_docs:
-        # Try to extract text from first pliego
-        try:
-            from services.pliego_finder import find_pliegos
-            pliego_result = await find_pliegos(db, licitacion_id)
-            if pliego_result.get("text_extracted"):
-                parts.append(f"\nTEXTO DEL PLIEGO (extraido del PDF):\n{pliego_result['text_extracted'][:2000]}")
-        except Exception:
-            pass
+    # Add pliego text if available (from uploaded PDFs or authenticated downloads)
+    try:
+        from services.pliego_finder import find_pliegos
+        pliego_result = await find_pliegos(db, licitacion_id)
+        pliego_text = pliego_result.get("text_extracted", "")
+        if pliego_text and len(pliego_text) > 100:
+            parts.append(f"\nTEXTO DEL PLIEGO (extraido del PDF):\n{pliego_text[:4000]}")
+    except Exception:
+        pass
 
     # Add methodology and plazo from what user filled in Step 2
     if tech.get("methodology"):
