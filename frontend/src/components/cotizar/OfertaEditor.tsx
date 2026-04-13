@@ -152,6 +152,9 @@ export default function OfertaEditor({ licitacion, onSaved }: Props) {
   const [loadingHints, setLoadingHints] = useState(false);
   const [hunterOpen, setHunterOpen] = useState(false);
   const [hunterTab, setHunterTab] = useState<'pliego' | 'inteligencia' | 'antecedentes'>('pliego');
+  const [showPriceTools, setShowPriceTools] = useState(false);
+  const [priceInstruction, setPriceInstruction] = useState('');
+  const [adjustingPrices, setAdjustingPrices] = useState(false);
   const [suggestingPropuesta, setSuggestingPropuesta] = useState(false);
   const [antecedentes, setAntecedentes] = useState<Antecedente[]>([]);
   const [loadingAntecedentes, setLoadingAntecedentes] = useState(false);
@@ -908,6 +911,87 @@ export default function OfertaEditor({ licitacion, onSaved }: Props) {
             </div>
           </div>
 
+          {/* Price adjustment toolbar */}
+          {items.length > 0 && items.some(it => it.descripcion.trim()) && (
+            <div className="bg-amber-50 border border-amber-200 rounded-xl p-3 space-y-2">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-semibold text-amber-800">Ajustar precios</span>
+                <div className="flex gap-1.5">
+                  <button onClick={async () => {
+                    const po = budgetOverride ?? budgetHints?.budget ?? licitacion.budget ?? 0;
+                    if (!po) { alert('No hay Presupuesto Oficial definido'); return; }
+                    const res = await fetch('/api/cotizar-ai/adjust-prices', {
+                      method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify({ items, budget: po, iva_rate: ivaRate, action: 'prorate', percentage: 100 }),
+                    });
+                    if (res.ok) { const data = await res.json(); if (data.items) setItems(data.items); }
+                  }} className="text-[10px] px-2 py-1 bg-amber-500 text-white rounded-lg hover:bg-amber-600 font-medium">
+                    Prorratear al PO
+                  </button>
+                  <button onClick={async () => {
+                    const po = budgetOverride ?? budgetHints?.budget ?? licitacion.budget ?? 0;
+                    if (!po) return;
+                    const res = await fetch('/api/cotizar-ai/adjust-prices', {
+                      method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify({ items, budget: po, iva_rate: ivaRate, action: 'prorate', percentage: 80 }),
+                    });
+                    if (res.ok) { const data = await res.json(); if (data.items) setItems(data.items); }
+                  }} className="text-[10px] px-2 py-1 bg-white border border-amber-300 text-amber-700 rounded-lg hover:bg-amber-50 font-medium">
+                    80% del PO
+                  </button>
+                  <button onClick={() => setShowPriceTools(!showPriceTools)}
+                    className="text-[10px] px-2 py-1 bg-white border border-amber-300 text-amber-700 rounded-lg hover:bg-amber-50">
+                    {showPriceTools ? 'Cerrar' : 'Mas opciones'}
+                  </button>
+                </div>
+              </div>
+
+              {showPriceTools && (
+                <div className="space-y-2 pt-1 border-t border-amber-200">
+                  {/* Scale to custom target */}
+                  <div className="flex gap-2 items-center">
+                    <span className="text-[10px] text-amber-700 shrink-0">Distribuir para llegar a:</span>
+                    <input type="number" placeholder="Ej: 120000000"
+                      className="flex-1 text-xs border border-amber-300 rounded px-2 py-1"
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                          const target = parseFloat((e.target as HTMLInputElement).value);
+                          if (!target) return;
+                          fetch('/api/cotizar-ai/adjust-prices', {
+                            method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ items, budget: target, iva_rate: ivaRate, action: 'scale_to_target', target_total: target / (1 + ivaRate / 100) }),
+                          }).then(r => r.json()).then(d => { if (d.items) setItems(d.items); });
+                        }
+                      }}
+                    />
+                  </div>
+                  {/* AI instruction */}
+                  <div className="flex gap-2">
+                    <input value={priceInstruction} onChange={e => setPriceInstruction(e.target.value)}
+                      placeholder="Ej: pondera los primeros 3 items un 30% mas alto"
+                      className="flex-1 text-xs border border-amber-300 rounded px-2 py-1.5"
+                    />
+                    <button disabled={adjustingPrices || !priceInstruction}
+                      onClick={async () => {
+                        setAdjustingPrices(true);
+                        try {
+                          const po = budgetOverride ?? budgetHints?.budget ?? licitacion.budget ?? 0;
+                          const res = await fetch('/api/cotizar-ai/adjust-prices', {
+                            method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ items, budget: po, iva_rate: ivaRate, action: 'ai_adjust', instruction: priceInstruction }),
+                          });
+                          if (res.ok) { const data = await res.json(); if (data.items) { setItems(data.items); setPriceInstruction(''); } else if (data.error) { alert(data.error); } }
+                        } finally { setAdjustingPrices(false); }
+                      }}
+                      className="text-[10px] px-3 py-1.5 bg-purple-600 text-white rounded-lg hover:bg-purple-700 disabled:opacity-50 font-medium shrink-0">
+                      {adjustingPrices ? 'Ajustando...' : 'Aplicar con AI'}
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
           {/* Mobile: card per item */}
           <div className="block sm:hidden space-y-3">
             {items.map((item, idx) => (
@@ -1016,7 +1100,21 @@ export default function OfertaEditor({ licitacion, onSaved }: Props) {
             </div>
             <div className="border-t border-gray-200 pt-2 flex justify-between font-bold text-gray-900">
               <span>TOTAL</span>
-              <span className="text-lg tabular-nums">{formatARS(total)}</span>
+              <span className="text-lg tabular-nums cursor-pointer hover:text-blue-700 transition-colors"
+                title="Click para editar total y redistribuir"
+                onClick={() => {
+                  const input = prompt('Nuevo total con IVA (se redistribuyen proporciones):', total > 0 ? Math.round(total).toString() : '');
+                  if (input) {
+                    const newTotal = parseFloat(input.replace(/[^\d.]/g, ''));
+                    if (newTotal > 0) {
+                      fetch('/api/cotizar-ai/adjust-prices', {
+                        method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ items, budget: newTotal, iva_rate: ivaRate, action: 'scale_to_target', target_total: newTotal / (1 + ivaRate / 100) }),
+                      }).then(r => r.json()).then(d => { if (d.items) setItems(d.items); });
+                    }
+                  }
+                }}
+              >{formatARS(total)}</span>
             </div>
           </div>
 

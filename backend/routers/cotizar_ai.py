@@ -140,6 +140,107 @@ async def get_ai_usage(request: Request):
     }
 
 
+@router.post("/adjust-prices")
+async def adjust_prices(body: Dict[str, Any], request: Request):
+    """Adjust item prices: prorate to budget, AI instructions, or scale to target.
+
+    Actions:
+    - prorate: distribute budget evenly across items (no AI)
+    - prorate_proportional: distribute weighted by quantity (no AI)
+    - scale_to_target: scale current prices to hit a target total (no AI)
+    - ai_adjust: use AI to adjust prices per user instruction
+    """
+    db = _get_db(request)
+    items = body.get("items", [])
+    budget = float(body.get("budget", 0))
+    iva_rate = float(body.get("iva_rate", 21))
+    action = body.get("action", "prorate")  # prorate | prorate_proportional | scale_to_target | ai_adjust
+    target_total = float(body.get("target_total", 0))  # for scale_to_target
+    percentage = float(body.get("percentage", 100))  # % of budget (e.g. 80)
+    instruction = body.get("instruction", "")  # for ai_adjust
+
+    if not items:
+        return {"items": [], "error": "No items"}
+
+    budget_sin_iva = budget / (1 + iva_rate / 100) if budget > 0 else 0
+    target = budget_sin_iva * (percentage / 100) if action.startswith("prorate") else target_total
+
+    if action == "prorate":
+        # Distribute evenly: each item gets equal share
+        n = len(items)
+        share_per_item = target / n if n > 0 and target > 0 else 0
+        result_items = []
+        for it in items:
+            qty = float(it.get("cantidad", 1)) or 1
+            result_items.append({
+                **it,
+                "precio_unitario": round(share_per_item / qty, 2),
+            })
+        return {"items": result_items, "method": "uniform", "target": target}
+
+    elif action == "prorate_proportional":
+        # Distribute weighted by quantity
+        total_qty = sum(float(it.get("cantidad", 1)) or 1 for it in items)
+        result_items = []
+        for it in items:
+            qty = float(it.get("cantidad", 1)) or 1
+            weight = qty / total_qty if total_qty > 0 else 1 / len(items)
+            item_total = target * weight
+            result_items.append({
+                **it,
+                "precio_unitario": round(item_total / qty, 2),
+            })
+        return {"items": result_items, "method": "proportional", "target": target}
+
+    elif action == "scale_to_target":
+        # Scale existing prices to hit target_total (without IVA)
+        if not target_total:
+            target_total = budget_sin_iva
+        current_total = sum((float(it.get("cantidad", 1)) or 1) * (float(it.get("precio_unitario", 0)) or 0) for it in items)
+        if current_total <= 0:
+            # No prices yet → fall back to uniform prorate
+            n = len(items)
+            share = target_total / n if n > 0 else 0
+            return {"items": [{**it, "precio_unitario": round(share / (float(it.get("cantidad", 1)) or 1), 2)} for it in items], "method": "uniform_fallback"}
+        scale = target_total / current_total
+        result_items = [{**it, "precio_unitario": round((float(it.get("precio_unitario", 0)) or 0) * scale, 2)} for it in items]
+        return {"items": result_items, "method": "scaled", "scale_factor": round(scale, 4)}
+
+    elif action == "ai_adjust":
+        # AI-assisted adjustment
+        if not instruction:
+            return {"error": "instruction required for ai_adjust"}
+        groq = get_groq_enrichment_service(db)
+        items_desc = "\n".join(f"{i+1}. {it.get('descripcion','')} — qty:{it.get('cantidad',1)} ud:{it.get('unidad','u.')} precio:{it.get('precio_unitario',0)}" for i, it in enumerate(items))
+        prompt = f"""Sos un analista de precios de licitaciones publicas argentinas.
+
+ITEMS ACTUALES:
+{items_desc}
+
+PRESUPUESTO OFICIAL (con IVA {iva_rate}%): ${budget:,.0f}
+PRESUPUESTO SIN IVA: ${budget_sin_iva:,.0f}
+
+INSTRUCCION DEL USUARIO: {instruction}
+
+Ajusta los precios unitarios de cada item segun la instruccion. El total (suma de cantidad*precio_unitario) NO debe superar el presupuesto sin IVA.
+
+Responde SOLO JSON valido (sin markdown):
+[{{"descripcion": "...", "cantidad": N, "unidad": "...", "precio_unitario": N.NN}}]"""
+
+        content = await groq._call_llm(
+            [{"role": "user", "content": prompt}],
+            max_tokens=1500, temperature=0.2, endpoint="adjust_prices",
+        )
+        if not content:
+            return {"error": "AI no disponible"}
+        result = groq._extract_json(content, expect_array=True)
+        if result and isinstance(result, list):
+            return {"items": result, "method": "ai_adjusted"}
+        return {"error": "AI no pudo ajustar precios", "raw": content[:300]}
+
+    return {"error": f"Action '{action}' not supported"}
+
+
 @router.post("/suggest-propuesta")
 async def suggest_propuesta(body: Dict[str, Any], request: Request):
     """Generate AI-powered technical proposal suggestion."""
