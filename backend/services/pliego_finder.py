@@ -29,11 +29,12 @@ logger = logging.getLogger("pliego_finder")
 # Priority keywords for pliego classification (lower = higher priority)
 PLIEGO_PRIORITY = [
     (1, ["pliego de especificaciones tecnicas", "pliego especificaciones tecnicas", "pet", "especificaciones tecnicas"]),
-    (2, ["pliego de especificaciones", "pliego particular", "pliego de condiciones particulares"]),
-    (3, ["pliego general", "pliego de condiciones", "pliego de bases", "bases y condiciones"]),
+    (2, ["pliego de especificaciones", "pliego particular", "pliego de condiciones particulares", "clausulas particulares", "condiciones particulares"]),
+    (3, ["pliego general", "pliego de condiciones", "pliego de bases", "bases y condiciones", "clausulas generales", "condiciones generales"]),
     (4, ["anexo", "anexos"]),
     (5, ["plantilla de cotizacion", "formulario de cotizacion", "planilla de cotizacion", "formulario oferta"]),
-    (6, ["pliego"]),  # Generic pliego mention
+    (6, ["pliego", "autorizacion pliego"]),  # Generic pliego mention
+    (7, ["autorizacion llamado", "autorizacion de llamado"]),  # Budget authorization
 ]
 
 
@@ -50,7 +51,8 @@ def classify_pliego(name: str) -> Tuple[int, str]:
         for kw in keywords:
             if kw in name_lower:
                 labels = {1: "Especificaciones Tecnicas", 2: "Pliego Particular",
-                          3: "Pliego General", 4: "Anexo", 5: "Plantilla Cotizacion", 6: "Pliego"}
+                          3: "Pliego General", 4: "Anexo", 5: "Plantilla Cotizacion",
+                          6: "Pliego", 7: "Autorizacion Llamado"}
                 return priority, labels.get(priority, "Documento")
     return 99, "Otro adjunto"
 
