@@ -265,6 +265,12 @@ def _render_antecedentes(content: str) -> str:
         for line in proj.get("extra", []):
             extra_html += f'<p class="ant-extra">{_escape(line)}</p>'
 
+        # Visible URL
+        url_html = ""
+        if url:
+            url_display = _escape(url if len(url) <= 60 else url[:57] + "...")
+            url_html = f'<a href="{_escape(url)}" class="ant-url">{url_display}</a>'
+
         html += f'''
         <div class="ant-card">
             <div class="ant-num">{proj["num"]}</div>
@@ -272,6 +278,7 @@ def _render_antecedentes(content: str) -> str:
                 {img_html}
                 <div class="ant-content">
                     {title_html}
+                    {url_html}
                     <div class="ant-chips">{" ".join(chips)}</div>
                     {extra_html}
                 </div>
@@ -331,7 +338,8 @@ def build_offer_html(cotizacion: dict, licitacion: dict, company_profile: dict =
     fig_num = 1
 
     # Pre-scan sections for TOC (table of contents)
-    toc_entries = []
+    toc_entries = []  # list of (title, slug_id)
+    sec_idx = 0
     for sec in sorted(sections, key=lambda s: s.get("order", 0)):
         slug = sec.get("slug", "")
         content = (sec.get("content") or "").strip()
@@ -342,7 +350,8 @@ def build_offer_html(cotizacion: dict, licitacion: dict, company_profile: dict =
         content_clean = re.sub(r'\[Completar[^\]]*\]', '', content_clean).strip()
         if not content_clean and slug != "oferta_economica":
             continue
-        toc_entries.append(title)
+        sec_idx += 1
+        toc_entries.append((title, f"sec-{sec_idx}"))
 
     # Build sections HTML
     sections_html = []
@@ -378,7 +387,7 @@ def build_offer_html(cotizacion: dict, licitacion: dict, company_profile: dict =
                 </tr>'''
 
             sections_html.append(f'''
-            <div class="section section-pagebreak">
+            <div class="section section-pagebreak" id="sec-{num}">
                 <div class="section-header"><span class="section-num">{num}</span> OFERTA ECONOMICA</div>
                 <table class="items-table">
                     <thead><tr>
@@ -412,13 +421,13 @@ def build_offer_html(cotizacion: dict, licitacion: dict, company_profile: dict =
             </div>''')
         elif slug in ("antecedentes", "perfil_empresa", "antecedentes_empresa"):
             sections_html.append(f'''
-            <div class="section section-pagebreak">
+            <div class="section section-pagebreak" id="sec-{num}">
                 <div class="section-header"><span class="section-num">{num}</span> {title.upper()}</div>
                 <div class="section-body">{_render_antecedentes(content)}</div>
             </div>''')
         elif content:
             sections_html.append(f'''
-            <div class="section section-pagebreak">
+            <div class="section section-pagebreak" id="sec-{num}">
                 <div class="section-header"><span class="section-num">{num}</span> {title.upper()}</div>
                 <div class="section-body">{_render_section_content(content, title)}</div>
             </div>''')
@@ -797,6 +806,14 @@ p {{ orphans: 3; widows: 3; }}
     margin-bottom: 5px;
     line-height: 1.3;
 }}
+.ant-url {{
+    display: block;
+    font-size: 8pt;
+    color: #3b82f6;
+    text-decoration: none;
+    margin-bottom: 5px;
+    word-break: break-all;
+}}
 .ant-chips {{
     display: flex;
     flex-wrap: wrap;
@@ -877,6 +894,14 @@ p {{ orphans: 3; widows: 3; }}
     font-size: 11.5pt;
     font-weight: 500;
     color: #374151;
+    flex: 1;
+}}
+.toc-page {{
+    font-size: 11pt;
+    font-weight: 600;
+    color: #9ca3af;
+    min-width: 30px;
+    text-align: right;
 }}
 
 /* ─── Diagrams — full page ─── */
@@ -941,9 +966,23 @@ p {{ orphans: 3; widows: 3; }}
 <div class="toc">
     <div class="toc-title">Indice</div>
     <div class="toc-list">
-        {"".join(f'<div class="toc-item"><span class="toc-num">{i+1}</span><span class="toc-label">{_escape(t)}</span></div>' for i, t in enumerate(toc_entries))}
+        {"".join(f'<div class="toc-item"><span class="toc-num">{i+1}</span><span class="toc-label">{_escape(t)}</span><span class="toc-page" data-target="sec-{i+1}"></span></div>' for i, (t, sid) in enumerate(toc_entries))}
     </div>
 </div>
+
+<script>
+// Calculate page numbers for TOC entries
+(function() {{
+    var pageH = 1122;  // A4 at 96dpi ~1122px content area
+    document.querySelectorAll('.toc-page').forEach(function(el) {{
+        var target = document.getElementById(el.dataset.target);
+        if (target) {{
+            var page = Math.floor(target.offsetTop / pageH) + 1;
+            el.textContent = page;
+        }}
+    }});
+}})();
+</script>
 
 <!-- Sections -->
 {"".join(sections_html)}
@@ -1017,6 +1056,10 @@ def _render_pdf_with_selenium(html: str, company_name: str = "", objeto: str = "
             tmp_path = f.name
 
         driver.get(f"file://{tmp_path}")
+
+        # Wait for JS to calculate TOC page numbers
+        import time
+        time.sleep(0.5)
 
         # Use CDP to generate PDF with print settings
         # Header/footer use CDP's built-in template (avoids overlap with body)
