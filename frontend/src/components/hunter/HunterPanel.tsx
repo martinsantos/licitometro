@@ -78,97 +78,133 @@ function MatchCard({ m, mode, onAction, actionLoading, alreadyMerged }: {
   actionLoading: string | null;
   alreadyMerged?: boolean;
 }) {
+  const [expanded, setExpanded] = useState(false);
+  const [items, setItems] = useState<any[]>([]);
+  const [selectedItems, setSelectedItems] = useState<Set<number>>(new Set());
   const budgetStr = fmt(m.budget, m.currency);
   const fc = fuenteColor[m.fuente] || 'bg-gray-100 text-gray-600';
   const cc = confBadge[m.confidence] || confBadge.baja;
   const isLoading = actionLoading === m.id;
 
+  const loadItems = async () => {
+    if (items.length > 0) { setExpanded(!expanded); return; }
+    try {
+      const res = await fetch(`/api/licitaciones/${m.id}`, { credentials: 'include' });
+      if (res.ok) {
+        const lic = await res.json();
+        setItems(lic.items || []);
+        setSelectedItems(new Set((lic.items || []).map((_: any, i: number) => i)));
+      }
+    } catch { /* silent */ }
+    setExpanded(true);
+  };
+
   return (
-    <div className="bg-white border border-gray-200 rounded-xl p-4 shadow-sm hover:shadow-md transition-shadow">
-      {/* Header */}
-      <div className="flex items-start justify-between gap-2 mb-2">
-        <h4 className="font-semibold text-gray-900 text-sm leading-tight flex-1">
-          {m.title || 'Sin título'}
-        </h4>
-        <span className={`text-[10px] font-medium px-2 py-0.5 rounded-full whitespace-nowrap ${cc}`}>
-          {m.confidence}
-        </span>
-      </div>
-
-      {/* Fuente + Org */}
-      <div className="flex flex-wrap items-center gap-1.5 mb-3">
-        <span className={`text-[10px] font-medium px-2 py-0.5 rounded-full ${fc}`}>
-          {m.fuente}
-        </span>
-        {m.organization && (
-          <span className="text-[11px] text-gray-500 truncate max-w-[200px]">{m.organization}</span>
-        )}
-      </div>
-
-      {/* Budget */}
-      {budgetStr && (
-        <div className="text-lg font-bold text-emerald-700 mb-2">{budgetStr}</div>
-      )}
-
-      {/* Badges */}
-      <div className="flex flex-wrap gap-1.5 mb-3">
-        {m.items_count > 0 && (
-          <span className="text-[10px] bg-purple-50 text-purple-700 px-2 py-0.5 rounded-full font-medium">
-            📦 {m.items_count} items
+    <div className="bg-white border border-gray-200 rounded-xl shadow-sm hover:shadow-md transition-shadow">
+      <div className="p-4">
+        {/* Header */}
+        <div className="flex items-start justify-between gap-2 mb-2">
+          <h4 className="font-semibold text-gray-900 text-sm leading-tight flex-1">
+            {m.title || 'Sin titulo'}
+          </h4>
+          <span className={`text-[10px] font-medium px-2 py-0.5 rounded-full whitespace-nowrap ${cc}`}>
+            {m.confidence}
           </span>
-        )}
-        {m.attached_files_count > 0 && (
-          <span className="text-[10px] bg-blue-50 text-blue-700 px-2 py-0.5 rounded-full font-medium">
-            📎 {m.attached_files_count} docs
-          </span>
-        )}
-        {(m.fields_would_fill || []).map(f => (
-          <span key={f} className="text-[10px] bg-amber-50 text-amber-700 px-2 py-0.5 rounded-full">
-            +{f}
-          </span>
-        ))}
-      </div>
+        </div>
 
-      {/* Description preview */}
-      {m.description_preview && (
-        <p className="text-xs text-gray-500 mb-3 line-clamp-2">{m.description_preview}</p>
-      )}
+        {/* Fuente + Org */}
+        <div className="flex flex-wrap items-center gap-1.5 mb-2">
+          <span className={`text-[10px] font-medium px-2 py-0.5 rounded-full ${fc}`}>{m.fuente}</span>
+          {m.organization && <span className="text-[11px] text-gray-500 truncate max-w-[200px]">{m.organization}</span>}
+        </div>
 
-      {/* Actions */}
-      <div className="flex items-center gap-2">
-        {mode === 'detail' && (
-          alreadyMerged ? (
-            <span className="text-xs font-semibold px-3 py-1.5 rounded-lg bg-emerald-100 text-emerald-700">
-              ✓ Ya fusionado
-            </span>
-          ) : (
-            <button
-              onClick={() => onAction(m.id, 'merge')}
-              disabled={isLoading}
-              className="text-xs font-semibold px-3 py-1.5 rounded-lg bg-amber-500 text-white hover:bg-amber-600 disabled:opacity-50 transition-colors"
-            >
-              {isLoading ? '⏳ Fusionando...' : '🔗 Fusionar datos'}
+        {/* Budget */}
+        {budgetStr && <div className="text-base font-bold text-emerald-700 mb-2">{budgetStr}</div>}
+
+        {/* Badges */}
+        <div className="flex flex-wrap gap-1.5 mb-2">
+          {m.items_count > 0 && (
+            <button onClick={loadItems} className="text-[10px] bg-purple-50 text-purple-700 px-2 py-0.5 rounded-full font-medium hover:bg-purple-100 cursor-pointer">
+              {m.items_count} items {expanded ? '▲' : '▼'}
             </button>
-          )
-        )}
-        {mode === 'cotizar' && m.items_count > 0 && (
-          <button
-            onClick={() => onAction(m.id, 'import')}
-            disabled={isLoading}
-            className="text-xs font-semibold px-3 py-1.5 rounded-lg bg-amber-500 text-white hover:bg-amber-600 disabled:opacity-50 transition-colors"
-          >
-            📥 Importar {m.items_count} items
-          </button>
-        )}
-        <a
-          href={`/licitacion/${m.id}`}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="text-xs text-gray-500 hover:text-amber-600 px-2 py-1.5"
-        >
-          👁 Ver
-        </a>
+          )}
+          {m.attached_files_count > 0 && (
+            <span className="text-[10px] bg-blue-50 text-blue-700 px-2 py-0.5 rounded-full font-medium">{m.attached_files_count} docs</span>
+          )}
+          {(m.fields_would_fill || []).map(f => (
+            <span key={f} className="text-[10px] bg-amber-50 text-amber-700 px-2 py-0.5 rounded-full">+{f}</span>
+          ))}
+        </div>
+
+        {m.description_preview && <p className="text-xs text-gray-500 mb-2 line-clamp-2">{m.description_preview}</p>}
+
+        {/* Actions */}
+        <div className="flex items-center gap-2">
+          {mode === 'detail' && (
+            alreadyMerged ? (
+              <span className="text-xs font-semibold px-3 py-1.5 rounded-lg bg-emerald-100 text-emerald-700">Ya fusionado</span>
+            ) : (
+              <button onClick={() => onAction(m.id, 'merge')} disabled={isLoading}
+                className="text-xs font-semibold px-3 py-1.5 rounded-lg bg-amber-500 text-white hover:bg-amber-600 disabled:opacity-50">
+                {isLoading ? 'Fusionando...' : 'Fusionar datos'}
+              </button>
+            )
+          )}
+          {mode === 'cotizar' && m.items_count > 0 && (
+            <button onClick={() => onAction(m.id, 'import')} disabled={isLoading}
+              className="text-xs font-semibold px-3 py-1.5 rounded-lg bg-amber-500 text-white hover:bg-amber-600 disabled:opacity-50">
+              Importar {m.items_count} items
+            </button>
+          )}
+          <a href={`/licitacion/${m.id}`} target="_blank" rel="noopener noreferrer"
+            className="text-xs text-gray-500 hover:text-amber-600 px-2 py-1.5">Ver</a>
+        </div>
       </div>
+
+      {/* Expandable items list */}
+      {expanded && items.length > 0 && (
+        <div className="border-t border-gray-100 bg-gray-50 px-4 py-3">
+          <p className="text-[10px] font-semibold text-gray-500 uppercase mb-2">Items del proceso</p>
+          <div className="space-y-1 max-h-48 overflow-y-auto">
+            {items.map((item: any, idx: number) => {
+              const desc = item.descripcion || item.description || '';
+              const qty = item.cantidad || item.quantity || '';
+              const unit = item.unidad || item.unit || 'u.';
+              const price = item.precio_unitario || item.unit_price || 0;
+              return (
+                <label key={idx} className="flex items-center gap-2 text-xs bg-white rounded px-2 py-1.5 border border-gray-100 cursor-pointer hover:bg-amber-50">
+                  {mode === 'cotizar' && (
+                    <input type="checkbox" checked={selectedItems.has(idx)}
+                      onChange={() => setSelectedItems(prev => {
+                        const next = new Set(prev);
+                        next.has(idx) ? next.delete(idx) : next.add(idx);
+                        return next;
+                      })}
+                      className="rounded border-gray-300 text-amber-500 w-3.5 h-3.5" />
+                  )}
+                  <span className="flex-1 text-gray-800 truncate">{desc || `Item ${idx + 1}`}</span>
+                  {qty && <span className="text-gray-500 shrink-0">{qty} {unit}</span>}
+                  {price > 0 && <span className="text-emerald-700 font-medium shrink-0">{fmt(price)}</span>}
+                </label>
+              );
+            })}
+          </div>
+          {mode === 'cotizar' && selectedItems.size > 0 && (
+            <button
+              onClick={() => {
+                const selected = items.filter((_, i) => selectedItems.has(i));
+                onAction(m.id, 'import_selected');
+                // Direct import of selected items
+                if (selected.length > 0) {
+                  onAction(m.id, 'import');
+                }
+              }}
+              className="mt-2 w-full text-xs font-semibold py-2 rounded-lg bg-amber-500 text-white hover:bg-amber-600">
+              Importar {selectedItems.size} items seleccionados
+            </button>
+          )}
+        </div>
+      )}
     </div>
   );
 }
@@ -454,42 +490,7 @@ export default function HunterPanel({ licitacionId, mode, isOpen, onClose, onMer
             <>
               {allForPrices.length > 0 ? (
                 <>
-                  <section>
-                    <h3 className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-3">
-                      Referencias de precios encontradas
-                    </h3>
-                    <div className="bg-emerald-50 border border-emerald-200 rounded-xl overflow-hidden">
-                      <table className="w-full text-sm">
-                        <thead>
-                          <tr className="border-b border-emerald-200">
-                            <th className="text-left px-4 py-2 text-emerald-800 font-semibold text-xs">Fuente</th>
-                            <th className="text-right px-4 py-2 text-emerald-800 font-semibold text-xs">Presupuesto</th>
-                            <th className="text-center px-4 py-2 text-emerald-800 font-semibold text-xs">Confianza</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {allForPrices.map((m, i) => (
-                            <tr key={m.id} className={i % 2 === 0 ? 'bg-white' : 'bg-emerald-50/50'}>
-                              <td className="px-4 py-2">
-                                <div className="text-gray-900 text-xs font-medium truncate max-w-[180px]">{m.title}</div>
-                                <div className="text-gray-400 text-[10px]">{m.fuente}</div>
-                              </td>
-                              <td className="px-4 py-2 text-right font-bold text-emerald-700">
-                                {fmt(m.budget, m.currency)}
-                              </td>
-                              <td className="px-4 py-2 text-center">
-                                <span className={`text-[10px] px-2 py-0.5 rounded-full font-medium ${confBadge[m.confidence] || confBadge.baja}`}>
-                                  {m.confidence}
-                                </span>
-                              </td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                    </div>
-                  </section>
-
-                  {/* Price range summary */}
+                  {/* Price range summary at top */}
                   {(() => {
                     const budgets = allForPrices.map(m => m.budget!).sort((a, b) => a - b);
                     const min = budgets[0];
@@ -497,21 +498,64 @@ export default function HunterPanel({ licitacionId, mode, isOpen, onClose, onMer
                     const median = budgets[Math.floor(budgets.length / 2)];
                     return (
                       <div className="bg-amber-50 border border-amber-200 rounded-xl p-4">
-                        <h4 className="text-xs font-bold text-amber-800 uppercase mb-2">💡 Rango sugerido</h4>
+                        <h4 className="text-xs font-bold text-amber-800 uppercase mb-2">Rango de precios</h4>
                         <div className="flex justify-between text-sm mb-1">
                           <span className="text-gray-600">Min: {fmt(min)}</span>
                           <span className="font-bold text-amber-700">Mediana: {fmt(median)}</span>
                           <span className="text-gray-600">Max: {fmt(max)}</span>
                         </div>
-                        <div className="h-2 bg-amber-200 rounded-full overflow-hidden">
+                        <div className="h-2 bg-amber-200 rounded-full overflow-hidden mt-2">
                           <div className="h-full bg-amber-500 rounded-full" style={{ width: '60%' }} />
                         </div>
                         <p className="text-xs text-amber-700 mt-2">
-                          Basado en {budgets.length} referencia{budgets.length !== 1 ? 's' : ''} encontrada{budgets.length !== 1 ? 's' : ''}
+                          {budgets.length} referencia{budgets.length !== 1 ? 's' : ''}
                         </p>
                       </div>
                     );
                   })()}
+
+                  {/* Detailed price cards */}
+                  <section className="space-y-2">
+                    <h3 className="text-xs font-bold text-gray-500 uppercase tracking-wider">
+                      Detalle de referencias
+                    </h3>
+                    {allForPrices.map(m => (
+                      <div key={m.id} className="bg-white border border-gray-200 rounded-xl p-3 hover:shadow-sm transition-shadow">
+                        <div className="flex items-start justify-between gap-2">
+                          <div className="flex-1 min-w-0">
+                            <p className="text-xs font-semibold text-gray-900 leading-tight truncate">{m.title}</p>
+                            <p className="text-[10px] text-gray-500 mt-0.5">
+                              {m.organization && <span>{m.organization} — </span>}
+                              <span className={`px-1 py-0.5 rounded ${fuenteColor[m.fuente] || 'bg-gray-100 text-gray-600'}`}>{m.fuente}</span>
+                            </p>
+                          </div>
+                          <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-medium shrink-0 ${confBadge[m.confidence] || confBadge.baja}`}>
+                            {m.confidence}
+                          </span>
+                        </div>
+                        <div className="flex items-center justify-between mt-2">
+                          <span className="text-base font-bold text-emerald-700">{fmt(m.budget, m.currency)}</span>
+                          <div className="flex items-center gap-2">
+                            {m.items_count > 0 && (
+                              <span className="text-[10px] bg-purple-50 text-purple-700 px-1.5 py-0.5 rounded-full">{m.items_count} items</span>
+                            )}
+                            <a href={`/licitacion/${m.id}`} target="_blank" rel="noopener noreferrer"
+                              className="text-[10px] text-blue-600 hover:underline">Ver</a>
+                            {mode === 'cotizar' && m.items_count > 0 && (
+                              <button onClick={() => handleAction(m.id, 'import')}
+                                disabled={actionLoading === m.id}
+                                className="text-[10px] font-medium px-2 py-1 rounded bg-amber-500 text-white hover:bg-amber-600 disabled:opacity-50">
+                                Importar items
+                              </button>
+                            )}
+                          </div>
+                        </div>
+                        {m.description_preview && (
+                          <p className="text-[10px] text-gray-400 mt-1.5 line-clamp-1">{m.description_preview}</p>
+                        )}
+                      </div>
+                    ))}
+                  </section>
                 </>
               ) : (
                 <div className="text-center py-10">
@@ -521,7 +565,7 @@ export default function HunterPanel({ licitacionId, mode, isOpen, onClose, onMer
                     onClick={() => doSearch('deep_search')}
                     className="mt-3 text-sm text-amber-600 hover:text-amber-700 underline"
                   >
-                    🔄 Buscar más profundo
+                    Buscar mas profundo
                   </button>
                 </div>
               )}

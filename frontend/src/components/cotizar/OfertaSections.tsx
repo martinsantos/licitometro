@@ -367,7 +367,24 @@ export default function OfertaSections({ licitacionId, sections, onSectionsChang
           <p className="text-xs text-amber-600 bg-amber-50 rounded-lg px-3 py-2">{pliegoHint}</p>
         )}
         {pliegoSearched && pliegos.length === 0 && !pliegoLoading && !uploading && !pliegoHint && (
-          <p className="text-xs text-gray-400">HUNTER no encontro pliegos automaticamente. Subi el PDF del pliego arriba.</p>
+          <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 space-y-2">
+            <p className="text-xs font-semibold text-amber-800">HUNTER no encontro pliegos automaticamente</p>
+            <ul className="text-xs text-amber-700 space-y-1 list-disc list-inside">
+              <li>Las URLs de portales de compras pueden haber expirado</li>
+              <li>El pliego puede requerir autenticacion en el portal</li>
+            </ul>
+            <div className="flex gap-2 pt-1">
+              <a href="https://comprar.mendoza.gov.ar" target="_blank" rel="noopener noreferrer"
+                className="text-[10px] px-2 py-1 bg-white border border-amber-300 text-amber-700 rounded hover:bg-amber-50">
+                Buscar en COMPR.AR
+              </a>
+              <a href="https://comprasapps.mendoza.gov.ar" target="_blank" rel="noopener noreferrer"
+                className="text-[10px] px-2 py-1 bg-white border border-amber-300 text-amber-700 rounded hover:bg-amber-50">
+                Buscar en ComprasApps
+              </a>
+            </div>
+            <p className="text-[10px] text-amber-600">Descarga el pliego manualmente y subilo arriba.</p>
+          </div>
         )}
 
         {/* Gap Analysis Results */}
