@@ -288,8 +288,16 @@ export default function OfertaEditor({ licitacion, onSaved }: Props) {
               notas: mongoCot.tech_data.notas || prev.notas,
             }));
           }
-          if (mongoCot.company_data && Object.keys(mongoCot.company_data).length > 0) {
+          if (mongoCot.company_data && Object.keys(mongoCot.company_data).length > 0 && (mongoCot.company_data as any).nombre) {
             setCompanyData(prev => ({ ...prev, ...mongoCot.company_data as unknown as CompanyData }));
+          } else {
+            // Load from company profile if cotizacion has no company data
+            try {
+              const profile = await api.getCompanyProfile();
+              if (profile && profile.nombre) {
+                setCompanyData({ nombre: profile.nombre, cuit: profile.cuit, email: profile.email, telefono: profile.telefono, domicilio: profile.domicilio });
+              }
+            } catch { /* silent */ }
           }
           if (mongoCot.analysis) setAnalysis(mongoCot.analysis);
           if (mongoCot.pliego_info) setPliegoInfo(mongoCot.pliego_info);
@@ -310,6 +318,16 @@ export default function OfertaEditor({ licitacion, onSaved }: Props) {
         } else if (licitacion.items && licitacion.items.length > 0) {
           const normalized = normalizeLicItems(licitacion.items as Array<Record<string, unknown>>);
           if (normalized.length > 0) setItems(normalized);
+        }
+
+        // Always ensure company data is loaded from profile if empty
+        if (!companyData.nombre) {
+          try {
+            const profile = await api.getCompanyProfile();
+            if (profile && profile.nombre) {
+              setCompanyData({ nombre: profile.nombre, cuit: profile.cuit, email: profile.email, telefono: profile.telefono, domicilio: profile.domicilio });
+            }
+          } catch { /* silent */ }
         }
 
         if (cancelled) return;
