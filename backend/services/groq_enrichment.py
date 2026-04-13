@@ -480,7 +480,9 @@ REGLAS DE REDACCION PROFESIONAL:
 5. NO REPETIR CONCEPTOS: Cada idea aparece UNA sola vez en todo el documento.
 6. NUNCA inventes proyectos, clientes, organismos, fechas ni montos que no esten en el contexto.
 7. NUNCA menciones precios ni presupuestos fuera de la oferta economica.
-8. Texto plano. Sin markdown, emojis ni asteriscos. Maximo 3 oraciones por parrafo.
+8. NUNCA REPITAS EL TITULO DE LA SECCION: La primera linea NO debe repetir ni parafrasear el titulo. Arranca directo con contenido sustancial.
+9. USA SUBTITULOS: Organiza secciones largas con ## Subtitulo para crear jerarquia visual.
+10. USA **negrita** para datos clave, cifras, nombres de entregables y conceptos tecnicos. Maximo 3 oraciones por parrafo.
 
 TAREA: {base_prompt}
 

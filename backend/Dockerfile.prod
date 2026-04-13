@@ -11,7 +11,15 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     chromium-driver \
     curl \
     default-jre-headless \
+    wget \
     && rm -rf /var/lib/apt/lists/*
+
+# Install Typst for publication-grade PDF generation
+RUN wget -qO /tmp/typst.tar.xz https://github.com/typst/typst/releases/download/v0.13.1/typst-x86_64-unknown-linux-musl.tar.xz \
+    && tar -xf /tmp/typst.tar.xz -C /tmp \
+    && mv /tmp/typst-x86_64-unknown-linux-musl/typst /usr/local/bin/typst \
+    && chmod +x /usr/local/bin/typst \
+    && rm -rf /tmp/typst*
 
 # Set Chromium environment variables
 ENV CHROME_BIN=/usr/bin/chromium
