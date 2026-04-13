@@ -52,15 +52,19 @@ const Header = ({ userRole }) => {
   const allLinks = [...primaryLinks, ...secondaryLinks];
 
   // Fetch AI usage
+  const [showAiDetail, setShowAiDetail] = useState(false);
   useEffect(() => {
     const fetchUsage = async () => {
       try {
-        const res = await axios.get('/api/cotizar-ai/ai-usage');
+        const res = await axios.get('/api/cotizar-ai/ai-usage', { withCredentials: true });
         setAiUsage(res.data);
-      } catch {}
+      } catch {
+        // Auth required — set default
+        setAiUsage({ today_calls: 0, today_tokens: 0, token_limit: 100000, status: 'unknown', providers: {} });
+      }
     };
     fetchUsage();
-    const interval = setInterval(fetchUsage, 60000); // refresh every minute
+    const interval = setInterval(fetchUsage, 60000);
     return () => clearInterval(interval);
   }, []);
 
@@ -136,15 +140,45 @@ const Header = ({ userRole }) => {
 
             {/* AI Usage indicator */}
             {aiUsage && (
-              <div className="flex items-center gap-1.5 px-2 py-1 ml-1 rounded-md bg-white/5 text-xs"
-                title={`IA: ${aiUsage.today_calls} llamadas, ${(aiUsage.today_tokens || 0).toLocaleString()} tokens hoy`}>
-                <span className={`w-2 h-2 rounded-full ${aiStatusColor}`} />
-                <span className="text-slate-400 font-mono">
-                  {aiUsage.today_tokens > 0
-                    ? `${(aiUsage.today_tokens / 1000).toFixed(1)}K`
-                    : aiUsage.today_calls}
-                </span>
-                <span className="text-slate-500">AI</span>
+              <div className="relative">
+                <button onClick={() => setShowAiDetail(!showAiDetail)}
+                  className="flex items-center gap-1.5 px-2 py-1 ml-1 rounded-md bg-white/5 text-xs hover:bg-white/10 transition-colors">
+                  <span className={`w-2 h-2 rounded-full ${aiStatusColor}`} />
+                  <span className="text-slate-400 font-mono">
+                    {aiUsage.today_tokens > 0
+                      ? `${(aiUsage.today_tokens / 1000).toFixed(1)}K`
+                      : aiUsage.today_calls}
+                  </span>
+                  <span className="text-slate-500">AI</span>
+                </button>
+                {showAiDetail && (
+                  <div className="absolute right-0 top-full mt-1 bg-slate-800 border border-slate-700 rounded-lg shadow-xl p-3 min-w-[220px] z-50">
+                    <p className="text-xs font-semibold text-white mb-2">Consumo AI hoy</p>
+                    <div className="space-y-1.5">
+                      <div className="flex justify-between text-xs">
+                        <span className="text-slate-400">Tokens</span>
+                        <span className="text-white font-mono">{(aiUsage.today_tokens || 0).toLocaleString()} / {((aiUsage.token_limit || 100000) / 1000).toFixed(0)}K</span>
+                      </div>
+                      <div className="h-1.5 bg-slate-700 rounded-full overflow-hidden">
+                        <div className={`h-full rounded-full ${aiStatusColor}`}
+                          style={{ width: `${Math.min(100, ((aiUsage.today_tokens || 0) / (aiUsage.token_limit || 100000)) * 100)}%` }} />
+                      </div>
+                      <div className="flex justify-between text-xs">
+                        <span className="text-slate-400">Llamadas</span>
+                        <span className="text-white font-mono">{aiUsage.today_calls || 0}</span>
+                      </div>
+                      {Object.entries(aiUsage.providers || {}).map(([name, data]) => (
+                        <div key={name} className="flex justify-between text-[10px] text-slate-500">
+                          <span>{name}</span>
+                          <span>{(data.tokens || 0).toLocaleString()} tok / {data.calls || 0} calls</span>
+                        </div>
+                      ))}
+                      <div className="pt-1 border-t border-slate-700 text-[10px] text-slate-500">
+                        Groq free: 100K tokens/dia
+                      </div>
+                    </div>
+                  </div>
+                )}
               </div>
             )}
 
