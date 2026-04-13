@@ -434,7 +434,7 @@ Gestion de configuracion:
 - Ambientes separados: desarrollo, staging, produccion"""
         return {"content": content, "section_slug": section_slug}
 
-    if section_slug == "antecedentes":
+    if section_slug in ("antecedentes", "perfil_empresa", "antecedentes_empresa"):
         # Build from REAL data: um_antecedentes + vinculados
         # First use vinculados (user-selected, highest relevance)
         vinc_ids = cot.get("antecedentes_vinculados") or []
