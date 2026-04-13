@@ -910,18 +910,9 @@ async def analyze_pliego_gaps(body: Dict[str, Any], request: Request):
     filled_slugs = [s.get("slug") for s in current_sections if s.get("content", "").strip()]
 
     groq = get_groq_enrichment_service(db)
-    client = groq._get_client()
-    if not client:
-        return {"gaps": [], "completeness": 0, "error": "IA no disponible"}
-
     sections_summary = ", ".join(filled_slugs) if filled_slugs else "ninguna"
 
-    import asyncio as _asyncio
-    try:
-        response = await _asyncio.to_thread(
-            client.chat.completions.create,
-            model="llama-3.3-70b-versatile",
-            messages=[{"role": "user", "content": f"""Analiza este pliego de licitación y compara con las secciones ya completadas de la oferta.
+    prompt = f"""Analiza este pliego de licitación y compara con las secciones ya completadas de la oferta.
 
 PLIEGO (extracto):
 {pliego_text[:4000]}
@@ -937,29 +928,18 @@ Responde SOLO con JSON valido:
     {{"slug": "nuevo_slug", "title": "Titulo sugerido", "reason": "por que se necesita"}}
   ],
   "completeness": 0-100
-}}"""}],
-            max_tokens=1500,
-            temperature=0.2,
-        )
-        content = response.choices[0].message.content.strip()
-        result = groq._extract_json(content)
-        if result and isinstance(result, dict):
-            return result
-        return {"gaps": [], "completeness": 0, "raw": content[:500]}
-    except Exception as e:
-        err_str = str(e)
-        if "rate_limit" in err_str.lower() or "429" in err_str:
-            # Try Cerebras fallback
-            prompt = f"""Analiza este pliego y compara con las secciones completadas.\n\nPLIEGO:\n{pliego_text[:3000]}\n\nSECCIONES COMPLETADAS: {sections_summary}\n\nResponde JSON: {{"requirements": [{{"requirement": "desc", "section_slug": "slug", "status": "missing", "importance": "alta"}}], "suggested_sections": [], "completeness": 0}}"""
-            cerebras_result = await groq._cerebras_completion(
-                [{"role": "user", "content": prompt}], max_tokens=1500, temperature=0.2
-            )
-            if cerebras_result:
-                parsed = groq._extract_json(cerebras_result)
-                if parsed and isinstance(parsed, dict):
-                    return parsed
-            return {"gaps": [], "completeness": 0, "error": "Limite de IA alcanzado. Intenta manana."}
-        return {"gaps": [], "completeness": 0, "error": "Error al analizar. Intenta de nuevo."}
+}}"""
+
+    content = await groq._call_llm(
+        [{"role": "user", "content": prompt}],
+        max_tokens=1500, temperature=0.2, endpoint="analyze_pliego_gaps",
+    )
+    if not content:
+        return {"gaps": [], "completeness": 0, "error": "IA no disponible (Groq + Cerebras agotados)"}
+    result = groq._extract_json(content)
+    if result and isinstance(result, dict):
+        return result
+    return {"gaps": [], "completeness": 0, "raw": content[:500]}
 
 
 @router.post("/extract-pliego-info")

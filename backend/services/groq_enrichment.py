@@ -484,7 +484,7 @@ CONTEXTO (UNICA fuente de verdad):
         if cerebras_result:
             return cerebras_result
 
-        return "[Limite de IA alcanzado. Completa esta seccion manualmente o intenta manana.]"
+        return "[Groq y Cerebras no disponibles. Completa esta seccion manualmente.]"
 
 
 _groq_service: Optional[GroqEnrichmentService] = None
