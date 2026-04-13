@@ -434,6 +434,7 @@ def _build_typst_document(
             sections_typ.append(f"""
 = {_escape_typst(title).upper()}
 
+#block(breakable: false)[
 #table(
   columns: (30pt, 1fr, 50pt, 40pt, 85pt, 85pt),
   align: (center, left, center, center, right, right),
@@ -450,6 +451,7 @@ def _build_typst_document(
   table.cell(colspan: 4, fill: rgb("#1d4ed8"))[], table.cell(fill: rgb("#1d4ed8"))[#text(fill: white, weight: "bold", size: 14pt)[TOTAL]], table.cell(fill: rgb("#1d4ed8"))[#text(fill: white, weight: "bold", size: 14pt)[{_fmt(total)}]],
 )
 {validez_block}
+]
 """)
         elif slug in ("antecedentes", "perfil_empresa", "antecedentes_empresa"):
             ant_content = _render_antecedentes_typst(content)
@@ -501,17 +503,18 @@ def _build_typst_document(
   }},
 )
 
-#set text(font: "Inter", size: 11.5pt, fill: rgb("#1f2937"), lang: "es", region: "ar", hyphenate: true)
+#set text(font: "Inter", size: 11.5pt, fill: rgb("#1f2937"), lang: "es", region: "ar", hyphenate: false)
 #set par(leading: 0.75em, spacing: 1.2em, first-line-indent: 0pt)
-#set heading(numbering: none)
+#set heading(numbering: "1.")
 
 #show heading.where(level: 1): it => {{
+  pagebreak(weak: true)
   v(6pt)
-  block(width: 100%)[
+  block(width: 100%, breakable: false)[
     #grid(columns: (32pt, 1fr), gutter: 10pt, align: (center, left),
       place(center + horizon, circle(radius: 14pt, fill: rgb("#1d4ed8"), stroke: none)[
         #set text(12pt, fill: white, weight: "bold")
-        #counter(heading).display()
+        #counter(heading).display("1")
       ]),
       {{
         set text(14pt, weight: "bold", fill: rgb("#1d4ed8"))
