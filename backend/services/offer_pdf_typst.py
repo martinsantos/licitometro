@@ -329,7 +329,6 @@ def generate_offer_pdf_typst(cotizacion: dict, licitacion: dict, company_profile
                     TYPST_BINARY, "compile",
                     template_dst,
                     output_pdf,
-                    "--input", f"data={data_path}",
                     "--font-path", "/usr/share/fonts",
                 ],
                 capture_output=True,

@@ -3,8 +3,8 @@
 // Variables are injected as JSON via --input data=...
 // ═══════════════════════════════════════════════════════════════
 
-// Read injected JSON data
-#let data = json(sys.inputs.at("data"))
+// Read injected JSON data file (placed in same directory as this template)
+#let data = json("data.json")
 
 // Extract fields
 #let company_name = data.at("company_name", default: "Empresa")
