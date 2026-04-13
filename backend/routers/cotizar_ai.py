@@ -655,6 +655,217 @@ async def find_pliegos_endpoint(body: Dict[str, Any], request: Request):
     return await find_pliegos(db, licitacion_id)
 
 
+@router.post("/hunter-unified")
+async def hunter_unified(body: Dict[str, Any], request: Request):
+    """Unified HUNTER endpoint — returns pliego + inteligencia + antecedentes in one call.
+
+    Caches results in cotizacion for 1 hour.
+    """
+    db = _get_db(request)
+    licitacion_id = body.get("licitacion_id")
+    action = body.get("action", "full")  # "full" | "pliego" | "inteligencia" | "antecedentes"
+    if not licitacion_id:
+        raise HTTPException(400, "licitacion_id required")
+
+    from bson import ObjectId
+    try:
+        lic = await db.licitaciones.find_one({"_id": ObjectId(licitacion_id)})
+    except Exception:
+        lic = None
+    if not lic:
+        raise HTTPException(404, "Licitacion not found")
+
+    cot = await db.cotizaciones.find_one({"licitacion_id": licitacion_id}) or {}
+
+    # Check cache (1 hour TTL)
+    from datetime import datetime, timezone, timedelta
+    cache = cot.get("hunter_cache")
+    cache_at = cot.get("hunter_cache_at")
+    if cache and cache_at and (datetime.now(timezone.utc) - cache_at) < timedelta(hours=1):
+        if action == "full" or action in cache:
+            return cache
+
+    result = {}
+
+    # ── PLIEGO ──
+    if action in ("full", "pliego"):
+        from services.pliego_finder import find_pliegos
+        pliego_result = await find_pliegos(db, licitacion_id)
+        pliegos = [p for p in pliego_result.get("pliegos", []) if p.get("type") != "metadata"]
+        metadata_items = [p for p in pliego_result.get("pliegos", []) if p.get("type") == "metadata"]
+        result["pliego"] = {
+            "documents": pliegos,
+            "text_extracted": pliego_result.get("text_extracted", ""),
+            "metadata": [m.get("metadata", {}) for m in metadata_items],
+            "hint": pliego_result.get("hint", ""),
+        }
+
+    # ── INTELIGENCIA ──
+    if action in ("full", "inteligencia"):
+        inteligencia = {"referencias": [], "adjudicaciones": [], "price_range": None, "proveedores": []}
+        try:
+            # Get cross-source matches with budgets
+            from services.cross_source_service import CrossSourceService
+            cross_svc = CrossSourceService(db)
+
+            # Text search for similar items
+            objeto = lic.get("objeto") or lic.get("title", "")
+            category = lic.get("category", "")
+            budget = lic.get("budget")
+
+            # Similar by text
+            keywords = [w for w in (objeto or "").split() if len(w) > 4][:6]
+            if keywords:
+                query_str = " ".join(keywords)
+                try:
+                    cursor = db.licitaciones.find(
+                        {"$text": {"$search": query_str}, "_id": {"$ne": lic["_id"]}},
+                        {"score": {"$meta": "textScore"}},
+                    ).sort([("score", {"$meta": "textScore"})]).limit(20)
+                    refs = await cursor.to_list(20)
+                    for r in refs:
+                        ref_data = {
+                            "id": str(r["_id"]),
+                            "title": r.get("objeto") or r.get("title", ""),
+                            "organization": r.get("organization", ""),
+                            "fuente": r.get("fuente", ""),
+                            "budget": r.get("budget"),
+                            "currency": r.get("currency", "ARS"),
+                            "items_count": len(r.get("items") or []),
+                            "adjudicatario": (r.get("metadata") or {}).get("adjudicatario"),
+                            "monto_adjudicado": (r.get("metadata") or {}).get("monto_adjudicado"),
+                            "confidence": "alta" if r.get("score", {}) == {"$meta": "textScore"} else "media",
+                        }
+                        if ref_data.get("adjudicatario") or ref_data.get("monto_adjudicado"):
+                            inteligencia["adjudicaciones"].append(ref_data)
+                        elif ref_data.get("budget"):
+                            inteligencia["referencias"].append(ref_data)
+                except Exception as e:
+                    logger.warning(f"Hunter inteligencia text search failed: {e}")
+
+            # Same category with budget
+            if category and len(inteligencia["referencias"]) < 10:
+                try:
+                    cat_query = {"category": category, "_id": {"$ne": lic["_id"]}, "budget": {"$exists": True, "$gt": 0}}
+                    if budget and budget > 0:
+                        cat_query["budget"] = {"$gte": budget * 0.1, "$lte": budget * 10}
+                    cat_refs = await db.licitaciones.find(cat_query).sort("publication_date", -1).limit(15).to_list(15)
+                    existing_ids = {r["id"] for r in inteligencia["referencias"]} | {r["id"] for r in inteligencia["adjudicaciones"]}
+                    for r in cat_refs:
+                        rid = str(r["_id"])
+                        if rid in existing_ids:
+                            continue
+                        ref_data = {
+                            "id": rid,
+                            "title": r.get("objeto") or r.get("title", ""),
+                            "organization": r.get("organization", ""),
+                            "fuente": r.get("fuente", ""),
+                            "budget": r.get("budget"),
+                            "currency": r.get("currency", "ARS"),
+                            "items_count": len(r.get("items") or []),
+                            "adjudicatario": (r.get("metadata") or {}).get("adjudicatario"),
+                            "monto_adjudicado": (r.get("metadata") or {}).get("monto_adjudicado"),
+                            "confidence": "baja",
+                        }
+                        if ref_data.get("adjudicatario"):
+                            inteligencia["adjudicaciones"].append(ref_data)
+                        elif ref_data.get("budget"):
+                            inteligencia["referencias"].append(ref_data)
+                except Exception as e:
+                    logger.warning(f"Hunter inteligencia category search failed: {e}")
+
+            # Calculate price range
+            all_budgets = [r["budget"] for r in inteligencia["referencias"] + inteligencia["adjudicaciones"] if r.get("budget")]
+            if all_budgets:
+                all_budgets.sort()
+                inteligencia["price_range"] = {
+                    "min": all_budgets[0],
+                    "median": all_budgets[len(all_budgets) // 2],
+                    "max": all_budgets[-1],
+                    "sample_size": len(all_budgets),
+                }
+
+            # Extract unique proveedores
+            proveedores = {}
+            for adj in inteligencia["adjudicaciones"]:
+                name = adj.get("adjudicatario")
+                if name:
+                    if name not in proveedores:
+                        proveedores[name] = {"name": name, "count": 0, "total": 0}
+                    proveedores[name]["count"] += 1
+                    if adj.get("monto_adjudicado"):
+                        proveedores[name]["total"] += adj["monto_adjudicado"]
+            inteligencia["proveedores"] = sorted(proveedores.values(), key=lambda p: p["count"], reverse=True)
+
+        except Exception as e:
+            logger.warning(f"Hunter inteligencia failed: {e}")
+
+        result["inteligencia"] = inteligencia
+
+    # ── ANTECEDENTES ──
+    if action in ("full", "antecedentes"):
+        antecedentes = {"empresa": [], "licitaciones": []}
+        try:
+            from services.um_antecedentes import get_um_antecedente_service
+            svc = get_um_antecedente_service(db)
+            await svc.ensure_indexes()
+
+            # Search by keywords from objeto
+            objeto = lic.get("objeto") or lic.get("title", "")
+            category = lic.get("category", "")
+            search_terms = [w for w in objeto.split() if len(w) > 4 and w.lower() not in ("para", "sobre", "desde")][:6]
+            if category:
+                search_terms.extend(w for w in category.split() if len(w) > 3)
+            kw = " ".join(search_terms[:8]) or "software tecnologia desarrollo"
+
+            search_result = await svc.search(keywords=kw, limit=10)
+            for a in search_result.get("results", []):
+                antecedentes["empresa"].append({
+                    "id": str(a.get("id", a.get("_id", ""))),
+                    "title": a.get("title", ""),
+                    "organization": a.get("organization", ""),
+                    "category": a.get("category", ""),
+                    "budget": a.get("budget"),
+                    "budget_adjusted": a.get("budget_adjusted"),
+                    "detail_url": a.get("detail_url") or a.get("url", ""),
+                    "image_url": a.get("image_url", ""),
+                })
+
+            # Also add user-linked vinculados
+            vinc_ids = cot.get("antecedentes_vinculados") or []
+            if vinc_ids:
+                vinc_results = await svc.get_by_ids(vinc_ids[:10])
+                existing_ids = {a["id"] for a in antecedentes["empresa"]}
+                for a in vinc_results:
+                    aid = str(a.get("id", a.get("_id", "")))
+                    if aid not in existing_ids:
+                        antecedentes["empresa"].insert(0, {
+                            "id": aid,
+                            "title": a.get("title", ""),
+                            "organization": a.get("organization", ""),
+                            "category": a.get("category", ""),
+                            "budget": a.get("budget"),
+                            "detail_url": a.get("detail_url") or a.get("url", ""),
+                            "image_url": a.get("image_url", ""),
+                            "vinculado": True,
+                        })
+        except Exception as e:
+            logger.warning(f"Hunter antecedentes failed: {e}")
+
+        result["antecedentes"] = antecedentes
+
+    # Cache result
+    try:
+        await db.cotizaciones.update_one(
+            {"licitacion_id": licitacion_id},
+            {"$set": {"hunter_cache": result, "hunter_cache_at": datetime.now(timezone.utc)}},
+        )
+    except Exception:
+        pass
+
+    return result
+
+
 @router.post("/analyze-pliego-gaps")
 async def analyze_pliego_gaps(body: Dict[str, Any], request: Request):
     """Analyze pliego text vs current offer sections to find gaps."""

@@ -1,54 +1,29 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 
-/* ── Types ─────────────────────────────────────────────────────────── */
+/* ── Types ── */
 
-interface HunterMatch {
-  id: string;
-  title: string;
-  fuente: string;
-  confidence: string;
-  match_type: string;
-  budget?: number;
-  currency?: string;
-  organization?: string;
-  fields_available: string[];
-  fields_would_fill: string[];
-  items_count: number;
-  description_preview?: string;
-  attached_files_count: number;
-  source_url?: string;
+interface PliegoDoc {
+  name: string; url: string; type: string; priority: number; label: string; source: string;
 }
-
-interface WebSource {
-  source: string;
-  type: string;
-  text?: string;
-  size?: number;
-  page_title?: string;
-  pdf_links?: { url: string; text: string }[];
+interface RefItem {
+  id: string; title: string; organization: string; fuente: string; budget?: number; currency?: string;
+  items_count: number; adjudicatario?: string; monto_adjudicado?: number; confidence: string;
 }
-
+interface Proveedor { name: string; count: number; total: number; }
+interface Antecedente {
+  id: string; title: string; organization: string; category?: string; budget?: number;
+  budget_adjusted?: number; detail_url?: string; image_url?: string; vinculado?: boolean;
+}
 interface HunterResult {
-  matches: HunterMatch[];
-  adjudicaciones: HunterMatch[];
-  web_sources?: WebSource[];
-  search_stats: {
-    sources_searched: number;
-    total_matches: number;
-    strategies_used: string[];
-  };
+  pliego?: { documents: PliegoDoc[]; text_extracted: string; hint: string; metadata: any[]; };
+  inteligencia?: { referencias: RefItem[]; adjudicaciones: RefItem[]; price_range?: { min: number; median: number; max: number; sample_size: number }; proveedores: Proveedor[]; };
+  antecedentes?: { empresa: Antecedente[]; licitaciones: RefItem[]; };
 }
-
 interface HunterPanelProps {
-  licitacionId: string;
-  mode: 'detail' | 'cotizar';
-  isOpen: boolean;
-  onClose: () => void;
-  onMerge?: (matchId: string) => void;
-  onImportItems?: (items: any[]) => void;
+  licitacionId: string; mode: 'detail' | 'cotizar'; isOpen: boolean; onClose: () => void;
+  onMerge?: (id: string) => void; onImportItems?: (items: any[]) => void;
+  initialTab?: 'pliego' | 'inteligencia' | 'antecedentes';
 }
-
-/* ── Helpers ────────────────────────────────────────────────────────── */
 
 const fmt = (n?: number, cur?: string) => {
   if (!n) return null;
@@ -57,516 +32,265 @@ const fmt = (n?: number, cur?: string) => {
 };
 
 const fuenteColor: Record<string, string> = {
-  'COMPR.AR Mendoza': 'bg-blue-100 text-blue-700',
-  'ComprasApps Mendoza': 'bg-teal-100 text-teal-700',
-  'Boletin Oficial Mendoza': 'bg-amber-100 text-amber-700',
-  'Boletin Oficial Mendoza (PDF)': 'bg-amber-100 text-amber-700',
+  'COMPR.AR Mendoza': 'bg-blue-100 text-blue-700', 'ComprasApps Mendoza': 'bg-teal-100 text-teal-700',
+  'Boletin Oficial Mendoza': 'bg-amber-100 text-amber-700', 'contrataciones_abiertas_mendoza_ocds': 'bg-violet-100 text-violet-700',
 };
 
-const confBadge: Record<string, string> = {
-  alta: 'bg-emerald-100 text-emerald-700',
-  media: 'bg-amber-100 text-amber-700',
-  baja: 'bg-gray-100 text-gray-500',
-};
-
-/* ── Match Card ─────────────────────────────────────────────────────── */
-
-function MatchCard({ m, mode, onAction, actionLoading, alreadyMerged }: {
-  m: HunterMatch;
-  mode: 'detail' | 'cotizar';
-  onAction: (id: string, action: string) => void;
-  actionLoading: string | null;
-  alreadyMerged?: boolean;
-}) {
-  const [expanded, setExpanded] = useState(false);
-  const [items, setItems] = useState<any[]>([]);
-  const [selectedItems, setSelectedItems] = useState<Set<number>>(new Set());
-  const budgetStr = fmt(m.budget, m.currency);
-  const fc = fuenteColor[m.fuente] || 'bg-gray-100 text-gray-600';
-  const cc = confBadge[m.confidence] || confBadge.baja;
-  const isLoading = actionLoading === m.id;
-
-  const loadItems = async () => {
-    if (items.length > 0) { setExpanded(!expanded); return; }
-    try {
-      const res = await fetch(`/api/licitaciones/${m.id}`, { credentials: 'include' });
-      if (res.ok) {
-        const lic = await res.json();
-        setItems(lic.items || []);
-        setSelectedItems(new Set((lic.items || []).map((_: any, i: number) => i)));
-      }
-    } catch { /* silent */ }
-    setExpanded(true);
-  };
-
-  return (
-    <div className="bg-white border border-gray-200 rounded-xl shadow-sm hover:shadow-md transition-shadow">
-      <div className="p-4">
-        {/* Header */}
-        <div className="flex items-start justify-between gap-2 mb-2">
-          <h4 className="font-semibold text-gray-900 text-sm leading-tight flex-1">
-            {m.title || 'Sin titulo'}
-          </h4>
-          <span className={`text-[10px] font-medium px-2 py-0.5 rounded-full whitespace-nowrap ${cc}`}>
-            {m.confidence}
-          </span>
-        </div>
-
-        {/* Fuente + Org */}
-        <div className="flex flex-wrap items-center gap-1.5 mb-2">
-          <span className={`text-[10px] font-medium px-2 py-0.5 rounded-full ${fc}`}>{m.fuente}</span>
-          {m.organization && <span className="text-[11px] text-gray-500 truncate max-w-[200px]">{m.organization}</span>}
-        </div>
-
-        {/* Budget */}
-        {budgetStr && <div className="text-base font-bold text-emerald-700 mb-2">{budgetStr}</div>}
-
-        {/* Badges */}
-        <div className="flex flex-wrap gap-1.5 mb-2">
-          {m.items_count > 0 && (
-            <button onClick={loadItems} className="text-[10px] bg-purple-50 text-purple-700 px-2 py-0.5 rounded-full font-medium hover:bg-purple-100 cursor-pointer">
-              {m.items_count} items {expanded ? '▲' : '▼'}
-            </button>
-          )}
-          {m.attached_files_count > 0 && (
-            <span className="text-[10px] bg-blue-50 text-blue-700 px-2 py-0.5 rounded-full font-medium">{m.attached_files_count} docs</span>
-          )}
-          {(m.fields_would_fill || []).map(f => (
-            <span key={f} className="text-[10px] bg-amber-50 text-amber-700 px-2 py-0.5 rounded-full">+{f}</span>
-          ))}
-        </div>
-
-        {m.description_preview && <p className="text-xs text-gray-500 mb-2 line-clamp-2">{m.description_preview}</p>}
-
-        {/* Actions */}
-        <div className="flex items-center gap-2">
-          {mode === 'detail' && (
-            alreadyMerged ? (
-              <span className="text-xs font-semibold px-3 py-1.5 rounded-lg bg-emerald-100 text-emerald-700">Ya fusionado</span>
-            ) : (
-              <button onClick={() => onAction(m.id, 'merge')} disabled={isLoading}
-                className="text-xs font-semibold px-3 py-1.5 rounded-lg bg-amber-500 text-white hover:bg-amber-600 disabled:opacity-50">
-                {isLoading ? 'Fusionando...' : 'Fusionar datos'}
-              </button>
-            )
-          )}
-          {mode === 'cotizar' && m.items_count > 0 && (
-            <button onClick={() => onAction(m.id, 'import')} disabled={isLoading}
-              className="text-xs font-semibold px-3 py-1.5 rounded-lg bg-amber-500 text-white hover:bg-amber-600 disabled:opacity-50">
-              Importar {m.items_count} items
-            </button>
-          )}
-          <a href={`/licitacion/${m.id}`} target="_blank" rel="noopener noreferrer"
-            className="text-xs text-gray-500 hover:text-amber-600 px-2 py-1.5">Ver</a>
-        </div>
-      </div>
-
-      {/* Expandable items list */}
-      {expanded && items.length > 0 && (
-        <div className="border-t border-gray-100 bg-gray-50 px-4 py-3">
-          <p className="text-[10px] font-semibold text-gray-500 uppercase mb-2">Items del proceso</p>
-          <div className="space-y-1 max-h-48 overflow-y-auto">
-            {items.map((item: any, idx: number) => {
-              const desc = item.descripcion || item.description || '';
-              const qty = item.cantidad || item.quantity || '';
-              const unit = item.unidad || item.unit || 'u.';
-              const price = item.precio_unitario || item.unit_price || 0;
-              return (
-                <label key={idx} className="flex items-center gap-2 text-xs bg-white rounded px-2 py-1.5 border border-gray-100 cursor-pointer hover:bg-amber-50">
-                  {mode === 'cotizar' && (
-                    <input type="checkbox" checked={selectedItems.has(idx)}
-                      onChange={() => setSelectedItems(prev => {
-                        const next = new Set(prev);
-                        next.has(idx) ? next.delete(idx) : next.add(idx);
-                        return next;
-                      })}
-                      className="rounded border-gray-300 text-amber-500 w-3.5 h-3.5" />
-                  )}
-                  <span className="flex-1 text-gray-800 truncate">{desc || `Item ${idx + 1}`}</span>
-                  {qty && <span className="text-gray-500 shrink-0">{qty} {unit}</span>}
-                  {price > 0 && <span className="text-emerald-700 font-medium shrink-0">{fmt(price)}</span>}
-                </label>
-              );
-            })}
-          </div>
-          {mode === 'cotizar' && selectedItems.size > 0 && (
-            <button
-              onClick={() => {
-                const selected = items.filter((_, i) => selectedItems.has(i));
-                onAction(m.id, 'import_selected');
-                // Direct import of selected items
-                if (selected.length > 0) {
-                  onAction(m.id, 'import');
-                }
-              }}
-              className="mt-2 w-full text-xs font-semibold py-2 rounded-lg bg-amber-500 text-white hover:bg-amber-600">
-              Importar {selectedItems.size} items seleccionados
-            </button>
-          )}
-        </div>
-      )}
-    </div>
-  );
-}
-
-/* ── Main Panel ─────────────────────────────────────────────────────── */
-
-export default function HunterPanel({ licitacionId, mode, isOpen, onClose, onMerge, onImportItems }: HunterPanelProps) {
-  const [tab, setTab] = useState<'pliego' | 'precios'>('pliego');
+export default function HunterPanel({ licitacionId, mode, isOpen, onClose, onMerge, onImportItems, initialTab }: HunterPanelProps) {
+  const [tab, setTab] = useState<'pliego' | 'inteligencia' | 'antecedentes'>(initialTab || 'pliego');
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<HunterResult | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [actionLoading, setActionLoading] = useState<string | null>(null);
-  const [mergedIds, setMergedIds] = useState<Set<string>>(new Set());
   const [toast, setToast] = useState<{ msg: string; type: 'ok' | 'err' } | null>(null);
   const abortRef = useRef<AbortController | null>(null);
 
   const showToast = (msg: string, type: 'ok' | 'err' = 'ok') => {
-    setToast({ msg, type });
-    setTimeout(() => setToast(null), 3500);
+    setToast({ msg, type }); setTimeout(() => setToast(null), 3500);
   };
 
-  const doSearch = useCallback(async (action: string) => {
+  const doSearch = useCallback(async () => {
     abortRef.current?.abort();
     const ctrl = new AbortController();
     abortRef.current = ctrl;
-    setLoading(true);
-    setError(null);
+    setLoading(true); setError(null);
     try {
-      const res = await fetch(`/api/licitaciones/${licitacionId}/hunter`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify({ action }),
-        signal: ctrl.signal,
+      const res = await fetch('/api/cotizar-ai/hunter-unified', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, credentials: 'include',
+        body: JSON.stringify({ licitacion_id: licitacionId, action: 'full' }), signal: ctrl.signal,
       });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      const data = await res.json();
-      setResult(data);
+      setResult(await res.json());
     } catch (e: any) {
-      if (e.name !== 'AbortError') setError(e.message || 'Error de búsqueda');
-    } finally {
-      setLoading(false);
-    }
+      if (e.name !== 'AbortError') setError(e.message || 'Error');
+    } finally { setLoading(false); }
   }, [licitacionId]);
 
   useEffect(() => {
-    if (isOpen) {
-      setResult(null);
-      doSearch('search');
-      // Load already-merged IDs from licitacion metadata
-      fetch(`/api/licitaciones/${licitacionId}`, { credentials: 'include' })
-        .then(r => r.json())
-        .then(lic => {
-          const merges = lic?.metadata?.cross_source_merges || [];
-          setMergedIds(new Set(merges.map((m: any) => m.from_id)));
-        })
-        .catch(() => {});
-    }
+    if (isOpen) { setResult(null); doSearch(); }
     return () => abortRef.current?.abort();
-  }, [isOpen, doSearch, licitacionId]);
-
-  const handleAction = async (matchId: string, action: string) => {
-    setActionLoading(matchId);
-    try {
-      if (action === 'merge') {
-        const res = await fetch(`/api/licitaciones/${licitacionId}/hunter`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          credentials: 'include',
-          body: JSON.stringify({ action: 'merge', related_id: matchId }),
-        });
-        if (!res.ok) throw new Error(`HTTP ${res.status}`);
-        const data = await res.json();
-        showToast(`✓ Fusionado: ${(data.fields_merged || []).join(', ')}`);
-        setMergedIds(prev => { const next = new Set(Array.from(prev)); next.add(matchId); return next; });
-        onMerge?.(matchId);
-      } else if (action === 'import') {
-        // Fetch the related item's items
-        const res = await fetch(`/api/licitaciones/${matchId}`, { credentials: 'include' });
-        if (!res.ok) throw new Error(`HTTP ${res.status}`);
-        const lic = await res.json();
-        const items = lic.items || [];
-        if (items.length > 0) {
-          onImportItems?.(items);
-          showToast(`✓ ${items.length} items importados`);
-        } else {
-          showToast('No hay items para importar', 'err');
-        }
-      }
-    } catch (e: any) {
-      showToast(e.message || 'Error', 'err');
-    } finally {
-      setActionLoading(null);
-    }
-  };
+  }, [isOpen, doSearch]);
 
   if (!isOpen) return null;
 
-  const stats = result?.search_stats;
-  const matches = (result?.matches || []);
-  const adjudicaciones = (result?.adjudicaciones || []);
-  const exactMatches = matches.filter(m => m.confidence === 'alta');
-  const similarMatches = matches.filter(m => m.confidence !== 'alta');
-  const allForPrices = [...matches, ...adjudicaciones].filter(m => m.budget);
-  const webSources = result?.web_sources || [];
-  const hasResults = matches.length > 0 || adjudicaciones.length > 0 || webSources.length > 0;
+  const pliego = result?.pliego;
+  const intel = result?.inteligencia;
+  const ants = result?.antecedentes;
 
   return (
     <>
-      {/* Backdrop */}
       <div className="fixed inset-0 bg-black/25 z-40" onClick={onClose} />
-
-      {/* Panel */}
-      <div className="fixed top-0 right-0 h-full w-full sm:w-[460px] bg-white shadow-2xl z-50 flex flex-col animate-slideIn">
+      <div className="fixed top-0 right-0 h-full w-full sm:w-[480px] bg-white shadow-2xl z-50 flex flex-col animate-slideIn">
         {/* Header */}
-        <div className="bg-amber-600 text-white px-5 py-4 flex items-center justify-between">
+        <div className="bg-amber-600 text-white px-5 py-3 flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <span className="text-2xl">🎯</span>
+            <span className="text-xl">🎯</span>
             <div>
               <h2 className="font-bold text-lg leading-tight">HUNTER</h2>
-              <p className="text-amber-100 text-xs">Búsqueda cross-source</p>
+              <p className="text-amber-100 text-xs">Investigacion de mercado</p>
             </div>
           </div>
           <button onClick={onClose} className="text-amber-200 hover:text-white text-xl p-1">✕</button>
         </div>
 
-        {/* Tabs */}
+        {/* 3 Tabs */}
         <div className="flex border-b border-gray-200 bg-gray-50">
-          <button
-            onClick={() => setTab('pliego')}
-            className={`flex-1 py-2.5 text-sm font-semibold transition-colors ${
-              tab === 'pliego'
-                ? 'text-amber-700 border-b-2 border-amber-500 bg-white'
-                : 'text-gray-500 hover:text-gray-700'
-            }`}
-          >
-            🔍 Buscar Pliego
-          </button>
-          <button
-            onClick={() => setTab('precios')}
-            className={`flex-1 py-2.5 text-sm font-semibold transition-colors ${
-              tab === 'precios'
-                ? 'text-amber-700 border-b-2 border-amber-500 bg-white'
-                : 'text-gray-500 hover:text-gray-700'
-            }`}
-          >
-            💰 Comparar Precios
-          </button>
+          {([
+            ['pliego', '📄 Pliego'],
+            ['inteligencia', '💰 Inteligencia'],
+            ['antecedentes', '🏢 Antecedentes'],
+          ] as [string, string][]).map(([key, label]) => (
+            <button key={key} onClick={() => setTab(key as any)}
+              className={`flex-1 py-2 text-xs font-semibold transition-colors ${
+                tab === key ? 'text-amber-700 border-b-2 border-amber-500 bg-white' : 'text-gray-500 hover:text-gray-700'
+              }`}>
+              {label}
+              {key === 'pliego' && pliego && pliego.documents.length > 0 && (
+                <span className="ml-1 bg-emerald-100 text-emerald-700 px-1 py-0.5 rounded-full text-[9px]">{pliego.documents.length}</span>
+              )}
+              {key === 'inteligencia' && intel && (intel.referencias.length + intel.adjudicaciones.length) > 0 && (
+                <span className="ml-1 bg-blue-100 text-blue-700 px-1 py-0.5 rounded-full text-[9px]">{intel.referencias.length + intel.adjudicaciones.length}</span>
+              )}
+              {key === 'antecedentes' && ants && ants.empresa.length > 0 && (
+                <span className="ml-1 bg-purple-100 text-purple-700 px-1 py-0.5 rounded-full text-[9px]">{ants.empresa.length}</span>
+              )}
+            </button>
+          ))}
         </div>
 
-        {/* Stats bar */}
-        {stats && (
-          <div className="flex items-center gap-3 px-5 py-2 bg-amber-50 border-b border-amber-100 text-xs text-amber-800">
-            <span className="font-semibold">{stats.sources_searched || 0} fuentes</span>
-            <span className="text-amber-300">|</span>
-            <span className="font-semibold">{stats.total_matches || 0} resultados</span>
-            <span className="text-amber-300">|</span>
-            <span className="truncate text-amber-600">{(stats.strategies_used || []).join(', ') || 'buscando...'}</span>
-          </div>
-        )}
-
         {/* Content */}
-        <div className="flex-1 overflow-y-auto px-5 py-4 space-y-5">
-          {/* Loading */}
+        <div className="flex-1 overflow-y-auto px-4 py-4 space-y-4">
           {loading && (
-            <div className="flex flex-col items-center justify-center py-12 text-amber-600">
-              <div className="w-10 h-10 border-3 border-amber-300 border-t-amber-600 rounded-full animate-spin mb-4" />
-              <p className="font-semibold">🎯 Buscando en todas las fuentes...</p>
-              <p className="text-xs text-gray-400 mt-1">Esto puede tomar unos segundos</p>
+            <div className="flex flex-col items-center py-12 text-amber-600">
+              <div className="w-8 h-8 border-3 border-amber-300 border-t-amber-600 rounded-full animate-spin mb-3" />
+              <p className="font-semibold text-sm">Buscando en todas las fuentes...</p>
             </div>
           )}
-
-          {/* Error */}
           {error && !loading && (
-            <div className="bg-red-50 border border-red-200 rounded-xl p-4 text-red-700 text-sm">
-              ⚠ {error}
-              <button onClick={() => doSearch('search')} className="ml-2 underline">Reintentar</button>
+            <div className="bg-red-50 border border-red-200 rounded-lg p-3 text-red-700 text-xs">
+              {error} <button onClick={doSearch} className="ml-2 underline">Reintentar</button>
             </div>
           )}
 
-          {/* ── TAB: Buscar Pliego ── */}
-          {tab === 'pliego' && !loading && !error && (
+          {/* ═══ TAB: PLIEGO ═══ */}
+          {tab === 'pliego' && !loading && pliego && (
             <>
-              {/* Exact matches */}
-              {exactMatches.length > 0 && (
-                <section>
-                  <h3 className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">
-                    Fuentes del proceso
-                  </h3>
-                  <div className="space-y-3">
-                    {exactMatches.map(m => (
-                      <MatchCard key={m.id} m={m} mode={mode} onAction={handleAction} actionLoading={actionLoading} alreadyMerged={mergedIds.has(m.id)} />
-                    ))}
+              {pliego.documents.length > 0 ? (
+                <div className="space-y-1.5">
+                  {pliego.documents.map((p, i) => (
+                    <a key={i} href={p.url} target="_blank" rel="noopener noreferrer"
+                      className="flex items-center gap-2 bg-white border border-gray-200 rounded-lg px-3 py-2 hover:bg-blue-50 transition-colors text-xs">
+                      <span className="text-red-500">📄</span>
+                      <span className="flex-1 font-medium text-gray-800 truncate">{p.name}</span>
+                      <span className={`px-1.5 py-0.5 rounded text-[9px] font-medium ${p.priority <= 3 ? 'bg-emerald-100 text-emerald-700' : 'bg-gray-100 text-gray-500'}`}>{p.label}</span>
+                    </a>
+                  ))}
+                </div>
+              ) : (
+                <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 space-y-2">
+                  <p className="text-xs font-semibold text-amber-800">No se encontraron pliegos</p>
+                  <ul className="text-[10px] text-amber-700 space-y-1 list-disc list-inside">
+                    <li>URLs del portal de compras pueden haber expirado</li>
+                    <li>Contrataciones Directas pueden no publicarse en vista publica</li>
+                  </ul>
+                  <div className="flex gap-2 pt-1">
+                    <a href="https://comprar.mendoza.gov.ar" target="_blank" rel="noopener noreferrer"
+                      className="text-[10px] px-2 py-1 bg-white border border-amber-300 text-amber-700 rounded hover:bg-amber-50">COMPR.AR</a>
+                    <a href="https://comprasapps.mendoza.gov.ar" target="_blank" rel="noopener noreferrer"
+                      className="text-[10px] px-2 py-1 bg-white border border-amber-300 text-amber-700 rounded hover:bg-amber-50">ComprasApps</a>
                   </div>
-                </section>
-              )}
-
-              {/* Adjudicaciones */}
-              {adjudicaciones.length > 0 && (
-                <section>
-                  <h3 className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">
-                    Adjudicaciones con precios
-                  </h3>
-                  <div className="space-y-3">
-                    {adjudicaciones.map(m => (
-                      <MatchCard key={m.id} m={m} mode={mode} onAction={handleAction} actionLoading={actionLoading} alreadyMerged={mergedIds.has(m.id)} />
-                    ))}
-                  </div>
-                </section>
-              )}
-
-              {/* Similar matches */}
-              {similarMatches.length > 0 && (
-                <section>
-                  <h3 className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">
-                    Resultados similares
-                  </h3>
-                  <div className="space-y-3">
-                    {similarMatches.map(m => (
-                      <MatchCard key={m.id} m={m} mode={mode} onAction={handleAction} actionLoading={actionLoading} alreadyMerged={mergedIds.has(m.id)} />
-                    ))}
-                  </div>
-                </section>
-              )}
-
-              {/* Web sources from description URLs */}
-              {(result?.web_sources || []).length > 0 && (
-                <section>
-                  <h3 className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">
-                    🌐 Sitios web relacionados
-                  </h3>
-                  <div className="space-y-2">
-                    {(result?.web_sources || []).map((ws, i) => (
-                      <div key={i} className="bg-blue-50 border border-blue-200 rounded-xl p-3">
-                        <div className="flex items-center gap-2 mb-1">
-                          <span className="text-[10px] bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full font-medium">
-                            {ws.type === 'pdf' ? '📄 PDF' : '🌐 Web'}
-                          </span>
-                          {ws.page_title && <span className="text-xs text-gray-700 font-medium">{ws.page_title}</span>}
-                        </div>
-                        <a href={ws.source} target="_blank" rel="noopener noreferrer" className="text-xs text-blue-600 hover:underline break-all">
-                          {ws.source}
-                        </a>
-                        {ws.text && <p className="text-xs text-gray-500 mt-1 line-clamp-2">{ws.text.substring(0, 150)}...</p>}
-                        {ws.pdf_links && ws.pdf_links.length > 0 && (
-                          <div className="mt-2 space-y-1">
-                            {ws.pdf_links.map((pl, j) => (
-                              <a key={j} href={pl.url} target="_blank" rel="noopener noreferrer"
-                                className="flex items-center gap-1 text-xs text-blue-700 hover:underline">
-                                📎 {pl.text || 'Descargar PDF'}
-                              </a>
-                            ))}
-                          </div>
-                        )}
-                      </div>
-                    ))}
-                  </div>
-                </section>
-              )}
-
-              {/* Empty */}
-              {!hasResults && !(result?.web_sources || []).length && (
-                <div className="text-center py-10">
-                  <p className="text-3xl mb-3">🎯</p>
-                  <p className="text-gray-600 font-medium">No se encontraron fuentes</p>
-                  <p className="text-gray-400 text-sm mt-1">Probá buscar más profundo</p>
                 </div>
               )}
-
-              {/* Deep search button */}
-              <button
-                onClick={() => doSearch('deep_search')}
-                disabled={loading}
-                className="w-full py-3 text-sm font-semibold text-amber-700 bg-amber-50 hover:bg-amber-100 border border-amber-200 rounded-xl transition-colors disabled:opacity-50"
-              >
-                🔄 Buscar más profundo
-              </button>
+              {pliego.text_extracted && (
+                <div className="bg-gray-50 border border-gray-200 rounded-lg p-3">
+                  <p className="text-[10px] font-semibold text-gray-500 uppercase mb-1">Texto del pliego ({pliego.text_extracted.length} chars)</p>
+                  <p className="text-xs text-gray-600 line-clamp-4">{pliego.text_extracted.substring(0, 300)}...</p>
+                </div>
+              )}
+              {pliego.hint && <p className="text-xs text-amber-600 bg-amber-50 rounded-lg px-3 py-2">{pliego.hint}</p>}
             </>
           )}
 
-          {/* ── TAB: Comparar Precios ── */}
-          {tab === 'precios' && !loading && !error && (
+          {/* ═══ TAB: INTELIGENCIA ═══ */}
+          {tab === 'inteligencia' && !loading && intel && (
             <>
-              {allForPrices.length > 0 ? (
-                <>
-                  {/* Price range summary at top */}
-                  {(() => {
-                    const budgets = allForPrices.map(m => m.budget!).sort((a, b) => a - b);
-                    const min = budgets[0];
-                    const max = budgets[budgets.length - 1];
-                    const median = budgets[Math.floor(budgets.length / 2)];
-                    return (
-                      <div className="bg-amber-50 border border-amber-200 rounded-xl p-4">
-                        <h4 className="text-xs font-bold text-amber-800 uppercase mb-2">Rango de precios</h4>
-                        <div className="flex justify-between text-sm mb-1">
-                          <span className="text-gray-600">Min: {fmt(min)}</span>
-                          <span className="font-bold text-amber-700">Mediana: {fmt(median)}</span>
-                          <span className="text-gray-600">Max: {fmt(max)}</span>
-                        </div>
-                        <div className="h-2 bg-amber-200 rounded-full overflow-hidden mt-2">
-                          <div className="h-full bg-amber-500 rounded-full" style={{ width: '60%' }} />
-                        </div>
-                        <p className="text-xs text-amber-700 mt-2">
-                          {budgets.length} referencia{budgets.length !== 1 ? 's' : ''}
-                        </p>
-                      </div>
-                    );
-                  })()}
+              {/* Price range */}
+              {intel.price_range && (
+                <div className="bg-emerald-50 border border-emerald-200 rounded-lg p-3">
+                  <p className="text-[10px] font-semibold text-emerald-800 uppercase mb-2">Rango de precios ({intel.price_range.sample_size} refs)</p>
+                  <div className="flex justify-between text-xs mb-1">
+                    <span className="text-gray-600">Min: {fmt(intel.price_range.min)}</span>
+                    <span className="font-bold text-emerald-700">Mediana: {fmt(intel.price_range.median)}</span>
+                    <span className="text-gray-600">Max: {fmt(intel.price_range.max)}</span>
+                  </div>
+                  <div className="h-1.5 bg-emerald-200 rounded-full"><div className="h-full bg-emerald-500 rounded-full" style={{ width: '60%' }} /></div>
+                </div>
+              )}
 
-                  {/* Detailed price cards */}
-                  <section className="space-y-2">
-                    <h3 className="text-xs font-bold text-gray-500 uppercase tracking-wider">
-                      Detalle de referencias
-                    </h3>
-                    {allForPrices.map(m => (
-                      <div key={m.id} className="bg-white border border-gray-200 rounded-xl p-3 hover:shadow-sm transition-shadow">
-                        <div className="flex items-start justify-between gap-2">
-                          <div className="flex-1 min-w-0">
-                            <p className="text-xs font-semibold text-gray-900 leading-tight truncate">{m.title}</p>
-                            <p className="text-[10px] text-gray-500 mt-0.5">
-                              {m.organization && <span>{m.organization} — </span>}
-                              <span className={`px-1 py-0.5 rounded ${fuenteColor[m.fuente] || 'bg-gray-100 text-gray-600'}`}>{m.fuente}</span>
-                            </p>
+              {/* Adjudicaciones */}
+              {intel.adjudicaciones.length > 0 && (
+                <div>
+                  <p className="text-[10px] font-semibold text-gray-500 uppercase mb-2">Adjudicaciones ({intel.adjudicaciones.length})</p>
+                  <div className="space-y-2">
+                    {intel.adjudicaciones.map(a => (
+                      <div key={a.id} className="bg-white border border-gray-200 rounded-lg p-3">
+                        <p className="text-xs font-semibold text-gray-900 truncate">{a.title}</p>
+                        <p className="text-[10px] text-gray-500">{a.organization}</p>
+                        <div className="flex items-center justify-between mt-1.5">
+                          <div>
+                            {a.adjudicatario && <span className="text-[10px] bg-violet-100 text-violet-700 px-1.5 py-0.5 rounded font-medium mr-1">🏆 {a.adjudicatario}</span>}
+                            {a.monto_adjudicado && <span className="text-xs font-bold text-emerald-700">{fmt(a.monto_adjudicado)}</span>}
+                            {!a.monto_adjudicado && a.budget && <span className="text-xs font-bold text-emerald-700">{fmt(a.budget)}</span>}
                           </div>
-                          <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-medium shrink-0 ${confBadge[m.confidence] || confBadge.baja}`}>
-                            {m.confidence}
-                          </span>
-                        </div>
-                        <div className="flex items-center justify-between mt-2">
-                          <span className="text-base font-bold text-emerald-700">{fmt(m.budget, m.currency)}</span>
-                          <div className="flex items-center gap-2">
-                            {m.items_count > 0 && (
-                              <span className="text-[10px] bg-purple-50 text-purple-700 px-1.5 py-0.5 rounded-full">{m.items_count} items</span>
-                            )}
-                            <a href={`/licitacion/${m.id}`} target="_blank" rel="noopener noreferrer"
-                              className="text-[10px] text-blue-600 hover:underline">Ver</a>
-                            {mode === 'cotizar' && m.items_count > 0 && (
-                              <button onClick={() => handleAction(m.id, 'import')}
-                                disabled={actionLoading === m.id}
-                                className="text-[10px] font-medium px-2 py-1 rounded bg-amber-500 text-white hover:bg-amber-600 disabled:opacity-50">
-                                Importar items
-                              </button>
-                            )}
+                          <div className="flex items-center gap-1">
+                            <span className={`text-[9px] px-1.5 py-0.5 rounded-full ${fuenteColor[a.fuente] || 'bg-gray-100 text-gray-600'}`}>{a.fuente}</span>
+                            <a href={`/licitacion/${a.id}`} target="_blank" rel="noopener noreferrer" className="text-[10px] text-blue-600 hover:underline">Ver</a>
                           </div>
                         </div>
-                        {m.description_preview && (
-                          <p className="text-[10px] text-gray-400 mt-1.5 line-clamp-1">{m.description_preview}</p>
-                        )}
                       </div>
                     ))}
-                  </section>
-                </>
+                  </div>
+                </div>
+              )}
+
+              {/* Proveedores frecuentes */}
+              {intel.proveedores.length > 0 && (
+                <div>
+                  <p className="text-[10px] font-semibold text-gray-500 uppercase mb-2">Proveedores frecuentes</p>
+                  <div className="space-y-1">
+                    {intel.proveedores.slice(0, 5).map(p => (
+                      <div key={p.name} className="flex items-center justify-between bg-gray-50 rounded-lg px-3 py-2 text-xs">
+                        <span className="font-medium text-gray-800">{p.name}</span>
+                        <span className="text-gray-500">{p.count} adj. {p.total > 0 && `· ${fmt(p.total)}`}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Referencias */}
+              {intel.referencias.length > 0 && (
+                <div>
+                  <p className="text-[10px] font-semibold text-gray-500 uppercase mb-2">Referencias de precios ({intel.referencias.length})</p>
+                  <div className="space-y-1.5">
+                    {intel.referencias.slice(0, 10).map(r => (
+                      <div key={r.id} className="flex items-center justify-between bg-white border border-gray-100 rounded-lg px-3 py-2 text-xs">
+                        <div className="flex-1 min-w-0 mr-2">
+                          <p className="text-gray-800 font-medium truncate">{r.title}</p>
+                          <p className="text-[10px] text-gray-400">{r.organization} · {r.fuente}</p>
+                        </div>
+                        <div className="text-right shrink-0">
+                          <span className="font-bold text-emerald-700">{fmt(r.budget, r.currency)}</span>
+                          {r.items_count > 0 && <span className="text-[9px] text-purple-600 ml-1">{r.items_count}it</span>}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {!intel.price_range && intel.referencias.length === 0 && intel.adjudicaciones.length === 0 && (
+                <div className="text-center py-8">
+                  <p className="text-2xl mb-2">💰</p>
+                  <p className="text-gray-500 text-sm">No se encontraron referencias de precios</p>
+                </div>
+              )}
+            </>
+          )}
+
+          {/* ═══ TAB: ANTECEDENTES ═══ */}
+          {tab === 'antecedentes' && !loading && ants && (
+            <>
+              {ants.empresa.length > 0 ? (
+                <div className="space-y-2">
+                  <p className="text-[10px] font-semibold text-gray-500 uppercase">Proyectos de la empresa ({ants.empresa.length})</p>
+                  {ants.empresa.map(a => (
+                    <div key={a.id} className={`bg-white border rounded-lg p-3 ${a.vinculado ? 'border-emerald-300 bg-emerald-50/30' : 'border-gray-200'}`}>
+                      <div className="flex items-start gap-2">
+                        {a.image_url && (
+                          <img src={a.image_url} alt="" className="w-12 h-9 object-cover rounded border border-gray-200 shrink-0"
+                            onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }} />
+                        )}
+                        <div className="flex-1 min-w-0">
+                          {a.detail_url ? (
+                            <a href={a.detail_url} target="_blank" rel="noopener noreferrer" className="text-xs font-semibold text-blue-700 hover:underline leading-tight">{a.title}</a>
+                          ) : (
+                            <p className="text-xs font-semibold text-gray-900 leading-tight">{a.title}</p>
+                          )}
+                          <p className="text-[10px] text-gray-500 mt-0.5">{a.organization}</p>
+                          <div className="flex items-center gap-1.5 mt-1">
+                            {a.category && <span className="text-[9px] bg-blue-50 text-blue-700 px-1.5 py-0.5 rounded">{a.category}</span>}
+                            {(a.budget_adjusted || a.budget) && <span className="text-[9px] bg-emerald-50 text-emerald-700 px-1.5 py-0.5 rounded font-medium">{fmt(a.budget_adjusted || a.budget)}</span>}
+                            {a.vinculado && <span className="text-[9px] bg-emerald-100 text-emerald-700 px-1.5 py-0.5 rounded font-medium">Vinculado</span>}
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
               ) : (
-                <div className="text-center py-10">
-                  <p className="text-3xl mb-3">💰</p>
-                  <p className="text-gray-600 font-medium">No se encontraron precios de referencia</p>
-                  <button
-                    onClick={() => doSearch('deep_search')}
-                    className="mt-3 text-sm text-amber-600 hover:text-amber-700 underline"
-                  >
-                    Buscar mas profundo
-                  </button>
+                <div className="text-center py-8">
+                  <p className="text-2xl mb-2">🏢</p>
+                  <p className="text-gray-500 text-sm">No se encontraron antecedentes relevantes</p>
                 </div>
               )}
             </>
@@ -575,18 +299,12 @@ export default function HunterPanel({ licitacionId, mode, isOpen, onClose, onMer
 
         {/* Toast */}
         {toast && (
-          <div className={`absolute bottom-6 left-4 right-4 py-3 px-4 rounded-xl text-sm font-medium shadow-lg text-white ${
-            toast.type === 'ok' ? 'bg-emerald-500' : 'bg-red-500'
-          }`}>
+          <div className={`absolute bottom-6 left-4 right-4 py-3 px-4 rounded-xl text-sm font-medium shadow-lg text-white ${toast.type === 'ok' ? 'bg-emerald-500' : 'bg-red-500'}`}>
             {toast.msg}
           </div>
         )}
       </div>
-
-      <style>{`
-        @keyframes slideIn { from { transform: translateX(100%); } to { transform: translateX(0); } }
-        .animate-slideIn { animation: slideIn 0.25s ease-out; }
-      `}</style>
+      <style>{`@keyframes slideIn { from { transform: translateX(100%); } to { transform: translateX(0); } } .animate-slideIn { animation: slideIn 0.25s ease-out; }`}</style>
     </>
   );
 }
