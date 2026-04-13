@@ -156,6 +156,7 @@ export default function OfertaEditor({ licitacion, onSaved }: Props) {
   const [priceInstruction, setPriceInstruction] = useState('');
   const [adjustingPrices, setAdjustingPrices] = useState(false);
   const [contractMonths, setContractMonths] = useState(12);
+  const [monthlyViewActive, setMonthlyViewActive] = useState(false);
   const [suggestingPropuesta, setSuggestingPropuesta] = useState(false);
   const [antecedentes, setAntecedentes] = useState<Antecedente[]>([]);
   const [loadingAntecedentes, setLoadingAntecedentes] = useState(false);
@@ -967,7 +968,7 @@ export default function OfertaEditor({ licitacion, onSaved }: Props) {
                         const data = await res.json();
                         if (data.items) {
                           setItems(data.items);
-                          alert(`Prorrateado: ${data.months} meses, $${Math.round(data.monthly_budget).toLocaleString('es-AR')}/mes por item`);
+                          setMonthlyViewActive(true);
                         }
                       }
                     }} className="text-[10px] px-2.5 py-1 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium">
@@ -1061,6 +1062,68 @@ export default function OfertaEditor({ licitacion, onSaved }: Props) {
               </div>
             ))}
           </div>
+
+          {/* Monthly view toggle */}
+          {monthlyViewActive && (
+            <div className="flex items-center justify-between bg-blue-50 border border-blue-200 rounded-lg px-3 py-2 mb-2">
+              <span className="text-xs font-semibold text-blue-800">
+                Vista mensual: {contractMonths} meses · {formatARS(subtotal / contractMonths)}/mes total
+              </span>
+              <button onClick={() => setMonthlyViewActive(false)} className="text-[10px] text-blue-600 hover:text-blue-800 underline">
+                Volver a vista normal
+              </button>
+            </div>
+          )}
+
+          {/* Monthly grid view */}
+          {monthlyViewActive && (
+            <div className="overflow-x-auto mb-4 border border-blue-200 rounded-xl">
+              <table className="w-full text-xs border-collapse">
+                <thead>
+                  <tr className="bg-blue-600 text-white">
+                    <th className="text-left py-2 px-2 sticky left-0 bg-blue-600 z-10 min-w-[200px]">Item</th>
+                    {Array.from({length: contractMonths}, (_, i) => (
+                      <th key={i} className="text-right py-2 px-2 min-w-[90px]">Mes {i + 1}</th>
+                    ))}
+                    <th className="text-right py-2 px-3 min-w-[100px] bg-blue-700">TOTAL</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {items.filter(it => it.descripcion.trim()).map((item, idx) => {
+                    const itemTotal = (item.cantidad || 0) * (item.precio_unitario || 0);
+                    const perMonth = itemTotal / contractMonths;
+                    return (
+                      <tr key={idx} className={idx % 2 === 0 ? 'bg-white' : 'bg-blue-50/30'}>
+                        <td className="py-2 px-2 font-medium text-gray-800 sticky left-0 bg-inherit z-10 border-r border-blue-100 truncate max-w-[200px]" title={item.descripcion}>
+                          {idx + 1}. {item.descripcion}
+                        </td>
+                        {Array.from({length: contractMonths}, (_, i) => (
+                          <td key={i} className="py-2 px-2 text-right text-gray-700 whitespace-nowrap">
+                            {formatARS(perMonth)}
+                          </td>
+                        ))}
+                        <td className="py-2 px-3 text-right font-bold text-blue-800 whitespace-nowrap bg-blue-50">
+                          {formatARS(itemTotal)}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                  {/* Totals row */}
+                  <tr className="border-t-2 border-blue-300 bg-blue-100 font-bold">
+                    <td className="py-2 px-2 sticky left-0 bg-blue-100 z-10 text-blue-900">TOTAL MENSUAL</td>
+                    {Array.from({length: contractMonths}, (_, i) => (
+                      <td key={i} className="py-2 px-2 text-right text-blue-900 whitespace-nowrap">
+                        {formatARS(subtotal / contractMonths)}
+                      </td>
+                    ))}
+                    <td className="py-2 px-3 text-right text-blue-900 whitespace-nowrap bg-blue-200 text-sm">
+                      {formatARS(subtotal)}
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          )}
 
           {/* Desktop: table */}
           <div className="hidden sm:block overflow-x-auto">
