@@ -798,7 +798,18 @@ async def hunter_unified(body: Dict[str, Any], request: Request):
     from datetime import datetime, timezone, timedelta
     cache = cot.get("hunter_cache")
     cache_at = cot.get("hunter_cache_at")
-    if cache and cache_at and (datetime.now(timezone.utc) - cache_at) < timedelta(hours=1):
+    if cache and cache_at:
+      try:
+        # Handle both naive and aware datetimes from MongoDB
+        now = datetime.now(timezone.utc)
+        if cache_at.tzinfo is None:
+            cache_at = cache_at.replace(tzinfo=timezone.utc)
+        cache_valid = (now - cache_at) < timedelta(hours=1)
+      except Exception:
+        cache_valid = False
+    else:
+      cache_valid = False
+    if cache_valid:
         if action == "full" or action in cache:
             return cache
 
