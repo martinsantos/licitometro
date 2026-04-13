@@ -155,6 +155,7 @@ export default function OfertaEditor({ licitacion, onSaved }: Props) {
   const [showPriceTools, setShowPriceTools] = useState(false);
   const [priceInstruction, setPriceInstruction] = useState('');
   const [adjustingPrices, setAdjustingPrices] = useState(false);
+  const [contractMonths, setContractMonths] = useState(12);
   const [suggestingPropuesta, setSuggestingPropuesta] = useState(false);
   const [antecedentes, setAntecedentes] = useState<Antecedente[]>([]);
   const [loadingAntecedentes, setLoadingAntecedentes] = useState(false);
@@ -948,9 +949,34 @@ export default function OfertaEditor({ licitacion, onSaved }: Props) {
 
               {showPriceTools && (
                 <div className="space-y-2 pt-1 border-t border-amber-200">
+                  {/* Monthly proration */}
+                  <div className="flex gap-2 items-center">
+                    <span className="text-[10px] text-amber-700 shrink-0">Prorratear mensual:</span>
+                    <select value={contractMonths} onChange={e => setContractMonths(parseInt(e.target.value))}
+                      className="text-xs border border-amber-300 rounded px-2 py-1 bg-white">
+                      {[1,2,3,6,9,12,18,24,36].map(m => <option key={m} value={m}>{m} {m === 1 ? 'mes' : 'meses'}</option>)}
+                    </select>
+                    <button onClick={async () => {
+                      const po = budgetOverride ?? budgetHints?.budget ?? licitacion.budget ?? 0;
+                      if (!po) { alert('No hay PO definido'); return; }
+                      const res = await fetch('/api/cotizar-ai/adjust-prices', {
+                        method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ items, budget: po, iva_rate: ivaRate, action: 'prorate_monthly', months: contractMonths, percentage: 100 }),
+                      });
+                      if (res.ok) {
+                        const data = await res.json();
+                        if (data.items) {
+                          setItems(data.items);
+                          alert(`Prorrateado: ${data.months} meses, $${Math.round(data.monthly_budget).toLocaleString('es-AR')}/mes por item`);
+                        }
+                      }
+                    }} className="text-[10px] px-2.5 py-1 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium">
+                      Aplicar
+                    </button>
+                  </div>
                   {/* Scale to custom target */}
                   <div className="flex gap-2 items-center">
-                    <span className="text-[10px] text-amber-700 shrink-0">Distribuir para llegar a:</span>
+                    <span className="text-[10px] text-amber-700 shrink-0">Total objetivo:</span>
                     <input type="number" placeholder="Ej: 120000000"
                       className="flex-1 text-xs border border-amber-300 rounded px-2 py-1"
                       onKeyDown={(e) => {
@@ -964,6 +990,7 @@ export default function OfertaEditor({ licitacion, onSaved }: Props) {
                         }
                       }}
                     />
+                    <span className="text-[9px] text-amber-500">Enter para aplicar</span>
                   </div>
                   {/* AI instruction */}
                   <div className="flex gap-2">

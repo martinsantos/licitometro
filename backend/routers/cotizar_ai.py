@@ -238,6 +238,38 @@ Responde SOLO JSON valido (sin markdown):
             return {"items": result, "method": "ai_adjusted"}
         return {"error": "AI no pudo ajustar precios", "raw": content[:300]}
 
+    elif action == "prorate_monthly":
+        # Distribute budget across items AND months
+        months = int(body.get("months", 12))
+        if months < 1:
+            months = 1
+        n = len(items)
+        if target <= 0:
+            target = budget_sin_iva * (percentage / 100)
+        monthly_budget = target / months
+        share_per_item_month = monthly_budget / n if n > 0 else 0
+        result_items = []
+        for it in items:
+            qty = float(it.get("cantidad", 1)) or 1
+            # precio_unitario = price per unit per month × months / qty
+            # total per item = share_per_item_month × months
+            # precio_unitario = (share_per_item_month × months) / qty
+            # But if qty represents months already, just use share
+            unit = (it.get("unidad") or "").lower()
+            if "mes" in unit or "month" in unit:
+                # Quantity IS months — price per month
+                result_items.append({**it, "precio_unitario": round(share_per_item_month, 2)})
+            else:
+                # Quantity is units — distribute across all months
+                result_items.append({**it, "precio_unitario": round((share_per_item_month * months) / qty, 2)})
+        return {
+            "items": result_items,
+            "method": "monthly",
+            "months": months,
+            "monthly_budget": round(monthly_budget, 2),
+            "target": target,
+        }
+
     return {"error": f"Action '{action}' not supported"}
 
 
