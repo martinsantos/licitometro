@@ -115,12 +115,32 @@ class CrossSourceService:
             if not base.get(field) and related.get(field):
                 updates[field] = related[field]
 
-        # Merge attached_files
+        # Merge attached_files (filter by compatible domain)
         base_files = base.get("attached_files") or []
         related_files = related.get("attached_files") or []
         if related_files:
+            from urllib.parse import urlparse
+            # Get base domain for compatibility check
+            base_source = base.get("source_url", "")
+            base_domain = urlparse(base_source).netloc.lower() if base_source else ""
+            base_org = (base.get("organization") or "").lower()
+
             existing_urls = {f.get("url") for f in base_files if f.get("url")}
-            new_files = [f for f in related_files if f.get("url") and f.get("url") not in existing_urls]
+            new_files = []
+            for f in related_files:
+                url = f.get("url", "")
+                if not url or url in existing_urls:
+                    continue
+                # Skip files from clearly incompatible domains
+                file_domain = urlparse(url).netloc.lower()
+                if file_domain and base_domain:
+                    # Allow same domain or gov.ar subdomains
+                    if file_domain != base_domain and not any(
+                        d in file_domain for d in [base_domain.split(".")[0], "comprar.mendoza"]
+                    ):
+                        logger.debug(f"Skipping incompatible attached file: {file_domain} vs {base_domain}")
+                        continue
+                new_files.append(f)
             if new_files:
                 updates["attached_files"] = base_files + new_files
 

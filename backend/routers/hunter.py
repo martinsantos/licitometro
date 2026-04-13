@@ -200,6 +200,7 @@ async def _scrape_description_urls(base: dict) -> List[dict]:
         return []
 
     results = []
+    seen_urls = set()
     for raw_url in urls[:5]:  # Max 5 URLs
         url = raw_url.rstrip(".,;:")
         # Skip gazette PDFs and known non-pliego URLs

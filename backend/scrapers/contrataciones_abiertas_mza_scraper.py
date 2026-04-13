@@ -180,6 +180,64 @@ class ContratacionesAbiertasMzaScraper(BaseScraper):
             from utils.object_extractor import extract_objeto
             objeto = extract_objeto(title, description[:1000] if description else "", None)
 
+            # Extract awards and contracts (previously dormant OCDS data)
+            awards = release.get("awards", [])
+            contracts = release.get("contracts", [])
+            adjudicatario = None
+            monto_adjudicado = None
+            fecha_adjudicacion = None
+            proveedores = []
+
+            for award in awards:
+                if award.get("status") in ("active", ""):
+                    # Award amount
+                    award_val = award.get("value", {})
+                    if award_val.get("amount"):
+                        try:
+                            monto_adjudicado = float(award_val["amount"])
+                        except (ValueError, TypeError):
+                            pass
+                    # Award date
+                    if award.get("date"):
+                        fecha_adjudicacion = self._parse_ocds_date(award["date"])
+                    # Suppliers
+                    for supplier in award.get("suppliers", []):
+                        name = supplier.get("name", "")
+                        if name:
+                            proveedores.append(name)
+                            if not adjudicatario:
+                                adjudicatario = name
+
+            # Fallback: check contracts if no awards
+            if not adjudicatario:
+                for contract in contracts:
+                    contract_val = contract.get("value", {})
+                    if contract_val.get("amount") and not monto_adjudicado:
+                        try:
+                            monto_adjudicado = float(contract_val["amount"])
+                        except (ValueError, TypeError):
+                            pass
+                    if contract.get("dateSigned") and not fecha_adjudicacion:
+                        fecha_adjudicacion = self._parse_ocds_date(contract["dateSigned"])
+
+            # Determine status from awards
+            ocds_status = "active"
+            if any(a.get("status") == "active" for a in awards):
+                ocds_status = "awarded"
+
+            meta = {
+                "ocds_ocid": ocid,
+                "ocds_method": proc_method,
+            }
+            if adjudicatario:
+                meta["adjudicatario"] = adjudicatario
+            if monto_adjudicado:
+                meta["monto_adjudicado"] = monto_adjudicado
+            if fecha_adjudicacion:
+                meta["fecha_adjudicacion"] = fecha_adjudicacion.isoformat()
+            if proveedores:
+                meta["proveedores"] = proveedores
+
             return LicitacionCreate(
                 id_licitacion=id_licitacion,
                 title=title[:500],
@@ -196,11 +254,8 @@ class ContratacionesAbiertasMzaScraper(BaseScraper):
                 estado=estado,
                 objeto=objeto,
                 fecha_prorroga=None,
-                status="active",
-                metadata={
-                    "ocds_ocid": ocid,
-                    "ocds_method": proc_method,
-                },
+                status=ocds_status,
+                metadata=meta,
             )
         except Exception as e:
             logger.warning(f"Error parsing OCDS release: {e}")

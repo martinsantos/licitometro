@@ -149,6 +149,38 @@ async def find_pliegos(db, licitacion_id: str, http_session=None) -> dict:
         except Exception as e:
             logger.warning(f"Failed to fetch source_url for pliegos: {e}")
 
+    # Strategy 2b: If no pliegos found yet and we have a licitacion_number,
+    # search our DB for other items with same/similar number that DO have pliegos
+    if not all_pliegos and lic.get("licitacion_number"):
+        try:
+            lic_num = lic["licitacion_number"]
+            # Extract base number (before CUC suffix)
+            base_num = lic_num.split("-")[0] if "-" in lic_num else lic_num
+            if len(base_num) >= 3:
+                similar = await db.licitaciones.find({
+                    "licitacion_number": {"$regex": re.escape(base_num), "$options": "i"},
+                    "_id": {"$ne": lic["_id"]},
+                    "attached_files": {"$exists": True, "$ne": []},
+                }).limit(5).to_list(5)
+                for sim in similar:
+                    for f in (sim.get("attached_files") or []):
+                        url = f.get("url", "")
+                        if url and url not in seen_urls:
+                            seen_urls.add(url)
+                            priority, label = classify_pliego(f.get("name", ""))
+                            all_pliegos.append({
+                                "name": f.get("name", ""),
+                                "url": url,
+                                "type": f.get("type", "pdf"),
+                                "priority": priority,
+                                "label": f"De {sim.get('fuente', 'otra fuente')}: {label}",
+                                "source": f"db_cross:{sim.get('fuente', '')}",
+                            })
+                if all_pliegos:
+                    logger.info(f"Strategy 2b: found {len(all_pliegos)} pliegos from DB by lic_number {base_num}")
+        except Exception as e:
+            logger.warning(f"Strategy 2b failed: {e}")
+
     # Detect ALL connected sources (not just primary fuente)
     fuente = str(lic.get("fuente", "")).lower()
     all_fuentes = " ".join([fuente] + [f.lower() for f in (lic.get("fuentes") or [])])
