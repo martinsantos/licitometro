@@ -838,48 +838,45 @@ p {{ orphans: 3; widows: 3; }}
 /* ─── Table of Contents ─── */
 .toc {{
     page-break-after: always;
-    padding-top: 40px;
+    padding-top: 60px;
 }}
 .toc-title {{
-    font-size: 18pt;
+    font-size: 20pt;
     font-weight: 800;
-    color: #1d4ed8;
+    color: #0f172a;
     text-transform: uppercase;
-    letter-spacing: 0.08em;
-    margin-bottom: 30px;
-    padding-bottom: 10px;
-    border-bottom: 3px solid #dbeafe;
+    letter-spacing: 0.1em;
+    margin-bottom: 40px;
+}}
+.toc-list {{
+    list-style: none;
+    padding: 0;
+    margin: 0;
 }}
 .toc-item {{
     display: flex;
-    align-items: baseline;
-    gap: 8px;
-    padding: 10px 0;
-    border-bottom: 1px solid #f3f4f6;
+    align-items: center;
+    padding: 12px 16px;
+    margin-bottom: 2px;
+    border-radius: 8px;
     text-decoration: none;
     color: #1f2937;
 }}
-.toc-item:hover {{
-    background: #f9fafb;
+.toc-item:nth-child(odd) {{
+    background: #f8fafc;
 }}
 .toc-num {{
-    font-size: 11pt;
+    font-size: 13pt;
     font-weight: 700;
     color: #1d4ed8;
-    min-width: 28px;
+    width: 36px;
+    text-align: center;
+    flex-shrink: 0;
 }}
 .toc-label {{
     font-size: 11.5pt;
     font-weight: 500;
-    flex: 1;
-}}
-.toc-dots {{
-    flex: 1;
-    border-bottom: 1px dotted #d1d5db;
-    min-width: 30px;
-    margin: 0 4px;
-    position: relative;
-    top: -4px;
+    color: #374151;
 }}
 
 /* ─── Diagrams — full page ─── */
@@ -943,7 +940,9 @@ p {{ orphans: 3; widows: 3; }}
 <!-- Table of Contents -->
 <div class="toc">
     <div class="toc-title">Indice</div>
-    {"".join(f'<div class="toc-item"><span class="toc-num">{i+1}</span><span class="toc-label">{_escape(t)}</span><span class="toc-dots"></span></div>' for i, t in enumerate(toc_entries))}
+    <div class="toc-list">
+        {"".join(f'<div class="toc-item"><span class="toc-num">{i+1}</span><span class="toc-label">{_escape(t)}</span></div>' for i, t in enumerate(toc_entries))}
+    </div>
 </div>
 
 <!-- Sections -->
