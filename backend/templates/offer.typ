@@ -176,7 +176,7 @@
       fill: gradient.linear(brand_primary, brand_accent),
     )[
       #set text(26pt, fill: white, weight: "extrabold")
-      #align(center + horizon)[#company_name.slice(0, calc.min(2, company_name.len())).to-uppercase()]
+      #align(center + horizon)[#upper(company_name.slice(0, calc.min(2, company_name.len())))]
     ]
   }
 
