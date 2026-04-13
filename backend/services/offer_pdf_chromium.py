@@ -330,6 +330,20 @@ def build_offer_html(cotizacion: dict, licitacion: dict, company_profile: dict =
     auto_diagrams = auto_select_diagrams(sections, template_type)
     fig_num = 1
 
+    # Pre-scan sections for TOC (table of contents)
+    toc_entries = []
+    for sec in sorted(sections, key=lambda s: s.get("order", 0)):
+        slug = sec.get("slug", "")
+        content = (sec.get("content") or "").strip()
+        title = sec.get("title", slug)
+        if slug == "portada":
+            continue
+        content_clean = re.sub(r'\[Error[^\]]*\]', '', content).strip()
+        content_clean = re.sub(r'\[Completar[^\]]*\]', '', content_clean).strip()
+        if not content_clean and slug != "oferta_economica":
+            continue
+        toc_entries.append(title)
+
     # Build sections HTML
     sections_html = []
     num = 1
@@ -364,7 +378,7 @@ def build_offer_html(cotizacion: dict, licitacion: dict, company_profile: dict =
                 </tr>'''
 
             sections_html.append(f'''
-            <div class="section">
+            <div class="section section-pagebreak">
                 <div class="section-header"><span class="section-num">{num}</span> OFERTA ECONOMICA</div>
                 <table class="items-table">
                     <thead><tr>
@@ -398,13 +412,13 @@ def build_offer_html(cotizacion: dict, licitacion: dict, company_profile: dict =
             </div>''')
         elif slug in ("antecedentes", "perfil_empresa", "antecedentes_empresa"):
             sections_html.append(f'''
-            <div class="section">
+            <div class="section section-pagebreak">
                 <div class="section-header"><span class="section-num">{num}</span> {title.upper()}</div>
                 <div class="section-body">{_render_antecedentes(content)}</div>
             </div>''')
         elif content:
             sections_html.append(f'''
-            <div class="section">
+            <div class="section section-pagebreak">
                 <div class="section-header"><span class="section-num">{num}</span> {title.upper()}</div>
                 <div class="section-body">{_render_section_content(content, title)}</div>
             </div>''')
@@ -418,8 +432,10 @@ def build_offer_html(cotizacion: dict, licitacion: dict, company_profile: dict =
                     svg = generate_diagram(d_type, content, d_caption)
                     if svg:
                         sections_html.append(f'''
-                        <div class="diagram-container">
-                            {svg}
+                        <div class="diagram-page">
+                            <div class="diagram-container">
+                                {svg}
+                            </div>
                             <p class="diagram-caption">Fig. {fig_num} — {_escape(d_caption)}</p>
                         </div>''')
                         fig_num += 1
@@ -814,27 +830,89 @@ p {{ orphans: 3; widows: 3; }}
     flex-shrink: 0;
 }}
 
-/* ─── Diagrams ─── */
+/* ─── Section page breaks ─── */
+.section-pagebreak {{
+    page-break-before: always;
+}}
+
+/* ─── Table of Contents ─── */
+.toc {{
+    page-break-after: always;
+    padding-top: 40px;
+}}
+.toc-title {{
+    font-size: 18pt;
+    font-weight: 800;
+    color: #1d4ed8;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    margin-bottom: 30px;
+    padding-bottom: 10px;
+    border-bottom: 3px solid #dbeafe;
+}}
+.toc-item {{
+    display: flex;
+    align-items: baseline;
+    gap: 8px;
+    padding: 10px 0;
+    border-bottom: 1px solid #f3f4f6;
+    text-decoration: none;
+    color: #1f2937;
+}}
+.toc-item:hover {{
+    background: #f9fafb;
+}}
+.toc-num {{
+    font-size: 11pt;
+    font-weight: 700;
+    color: #1d4ed8;
+    min-width: 28px;
+}}
+.toc-label {{
+    font-size: 11.5pt;
+    font-weight: 500;
+    flex: 1;
+}}
+.toc-dots {{
+    flex: 1;
+    border-bottom: 1px dotted #d1d5db;
+    min-width: 30px;
+    margin: 0 4px;
+    position: relative;
+    top: -4px;
+}}
+
+/* ─── Diagrams — full page ─── */
+.diagram-page {{
+    page-break-before: always;
+    page-break-inside: avoid;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    min-height: 70vh;
+    padding: 20px 0;
+}}
 .diagram-container {{
-    margin: 16px 0;
-    padding: 16px 12px;
+    width: 100%;
+    padding: 24px 16px;
     background: linear-gradient(135deg, #f8fafc, #eff6ff);
     border: 1px solid #dbeafe;
-    border-radius: 10px;
+    border-radius: 12px;
     text-align: center;
-    page-break-inside: avoid;
 }}
 .diagram-container svg {{
-    max-width: 100%;
+    width: 100%;
     height: auto;
+    max-height: 65vh;
 }}
 .diagram-caption {{
-    font-size: 8px;
+    font-size: 10pt;
     color: #6b7280;
     text-align: center;
-    margin-top: 8px;
+    margin-top: 16px;
     font-style: italic;
-    letter-spacing: 0.05em;
+    letter-spacing: 0.03em;
 }}
 </style>
 </head>
@@ -860,6 +938,12 @@ p {{ orphans: 3; widows: 3; }}
         {"<div class='cover-website' style='font-size:10pt;color:" + brand_primary + ";font-weight:600;margin-top:2px'>" + _escape(brand_website) + "</div>" if brand_website else ""}
         <div class="cover-date">Mendoza, {fecha}</div>
     </div>
+</div>
+
+<!-- Table of Contents -->
+<div class="toc">
+    <div class="toc-title">Indice</div>
+    {"".join(f'<div class="toc-item"><span class="toc-num">{i+1}</span><span class="toc-label">{_escape(t)}</span><span class="toc-dots"></span></div>' for i, t in enumerate(toc_entries))}
 </div>
 
 <!-- Sections -->
