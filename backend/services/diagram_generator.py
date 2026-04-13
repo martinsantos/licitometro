@@ -367,21 +367,34 @@ def generate_risk_matrix_svg(title: str = "Matriz de Evaluación de Riesgos") ->
 # ═══════════════════════════════════════════════════════════════════
 
 def parse_etapas(content: str) -> List[dict]:
-    """Parse etapas from text: 'Etapa 1: Name (Dias X-Y)'."""
+    """Parse etapas from text: 'Etapa 1: Name (Dias/Semana X-Y)'."""
     etapas = []
     for line in content.split("\n"):
         line = line.strip()
+        # Strip markdown prefixes: ### , ## , **, *
+        line = re.sub(r'^#{1,4}\s*', '', line)
+        line = re.sub(r'^\*{1,2}', '', line)
+        line = re.sub(r'\*{1,2}$', '', line)
+        line = line.strip()
         name = start = end = None
 
-        # Pattern: "Etapa N: Name (Dias X a/- Y)" or "(X% - Dias X a Y)"
-        m = re.match(r'[Ee]tapa\s*\d*[.:]\s*(.+?)(?:\((?:\d+%?\s*[-–—]\s*)?[Dd]ias?\s*(\d+)\s*(?:a|al?|-|–)\s*(\d+)\))?$', line)
+        # Pattern: "Etapa N: Name (Dias/Semana X a/- Y)"
+        m = re.match(r'[Ee]tapa\s*\d*[.:]\s*(.+?)(?:\((?:\d+%?\s*[-–—]\s*)?(?:[Dd]ias?|[Ss]emanas?)\s*(\d+)\s*(?:a|al?|-|–)\s*(\d+)\))?$', line)
         if m:
             name = m.group(1).strip()
             start = int(m.group(2)) if m.group(2) else None
             end = int(m.group(3)) if m.group(3) else None
 
+        # Also match: "Fase N: Name" or "Fase N - Name"
         if not name:
-            m = re.match(r'(\d+)[.)]\s+(.+?)(?:\([Dd]ias?\s*(\d+)\s*[-–a]\s*(\d+)\))?$', line)
+            m = re.match(r'[Ff]ase\s*\d*[.:\-]\s*(.+?)(?:\((?:[Dd]ias?|[Ss]emanas?)\s*(\d+)\s*[-–a]\s*(\d+)\))?$', line)
+            if m:
+                name = m.group(1).strip()
+                start = int(m.group(2)) if m.group(2) else None
+                end = int(m.group(3)) if m.group(3) else None
+
+        if not name:
+            m = re.match(r'(\d+)[.)]\s+(.+?)(?:\((?:[Dd]ias?|[Ss]emanas?)\s*(\d+)\s*[-–a]\s*(\d+)\))?$', line)
             if m and len(m.group(2)) > 3:
                 name = m.group(2).strip()
                 start = int(m.group(3)) if m.group(3) else None
