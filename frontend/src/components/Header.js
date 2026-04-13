@@ -154,27 +154,36 @@ const Header = ({ userRole }) => {
                 {showAiDetail && (
                   <div className="absolute right-0 top-full mt-1 bg-slate-800 border border-slate-700 rounded-lg shadow-xl p-3 min-w-[220px] z-50">
                     <p className="text-xs font-semibold text-white mb-2">Consumo AI hoy</p>
-                    <div className="space-y-1.5">
+                    <div className="space-y-2">
                       <div className="flex justify-between text-xs">
-                        <span className="text-slate-400">Tokens</span>
-                        <span className="text-white font-mono">{(aiUsage.today_tokens || 0).toLocaleString()} / {((aiUsage.token_limit || 100000) / 1000).toFixed(0)}K</span>
-                      </div>
-                      <div className="h-1.5 bg-slate-700 rounded-full overflow-hidden">
-                        <div className={`h-full rounded-full ${aiStatusColor}`}
-                          style={{ width: `${Math.min(100, ((aiUsage.today_tokens || 0) / (aiUsage.token_limit || 100000)) * 100)}%` }} />
+                        <span className="text-slate-400">Tokens hoy</span>
+                        <span className="text-white font-mono">{(aiUsage.today_tokens || 0).toLocaleString()}</span>
                       </div>
                       <div className="flex justify-between text-xs">
                         <span className="text-slate-400">Llamadas</span>
                         <span className="text-white font-mono">{aiUsage.today_calls || 0}</span>
                       </div>
+                      {aiUsage.rate_limited > 0 && (
+                        <div className="bg-red-900/50 text-red-300 text-[10px] px-2 py-1 rounded">
+                          {aiUsage.rate_limited} llamada(s) rechazadas por limite
+                        </div>
+                      )}
                       {Object.entries(aiUsage.providers || {}).map(([name, data]) => (
-                        <div key={name} className="flex justify-between text-[10px] text-slate-500">
-                          <span>{name}</span>
-                          <span>{(data.tokens || 0).toLocaleString()} tok / {data.calls || 0} calls</span>
+                        <div key={name} className="flex justify-between text-[10px]">
+                          <span className="text-slate-400">{name}</span>
+                          <span className="text-slate-300 font-mono">{(data.tokens || 0).toLocaleString()} tok</span>
                         </div>
                       ))}
-                      <div className="pt-1 border-t border-slate-700 text-[10px] text-slate-500">
-                        Groq free: 100K tokens/dia
+                      <div className="pt-1.5 border-t border-slate-700 space-y-1">
+                        <p className="text-[10px] font-semibold text-slate-400">Cuotas diarias</p>
+                        <div className="flex justify-between text-[10px]">
+                          <span className="text-slate-500">Groq (llama-3.3-70b)</span>
+                          <span className="text-slate-400">100K tok/dia</span>
+                        </div>
+                        <div className="flex justify-between text-[10px]">
+                          <span className="text-slate-500">Cerebras (llama-3.1-8b)</span>
+                          <span className="text-slate-400">fallback ilimitado</span>
+                        </div>
                       </div>
                     </div>
                   </div>
