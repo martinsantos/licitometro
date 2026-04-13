@@ -119,6 +119,45 @@ class GroqEnrichmentService:
             logger.warning(f"Cerebras fallback failed: {e}")
             return None
 
+    async def _call_llm(self, messages: list, max_tokens: int = 800, temperature: float = 0.3, endpoint: str = "unknown") -> Optional[str]:
+        """Call LLM with automatic Groq → Cerebras fallback. Tracks usage."""
+        # Try Groq first
+        client = self._get_client()
+        if client:
+            try:
+                response = await asyncio.to_thread(
+                    client.chat.completions.create,
+                    model=GROQ_MODEL,
+                    messages=messages,
+                    max_tokens=max_tokens,
+                    temperature=temperature,
+                )
+                content = response.choices[0].message.content.strip()
+                tokens_used = getattr(response.usage, "total_tokens", 0) if hasattr(response, "usage") else 0
+                if self.db is not None:
+                    try:
+                        from services.ai_tracker import track_ai_call
+                        await track_ai_call(self.db, "groq", GROQ_MODEL, tokens_used, endpoint)
+                    except Exception:
+                        pass
+                return content
+            except Exception as e:
+                err_str = str(e)
+                logger.warning(f"Groq failed for {endpoint}: {err_str[:100]}")
+                if self.db is not None:
+                    try:
+                        from services.ai_tracker import track_ai_call
+                        await track_ai_call(self.db, "groq", GROQ_MODEL, 0, f"rate_limited:{endpoint}")
+                    except Exception:
+                        pass
+
+        # Fallback to Cerebras
+        result = await self._cerebras_completion(messages, max_tokens=max_tokens, temperature=temperature)
+        if result:
+            return result
+
+        return None
+
     def _extract_json(self, content: str, expect_array: bool = False):
         """Extract JSON object or array from LLM response text.
 
@@ -138,58 +177,34 @@ class GroqEnrichmentService:
         return None
 
     async def extract_objeto(self, title: str, description: str) -> Optional[str]:
-        """Extract objeto from title + description using Groq LLM.
-
-        Returns None on error or if Groq is not configured.
-        """
-        client = self._get_client()
-        if client is None:
-            return None
-
+        """Extract objeto from title + description using LLM."""
         try:
             text = f"{title}\n{description[:1000]}"
             prompt = PROMPT_OBJETO.format(text=text)
-
-            response = await asyncio.to_thread(
-                client.chat.completions.create,
-                model=GROQ_MODEL,
-                messages=[{"role": "user", "content": prompt}],
-                max_tokens=100,
-                temperature=0.1,
+            result = await self._call_llm(
+                [{"role": "user", "content": prompt}],
+                max_tokens=100, temperature=0.1, endpoint="extract_objeto",
             )
-            result = response.choices[0].message.content.strip()
-            # Clean up any artifacts
-            result = result.strip('"\'').strip()
-            if result and len(result) > 5:
-                return result[:200]
+            if result:
+                result = result.strip('"\'').strip()
+                if len(result) > 5:
+                    return result[:200]
             return None
         except Exception as e:
             logger.warning(f"Groq extract_objeto failed (will use fallback): {e}")
             return None
 
     async def extract_items_from_pliego(self, pliego_text: str) -> List[dict]:
-        """Extract bid items from pliego text using Groq LLM.
-
-        Returns list of {descripcion, cantidad, unidad} dicts.
-        Returns empty list on error.
-        """
-        client = self._get_client()
-        if client is None:
-            return []
-
+        """Extract bid items from pliego text using LLM."""
         try:
-            text = pliego_text[:3000]  # Limit to avoid token overflow
+            text = pliego_text[:3000]
             prompt = PROMPT_ITEMS.format(text=text)
-
-            response = await asyncio.to_thread(
-                client.chat.completions.create,
-                model=GROQ_MODEL,
-                messages=[{"role": "user", "content": prompt}],
-                max_tokens=500,
-                temperature=0.1,
+            content = await self._call_llm(
+                [{"role": "user", "content": prompt}],
+                max_tokens=500, temperature=0.1, endpoint="extract_items",
             )
-            content = response.choices[0].message.content.strip()
-
+            if not content:
+                return []
             items = self._extract_json(content, expect_array=True)
             if items and isinstance(items, list):
                 # Validate and normalize
@@ -209,158 +224,84 @@ class GroqEnrichmentService:
 
 
     async def suggest_propuesta(self, context: str) -> Dict[str, Any]:
-        """Generate a technical proposal suggestion using AI."""
-        client = self._get_client()
-        if not client:
-            return {"metodologia": "", "plazo": "", "lugar": "", "notas": "", "error": "IA no disponible"}
-
+        """Generate a technical proposal suggestion using LLM."""
         try:
-            response = await asyncio.to_thread(
-                client.chat.completions.create,
-                model=GROQ_MODEL,
-                messages=[{"role": "user", "content": PROMPT_PROPUESTA.format(context=context)}],
-                max_tokens=800,
-                temperature=0.3,
+            content = await self._call_llm(
+                [{"role": "user", "content": PROMPT_PROPUESTA.format(context=context)}],
+                max_tokens=800, temperature=0.3, endpoint="suggest_propuesta",
             )
-            content = response.choices[0].message.content.strip()
+            if not content:
+                return {"metodologia": "", "plazo": "", "lugar": "", "notas": "", "error": "IA no disponible"}
             result = self._extract_json(content)
             if result and isinstance(result, dict) and "metodologia" in result:
                 return result
             return {"metodologia": content, "plazo": "", "lugar": "", "notas": ""}
         except Exception as e:
-            logger.warning(f"Groq suggest_propuesta failed: {e}")
+            logger.warning(f"suggest_propuesta failed: {e}")
             return {"metodologia": "", "plazo": "", "lugar": "", "notas": "", "error": str(e)}
 
     async def analyze_bid(self, context: str) -> Dict[str, Any]:
-        """Run comprehensive AI analysis on a bid."""
-        client = self._get_client()
-        if not client:
-            return {
-                "precio": {"score": 0, "color": "red", "detail": "IA no disponible"},
-                "metodologia": {"score": 0, "color": "red", "detail": "IA no disponible"},
-                "empresa": {"score": 0, "color": "red", "detail": "IA no disponible"},
-                "cronograma": {"score": 0, "color": "red", "detail": "IA no disponible"},
-                "win_probability": 0,
-                "riesgos": [],
-                "recomendaciones": ["Configurar GROQ_API_KEY para habilitar análisis IA"],
-                "veredicto": "No disponible",
-                "resumen": "El servicio de IA no está configurado.",
-            }
-
-        try:
-            response = await asyncio.to_thread(
-                client.chat.completions.create,
-                model=GROQ_MODEL,
-                messages=[{"role": "user", "content": PROMPT_ANALYZE.format(context=context)}],
-                max_tokens=1000,
-                temperature=0.3,
-            )
-            content = response.choices[0].message.content.strip()
-            result = self._extract_json(content)
-            if result and isinstance(result, dict) and any(
-                k in result for k in ("precio", "win_probability", "veredicto")
-            ):
-                return result
-            return {"error": "Respuesta IA no válida", "raw": content[:500]}
-        except Exception as e:
-            logger.warning(f"Groq analyze_bid failed: {e}")
-            if "rate_limit" in str(e).lower() or "429" in str(e):
-                # Try Cerebras
-                cerebras_result = await self._cerebras_completion(
-                    [{"role": "user", "content": PROMPT_ANALYZE.format(context=context)}], max_tokens=1000
-                )
-                if cerebras_result:
-                    parsed = self._extract_json(cerebras_result)
-                    if parsed and isinstance(parsed, dict):
-                        return parsed
-            return {"error": "Limite de IA alcanzado. Intenta manana.", "veredicto": "No disponible", "resumen": "Cuota de IA agotada por hoy."}
+        """Run comprehensive AI analysis on a bid (Groq → Cerebras fallback)."""
+        content = await self._call_llm(
+            [{"role": "user", "content": PROMPT_ANALYZE.format(context=context)}],
+            max_tokens=1000, temperature=0.3, endpoint="analyze_bid",
+        )
+        if not content:
+            return {"error": "IA no disponible", "veredicto": "No disponible", "resumen": "Cuota de IA agotada."}
+        result = self._extract_json(content)
+        if result and isinstance(result, dict) and any(k in result for k in ("precio", "win_probability", "veredicto")):
+            return result
+        return {"error": "Respuesta IA no valida", "raw": content[:500]}
 
     async def extract_marco_legal(self, context: str) -> Dict[str, Any]:
-        """Extract legal framework analysis for bidding preparation."""
-        client = self._get_client()
-        if not client:
+        """Extract legal framework analysis (Groq → Cerebras fallback)."""
+        content = await self._call_llm(
+            [{"role": "user", "content": PROMPT_MARCO_LEGAL.format(context=context)}],
+            max_tokens=1200, temperature=0.2, endpoint="extract_marco_legal",
+        )
+        if not content:
             return {"error": "IA no disponible"}
-
-        try:
-            response = await asyncio.to_thread(
-                client.chat.completions.create,
-                model=GROQ_MODEL,
-                messages=[{"role": "user", "content": PROMPT_MARCO_LEGAL.format(context=context)}],
-                max_tokens=1200,
-                temperature=0.2,
-            )
-            content = response.choices[0].message.content.strip()
-            result = self._extract_json(content)
-            if result and isinstance(result, dict):
-                return result
-            return {"error": "Respuesta IA no válida", "raw": content[:500]}
-        except Exception as e:
-            logger.warning(f"Groq extract_marco_legal failed: {e}")
-            if "rate_limit" in str(e).lower() or "429" in str(e):
-                cerebras_result = await self._cerebras_completion(
-                    [{"role": "user", "content": PROMPT_MARCO_LEGAL.format(context=context)}], max_tokens=1200, temperature=0.2
-                )
-                if cerebras_result:
-                    parsed = self._extract_json(cerebras_result)
-                    if parsed and isinstance(parsed, dict):
-                        return parsed
-            return {"error": "Limite de IA alcanzado. Intenta manana."}
+        result = self._extract_json(content)
+        if result and isinstance(result, dict):
+            return result
+        return {"error": "Respuesta IA no valida", "raw": content[:500]}
 
     async def extract_pliego_info(self, pliego_text: str, known_fields: str = "") -> Dict[str, Any]:
-        """Deep extraction of pliego information for bidders."""
-        client = self._get_client()
-        if not client:
-            return {"error": "IA no disponible", "items": [], "info_faltante": []}
-
+        """Deep extraction of pliego information (Groq → Cerebras fallback)."""
         known_section = ""
         if known_fields:
-            known_section = f"""
-DATOS YA CONFIRMADOS (NO listar como faltantes):
-{known_fields}
-"""
+            known_section = f"\nDATOS YA CONFIRMADOS (NO listar como faltantes):\n{known_fields}\n"
 
         prompt = f"""Eres un analista experto en licitaciones públicas argentinas. Analiza EXHAUSTIVAMENTE el siguiente texto y extrae TODA la información relevante para que una empresa pueda armar su cotización (cuadro de precios).
 
 INSTRUCCIONES CRÍTICAS:
-1. ITEMS/RENGLONES: Extrae TODOS los items, renglones o rubros que el oferente debe cotizar. Incluye descripción completa, cantidad exacta y unidad. Si el pliego lista subitems o especificaciones técnicas por item, incluirlas en la descripción.
-2. REQUISITOS TÉCNICOS: Extrae requisitos técnicos REALES del texto (certificaciones, normas, especificaciones). NO inventes requisitos genéricos.
+1. ITEMS/RENGLONES: Extrae TODOS los items, renglones o rubros que el oferente debe cotizar. Incluye descripción completa, cantidad exacta y unidad.
+2. REQUISITOS TÉCNICOS: Extrae requisitos técnicos REALES del texto. NO inventes requisitos genéricos.
 3. DOCUMENTACIÓN: Lista SOLO la documentación que el pliego EXPLÍCITAMENTE requiere.
-4. INFO FALTANTE: Lista ÚNICAMENTE datos que genuinamente NO aparecen en el texto NI en DATOS CONFIRMADOS. Si el pliego es completo, devuelve lista vacía [].
-5. TIPO DE DOCUMENTO: Si el texto es un decreto, resolución, o boletín oficial (NO un pliego de licitación), indicá en info_faltante UN SOLO item: "Este documento es un decreto/resolución, no un pliego de licitación. Para cotizar, busque el pliego específico del proceso." NO listes requisitos genéricos como faltantes.
+4. INFO FALTANTE: Lista ÚNICAMENTE datos que genuinamente NO aparecen en el texto. Si el pliego es completo, devuelve lista vacía [].
+5. TIPO DE DOCUMENTO: Si es un decreto/resolución (NO un pliego), indicá en info_faltante: "Este documento es un resumen de datos, no un pliego de licitación. Para cotizar, busque el pliego específico del proceso."
 {known_section}
 TEXTO DEL PLIEGO:
 {pliego_text[:30000]}
 
 Responde SOLO con JSON válido (sin markdown, sin backticks):
-{{"items": [{{"descripcion": "Descripción completa del item/renglón", "cantidad": 1, "unidad": "u."}}], "requisitos_tecnicos": ["Requisito extraído del texto"], "documentacion_requerida": ["Doc requerida en el pliego"], "plazo_ejecucion": "Plazo si aparece en el texto", "lugar_entrega": "Lugar si aparece", "garantias": {{"oferta": "5%", "cumplimiento": "10%"}}, "presupuesto_oficial": null, "fecha_apertura": null, "condiciones_especiales": ["Condición especial del pliego"], "info_faltante": ["SOLO datos genuinamente ausentes del pliego"]}}"""
+{{"items": [{{"descripcion": "Descripción completa", "cantidad": 1, "unidad": "u."}}], "requisitos_tecnicos": ["Requisito del texto"], "documentacion_requerida": ["Doc requerida"], "plazo_ejecucion": "Plazo si aparece", "lugar_entrega": "Lugar si aparece", "garantias": {{"oferta": "5%", "cumplimiento": "10%"}}, "presupuesto_oficial": null, "fecha_apertura": null, "condiciones_especiales": ["Condición especial"], "info_faltante": ["SOLO datos ausentes"]}}"""
 
-        try:
-            response = await asyncio.to_thread(
-                client.chat.completions.create,
-                model=GROQ_MODEL,
-                messages=[{"role": "user", "content": prompt}],
-                max_tokens=2500,
-                temperature=0.2,
-            )
-            content = response.choices[0].message.content.strip()
-            result = self._extract_json(content)
-            if result and isinstance(result, dict):
-                # Normalize items
-                if "items" in result:
-                    result["items"] = [
-                        {
-                            "descripcion": str(it.get("descripcion", ""))[:200],
-                            "cantidad": float(it.get("cantidad", 1) or 1),
-                            "unidad": str(it.get("unidad", "u."))[:20],
-                        }
-                        for it in result["items"]
-                        if isinstance(it, dict) and it.get("descripcion")
-                    ][:50]
-                return result
-            return {"error": "Respuesta IA no válida", "items": [], "info_faltante": []}
-        except Exception as e:
-            logger.warning(f"Groq extract_pliego_info failed: {e}")
-            return {"error": str(e), "items": [], "info_faltante": []}
+        content = await self._call_llm(
+            [{"role": "user", "content": prompt}],
+            max_tokens=2500, temperature=0.2, endpoint="extract_pliego_info",
+        )
+        if not content:
+            return {"error": "IA no disponible", "items": [], "info_faltante": []}
+        result = self._extract_json(content)
+        if result and isinstance(result, dict):
+            if "items" in result:
+                result["items"] = [
+                    {"descripcion": str(it.get("descripcion", ""))[:200], "cantidad": float(it.get("cantidad", 1) or 1), "unidad": str(it.get("unidad", "u."))[:20]}
+                    for it in result["items"] if isinstance(it, dict) and it.get("descripcion")
+                ][:50]
+            return result
+        return {"error": "Respuesta IA no valida", "items": [], "info_faltante": []}
 
 
     async def _cached_call(self, db, prompt: str, max_tokens: int = 800, temperature: float = 0.3) -> Optional[str]:
