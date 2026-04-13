@@ -155,6 +155,144 @@ class ComprarPliegoDownloader:
 
         return downloaded
 
+    async def search_by_number_authenticated(self, numero: str, domain: str = "comprar.mendoza.gov.ar") -> Optional[str]:
+        """Search COMPR.AR by process number using AUTHENTICATED session.
+
+        Uses the internal Compras.aspx list (not citizen BuscarAvanzado2).
+        This finds processes not visible in the public citizen search,
+        like Contrataciones Directas.
+
+        Returns: pliego URL if found, None otherwise.
+        """
+        self.base_url = f"https://{domain}"
+        self.domain = domain
+        await self._load_credentials()
+        if not self.user or not self.password:
+            logger.warning(f"No credentials for {domain}")
+            return None
+
+        jar = aiohttp.CookieJar(unsafe=True)
+        headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"}
+        connector = aiohttp.TCPConnector(ssl=False)
+
+        try:
+            async with aiohttp.ClientSession(headers=headers, cookie_jar=jar, connector=connector) as session:
+                # 1. Login
+                if not await self._login(session):
+                    return None
+
+                await asyncio.sleep(self.AUTH_DELAY)
+
+                # 2. Navigate to internal Compras.aspx list
+                list_url = f"{self.base_url}/Compras.aspx"
+                async with session.get(list_url) as resp:
+                    if resp.status != 200:
+                        logger.warning(f"Failed to load Compras.aspx: {resp.status}")
+                        return None
+                    list_html = (await resp.read()).decode("utf-8", errors="replace")
+
+                soup = BeautifulSoup(list_html, "html.parser")
+
+                # 3. Search the grid for our process number
+                # The grid shows processes — scan rows for matching number
+                found_target = None
+                for row in soup.find_all("tr"):
+                    cells = row.find_all("td")
+                    row_text = " ".join(c.get_text(strip=True) for c in cells)
+                    # Match process number in row text
+                    if numero in row_text:
+                        # Find the link/postback in this row
+                        for a in row.find_all("a", href=True):
+                            href = a.get("href", "")
+                            if "__doPostBack" in href:
+                                m = re.search(r"__doPostBack\('([^']+)'", href)
+                                if m:
+                                    found_target = m.group(1)
+                                    break
+                            elif "VistaPreviaPliego" in href:
+                                pliego_url = href if href.startswith("http") else f"{self.base_url}/{href.lstrip('/')}"
+                                logger.info(f"Found direct pliego link for {numero}: {pliego_url[:80]}")
+                                return pliego_url
+                        break
+
+                if not found_target:
+                    # Try paginating through up to 5 pages
+                    for page_num in range(2, 6):
+                        await asyncio.sleep(self.AUTH_DELAY)
+                        fields = self._extract_hidden_fields(soup)
+                        # ASP.NET pager postback
+                        fields["__EVENTTARGET"] = f"ctl00$CPH1$GridListaPliegos"
+                        fields["__EVENTARGUMENT"] = f"Page${page_num}"
+
+                        async with session.post(list_url, data=fields) as resp:
+                            if resp.status != 200:
+                                break
+                            list_html = (await resp.read()).decode("utf-8", errors="replace")
+
+                        soup = BeautifulSoup(list_html, "html.parser")
+                        for row in soup.find_all("tr"):
+                            cells = row.find_all("td")
+                            row_text = " ".join(c.get_text(strip=True) for c in cells)
+                            if numero in row_text:
+                                for a in row.find_all("a", href=True):
+                                    href = a.get("href", "")
+                                    if "__doPostBack" in href:
+                                        m = re.search(r"__doPostBack\('([^']+)'", href)
+                                        if m:
+                                            found_target = m.group(1)
+                                            break
+                                    elif "VistaPreviaPliego" in href:
+                                        pliego_url = href if href.startswith("http") else f"{self.base_url}/{href.lstrip('/')}"
+                                        return pliego_url
+                                break
+                        if found_target:
+                            break
+
+                if not found_target:
+                    logger.info(f"Process {numero} not found in authenticated Compras.aspx (5 pages)")
+                    return None
+
+                # 4. Postback to process detail
+                await asyncio.sleep(self.AUTH_DELAY)
+                fields = self._extract_hidden_fields(soup)
+                fields["__EVENTTARGET"] = found_target
+                fields["__EVENTARGUMENT"] = ""
+
+                async with session.post(list_url, data=fields, allow_redirects=False) as resp:
+                    if resp.status == 302:
+                        location = resp.headers.get("Location", "")
+                        if "VistaPreviaPliego" in location:
+                            pliego_url = location if location.startswith("http") else f"{self.base_url}/{location.lstrip('/')}"
+                            logger.info(f"Authenticated search found pliego for {numero}: {pliego_url[:80]}")
+                            return pliego_url
+
+                    # Follow to the detail page and look for pliego link
+                    if resp.status in (200, 302):
+                        detail_html = ""
+                        if resp.status == 302:
+                            loc = resp.headers.get("Location", "")
+                            detail_url = loc if loc.startswith("http") else f"{self.base_url}/{loc.lstrip('/')}"
+                            async with session.get(detail_url) as dr:
+                                detail_html = (await dr.read()).decode("utf-8", errors="replace")
+                        else:
+                            detail_html = (await resp.read()).decode("utf-8", errors="replace")
+
+                        # Find VistaPreviaPliego links in the detail page
+                        detail_soup = BeautifulSoup(detail_html, "html.parser")
+                        for a in detail_soup.find_all("a", href=True):
+                            href = a.get("href", "")
+                            if "VistaPreviaPliego" in href:
+                                pliego_url = href if href.startswith("http") else f"{self.base_url}/{href.lstrip('/')}"
+                                logger.info(f"Found pliego link in detail page for {numero}")
+                                return pliego_url
+
+                logger.info(f"Process {numero} found but no pliego link in detail page")
+                return None
+
+        except Exception as e:
+            logger.error(f"Authenticated search for {numero} failed: {e}")
+            return None
+
     async def _update_credential_status(self, status: str):
         """Update last_status on the matching credential."""
         if self.db is not None and self.domain:

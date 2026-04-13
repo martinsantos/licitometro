@@ -100,16 +100,19 @@ async def _hunt_all_portals(db, lic: dict, seen_urls: set) -> list:
                         f"https://{domain}/Compras.aspx?qs=W1HXHGHtH10=",
                     )
 
+                if not resolved_url:
+                    # Citizen search failed — try AUTHENTICATED internal search
+                    logger.info(f"HUNT COMPR.AR {domain}: citizen search failed, trying authenticated Compras.aspx")
+                    from services.comprar_pliego_downloader import ComprarPliegoDownloader
+                    downloader = ComprarPliegoDownloader(db)
+                    resolved_url = await downloader.search_by_number_authenticated(lic_num, domain)
+
                 if resolved_url:
-                    logger.info(f"HUNT COMPR.AR {domain}: resolved pliego URL from search")
-                    # Update the licitacion with the fresh URL
+                    logger.info(f"HUNT COMPR.AR {domain}: resolved pliego URL")
                     await db.licitaciones.update_one(
                         {"_id": lic["_id"]},
-                        {"$set": {
-                            "metadata.comprar_pliego_url": resolved_url,
-                        }}
+                        {"$set": {"metadata.comprar_pliego_url": resolved_url}}
                     )
-                    # Download anexos
                     from services.comprar_pliego_downloader import ComprarPliegoDownloader
                     downloader = ComprarPliegoDownloader(db)
                     pliegos = await downloader.download_anexos(resolved_url)
@@ -119,7 +122,6 @@ async def _hunt_all_portals(db, lic: dict, seen_urls: set) -> list:
                             p["source"] = f"hunt:COMPR.AR {domain}"
                             results.append(p)
                     if not pliegos:
-                        # At least return the resolved URL as a link
                         priority, label = classify_pliego("Pliego")
                         results.append({
                             "name": f"Pliego COMPR.AR ({lic_num})",
@@ -130,7 +132,7 @@ async def _hunt_all_portals(db, lic: dict, seen_urls: set) -> list:
                             "source": f"hunt:COMPR.AR {domain}",
                         })
                 else:
-                    logger.info(f"HUNT COMPR.AR {domain}: process '{lic_num}' not found in portal search")
+                    logger.info(f"HUNT COMPR.AR {domain}: process '{lic_num}' not found (citizen + authenticated)")
             except Exception as e:
                 logger.warning(f"HUNT COMPR.AR {domain} failed: {e}")
 
