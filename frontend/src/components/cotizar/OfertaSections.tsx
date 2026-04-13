@@ -179,10 +179,14 @@ export default function OfertaSections({ licitacionId, sections, onSectionsChang
     }
   }, [licitacionId, api]);
 
-  // Auto-search pliegos on mount
+  // Auto-search pliegos on mount (once only)
+  const didAutoSearch = React.useRef(false);
   useEffect(() => {
-    if (!pliegoSearched) handleFindPliegos();
-  }, [pliegoSearched, handleFindPliegos]);
+    if (!didAutoSearch.current && !pliegoSearched) {
+      didAutoSearch.current = true;
+      handleFindPliegos();
+    }
+  }, []); // run once on mount
 
   // Manual pliego upload (supports multiple files)
   const handleUploadPliegos = useCallback(async (files: FileList) => {
