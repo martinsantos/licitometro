@@ -132,8 +132,8 @@ async def generate_pdf(licitacion_id: str, request: Request):
     # Load company profile for brand identity
     company_profile = await db.company_profiles.find_one({"company_id": "default"})
 
-    from services.offer_pdf_typst import generate_offer_pdf_typst
-    pdf_bytes = generate_offer_pdf_typst(cot, lic, company_profile)
+    from services.offer_pdf_chromium import generate_offer_pdf_chromium
+    pdf_bytes = generate_offer_pdf_chromium(cot, lic, company_profile)
 
     filename = f"Oferta_{cot.get('licitacion_title', 'cotizacion')[:40]}.pdf".replace(" ", "_")
     return Response(

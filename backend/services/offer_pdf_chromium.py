@@ -38,8 +38,35 @@ def _escape(text: str) -> str:
     return (text or "").replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
 
 
-def _render_section_content(content: str) -> str:
-    """Convert plain text content to HTML paragraphs, bullets, bold, tables."""
+def _strip_redundant_title(content: str, section_title: str) -> str:
+    """Remove first non-empty line if it restates the section title."""
+    if not content or not section_title:
+        return content
+    lines = content.split("\n")
+    title_words = set(re.sub(r'[^\w\s]', '', section_title.lower()).split())
+    title_words.discard("")
+    if not title_words:
+        return content
+    for i, line in enumerate(lines):
+        stripped = line.strip()
+        if not stripped:
+            continue
+        line_words = set(re.sub(r'[^\w\s]', '', stripped.lower()).split())
+        line_words.discard("")
+        if not line_words:
+            break
+        if stripped.lower() == section_title.lower():
+            lines[i] = ""
+            break
+        overlap = len(title_words & line_words)
+        if len(title_words) > 0 and overlap / len(title_words) > 0.5:
+            lines[i] = ""
+        break
+    return "\n".join(lines)
+
+
+def _render_section_content(content: str, section_title: str = "") -> str:
+    """Convert plain text content to HTML paragraphs, bullets, bold, tables, headings."""
     if not content:
         return ""
 
@@ -47,11 +74,14 @@ def _render_section_content(content: str) -> str:
     content = re.sub(r'\[Completar[^\]]*\]', '', content)
     content = re.sub(r'\[Error:[^\]]*\]', '', content)
     content = re.sub(r'\[Error\s+api\s+\d+:[^\]]*\]', '', content)
-    # Remove AI instruction headers leaked into content
     content = re.sub(r'^PARRAFO\s+\d+\s*\([^)]*\)\s*$', '', content, flags=re.MULTILINE)
     content = re.sub(r'^\*\*PARRAFO\s+\d+[^*]*\*\*\s*$', '', content, flags=re.MULTILINE)
     content = re.sub(r'^\*\*(REFORMULACION|DESAFIOS|ALCANCE|SOLUCION|ARQUITECTURA|JUSTIFICACION|CONTEXTO|PROPUESTA)[^*]*\*\*\s*$', '', content, flags=re.MULTILINE)
     content = re.sub(r'^(REFORMULACION|DESAFIOS IMPLICITOS|ALCANCE PROPUESTO|SOLUCION PROPUESTA|ARQUITECTURA|JUSTIFICACION TECNICA|CONTEXTO|PROPUESTA CONCRETA|ENTREGABLE)\s*$', '', content, flags=re.MULTILINE)
+
+    # Strip redundant first line that repeats section title
+    if section_title:
+        content = _strip_redundant_title(content, section_title)
 
     lines = content.split("\n")
     html_parts = []
@@ -90,6 +120,22 @@ def _render_section_content(content: str) -> str:
                 continue
 
         flush_table()
+
+        # Headings: ## and ###
+        if line.startswith("### "):
+            heading_text = re.sub(r'\*\*(.+?)\*\*', r'<strong>\1</strong>', _escape(line[4:]))
+            html_parts.append(f'<h4 class="content-h4">{heading_text}</h4>')
+            continue
+        if line.startswith("## "):
+            heading_text = re.sub(r'\*\*(.+?)\*\*', r'<strong>\1</strong>', _escape(line[3:]))
+            html_parts.append(f'<h3 class="content-h3">{heading_text}</h3>')
+            continue
+
+        # Callout: > quote
+        if line.startswith("> "):
+            quote_text = re.sub(r'\*\*(.+?)\*\*', r'<strong>\1</strong>', _escape(line[2:]))
+            html_parts.append(f'<div class="callout">{quote_text}</div>')
+            continue
 
         # Bold: **text**
         line = re.sub(r'\*\*(.+?)\*\*', r'<strong>\1</strong>', _escape(line))
@@ -360,7 +406,7 @@ def build_offer_html(cotizacion: dict, licitacion: dict, company_profile: dict =
             sections_html.append(f'''
             <div class="section">
                 <div class="section-header"><span class="section-num">{num}</span> {title.upper()}</div>
-                <div class="section-body">{_render_section_content(content)}</div>
+                <div class="section-body">{_render_section_content(content, title)}</div>
             </div>''')
         else:
             continue
@@ -558,9 +604,32 @@ p {{ orphans: 3; widows: 3; }}
 }}
 .section-body p {{
     margin-bottom: 10px;
-    text-align: justify;
+    text-align: left;
     font-size: 11.5pt;
     line-height: 1.7;
+}}
+.content-h3 {{
+    font-size: 12pt;
+    font-weight: 700;
+    color: #1f2937;
+    margin: 18px 0 8px;
+    padding-bottom: 4px;
+    border-bottom: 1px solid #e5e7eb;
+}}
+.content-h4 {{
+    font-size: 11.5pt;
+    font-weight: 600;
+    color: #374151;
+    margin: 14px 0 6px;
+}}
+.callout {{
+    background: #f0f9ff;
+    border-left: 3px solid #3b82f6;
+    padding: 10px 14px;
+    margin: 10px 0;
+    font-size: 11pt;
+    color: #1e40af;
+    border-radius: 0 6px 6px 0;
 }}
 .section-body ul {{
     margin: 8px 0 12px 24px;
