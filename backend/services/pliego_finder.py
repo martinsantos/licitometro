@@ -626,16 +626,17 @@ async def find_pliegos(db, licitacion_id: str, http_session=None) -> dict:
     real_pliegos = [p for p in all_pliegos if p.get("type") != "metadata" and p.get("priority", 99) <= 6]
     only_generic = all_pliegos and not real_pliegos  # only boletines/generic attachments
 
+    lic_num = lic.get("licitacion_number", "")
     if not all_pliegos:
-        if has_comprasapps:
-            hint = "ComprasApps no tiene pliego descargable para esta licitacion. Descargalo desde el portal y subilo manualmente."
-        elif has_comprar:
-            hint = "COMPR.AR requiere sesion activa para acceder al pliego. Descargalo desde el portal y subilo manualmente."
+        if has_comprar:
+            hint = f"HUNTER busco en COMPR.AR (ciudadano + autenticado) sin resultados. Busca el proceso {lic_num} en comprar.mendoza.gov.ar y subi el pliego manualmente."
+        elif has_comprasapps:
+            hint = f"HUNTER busco en ComprasApps sin resultados. Busca el proceso {lic_num} en comprasapps.mendoza.gov.ar y subi el pliego."
         else:
-            hint = "No se encontraron pliegos. Subi el PDF del pliego manualmente."
+            hint = "HUNTER no encontro pliegos en ninguna fuente. Subi el PDF del pliego manualmente."
     elif only_generic:
         names = ", ".join(p.get("name", "?")[:30] for p in all_pliegos if p.get("type") != "metadata")
-        hint = f"Se encontraron adjuntos genericos ({names}) pero no el pliego especifico. Subi el PDF del pliego para mejor analisis."
+        hint = f"Solo se encontraron adjuntos genericos ({names}). Subi el pliego especifico para mejor analisis."
 
     return {
         "pliegos": all_pliegos,
