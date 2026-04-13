@@ -954,7 +954,7 @@ export default function OfertaEditor({ licitacion, onSaved }: Props) {
                     <span className="text-[10px] text-amber-700 shrink-0">Prorratear mensual:</span>
                     <select value={contractMonths} onChange={e => setContractMonths(parseInt(e.target.value))}
                       className="text-xs border border-amber-300 rounded px-2 py-1 bg-white">
-                      {[1,2,3,6,9,12,18,24,36].map(m => <option key={m} value={m}>{m} {m === 1 ? 'mes' : 'meses'}</option>)}
+                      {Array.from({length: 48}, (_, i) => i + 1).map(m => <option key={m} value={m}>{m} {m === 1 ? 'mes' : 'meses'}</option>)}
                     </select>
                     <button onClick={async () => {
                       const po = budgetOverride ?? budgetHints?.budget ?? licitacion.budget ?? 0;
