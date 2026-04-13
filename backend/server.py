@@ -278,6 +278,9 @@ async def startup_db_client():
         # AI cache with TTL (24 hours)
         await database.ai_cache.create_index("prompt_hash")
         await database.ai_cache.create_index("created_at", expireAfterSeconds=86400)
+        # AI usage tracking (7-day retention)
+        await database.ai_usage.create_index("created_at", expireAfterSeconds=604800)
+        await database.ai_usage.create_index([("created_at", -1), ("provider", 1)])
 
         logger.info("MongoDB indexes ensured")
     except Exception as e:

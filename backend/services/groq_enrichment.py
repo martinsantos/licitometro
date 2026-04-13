@@ -72,6 +72,7 @@ class GroqEnrichmentService:
         self._cerebras_key = os.getenv("CEREBRAS_API_KEY")
         self.enabled = bool(self._api_key) or bool(self._cerebras_key)
         self._client = None
+        self.db = None  # Set by caller for AI usage tracking
         if not self.enabled:
             logger.info("LLM enrichment disabled (no GROQ_API_KEY or CEREBRAS_API_KEY)")
 
@@ -103,7 +104,12 @@ class GroqEnrichmentService:
                     if resp.status == 200:
                         data = await resp.json()
                         content = data["choices"][0]["message"]["content"].strip()
+                        tokens_used = data.get("usage", {}).get("total_tokens", 0)
                         logger.info(f"Cerebras fallback succeeded ({len(content)} chars)")
+                        # Track usage
+                        if self.db:
+                            from services.ai_tracker import track_ai_call
+                            await track_ai_call(self.db, "cerebras", CEREBRAS_MODEL, tokens_used, "cerebras_fallback")
                         return content
                     else:
                         err = await resp.text()
@@ -383,6 +389,12 @@ Responde SOLO con JSON válido (sin markdown, sin backticks):
             temperature=temperature,
         )
         content = response.choices[0].message.content.strip()
+        tokens_used = getattr(response.usage, "total_tokens", 0) if hasattr(response, "usage") else 0
+
+        # Track AI usage
+        if db is not None:
+            from services.ai_tracker import track_ai_call
+            await track_ai_call(db, "groq", GROQ_MODEL, tokens_used, "cached_call")
 
         # Store in cache
         if db is not None and content:
@@ -502,7 +514,16 @@ CONTEXTO (UNICA fuente de verdad):
                     max_tokens=800,
                     temperature=0.15,
                 )
-                return response.choices[0].message.content.strip()
+                content = response.choices[0].message.content.strip()
+                tokens_used = getattr(response.usage, "total_tokens", 0) if hasattr(response, "usage") else 0
+                # Track usage
+                try:
+                    from services.ai_tracker import track_ai_call
+                    import asyncio as _aio
+                    _aio.ensure_future(track_ai_call(self.db, "groq", GROQ_MODEL, tokens_used, f"generate_section:{section_slug}"))
+                except Exception:
+                    pass
+                return content
             except Exception as e:
                 err_str = str(e)
                 logger.warning(f"Groq failed for {section_slug}: {err_str[:100]}")
@@ -520,8 +541,10 @@ CONTEXTO (UNICA fuente de verdad):
 _groq_service: Optional[GroqEnrichmentService] = None
 
 
-def get_groq_enrichment_service() -> GroqEnrichmentService:
+def get_groq_enrichment_service(db=None) -> GroqEnrichmentService:
     global _groq_service
     if _groq_service is None:
         _groq_service = GroqEnrichmentService()
+    if db is not None:
+        _groq_service.db = db
     return _groq_service

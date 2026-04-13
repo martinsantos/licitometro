@@ -136,9 +136,14 @@ const Header = ({ userRole }) => {
 
             {/* AI Usage indicator */}
             {aiUsage && (
-              <div className="flex items-center gap-1.5 px-2 py-1 ml-1 rounded-md bg-white/5 text-xs" title={`IA: ${aiUsage.today_calls} llamadas hoy (${aiUsage.provider})`}>
+              <div className="flex items-center gap-1.5 px-2 py-1 ml-1 rounded-md bg-white/5 text-xs"
+                title={`IA: ${aiUsage.today_calls} llamadas, ${(aiUsage.today_tokens || 0).toLocaleString()} tokens hoy`}>
                 <span className={`w-2 h-2 rounded-full ${aiStatusColor}`} />
-                <span className="text-slate-400 font-mono">{aiUsage.today_calls}</span>
+                <span className="text-slate-400 font-mono">
+                  {aiUsage.today_tokens > 0
+                    ? `${(aiUsage.today_tokens / 1000).toFixed(1)}K`
+                    : aiUsage.today_calls}
+                </span>
                 <span className="text-slate-500">AI</span>
               </div>
             )}
@@ -158,9 +163,12 @@ const Header = ({ userRole }) => {
           {/* Mobile: AI + hamburger */}
           <div className="lg:hidden flex items-center gap-2">
             {aiUsage && (
-              <div className="flex items-center gap-1 text-xs" title={`IA: ${aiUsage.today_calls} llamadas`}>
+              <div className="flex items-center gap-1 text-xs"
+                title={`IA: ${(aiUsage.today_tokens || 0).toLocaleString()} tokens`}>
                 <span className={`w-2 h-2 rounded-full ${aiStatusColor}`} />
-                <span className="text-slate-400 font-mono">{aiUsage.today_calls}</span>
+                <span className="text-slate-400 font-mono">
+                  {aiUsage.today_tokens > 0 ? `${(aiUsage.today_tokens / 1000).toFixed(1)}K` : aiUsage.today_calls}
+                </span>
               </div>
             )}
             <button

@@ -106,19 +106,21 @@ async def _get_company_context_str(db, organization: str = "", tipo_procedimient
 
 @router.get("/ai-usage")
 async def get_ai_usage(request: Request):
-    """Get AI usage stats for today (cached calls count)."""
-    from datetime import datetime, timezone, timedelta
+    """Get AI usage stats for today (all providers)."""
     db = request.app.mongodb
-    today_start = datetime.now(timezone.utc).replace(hour=0, minute=0, second=0, microsecond=0)
-    # Count cached AI calls today
-    today_calls = await db.ai_cache.count_documents({"created_at": {"$gte": today_start}})
-    # Groq free tier: ~14400 requests/day, ~100K tokens/day
+    from services.ai_tracker import get_usage_today
+    usage = await get_usage_today(db)
+    tokens = usage["today_tokens"]
+    calls = usage["today_calls"]
+    # Groq free tier: ~6000 requests/day, ~100K tokens/day
+    token_limit = 100000
+    status = "active" if tokens < 80000 else "near_limit" if tokens < token_limit else "exhausted"
     return {
-        "today_calls": today_calls,
-        "daily_limit": 14400,
-        "provider": "Groq",
-        "model": "llama-3.3-70b-versatile",
-        "status": "active" if today_calls < 14000 else "near_limit" if today_calls < 14400 else "exhausted",
+        "today_calls": calls,
+        "today_tokens": tokens,
+        "token_limit": token_limit,
+        "providers": usage.get("providers", {}),
+        "status": status,
     }
 
 
@@ -149,7 +151,7 @@ Presupuesto: ${lic.get('budget', 'N/A')}"""
     if company_ctx:
         context += f"\n\n{company_ctx}"
 
-    groq = get_groq_enrichment_service()
+    groq = get_groq_enrichment_service(db)
     result = await groq.suggest_propuesta(context)
     return result
 
@@ -323,7 +325,7 @@ Empresa: {body.get('empresa_nombre', 'N/A')}"""
     if company_ctx:
         context += f"\n\n{company_ctx}"
 
-    groq = get_groq_enrichment_service()
+    groq = get_groq_enrichment_service(db)
     return await groq.analyze_bid(context)
 
 
@@ -597,7 +599,7 @@ Gestion de configuracion:
         parts.append(f"\n{company_ctx}")
 
     context = "\n".join(parts)
-    groq = get_groq_enrichment_service()
+    groq = get_groq_enrichment_service(db)
     content = await groq.generate_offer_section(section_slug, context)
     return {"content": content, "section_slug": section_slug}
 
@@ -680,7 +682,7 @@ async def analyze_pliego_gaps(body: Dict[str, Any], request: Request):
 
     filled_slugs = [s.get("slug") for s in current_sections if s.get("content", "").strip()]
 
-    groq = get_groq_enrichment_service()
+    groq = get_groq_enrichment_service(db)
     client = groq._get_client()
     if not client:
         return {"gaps": [], "completeness": 0, "error": "IA no disponible"}
@@ -1102,7 +1104,7 @@ async def extract_pliego_info(body: Dict[str, Any], request: Request):
     if company_ctx:
         text += f"\n\n{company_ctx}"
 
-    groq = get_groq_enrichment_service()
+    groq = get_groq_enrichment_service(db)
     pliego_result = await groq.extract_pliego_info(text, known_fields=known_fields_text)
 
     # Persist pliego_info to metadata so budget-hints can use cached items
@@ -1317,7 +1319,7 @@ async def extract_marco_legal(body: Dict[str, Any], request: Request):
     if company_ctx:
         context += f"\n\n{company_ctx}"
 
-    groq = get_groq_enrichment_service()
+    groq = get_groq_enrichment_service(db)
     result = await groq.extract_marco_legal(context)
 
     # Attach threshold info to response if available
