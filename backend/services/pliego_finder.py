@@ -55,6 +55,49 @@ def classify_pliego(name: str) -> Tuple[int, str]:
     return 99, "Otro adjunto"
 
 
+def _extract_budget_from_text(text: str) -> Optional[float]:
+    """Extract budget/presupuesto from PDF or page text using regex patterns.
+
+    Looks for patterns like:
+    - "Presupuesto estimado: $144.000.000,00"
+    - "MONTO TOTAL: $ 144.000.000"
+    - "por un monto de PESOS CIENTO CUARENTA..."
+    - "presupuesto oficial de $ 144.000.000,00"
+    """
+    if not text:
+        return None
+
+    # Patterns in priority order
+    patterns = [
+        # "Presupuesto estimado/oficial: $NNN.NNN.NNN,NN"
+        r'[Pp]resupuesto\s+(?:estimado|oficial|asignado)[:\s]*\$?\s*([\d.]+(?:[.,]\d{2})?)',
+        # "MONTO TOTAL: $NNN"
+        r'[Mm]onto\s+(?:total|asignado|estimado)[:\s]*\$?\s*([\d.]+(?:[.,]\d{2})?)',
+        # "por un monto de $ NNN.NNN"
+        r'monto\s+de\s*\$?\s*([\d.]+(?:[.,]\d{2})?)',
+        # "$ NNN.NNN.NNN,NN" after "presupuesto"
+        r'presupuesto[^$]*\$\s*([\d.]+(?:[.,]\d{2})?)',
+        # "Importe: $NNN"
+        r'[Ii]mporte[:\s]*\$?\s*([\d.]+(?:[.,]\d{2})?)',
+    ]
+
+    for pattern in patterns:
+        m = re.search(pattern, text)
+        if m:
+            raw = m.group(1)
+            # Parse Argentine number format: 144.000.000,00 → 144000000
+            # Remove dots (thousands separator), replace comma with dot (decimal)
+            cleaned = raw.replace(".", "").replace(",", ".")
+            try:
+                val = float(cleaned)
+                if val > 1000:  # Minimum reasonable budget
+                    return val
+            except ValueError:
+                continue
+
+    return None
+
+
 async def _hunt_all_portals(db, lic: dict, seen_urls: set) -> list:
     """Search ALL procurement portals by licitacion number.
 
@@ -572,7 +615,7 @@ async def find_pliegos(db, licitacion_id: str, http_session=None) -> dict:
         if not text_extracted and "/api/storage/pliegos/" in url:
             try:
                 filename = url.split("/")[-1]
-                storage_dir = os.environ.get("STORAGE_DIR", "/home/ubuntu/licitometro/storage")
+                storage_dir = os.environ.get("STORAGE_DIR", "/app/storage")
                 local = os.path.join(storage_dir, "pliegos", filename)
                 if os.path.isfile(local):
                     with open(local, "rb") as f:
@@ -638,9 +681,53 @@ async def find_pliegos(db, licitacion_id: str, http_session=None) -> dict:
         names = ", ".join(p.get("name", "?")[:30] for p in all_pliegos if p.get("type") != "metadata")
         hint = f"Solo se encontraron adjuntos genericos ({names}). Subi el pliego especifico para mejor analisis."
 
+    # ── Extract budget from pliegos (Autorización llamado priority) ──
+    budget_extracted = None
+    budget_source = None
+
+    # Priority 1: "Autorización llamado" PDF — always has the assigned budget
+    for p in all_pliegos:
+        pname = (p.get("name") or "").lower()
+        if ("autorizacion" in pname or "autorización" in pname) and "llamado" in pname:
+            local_path = p.get("local_path", "")
+            if local_path and os.path.isfile(local_path):
+                try:
+                    with open(local_path, "rb") as f:
+                        auth_text = extract_text_from_pdf_bytes(f.read())
+                    if auth_text:
+                        budget_extracted = _extract_budget_from_text(auth_text)
+                        if budget_extracted:
+                            budget_source = "autorizacion_llamado"
+                            logger.info(f"Budget from Autorización llamado: ${budget_extracted:,.0f}")
+                except Exception as e:
+                    logger.debug(f"Failed to extract budget from autorización: {e}")
+            break
+
+    # Priority 2: Any pliego PDF text
+    if not budget_extracted and text_extracted:
+        budget_extracted = _extract_budget_from_text(text_extracted)
+        if budget_extracted:
+            budget_source = "pliego_text"
+
+    # Priority 3: COMPR.AR HTML page labels (if we fetched it)
+    # This is handled by the enrichment service already
+
+    # Update licitacion budget if found and currently missing
+    if budget_extracted and not lic.get("budget"):
+        try:
+            await db.licitaciones.update_one(
+                {"_id": lic["_id"]},
+                {"$set": {"budget": budget_extracted, "metadata.budget_source": budget_source}},
+            )
+            logger.info(f"Updated licitacion budget to ${budget_extracted:,.0f} from {budget_source}")
+        except Exception:
+            pass
+
     return {
         "pliegos": all_pliegos,
         "text_extracted": text_extracted,
         "hint": hint,
         "strategy_used": strategy,
+        "budget_extracted": budget_extracted,
+        "budget_source": budget_source,
     }

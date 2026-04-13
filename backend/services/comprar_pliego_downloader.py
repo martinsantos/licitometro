@@ -22,7 +22,7 @@ from bs4 import BeautifulSoup
 
 logger = logging.getLogger("comprar_pliego_downloader")
 
-STORAGE_DIR = os.environ.get("STORAGE_DIR", "/home/ubuntu/licitometro/storage")
+STORAGE_DIR = os.environ.get("STORAGE_DIR", "/app/storage")
 
 
 class ComprarPliegoDownloader:
