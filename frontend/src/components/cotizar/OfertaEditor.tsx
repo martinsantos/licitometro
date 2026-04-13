@@ -424,6 +424,7 @@ export default function OfertaEditor({ licitacion, onSaved }: Props) {
         antecedentes_vinculados: vinculados,
         price_intelligence: priceIntelligence,
         budget_override: budgetOverride,
+        monthly_view: monthlyViewActive ? contractMonths : null,
         offer_sections: offerSections,
         pliego_documents: pliegoDocuments,
         marco_legal_checks: marcoLegalChecks,

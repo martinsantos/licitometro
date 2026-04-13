@@ -38,6 +38,55 @@ def _escape(text: str) -> str:
     return (text or "").replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
 
 
+def _build_monthly_table(items: list, subtotal: float, months: int) -> str:
+    """Build HTML table with item × month breakdown for PDF."""
+    if not items or not months or months < 2:
+        return ""
+    real_items = [i for i in items if i.get("descripcion", "").strip()]
+    if not real_items:
+        return ""
+
+    monthly_total = subtotal / months if months > 0 else 0
+
+    html = '<div style="page-break-before:always;margin-top:30px">'
+    html += f'<h3 style="font-size:12pt;font-weight:700;color:#1d4ed8;margin-bottom:10px">DESGLOSE MENSUAL ({months} meses)</h3>'
+    html += '<table style="width:100%;border-collapse:collapse;font-size:9pt;margin-top:8px">'
+
+    # Header
+    html += '<thead><tr>'
+    html += '<th style="text-align:left;padding:6px 4px;background:#1d4ed8;color:white;font-size:8pt;min-width:150px">Item</th>'
+    for m in range(1, months + 1):
+        html += f'<th style="text-align:right;padding:6px 3px;background:#1d4ed8;color:white;font-size:8pt;white-space:nowrap">Mes {m}</th>'
+    html += '<th style="text-align:right;padding:6px 4px;background:#1e3a5f;color:white;font-size:8pt;font-weight:800">TOTAL</th>'
+    html += '</tr></thead><tbody>'
+
+    # Item rows
+    for i, item in enumerate(real_items):
+        q = item.get("cantidad", 0)
+        p = item.get("precio_unitario", 0)
+        item_total = q * p
+        per_month = item_total / months if months > 0 else 0
+        bg = '#f8fafc' if i % 2 else '#ffffff'
+        desc = _escape(item.get("descripcion", "")[:40])
+
+        html += f'<tr style="background:{bg}">'
+        html += f'<td style="padding:5px 4px;border-bottom:1px solid #e5e7eb;font-weight:500">{i+1}. {desc}</td>'
+        for _ in range(months):
+            html += f'<td style="text-align:right;padding:5px 3px;border-bottom:1px solid #e5e7eb;white-space:nowrap">{_fmt(per_month)}</td>'
+        html += f'<td style="text-align:right;padding:5px 4px;border-bottom:1px solid #e5e7eb;font-weight:700;white-space:nowrap;background:#f0f9ff">{_fmt(item_total)}</td>'
+        html += '</tr>'
+
+    # Total row
+    html += '<tr style="background:#dbeafe;font-weight:700">'
+    html += '<td style="padding:6px 4px;color:#1d4ed8">TOTAL MENSUAL</td>'
+    for _ in range(months):
+        html += f'<td style="text-align:right;padding:6px 3px;color:#1d4ed8;white-space:nowrap">{_fmt(monthly_total)}</td>'
+    html += f'<td style="text-align:right;padding:6px 4px;color:#1e3a5f;font-size:10pt;white-space:nowrap">{_fmt(subtotal)}</td>'
+    html += '</tr></tbody></table></div>'
+
+    return html
+
+
 def _strip_redundant_title(content: str, section_title: str) -> str:
     """Remove first non-empty line if it restates the section title."""
     if not content or not section_title:
@@ -330,6 +379,7 @@ def build_offer_html(cotizacion: dict, licitacion: dict, company_profile: dict =
     iva_rate = cotizacion.get("iva_rate", 21)
     iva_amount = cotizacion.get("iva_amount", 0)
     total = cotizacion.get("total", 0)
+    monthly_view = cotizacion.get("monthly_view")  # number of months or None
 
     # Auto-select diagrams (minimum 3 per offer)
     from services.diagram_generator import auto_select_diagrams, generate_diagram
@@ -418,6 +468,7 @@ def build_offer_html(cotizacion: dict, licitacion: dict, company_profile: dict =
                     </tbody>
                 </table>
                 {"<p class='validez'>Validez de la oferta: " + _escape(tech.get('validez','30')) + " dias</p>" if tech.get('validez') else ""}
+                {_build_monthly_table(items, subtotal, monthly_view) if monthly_view else ""}
             </div>''')
         elif slug in ("antecedentes", "perfil_empresa", "antecedentes_empresa"):
             sections_html.append(f'''
