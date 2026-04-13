@@ -175,7 +175,7 @@
       radius: 34pt,
       fill: gradient.linear(brand_primary, brand_accent),
     )[
-      #set text(26pt, fill: white, weight: "extra-bold")
+      #set text(26pt, fill: white, weight: "extrabold")
       #align(center + horizon)[#company_name.slice(0, calc.min(2, company_name.len())).to-uppercase()]
     ]
   }
@@ -227,7 +227,7 @@
   #v(1fr)
   #line(length: 100%, stroke: 0.5pt + border_light)
   #v(8pt)
-  #text(20pt, weight: "extra-bold", fill: text_medium)[#upper(company_name)]
+  #text(20pt, weight: "extrabold", fill: text_medium)[#upper(company_name)]
   #if website_url != "" {
     v(2pt)
     text(10pt, weight: "semibold", fill: brand_primary)[#website_url]

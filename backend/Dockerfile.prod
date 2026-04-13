@@ -14,14 +14,23 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     wget \
     && rm -rf /var/lib/apt/lists/*
 
-# Install Typst for publication-grade PDF generation
-RUN apt-get update && apt-get install -y --no-install-recommends xz-utils \
+# Install Typst for publication-grade PDF generation + Inter font
+RUN apt-get update && apt-get install -y --no-install-recommends xz-utils unzip \
     && wget -qO /tmp/typst.tar.xz https://github.com/typst/typst/releases/download/v0.13.1/typst-x86_64-unknown-linux-musl.tar.xz \
     && tar -xf /tmp/typst.tar.xz -C /tmp \
     && mv /tmp/typst-x86_64-unknown-linux-musl/typst /usr/local/bin/typst \
     && chmod +x /usr/local/bin/typst \
     && rm -rf /tmp/typst* \
-    && apt-get purge -y xz-utils && apt-get autoremove -y \
+    && mkdir -p /usr/share/fonts/truetype/inter \
+    && wget -qO /tmp/inter.zip "https://github.com/rsms/inter/releases/download/v4.1/Inter-4.1.zip" \
+    && unzip -q /tmp/inter.zip -d /tmp/inter \
+    && cp /tmp/inter/Inter*.ttf /usr/share/fonts/truetype/inter/ 2>/dev/null; \
+       cp /tmp/inter/InterVariable*.ttf /usr/share/fonts/truetype/inter/ 2>/dev/null; \
+       cp /tmp/inter/extras/ttf/*.ttf /usr/share/fonts/truetype/inter/ 2>/dev/null; \
+       find /tmp/inter -name "*.ttf" -exec cp {} /usr/share/fonts/truetype/inter/ \; \
+    && fc-cache -f \
+    && rm -rf /tmp/inter* \
+    && apt-get purge -y xz-utils unzip && apt-get autoremove -y \
     && rm -rf /var/lib/apt/lists/*
 
 # Set Chromium environment variables
