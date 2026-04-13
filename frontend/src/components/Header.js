@@ -68,11 +68,15 @@ const Header = ({ userRole }) => {
     return () => clearInterval(interval);
   }, []);
 
-  // Close dropdown on outside click
+  // Close dropdowns on outside click
+  const aiRef = useRef(null);
   useEffect(() => {
     const handleClick = (e) => {
       if (moreRef.current && !moreRef.current.contains(e.target)) {
         setMoreMenuOpen(false);
+      }
+      if (aiRef.current && !aiRef.current.contains(e.target)) {
+        setShowAiDetail(false);
       }
     };
     document.addEventListener('mousedown', handleClick);
@@ -140,7 +144,7 @@ const Header = ({ userRole }) => {
 
             {/* AI Usage indicator */}
             {aiUsage && (
-              <div className="relative">
+              <div className="relative" ref={aiRef}>
                 <button onClick={() => setShowAiDetail(!showAiDetail)}
                   className="flex items-center gap-1.5 px-2 py-1 ml-1 rounded-md bg-white/5 text-xs hover:bg-white/10 transition-colors">
                   <span className={`w-2 h-2 rounded-full ${aiStatusColor}`} />
@@ -152,7 +156,7 @@ const Header = ({ userRole }) => {
                   <span className="text-slate-500">AI</span>
                 </button>
                 {showAiDetail && (
-                  <div className="absolute right-0 top-full mt-1 bg-slate-800 border border-slate-700 rounded-lg shadow-xl p-3 min-w-[220px] z-50">
+                  <div className="absolute right-0 top-full mt-1 bg-slate-800 border border-slate-700 rounded-lg shadow-xl p-3 min-w-[220px] z-[60]">
                     <p className="text-xs font-semibold text-white mb-2">Consumo AI hoy</p>
                     <div className="space-y-2">
                       <div className="flex justify-between text-xs">
