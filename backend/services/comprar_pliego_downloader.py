@@ -336,10 +336,17 @@ class ComprarPliegoDownloader:
     def _find_anexos(self, soup: BeautifulSoup) -> List[dict]:
         """Find all downloadable anexos on the pliego page."""
         anexos = []
-        # Look for the Anexos grid - links with postback to btnVerAnexo
+        # Look for the Anexos grid — links with postback to download buttons
+        # Patterns: btnVerAnexo, UC_Anexos, UC_CondicionesGenerales, UC_CondicionesParticulares
         for a in soup.find_all("a", href=True):
             href = a.get("href", "")
-            if "__doPostBack" in href and "Anexo" in href and "btnVer" in href:
+            if "__doPostBack" not in href:
+                continue
+            # Match any download-related postback in the pliego view
+            is_download = ("Anexo" in href and "btnVer" in href) or \
+                          ("UCVistaPreviaPliego" in href and ("btnDescargar" in href or "btnVer" in href or "UC_A" in href or "UC_C" in href)) or \
+                          ("btnDescargar" in href)
+            if is_download:
                 # Extract postback target
                 match = re.search(r"__doPostBack\('([^']+)'", href)
                 if match:
