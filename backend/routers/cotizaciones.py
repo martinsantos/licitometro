@@ -119,8 +119,9 @@ async def generate_pdf(licitacion_id: str, request: Request):
     if not cot:
         raise HTTPException(404, "Cotizacion not found")
 
+    from db.models import str_to_mongo_id
     try:
-        lic = await db.licitaciones.find_one({"_id": ObjectId(licitacion_id)})
+        lic = await db.licitaciones.find_one({"_id": str_to_mongo_id(licitacion_id)})
     except Exception:
         lic = None
     if not lic:
