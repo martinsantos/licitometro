@@ -41,6 +41,10 @@ ENV CHROMEDRIVER_PATH=/usr/bin/chromedriver
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
+# Install Playwright Chromium browser (for PDF generation)
+# Uses system deps already installed above; Selenium Chromium stays for scrapers
+RUN playwright install chromium --with-deps 2>/dev/null || playwright install chromium
+
 # Copy application code
 COPY . .
 

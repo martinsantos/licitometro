@@ -480,14 +480,24 @@ def build_offer_html(cotizacion: dict, licitacion: dict, company_profile: dict =
     margin: 25mm 22mm 28mm 22mm;
 }}
 
-* {{ margin: 0; padding: 0; box-sizing: border-box; }}
+* {{
+    margin: 0; padding: 0; box-sizing: border-box;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+}}
 
 body {{
     font-family: 'Inter', -apple-system, sans-serif;
     font-size: 11.5pt;
     line-height: 1.7;
     color: #1f2937;
+    font-feature-settings: "kern" 1, "liga" 1, "calt" 1;
+    text-rendering: optimizeLegibility;
+    -webkit-font-smoothing: antialiased;
 }}
+
+h1, h2, h3 {{ break-after: avoid; page-break-after: avoid; }}
+table, .ant-card, .items-table {{ break-inside: avoid; page-break-inside: avoid; }}
 
 p {{ orphans: 3; widows: 3; }}
 
@@ -995,10 +1005,10 @@ p {{ orphans: 3; widows: 3; }}
 
 
 def generate_offer_pdf_chromium(cotizacion: dict, licitacion: dict, company_profile: dict = None) -> bytes:
-    """Generate PDF using Chromium headless (Selenium CDP).
+    """Generate PDF using Playwright (primary) or Selenium CDP (fallback).
 
     Renders HTML → PDF with professional typography and layout.
-    Falls back to ReportLab if Chromium is not available.
+    Falls back to Selenium, then ReportLab.
     """
     html = build_offer_html(cotizacion, licitacion, company_profile)
 
@@ -1009,6 +1019,16 @@ def generate_offer_pdf_chromium(cotizacion: dict, licitacion: dict, company_prof
     # Extract brand config for header/footer
     brand = (company_profile or {}).get("brand_config") or {}
 
+    # Try Playwright first (async-native, tagged PDF, bookmarks)
+    try:
+        pdf_bytes = _render_pdf_with_playwright(html, company_name, objeto, brand)
+        if pdf_bytes:
+            logger.info(f"Generated PDF with Playwright: {len(pdf_bytes)} bytes")
+            return pdf_bytes
+    except Exception as e:
+        logger.warning(f"Playwright PDF failed ({type(e).__name__}: {e}), trying Selenium")
+
+    # Fallback to Selenium
     try:
         pdf_bytes = _render_pdf_with_selenium(html, company_name, objeto, brand)
         if pdf_bytes:
@@ -1022,8 +1042,57 @@ def generate_offer_pdf_chromium(cotizacion: dict, licitacion: dict, company_prof
     return generate_offer_pdf(cotizacion, licitacion, company_profile)
 
 
+def _render_pdf_with_playwright(html: str, company_name: str = "", objeto: str = "", brand: dict = None) -> Optional[bytes]:
+    """Render HTML to PDF using Playwright + Chromium.
+
+    Benefits over Selenium: tagged PDF (accessible), outline (bookmarks from h1-h6),
+    no temp file needed, async-compatible, no chromedriver version matching.
+    """
+    from playwright.sync_api import sync_playwright
+
+    brand = brand or {}
+    brand_primary = brand.get("primary_color", "#1d4ed8")
+    brand_logo_svg = brand.get("logo_svg", "")
+    brand_website = brand.get("website_url", "")
+
+    company_esc = _escape(company_name).upper()
+    if brand_logo_svg:
+        logo_img = _svg_to_base64_img(brand_logo_svg, 18)
+        header_content = f'{logo_img}'
+    else:
+        header_content = f'<span style="font-size:7px;font-weight:700;text-transform:uppercase;letter-spacing:0.1em">{company_esc}</span>'
+    header_html = f'<div style="font-family:Inter,sans-serif;color:#6b7280;width:100%;border-bottom:2px solid {brand_primary};padding:0 10mm 3px;text-align:left;display:flex;align-items:center">{header_content}</div>'
+    footer_left = _escape(brand_website) if brand_website else _escape(objeto[:55])
+    footer_html = f'<div style="font-size:7px;font-family:Inter,sans-serif;color:#9ca3af;width:100%;border-top:1px solid #e5e7eb;padding:3px 10mm 0;display:flex;justify-content:space-between"><span>{footer_left}</span><span>Pag. <span class="pageNumber"></span> / <span class="totalPages"></span></span></div>'
+
+    with sync_playwright() as p:
+        browser = p.chromium.launch(
+            headless=True,
+            args=["--no-sandbox", "--disable-dev-shm-usage", "--disable-gpu", "--font-render-hinting=none"],
+        )
+        page = browser.new_page()
+        page.emulate_media(media="screen")
+        page.set_content(html, wait_until="networkidle")
+
+        pdf_bytes = page.pdf(
+            format="A4",
+            scale=1,
+            margin={"top": "0.75in", "bottom": "0.65in", "left": "0.4in", "right": "0.4in"},
+            display_header_footer=True,
+            header_template=header_html,
+            footer_template=footer_html,
+            print_background=True,
+            tagged=True,
+            outline=True,
+            prefer_css_page_size=True,
+        )
+
+        browser.close()
+        return pdf_bytes
+
+
 def _render_pdf_with_selenium(html: str, company_name: str = "", objeto: str = "", brand: dict = None) -> Optional[bytes]:
-    """Render HTML to PDF using Selenium + Chromium CDP."""
+    """Render HTML to PDF using Selenium + Chromium CDP (fallback)."""
     from selenium import webdriver
     from selenium.webdriver.chrome.options import Options
     from selenium.webdriver.chrome.service import Service
