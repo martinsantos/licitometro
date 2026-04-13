@@ -112,13 +112,29 @@ async def get_ai_usage(request: Request):
     usage = await get_usage_today(db)
     tokens = usage["today_tokens"]
     calls = usage["today_calls"]
-    # Groq free tier: ~6000 requests/day, ~100K tokens/day
+    # Check for rate_limited entries
+    from datetime import datetime, timezone
+    today_start = datetime.now(timezone.utc).replace(hour=0, minute=0, second=0, microsecond=0)
+    rate_limited = 0
+    try:
+        rate_limited = await db.ai_usage.count_documents({
+            "created_at": {"$gte": today_start},
+            "endpoint": {"$regex": "^rate_limited"},
+        })
+    except Exception:
+        pass
     token_limit = 100000
-    status = "active" if tokens < 80000 else "near_limit" if tokens < token_limit else "exhausted"
+    if rate_limited > 0:
+        status = "exhausted"
+    elif tokens > 80000:
+        status = "near_limit"
+    else:
+        status = "active"
     return {
         "today_calls": calls,
         "today_tokens": tokens,
         "token_limit": token_limit,
+        "rate_limited": rate_limited,
         "providers": usage.get("providers", {}),
         "status": status,
     }

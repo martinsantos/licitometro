@@ -517,16 +517,24 @@ CONTEXTO (UNICA fuente de verdad):
                 content = response.choices[0].message.content.strip()
                 tokens_used = getattr(response.usage, "total_tokens", 0) if hasattr(response, "usage") else 0
                 # Track usage
-                try:
-                    from services.ai_tracker import track_ai_call
-                    import asyncio as _aio
-                    _aio.ensure_future(track_ai_call(self.db, "groq", GROQ_MODEL, tokens_used, f"generate_section:{section_slug}"))
-                except Exception:
-                    pass
+                if self.db:
+                    try:
+                        from services.ai_tracker import track_ai_call
+                        await track_ai_call(self.db, "groq", GROQ_MODEL, tokens_used, f"generate_section:{section_slug}")
+                    except Exception as te:
+                        logger.debug(f"AI tracking failed: {te}")
                 return content
             except Exception as e:
                 err_str = str(e)
                 logger.warning(f"Groq failed for {section_slug}: {err_str[:100]}")
+                # Track failed/rate-limited calls
+                if self.db:
+                    try:
+                        from services.ai_tracker import track_ai_call
+                        status = "rate_limited" if ("rate_limit" in err_str.lower() or "429" in err_str) else "error"
+                        await track_ai_call(self.db, "groq", GROQ_MODEL, 0, f"{status}:{section_slug}")
+                    except Exception:
+                        pass
                 if "rate_limit" in err_str.lower() or "429" in err_str:
                     logger.info("Groq rate-limited, trying Cerebras fallback...")
 
