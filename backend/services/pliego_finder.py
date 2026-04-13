@@ -55,6 +55,136 @@ def classify_pliego(name: str) -> Tuple[int, str]:
     return 99, "Otro adjunto"
 
 
+async def _hunt_all_portals(db, lic: dict, seen_urls: set) -> list:
+    """Search ALL procurement portals by licitacion number.
+
+    For each portal with stored credentials, searches the process by number
+    and extracts all documents (pliegos, OC, movimientos).
+    """
+    results = []
+    lic_num = lic.get("licitacion_number", "")
+    if not lic_num:
+        return results
+
+    creds = await db.site_credentials.find({"enabled": True}).to_list(10)
+    if not creds:
+        return results
+
+    logger.info(f"HUNT all portals: searching '{lic_num}' across {len(creds)} credentials")
+
+    for cred in creds:
+        site_url = (cred.get("site_url") or "").lower()
+
+        # ── COMPR.AR (Mendoza or Nacional) ──
+        if "comprar.mendoza" in site_url or "comprar.gob.ar" in site_url:
+            domain = "comprar.mendoza.gov.ar" if "mendoza" in site_url else "comprar.gob.ar"
+            try:
+                # Search by number in the citizen search
+                from routers.comprar import _search_and_resolve_pliego
+                # Extract search number: "30803-0017-CDI26" → try full, then just "0017/26"
+                search_variants = [lic_num]
+                # Try extracting numero/anio pattern
+                m = re.match(r"\d+-(\d+)-\w+(\d{2})$", lic_num)
+                if m:
+                    search_variants.append(f"{m.group(1)}/{m.group(2)}")
+                m2 = re.match(r"(\d+)/(\d{4})", lic_num)
+                if m2:
+                    search_variants.append(lic_num)
+
+                resolved_url = None
+                for variant in search_variants:
+                    if resolved_url:
+                        break
+                    resolved_url = await _search_and_resolve_pliego(
+                        variant,
+                        f"https://{domain}/Compras.aspx?qs=W1HXHGHtH10=",
+                    )
+
+                if resolved_url:
+                    logger.info(f"HUNT COMPR.AR {domain}: resolved pliego URL from search")
+                    # Update the licitacion with the fresh URL
+                    await db.licitaciones.update_one(
+                        {"_id": lic["_id"]},
+                        {"$set": {
+                            "metadata.comprar_pliego_url": resolved_url,
+                        }}
+                    )
+                    # Download anexos
+                    from services.comprar_pliego_downloader import ComprarPliegoDownloader
+                    downloader = ComprarPliegoDownloader(db)
+                    pliegos = await downloader.download_anexos(resolved_url)
+                    for p in pliegos:
+                        if p.get("url") and p["url"] not in seen_urls:
+                            seen_urls.add(p["url"])
+                            p["source"] = f"hunt:COMPR.AR {domain}"
+                            results.append(p)
+                    if not pliegos:
+                        # At least return the resolved URL as a link
+                        priority, label = classify_pliego("Pliego")
+                        results.append({
+                            "name": f"Pliego COMPR.AR ({lic_num})",
+                            "url": resolved_url,
+                            "type": "pdf",
+                            "priority": priority,
+                            "label": label,
+                            "source": f"hunt:COMPR.AR {domain}",
+                        })
+                else:
+                    logger.info(f"HUNT COMPR.AR {domain}: process '{lic_num}' not found in portal search")
+            except Exception as e:
+                logger.warning(f"HUNT COMPR.AR {domain} failed: {e}")
+
+        # ── ComprasApps ──
+        elif "comprasapps" in site_url:
+            try:
+                from services.comprasapps_pliego_downloader import ComprasAppsAuthClient
+                # Try to build params from our lic_number
+                params = ComprasAppsAuthClient.build_detail_params_from_licitacion(lic)
+                if not params:
+                    # Try finding a ComprasApps item with similar number in DB
+                    ca_item = await db.licitaciones.find_one({
+                        "fuente": "ComprasApps Mendoza",
+                        "licitacion_number": lic_num,
+                    })
+                    if ca_item:
+                        params = ComprasAppsAuthClient.build_detail_params_from_licitacion(ca_item)
+
+                if params:
+                    client = ComprasAppsAuthClient(db)
+                    if await client._load_credentials():
+                        if await client.login():
+                            detail = await client.fetch_detail_authenticated(**params)
+                            # Extract pliegos
+                            if detail.get("descargas_visible"):
+                                pliegos = await client._download_anexos(params)
+                                for p in pliegos:
+                                    if p.get("url") and p["url"] not in seen_urls:
+                                        seen_urls.add(p["url"])
+                                        p["source"] = "hunt:ComprasApps"
+                                        results.append(p)
+                            # Collect metadata
+                            if detail.get("ordenes_compra") or detail.get("movimientos"):
+                                results.append({
+                                    "name": "__metadata__",
+                                    "url": "",
+                                    "type": "metadata",
+                                    "priority": 999,
+                                    "label": "Datos ComprasApps",
+                                    "source": "hunt:ComprasApps",
+                                    "metadata": {
+                                        "ordenes_compra": detail.get("ordenes_compra", []),
+                                        "movimientos": detail.get("movimientos", []),
+                                    },
+                                })
+                        await client.close()
+                else:
+                    logger.info(f"HUNT ComprasApps: couldn't build params for '{lic_num}'")
+            except Exception as e:
+                logger.warning(f"HUNT ComprasApps failed: {e}")
+
+    return results
+
+
 async def find_pliegos(db, licitacion_id: str, http_session=None) -> dict:
     """Find pliego documents for a licitacion.
 
@@ -363,6 +493,13 @@ async def find_pliegos(db, licitacion_id: str, http_session=None) -> dict:
                     await client.close()
         except Exception as e:
             logger.warning(f"ComprasApps authenticated download failed: {e}")
+
+    # Strategy HUNT: Search ALL portals by licitacion number (when previous strategies found nothing)
+    if not all_pliegos and lic.get("licitacion_number"):
+        hunt_results = await _hunt_all_portals(db, lic, seen_urls)
+        if hunt_results:
+            all_pliegos.extend(hunt_results)
+            logger.info(f"Strategy HUNT: found {len(hunt_results)} pliegos from portal searches")
 
     # Strategy 4: Cross-source search for related items with pliegos
     from services.cross_source_service import CrossSourceService
