@@ -107,7 +107,7 @@ class GroqEnrichmentService:
                         tokens_used = data.get("usage", {}).get("total_tokens", 0)
                         logger.info(f"Cerebras fallback succeeded ({len(content)} chars)")
                         # Track usage
-                        if self.db:
+                        if self.db is not None:
                             from services.ai_tracker import track_ai_call
                             await track_ai_call(self.db, "cerebras", CEREBRAS_MODEL, tokens_used, "cerebras_fallback")
                         return content
@@ -517,7 +517,7 @@ CONTEXTO (UNICA fuente de verdad):
                 content = response.choices[0].message.content.strip()
                 tokens_used = getattr(response.usage, "total_tokens", 0) if hasattr(response, "usage") else 0
                 # Track usage
-                if self.db:
+                if self.db is not None:
                     try:
                         from services.ai_tracker import track_ai_call
                         await track_ai_call(self.db, "groq", GROQ_MODEL, tokens_used, f"generate_section:{section_slug}")
@@ -528,7 +528,7 @@ CONTEXTO (UNICA fuente de verdad):
                 err_str = str(e)
                 logger.warning(f"Groq failed for {section_slug}: {err_str[:100]}")
                 # Track failed/rate-limited calls
-                if self.db:
+                if self.db is not None:
                     try:
                         from services.ai_tracker import track_ai_call
                         status = "rate_limited" if ("rate_limit" in err_str.lower() or "429" in err_str) else "error"
