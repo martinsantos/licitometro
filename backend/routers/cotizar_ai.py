@@ -104,6 +104,24 @@ async def _get_company_context_str(db, organization: str = "", tipo_procedimient
     return "\n".join(parts)
 
 
+@router.get("/ai-usage")
+async def get_ai_usage(request: Request):
+    """Get AI usage stats for today (cached calls count)."""
+    from datetime import datetime, timezone, timedelta
+    db = request.app.mongodb
+    today_start = datetime.now(timezone.utc).replace(hour=0, minute=0, second=0, microsecond=0)
+    # Count cached AI calls today
+    today_calls = await db.ai_cache.count_documents({"created_at": {"$gte": today_start}})
+    # Groq free tier: ~14400 requests/day, ~100K tokens/day
+    return {
+        "today_calls": today_calls,
+        "daily_limit": 14400,
+        "provider": "Groq",
+        "model": "llama-3.3-70b-versatile",
+        "status": "active" if today_calls < 14000 else "near_limit" if today_calls < 14400 else "exhausted",
+    }
+
+
 @router.post("/suggest-propuesta")
 async def suggest_propuesta(body: Dict[str, Any], request: Request):
     """Generate AI-powered technical proposal suggestion."""

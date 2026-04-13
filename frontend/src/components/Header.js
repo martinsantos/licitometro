@@ -1,44 +1,79 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import axios from 'axios';
 
 const Header = ({ userRole }) => {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [moreMenuOpen, setMoreMenuOpen] = useState(false);
+  const [aiUsage, setAiUsage] = useState(null);
+  const moreRef = useRef(null);
   const location = useLocation();
   const navigate = useNavigate();
 
   const isActive = (path) => location.pathname === path;
   const isAdmin = userRole === 'admin';
 
-  const navLinks = [
+  // Primary nav (always visible)
+  const primaryLinks = [
     { path: '/', label: 'Inicio' },
     { path: '/licitaciones', label: 'Licitaciones' },
     { path: '/licitaciones-ar', label: 'Lic. AR', icon: (
       <span className="px-1 py-0.5 bg-sky-500 text-white text-[8px] font-bold rounded leading-none">AR</span>
     )},
     { path: '/favoritos', label: 'Favoritos', icon: (
-      <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
+      <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 24 24">
         <path d="M5 5a2 2 0 012-2h10a2 2 0 012 2v16l-7-3.5L5 21V5z" />
       </svg>
     )},
     { path: '/cotizar', label: 'Cotizador', icon: (
-      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 7h6m0 10v-3m-3 3h.01M9 17h.01M9 14h.01M12 14h.01M15 11h.01M12 11h.01M9 11h.01M7 21h10a2 2 0 002-2V5a2 2 0 00-2-2H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
       </svg>
     )},
     { path: '/empresa', label: 'Empresa', icon: (
-      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
       </svg>
     )},
+    { path: '/stats', label: 'Stats' },
+  ];
+
+  // Secondary nav (in "More" dropdown on desktop)
+  const secondaryLinks = [
     { path: '/perfil', label: 'Mi actividad' },
     { path: '/nodos', label: 'Nodos', adminOnly: true },
     { path: '/templates', label: 'Plantillas', adminOnly: true },
-    { path: '/stats', label: 'Estadísticas' },
-    { path: '/manual/all.html', label: '📖 Manual', external: true },
+    { path: '/manual/all.html', label: 'Manual', external: true },
     { path: '/lab', label: 'Lab', adminOnly: true },
     { path: '/admin', label: 'Admin', adminOnly: true },
   ].filter(link => !link.adminOnly || isAdmin);
+
+  // All links for mobile
+  const allLinks = [...primaryLinks, ...secondaryLinks];
+
+  // Fetch AI usage
+  useEffect(() => {
+    const fetchUsage = async () => {
+      try {
+        const res = await axios.get('/api/cotizar-ai/ai-usage');
+        setAiUsage(res.data);
+      } catch {}
+    };
+    fetchUsage();
+    const interval = setInterval(fetchUsage, 60000); // refresh every minute
+    return () => clearInterval(interval);
+  }, []);
+
+  // Close dropdown on outside click
+  useEffect(() => {
+    const handleClick = (e) => {
+      if (moreRef.current && !moreRef.current.contains(e.target)) {
+        setMoreMenuOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClick);
+    return () => document.removeEventListener('mousedown', handleClick);
+  }, []);
 
   const handleLogout = async () => {
     try {
@@ -47,51 +82,72 @@ const Header = ({ userRole }) => {
     window.location.href = '/';
   };
 
+  const aiStatusColor = aiUsage?.status === 'exhausted' ? 'bg-red-500'
+    : aiUsage?.status === 'near_limit' ? 'bg-amber-500'
+    : 'bg-emerald-500';
+
+  const NavLink = ({ path, label, icon, external, onClick }) => {
+    const cls = `flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-sm font-medium transition-colors whitespace-nowrap ${
+      isActive(path) ? 'bg-white/10 text-white' : 'text-slate-300 hover:bg-white/5 hover:text-white'
+    }`;
+    if (external) return <a href={path} className={cls} onClick={onClick}>{icon}{label}</a>;
+    return <Link to={path} className={cls} onClick={onClick}>{icon}{label}</Link>;
+  };
+
   return (
-    <header className="bg-slate-900 text-white sticky top-0 z-50 will-change-transform">
-      <div className="container mx-auto px-4">
-        <div className="flex items-center justify-between h-14">
+    <header className="bg-slate-900 text-white sticky top-0 z-50">
+      <div className="container mx-auto px-3">
+        <div className="flex items-center justify-between h-12">
           {/* Logo */}
-          <Link to="/" className="flex items-center gap-2 group">
-            <span className="text-xl font-bold tracking-tight text-white group-hover:text-emerald-400 transition-colors">
-              LICITÓMETRO
-            </span>
-            <span className="text-[10px] font-medium bg-emerald-500 text-white px-1.5 py-0.5 rounded">
-              BETA
-            </span>
+          <Link to="/" className="flex items-center gap-1.5 shrink-0">
+            <span className="text-lg font-bold tracking-tight text-white">LICITOMETRO</span>
+            <span className="text-[9px] font-medium bg-emerald-500 text-white px-1 py-0.5 rounded leading-none">BETA</span>
           </Link>
 
           {/* Desktop Nav */}
-          <nav className="hidden md:flex items-center gap-1">
-            <ul className="flex items-center gap-1">
-              {navLinks.map(({ path, label, icon, external }) => {
-                const linkClass = `flex items-center gap-1.5 px-3 py-2 rounded-md text-sm font-medium transition-colors ${
-                  isActive(path)
-                    ? 'bg-white/10 text-white'
-                    : 'text-slate-300 hover:bg-white/5 hover:text-white'
-                }`;
-                return (
-                  <li key={path}>
-                    {external ? (
-                      <a href={path} className={linkClass}>
-                        {icon}
-                        {label}
-                      </a>
-                    ) : (
-                      <Link to={path} className={linkClass}>
-                        {icon}
-                        {label}
-                      </Link>
-                    )}
-                  </li>
-                );
-              })}
-            </ul>
-            {/* Logout button */}
+          <nav className="hidden lg:flex items-center gap-0.5 flex-1 justify-end">
+            {primaryLinks.map(link => (
+              <NavLink key={link.path} {...link} />
+            ))}
+
+            {/* More dropdown */}
+            {secondaryLinks.length > 0 && (
+              <div className="relative" ref={moreRef}>
+                <button
+                  onClick={() => setMoreMenuOpen(!moreMenuOpen)}
+                  className={`flex items-center gap-1 px-2.5 py-1.5 rounded-md text-sm font-medium transition-colors ${
+                    moreMenuOpen ? 'bg-white/10 text-white' : 'text-slate-400 hover:bg-white/5 hover:text-white'
+                  }`}
+                >
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 12h.01M12 12h.01M19 12h.01M6 12a1 1 0 11-2 0 1 1 0 012 0zm7 0a1 1 0 11-2 0 1 1 0 012 0zm7 0a1 1 0 11-2 0 1 1 0 012 0z" />
+                  </svg>
+                  Mas
+                </button>
+                {moreMenuOpen && (
+                  <div className="absolute right-0 top-full mt-1 bg-slate-800 border border-slate-700 rounded-lg shadow-xl py-1 min-w-[160px] z-50">
+                    {secondaryLinks.map(link => (
+                      <NavLink key={link.path} {...link} onClick={() => setMoreMenuOpen(false)} />
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* AI Usage indicator */}
+            {aiUsage && (
+              <div className="flex items-center gap-1.5 px-2 py-1 ml-1 rounded-md bg-white/5 text-xs" title={`IA: ${aiUsage.today_calls} llamadas hoy (${aiUsage.provider})`}>
+                <span className={`w-2 h-2 rounded-full ${aiStatusColor}`} />
+                <span className="text-slate-400 font-mono">{aiUsage.today_calls}</span>
+                <span className="text-slate-500">AI</span>
+              </div>
+            )}
+
+            {/* Logout */}
             <button
               onClick={handleLogout}
-              className="ml-2 px-3 py-2 rounded-md text-sm font-medium text-slate-400 hover:bg-white/5 hover:text-white transition-colors"
-              title="Cerrar sesión"
+              className="ml-1 p-1.5 rounded-md text-slate-400 hover:bg-white/5 hover:text-white transition-colors"
+              title="Cerrar sesion"
             >
               <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
@@ -99,56 +155,47 @@ const Header = ({ userRole }) => {
             </button>
           </nav>
 
-          {/* Mobile menu button */}
-          <button
-            onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-            className="md:hidden p-2 rounded-md hover:bg-white/10"
-          >
-            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              {mobileMenuOpen ? (
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-              ) : (
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
-              )}
-            </svg>
-          </button>
+          {/* Mobile: AI + hamburger */}
+          <div className="lg:hidden flex items-center gap-2">
+            {aiUsage && (
+              <div className="flex items-center gap-1 text-xs" title={`IA: ${aiUsage.today_calls} llamadas`}>
+                <span className={`w-2 h-2 rounded-full ${aiStatusColor}`} />
+                <span className="text-slate-400 font-mono">{aiUsage.today_calls}</span>
+              </div>
+            )}
+            <button
+              onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+              className="p-2 rounded-md hover:bg-white/10"
+            >
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                {mobileMenuOpen ? (
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                ) : (
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
+                )}
+              </svg>
+            </button>
+          </div>
         </div>
 
         {/* Mobile Nav */}
         {mobileMenuOpen && (
-          <nav className="md:hidden pb-4 border-t border-white/10 pt-2">
-            <ul className="space-y-1">
-              {navLinks.map(({ path, label, icon, external }) => {
-                const linkClass = `flex items-center gap-2 px-3 py-2 rounded-md text-sm font-medium transition-colors ${
-                  isActive(path)
-                    ? 'bg-white/10 text-white'
-                    : 'text-slate-300 hover:bg-white/5 hover:text-white'
-                }`;
-                return (
-                  <li key={path}>
-                    {external ? (
-                      <a href={path} onClick={() => setMobileMenuOpen(false)} className={linkClass}>
-                        {icon}
-                        {label}
-                      </a>
-                    ) : (
-                      <Link to={path} onClick={() => setMobileMenuOpen(false)} className={linkClass}>
-                        {icon}
-                        {label}
-                      </Link>
-                    )}
-                  </li>
-                );
-              })}
+          <nav className="lg:hidden pb-3 border-t border-white/10 pt-2">
+            <ul className="space-y-0.5">
+              {allLinks.map(link => (
+                <li key={link.path}>
+                  <NavLink {...link} onClick={() => setMobileMenuOpen(false)} />
+                </li>
+              ))}
               <li>
                 <button
                   onClick={handleLogout}
-                  className="w-full flex items-center gap-2 px-3 py-2 rounded-md text-sm font-medium text-slate-400 hover:bg-white/5 hover:text-white transition-colors"
+                  className="w-full flex items-center gap-2 px-2.5 py-1.5 rounded-md text-sm font-medium text-slate-400 hover:bg-white/5 hover:text-white transition-colors"
                 >
                   <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
                   </svg>
-                  Cerrar sesión
+                  Cerrar sesion
                 </button>
               </li>
             </ul>
