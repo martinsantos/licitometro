@@ -878,13 +878,48 @@ export default function OfertaEditor({ licitacion, onSaved }: Props) {
                 Cargar items con IA
               </button>
               <button
-                onClick={() => setHunterOpen(true)}
-                className="text-xs text-amber-600 hover:text-amber-800 border border-amber-200 hover:border-amber-400 px-3 py-1.5 rounded-lg transition-colors flex items-center gap-1 font-semibold"
+                onClick={async () => {
+                  // HUNTER in Items: find pliego + extract items (not cross-source panel)
+                  setLoadingHints(true);
+                  try {
+                    const result = await api.findPliegos(licitacion.id);
+                    const pliegos = (result.pliegos || []).filter((p: any) => p.type !== 'metadata');
+                    if (pliegos.length > 0) {
+                      // Found pliegos — try to extract items from pliego text
+                      if (result.text_extracted && result.text_extracted.length > 50) {
+                        const hints = await api.getBudgetHints(licitacion.id);
+                        if (hints?.items_from_pliego?.length) {
+                          const newItems = hints.items_from_pliego.map((pi: any) => ({
+                            descripcion: pi.descripcion || '',
+                            cantidad: pi.cantidad || 1,
+                            unidad: pi.unidad || 'u.',
+                            precio_unitario: pi.precio_unitario || 0,
+                          }));
+                          setItems(newItems);
+                          alert(`HUNTER encontro ${pliegos.length} pliego(s) y extrajo ${newItems.length} items`);
+                        } else {
+                          alert(`HUNTER encontro ${pliegos.length} pliego(s) pero no pudo extraer items. Anda a Secciones para ver los pliegos.`);
+                        }
+                      } else {
+                        alert(`HUNTER encontro ${pliegos.length} pliego(s). Anda a Secciones para verlos y extraer items.`);
+                      }
+                    } else {
+                      // No pliegos — fallback to cross-source panel
+                      setHunterOpen(true);
+                    }
+                  } catch {
+                    setHunterOpen(true); // Fallback to panel on error
+                  } finally {
+                    setLoadingHints(false);
+                  }
+                }}
+                disabled={loadingHints}
+                className="text-xs text-amber-600 hover:text-amber-800 border border-amber-200 hover:border-amber-400 px-3 py-1.5 rounded-lg transition-colors flex items-center gap-1 font-semibold disabled:opacity-50"
               >
                 <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                   <circle cx="12" cy="12" r="10" /><circle cx="12" cy="12" r="6" /><circle cx="12" cy="12" r="2" />
                 </svg>
-                HUNTER
+                {loadingHints ? 'Buscando pliego...' : 'HUNTER'}
               </button>
             </div>
           </div>
