@@ -1046,10 +1046,9 @@ def _render_pdf_with_playwright(html: str, company_name: str = "", objeto: str =
     """Render HTML to PDF using Playwright + Chromium.
 
     Benefits over Selenium: tagged PDF (accessible), outline (bookmarks from h1-h6),
-    no temp file needed, async-compatible, no chromedriver version matching.
+    no temp file needed, no chromedriver version matching.
+    Runs in a separate thread to avoid conflicts with asyncio event loops.
     """
-    from playwright.sync_api import sync_playwright
-
     brand = brand or {}
     brand_primary = brand.get("primary_color", "#1d4ed8")
     brand_logo_svg = brand.get("logo_svg", "")
@@ -1065,30 +1064,38 @@ def _render_pdf_with_playwright(html: str, company_name: str = "", objeto: str =
     footer_left = _escape(brand_website) if brand_website else _escape(objeto[:55])
     footer_html = f'<div style="font-size:7px;font-family:Inter,sans-serif;color:#9ca3af;width:100%;border-top:1px solid #e5e7eb;padding:3px 10mm 0;display:flex;justify-content:space-between"><span>{footer_left}</span><span>Pag. <span class="pageNumber"></span> / <span class="totalPages"></span></span></div>'
 
-    with sync_playwright() as p:
-        browser = p.chromium.launch(
-            headless=True,
-            args=["--no-sandbox", "--disable-dev-shm-usage", "--disable-gpu", "--font-render-hinting=none"],
-        )
-        page = browser.new_page()
-        page.emulate_media(media="screen")
-        page.set_content(html, wait_until="networkidle")
+    def _run_playwright():
+        from playwright.sync_api import sync_playwright
+        with sync_playwright() as p:
+            browser = p.chromium.launch(
+                headless=True,
+                args=["--no-sandbox", "--disable-dev-shm-usage", "--disable-gpu", "--font-render-hinting=none"],
+            )
+            page = browser.new_page()
+            page.emulate_media(media="screen")
+            page.set_content(html, wait_until="networkidle")
 
-        pdf_bytes = page.pdf(
-            format="A4",
-            scale=1,
-            margin={"top": "0.75in", "bottom": "0.65in", "left": "0.4in", "right": "0.4in"},
-            display_header_footer=True,
-            header_template=header_html,
-            footer_template=footer_html,
-            print_background=True,
-            tagged=True,
-            outline=True,
-            prefer_css_page_size=True,
-        )
+            pdf_bytes = page.pdf(
+                format="A4",
+                scale=1,
+                margin={"top": "0.75in", "bottom": "0.65in", "left": "0.4in", "right": "0.4in"},
+                display_header_footer=True,
+                header_template=header_html,
+                footer_template=footer_html,
+                print_background=True,
+                tagged=True,
+                outline=True,
+                prefer_css_page_size=True,
+            )
 
-        browser.close()
-        return pdf_bytes
+            browser.close()
+            return pdf_bytes
+
+    # Run in thread to avoid "sync API inside asyncio loop" error
+    import concurrent.futures
+    with concurrent.futures.ThreadPoolExecutor(max_workers=1) as executor:
+        future = executor.submit(_run_playwright)
+        return future.result(timeout=60)
 
 
 def _render_pdf_with_selenium(html: str, company_name: str = "", objeto: str = "", brand: dict = None) -> Optional[bytes]:
