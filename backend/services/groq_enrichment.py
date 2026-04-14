@@ -403,6 +403,40 @@ REGLAS:
 - Entregables tangibles: no 'informe de progreso', sino 'Pipeline funcional procesando datos de 3 fuentes'.
 - Granularidad proporcional al plazo: proyecto de 1 mes = etapas semanales, proyecto de 3 meses = etapas quincenales.""",
 
+            "equipo_trabajo": """Propone un equipo de trabajo APROPIADO para el tipo de contratación.
+ANALIZA el objeto de la licitación y la categoría para determinar los roles CORRECTOS.
+- Si es instalación eléctrica: Director de obra, Electricista matriculado, Técnico electricista, Supervisor de seguridad e higiene, etc.
+- Si es obra civil: Director de obra, Ingeniero civil, Topógrafo, Capataz, etc.
+- Si es software/IT: Líder de proyecto, Arquitecto, Desarrolladores, QA, etc.
+- Si es provisión de bienes: Gerente comercial, Logística, Control de calidad, etc.
+- Si es servicios generales: Coordinador, Técnicos especializados según el servicio, Supervisor, etc.
+
+Formato OBLIGATORIO (tabla con pipe separador):
+Rol | Responsabilidades | Dedicacion
+[Rol 1] | [descripcion concreta de sus tareas en ESTE proyecto] | [porcentaje]
+
+REGLAS:
+- Entre 4 y 7 roles como MAXIMO.
+- Los roles deben ser COHERENTES con el objeto de la licitación. NO pongas "Desarrollador Backend" si la licitación es de instalación eléctrica.
+- Dedicaciones realistas que sumen un equipo proporcional al presupuesto y plazo.
+- Si el pliego menciona perfiles o certificaciones requeridas, incluirlos.""",
+
+            "metodologia": """Propone una metodología de trabajo APROPIADA para el tipo de contratación.
+ANALIZA el objeto y propone una metodología COHERENTE:
+- Si es obra/instalación: Etapas (relevamiento, proyecto ejecutivo, ejecución, pruebas, entrega), normativas aplicables, seguridad e higiene, certificaciones.
+- Si es software: SCRUM/Agile con sprints, CI/CD, ambientes, testing.
+- Si es provisión de bienes: Logística de entrega, control de calidad, garantía, cadena de frío (si aplica).
+- Si es servicios: Plan de trabajo, cronograma, indicadores de calidad, reportes.
+
+Estructura:
+1) Metodología general (1 párrafo: qué approach se usa y por qué es adecuado para ESTE caso)
+2) Fases/etapas principales (3-5 bullets con descripción concreta)
+3) Aseguramiento de calidad (qué controles se aplican, normativas, certificaciones)
+4) Gestión y seguimiento (cómo se reporta avance, frecuencia de reuniones, entregables parciales)
+
+NO uses SCRUM si no es un proyecto de software. NO uses CI/CD si no hay código.
+Maximo 300 palabras.""",
+
             "evaluacion_riesgos": """Identifica 3-4 riesgos ESPECIFICOS de ESTE proyecto (no genericos).
 Para cada riesgo:
 - Descripcion concreta del riesgo en el contexto del proyecto
@@ -417,10 +451,11 @@ NO uses riesgos genericos como 'falta de informacion' o 'incumplimiento de plazo
         if not base_prompt:
             slug_label = section_slug.replace("_", " ").title()
             base_prompt = f"""Redacta la seccion '{slug_label}' con esta estructura:
-1) CONTEXTO: 1-2 oraciones conectando la seccion con el problema del cliente.
-2) PROPUESTA CONCRETA: Que va a hacer la empresa. Con tecnologias, metodologias y herramientas especificas.
-3) JUSTIFICACION: Por que esta solucion es la mejor. Referenciar experiencia o estandares.
-4) ENTREGABLE: Que recibe el cliente como resultado.
+1) CONTEXTO: 1-2 oraciones conectando la seccion con la necesidad del organismo.
+2) PROPUESTA CONCRETA: Que va a hacer la empresa. Con herramientas, técnicas y recursos específicos apropiados al tipo de contratación.
+3) JUSTIFICACION: Por que esta propuesta es la mejor para ESTE caso. Referenciar experiencia o normativas.
+4) ENTREGABLE: Que recibe el cliente como resultado tangible.
+IMPORTANTE: Adapta el contenido al tipo de contratación (obra, servicio, provisión, software, etc). No asumas que es software.
 USA el TEXTO DEL PLIEGO si existe. Maximo 250 palabras."""
 
         full_prompt = f"""Sos un consultor senior que redacta ofertas tecnicas de nivel McKinsey para licitaciones publicas argentinas.

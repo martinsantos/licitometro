@@ -490,14 +490,17 @@ def auto_select_diagrams(sections: List[dict], template_type: str = "servicio") 
     if "equipo_trabajo" in slugs:
         diagrams.append(("equipo_trabajo", "org_chart", DIAGRAM_CAPTIONS["org_chart"]))
 
-    # By template type
+    # By template type — only add architecture diagram for software/IT projects
     t = template_type.lower() if template_type else "servicio"
-    if "software" in t or "servicio" in t or "it" in t:
+    if "software" in t or "it" in t or "sistema" in t or "desarrollo" in t:
         diagrams.append(("propuesta_tecnica", "architecture", DIAGRAM_CAPTIONS["architecture"]))
     elif "red" in t or "conectividad" in t:
         diagrams.append(("propuesta_tecnica", "architecture", "Topología de Red Propuesta"))
-    elif "seguridad" in t or "electr" in t:
+    elif "electr" in t or "instal" in t or "obra" in t or "mantenim" in t:
         diagrams.append(("propuesta_tecnica", "process_flow", "Esquema Técnico de Implementación"))
+    elif "servicio" in t:
+        # Generic service — use process flow, not architecture
+        diagrams.append(("propuesta_tecnica", "process_flow", "Flujo de Prestación del Servicio"))
 
     # Process flow if propuesta exists and we need more
     if len(diagrams) < 3 and "propuesta_tecnica" in slugs:

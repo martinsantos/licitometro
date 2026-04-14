@@ -609,36 +609,9 @@ async def generate_section(body: Dict[str, Any], request: Request):
             lines.append(f"Validez de la oferta: {tech['validez']} dias")
         return {"content": "\n".join(lines), "section_slug": section_slug}
 
-    if section_slug == "equipo_trabajo":
-        content = """Rol | Responsabilidades | Dedicacion
-Lider de Proyecto (PM) | Coordinacion general, interlocucion con el organismo, gestion de riesgos | 100%
-Arquitecto de Software | Diseño de arquitectura, definicion de stack, seguridad | 50%
-Analista Funcional | Relevamiento de requerimientos, documentacion, casos de uso | 75%
-Desarrollador Senior Backend | Desarrollo de API, logica de negocio, base de datos | 100%
-Desarrollador Frontend | Desarrollo de interfaces web, dashboards, UX/UI | 100%
-Analista QA | Testing, pruebas de carga, automatizacion de pruebas | 75%"""
-        return {"content": content, "section_slug": section_slug}
-
-    if section_slug == "metodologia":
-        content = f"""{company_name} aplicara metodologia agil (SCRUM) con Integracion y Entrega Continua (CI/CD).
-
-Gestion del proyecto:
-- Sprints de 2 semanas con entregables funcionales
-- Sprint Planning al inicio de cada ciclo
-- Daily standups de 15 minutos
-- Sprint Review con demostracion al cliente cada quincena
-
-Aseguramiento de calidad:
-- Pruebas unitarias automatizadas
-- Pruebas de integracion
-- Revision de codigo (code review)
-- Auditoria de seguridad (SAST)
-
-Gestion de configuracion:
-- Git como control de versiones (GitFlow)
-- Pipelines CI/CD automatizados
-- Ambientes separados: desarrollo, staging, produccion"""
-        return {"content": content, "section_slug": section_slug}
+    # equipo_trabajo and metodologia are now AI-generated based on the actual
+    # licitacion category/objeto — NOT hardcoded for software. They fall through
+    # to the AI-assisted section below.
 
     if section_slug in ("antecedentes", "perfil_empresa", "antecedentes_empresa"):
         # Build from REAL data: um_antecedentes + vinculados
@@ -796,6 +769,14 @@ Gestion de configuracion:
                         parts.append(f"  - {v.get('title', '')} ({v.get('organization', '')})")
         except Exception:
             pass
+
+    # Circulares — inject with max priority
+    if lic.get("circulares"):
+        circ_lines = ["\nCIRCULARES (MÁXIMA PRIORIDAD — modifican el pliego):"]
+        for c in lic["circulares"]:
+            num = c.get("numero", "?")
+            circ_lines.append(f"- Circular N° {num}: {c.get('descripcion', '')} {c.get('aclaracion', '')}")
+        parts.append("\n".join(circ_lines))
 
     # Company context from profiles
     company_ctx = await _get_company_context_str(db, organismo, lic.get("tipo_procedimiento", ""))
