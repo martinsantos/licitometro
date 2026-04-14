@@ -52,9 +52,10 @@ def _build_monthly_table(items: list, subtotal: float, months: int) -> str:
 
     monthly_total = subtotal / months if months > 0 else 0
 
-    # Determine how many month columns fit per page (A4 ~700px usable)
-    # Item col ~140px, each month col ~75px, total col ~85px
-    max_month_cols = 6  # safe for A4 portrait
+    # Determine how many month columns fit per page
+    # A4 usable width ~680px. Item col ~180px, Total col ~110px → ~390px for months
+    # Each month col needs ~95px (with $ and decimals) → max 4 cols
+    max_month_cols = 4
     if months <= max_month_cols:
         chunks = [(1, months)]
     else:
@@ -68,11 +69,10 @@ def _build_monthly_table(items: list, subtotal: float, months: int) -> str:
     html = ""
     for chunk_idx, (m_start, m_end) in enumerate(chunks):
         cols_in_chunk = m_end - m_start + 1
-        # Scale font based on columns: 8pt for 6 cols, 7pt for more
-        font_sz = "7.5pt" if cols_in_chunk > 5 else "8pt"
-        hdr_font = "7pt" if cols_in_chunk > 5 else "7.5pt"
-        cell_pad = "4px 2px" if cols_in_chunk > 5 else "5px 3px"
-        desc_max = 30 if cols_in_chunk > 5 else 35
+        font_sz = "9pt"
+        hdr_font = "8pt"
+        cell_pad = "6px 4px"
+        desc_max = 40
 
         html += '<div style="page-break-before:always;margin-top:30px">'
         if chunk_idx == 0:
@@ -82,12 +82,23 @@ def _build_monthly_table(items: list, subtotal: float, months: int) -> str:
 
         html += f'<table style="width:100%;border-collapse:collapse;font-size:{font_sz};margin-top:8px;table-layout:fixed">'
 
+        # Colgroup for controlled widths
+        item_pct = 28
+        total_pct = 16
+        month_pct = (100 - item_pct - total_pct) // cols_in_chunk
+        html += '<colgroup>'
+        html += f'<col style="width:{item_pct}%">'
+        for _ in range(cols_in_chunk):
+            html += f'<col style="width:{month_pct}%">'
+        html += f'<col style="width:{total_pct}%">'
+        html += '</colgroup>'
+
         # Header
         html += '<thead><tr>'
-        html += f'<th style="text-align:left;padding:4px;background:#1d4ed8;color:white;font-size:{hdr_font};width:140px;overflow:hidden">Item</th>'
+        html += f'<th style="text-align:left;padding:{cell_pad};background:#1d4ed8;color:white;font-size:{hdr_font}">Item</th>'
         for m in range(m_start, m_end + 1):
-            html += f'<th style="text-align:right;padding:4px 2px;background:#1d4ed8;color:white;font-size:{hdr_font};white-space:nowrap">Mes {m}</th>'
-        html += f'<th style="text-align:right;padding:4px;background:#1e3a5f;color:white;font-size:{hdr_font};font-weight:800;width:90px">TOTAL</th>'
+            html += f'<th style="text-align:right;padding:{cell_pad};background:#1d4ed8;color:white;font-size:{hdr_font}">Mes {m}</th>'
+        html += f'<th style="text-align:right;padding:{cell_pad};background:#1e3a5f;color:white;font-size:{hdr_font};font-weight:800">TOTAL</th>'
         html += '</tr></thead><tbody>'
 
         # Item rows
@@ -102,16 +113,16 @@ def _build_monthly_table(items: list, subtotal: float, months: int) -> str:
             html += f'<tr style="background:{bg}">'
             html += f'<td style="padding:{cell_pad};border-bottom:1px solid #e5e7eb;font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{i+1}. {desc}</td>'
             for _ in range(m_start, m_end + 1):
-                html += f'<td style="text-align:right;padding:{cell_pad};border-bottom:1px solid #e5e7eb;white-space:nowrap">{_fmt(per_month)}</td>'
-            html += f'<td style="text-align:right;padding:{cell_pad};border-bottom:1px solid #e5e7eb;font-weight:700;white-space:nowrap;background:#f0f9ff">{_fmt(item_total)}</td>'
+                html += f'<td style="text-align:right;padding:{cell_pad};border-bottom:1px solid #e5e7eb">{_fmt(per_month)}</td>'
+            html += f'<td style="text-align:right;padding:{cell_pad};border-bottom:1px solid #e5e7eb;font-weight:700;background:#f0f9ff">{_fmt(item_total)}</td>'
             html += '</tr>'
 
         # Total row
         html += '<tr style="background:#dbeafe;font-weight:700">'
-        html += f'<td style="padding:4px;color:#1d4ed8">TOTAL MENSUAL</td>'
+        html += f'<td style="padding:{cell_pad};color:#1d4ed8">TOTAL MENSUAL</td>'
         for _ in range(m_start, m_end + 1):
-            html += f'<td style="text-align:right;padding:4px 2px;color:#1d4ed8;white-space:nowrap">{_fmt(monthly_total)}</td>'
-        html += f'<td style="text-align:right;padding:4px;color:#1e3a5f;font-weight:800;white-space:nowrap">{_fmt(subtotal)}</td>'
+            html += f'<td style="text-align:right;padding:{cell_pad};color:#1d4ed8">{_fmt(monthly_total)}</td>'
+        html += f'<td style="text-align:right;padding:{cell_pad};color:#1e3a5f;font-weight:800">{_fmt(subtotal)}</td>'
         html += '</tr></tbody></table></div>'
 
     return html
