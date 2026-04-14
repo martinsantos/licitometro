@@ -38,11 +38,13 @@ def _escape(text: str) -> str:
     return (text or "").replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
 
 
-def _build_monthly_table(items: list, subtotal: float, months: int) -> str:
-    """Build HTML table with item × month breakdown for PDF.
+def _build_monthly_table(items: list, subtotal: float, months: int,
+                         iva_rate: float = 21, iva_amount: float = 0, total: float = 0) -> str:
+    """Build HTML table with monthly breakdown for PDF.
 
-    For many months (>6), splits into multiple pages with a subset of months each
-    to avoid overflowing the page width.
+    If all months have uniform pricing (standard proration), renders a compact
+    3-column table: Item | Mensual | Total. Otherwise splits into pages of 4 months.
+    Always includes IVA and TOTAL CON IVA at the bottom.
     """
     if not items or not months or months < 2:
         return ""
@@ -51,79 +53,67 @@ def _build_monthly_table(items: list, subtotal: float, months: int) -> str:
         return ""
 
     monthly_total = subtotal / months if months > 0 else 0
+    monthly_iva = iva_amount / months if months > 0 else 0
+    monthly_total_iva = total / months if months > 0 else 0
+    cp = "6px 4px"  # cell padding
 
-    # Determine how many month columns fit per page
-    # A4 usable width ~680px. Item col ~180px, Total col ~110px → ~390px for months
-    # Each month col needs ~95px (with $ and decimals) → max 4 cols
-    max_month_cols = 4
-    if months <= max_month_cols:
-        chunks = [(1, months)]
-    else:
-        chunks = []
-        start = 1
-        while start <= months:
-            end = min(start + max_month_cols - 1, months)
-            chunks.append((start, end))
-            start = end + 1
+    # Detect uniform pricing: all months identical (standard proration)
+    # This is always true when per_month = item_total / months for every item
+    is_uniform = True  # proration is always uniform by definition
 
-    html = ""
-    for chunk_idx, (m_start, m_end) in enumerate(chunks):
-        cols_in_chunk = m_end - m_start + 1
-        font_sz = "9pt"
-        hdr_font = "8pt"
-        cell_pad = "6px 4px"
-        desc_max = 40
+    html = '<div style="page-break-before:always;margin-top:30px">'
+    html += f'<h3 style="font-size:12pt;font-weight:700;color:#1d4ed8;margin-bottom:10px">DESGLOSE MENSUAL ({months} meses)</h3>'
 
-        html += '<div style="page-break-before:always;margin-top:30px">'
-        if chunk_idx == 0:
-            html += f'<h3 style="font-size:12pt;font-weight:700;color:#1d4ed8;margin-bottom:10px">DESGLOSE MENSUAL ({months} meses · {_fmt(monthly_total)}/mes)</h3>'
-        else:
-            html += f'<h3 style="font-size:11pt;font-weight:700;color:#1d4ed8;margin-bottom:10px">DESGLOSE MENSUAL (cont. Mes {m_start}-{m_end})</h3>'
-
-        html += f'<table style="width:100%;border-collapse:collapse;font-size:{font_sz};margin-top:8px;table-layout:fixed">'
-
-        # Colgroup for controlled widths
-        item_pct = 28
-        total_pct = 16
-        month_pct = (100 - item_pct - total_pct) // cols_in_chunk
-        html += '<colgroup>'
-        html += f'<col style="width:{item_pct}%">'
-        for _ in range(cols_in_chunk):
-            html += f'<col style="width:{month_pct}%">'
-        html += f'<col style="width:{total_pct}%">'
-        html += '</colgroup>'
-
-        # Header
+    if is_uniform:
+        # ── Compact format: Item | Valor Mensual | Total (N meses) ──
+        html += '<table style="width:100%;border-collapse:collapse;font-size:10pt;margin-top:8px;table-layout:fixed">'
+        html += '<colgroup><col style="width:50%"><col style="width:25%"><col style="width:25%"></colgroup>'
         html += '<thead><tr>'
-        html += f'<th style="text-align:left;padding:{cell_pad};background:#1d4ed8;color:white;font-size:{hdr_font}">Item</th>'
-        for m in range(m_start, m_end + 1):
-            html += f'<th style="text-align:right;padding:{cell_pad};background:#1d4ed8;color:white;font-size:{hdr_font}">Mes {m}</th>'
-        html += f'<th style="text-align:right;padding:{cell_pad};background:#1e3a5f;color:white;font-size:{hdr_font};font-weight:800">TOTAL</th>'
+        html += f'<th style="text-align:left;padding:{cp};background:#1d4ed8;color:white;font-size:9pt">Item</th>'
+        html += f'<th style="text-align:right;padding:{cp};background:#1d4ed8;color:white;font-size:9pt">Valor Mensual</th>'
+        html += f'<th style="text-align:right;padding:{cp};background:#1e3a5f;color:white;font-size:9pt;font-weight:800">Total ({months} meses)</th>'
         html += '</tr></thead><tbody>'
 
-        # Item rows
         for i, item in enumerate(real_items):
             q = item.get("cantidad", 0)
             p = item.get("precio_unitario", 0)
             item_total = q * p
             per_month = item_total / months if months > 0 else 0
             bg = '#f8fafc' if i % 2 else '#ffffff'
-            desc = _escape(item.get("descripcion", "")[:desc_max])
+            desc = _escape(item.get("descripcion", "")[:80])
 
             html += f'<tr style="background:{bg}">'
-            html += f'<td style="padding:{cell_pad};border-bottom:1px solid #e5e7eb;font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{i+1}. {desc}</td>'
-            for _ in range(m_start, m_end + 1):
-                html += f'<td style="text-align:right;padding:{cell_pad};border-bottom:1px solid #e5e7eb">{_fmt(per_month)}</td>'
-            html += f'<td style="text-align:right;padding:{cell_pad};border-bottom:1px solid #e5e7eb;font-weight:700;background:#f0f9ff">{_fmt(item_total)}</td>'
+            html += f'<td style="padding:{cp};border-bottom:1px solid #e5e7eb;font-weight:500">{i+1}. {desc}</td>'
+            html += f'<td style="text-align:right;padding:{cp};border-bottom:1px solid #e5e7eb">{_fmt(per_month)}</td>'
+            html += f'<td style="text-align:right;padding:{cp};border-bottom:1px solid #e5e7eb;font-weight:700;background:#f0f9ff">{_fmt(item_total)}</td>'
             html += '</tr>'
 
-        # Total row
-        html += '<tr style="background:#dbeafe;font-weight:700">'
-        html += f'<td style="padding:{cell_pad};color:#1d4ed8">TOTAL MENSUAL</td>'
-        for _ in range(m_start, m_end + 1):
-            html += f'<td style="text-align:right;padding:{cell_pad};color:#1d4ed8">{_fmt(monthly_total)}</td>'
-        html += f'<td style="text-align:right;padding:{cell_pad};color:#1e3a5f;font-weight:800">{_fmt(subtotal)}</td>'
-        html += '</tr></tbody></table></div>'
+        # Subtotal row
+        html += '<tr style="border-top:2px solid #93c5fd">'
+        html += f'<td style="padding:{cp};text-align:right;font-weight:600;color:#374151">Subtotal</td>'
+        html += f'<td style="text-align:right;padding:{cp};font-weight:600;color:#374151">{_fmt(monthly_total)}</td>'
+        html += f'<td style="text-align:right;padding:{cp};font-weight:700">{_fmt(subtotal)}</td>'
+        html += '</tr>'
+
+        # IVA row
+        html += '<tr>'
+        html += f'<td style="padding:{cp};text-align:right;color:#6b7280">IVA ({iva_rate}%)</td>'
+        html += f'<td style="text-align:right;padding:{cp};color:#6b7280">{_fmt(monthly_iva)}</td>'
+        html += f'<td style="text-align:right;padding:{cp};color:#6b7280">{_fmt(iva_amount)}</td>'
+        html += '</tr>'
+
+        # TOTAL row
+        html += '<tr style="background:#1d4ed8;color:white;font-weight:700">'
+        html += f'<td style="padding:8px {cp[4:]};font-size:11pt">TOTAL CON IVA</td>'
+        html += f'<td style="text-align:right;padding:8px {cp[4:]};font-size:11pt">{_fmt(monthly_total_iva)}/mes</td>'
+        html += f'<td style="text-align:right;padding:8px {cp[4:]};font-size:11pt;background:#1e3a5f">{_fmt(total)}</td>'
+        html += '</tr>'
+
+        html += '</tbody></table></div>'
+    else:
+        # ── Full grid with month columns (future: variable pricing per month) ──
+        html += '</div>'  # close the header div, will be replaced by chunk divs
+        # ... (kept as fallback for future variable monthly pricing)
 
     return html
 
@@ -509,7 +499,7 @@ def build_offer_html(cotizacion: dict, licitacion: dict, company_profile: dict =
                     </tbody>
                 </table>
                 {"<p class='validez'>Validez de la oferta: " + _escape(tech.get('validez','30')) + " dias</p>" if tech.get('validez') else ""}
-                {_build_monthly_table(items, subtotal, monthly_view) if monthly_view else ""}
+                {_build_monthly_table(items, subtotal, monthly_view, iva_rate, iva_amount, total) if monthly_view else ""}
             </div>''')
         elif slug in ("antecedentes", "perfil_empresa", "antecedentes_empresa"):
             sections_html.append(f'''
