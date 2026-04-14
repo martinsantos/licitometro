@@ -1875,22 +1875,31 @@ export default function OfertaEditor({ licitacion, onSaved }: Props) {
                 </div>
               )}
 
-              {/* Garantias */}
-              {marcoLegal.garantias_requeridas && marcoLegal.garantias_requeridas.length > 0 && (
-                <div>
-                  <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Garantias Requeridas</p>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                    {marcoLegal.garantias_requeridas.map((g, i) => (
-                      <div key={i} className="border border-gray-200 rounded-lg p-3">
-                        <p className="font-medium text-gray-800 text-sm">{g.tipo}</p>
-                        {g.porcentaje && <p className="text-xs text-gray-500">Porcentaje: {g.porcentaje}</p>}
-                        {g.monto_estimado && <p className="text-xs text-gray-500">Monto est.: {formatARS(g.monto_estimado)}</p>}
-                        {g.forma && <p className="text-xs text-gray-500">Forma: {g.forma}</p>}
-                      </div>
-                    ))}
-                  </div>
+              {/* Garantias — shows user's edited values from Step 2 */}
+              <div>
+                <div className="flex items-center justify-between mb-2">
+                  <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Garantias</p>
+                  <button onClick={() => setStep(2)} className="text-[10px] text-amber-600 hover:text-amber-800 underline">Editar en Propuesta</button>
                 </div>
-              )}
+                <div className="border-2 border-amber-200 rounded-xl p-4 bg-amber-50/50 space-y-3">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div className="bg-white rounded-lg p-3 border border-amber-200">
+                      <p className="font-medium text-gray-800 text-sm">Garantia de Oferta</p>
+                      <p className="text-xs text-gray-500">Porcentaje: {garantiaData.oferta_pct}%</p>
+                      <p className="text-sm font-semibold text-amber-800 mt-1">{formatARS(garantiaData.oferta_monto)}</p>
+                    </div>
+                    {parseFloat(garantiaData.cumplimiento_pct) > 0 && (
+                      <div className="bg-white rounded-lg p-3 border border-amber-200">
+                        <p className="font-medium text-gray-800 text-sm">Garantia de Cumplimiento</p>
+                        <p className="text-xs text-gray-500">Porcentaje: {garantiaData.cumplimiento_pct}%</p>
+                        <p className="text-sm font-semibold text-amber-800 mt-1">{formatARS(garantiaData.cumplimiento_monto)}</p>
+                      </div>
+                    )}
+                  </div>
+                  <p className="text-xs text-gray-500">Forma: {garantiaData.forma}</p>
+                  {total === 0 && <p className="text-xs text-amber-600 italic">Completá los items para calcular montos.</p>}
+                </div>
+              </div>
 
               {/* Guia paso a paso */}
               {marcoLegal.guia_paso_a_paso && marcoLegal.guia_paso_a_paso.length > 0 && (
