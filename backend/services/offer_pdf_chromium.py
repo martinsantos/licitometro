@@ -67,7 +67,7 @@ def _build_monthly_table(items: list, subtotal: float, months: int,
     if is_uniform:
         # ── Compact format: Item | Valor Mensual | Total (N meses) ──
         html += '<table style="width:100%;border-collapse:collapse;font-size:10pt;margin-top:8px;table-layout:fixed">'
-        html += '<colgroup><col style="width:50%"><col style="width:25%"><col style="width:25%"></colgroup>'
+        html += '<colgroup><col style="width:44%"><col style="width:28%"><col style="width:28%"></colgroup>'
         html += '<thead><tr>'
         html += f'<th style="text-align:left;padding:{cp};background:#1d4ed8;color:white;font-size:9pt">Item</th>'
         html += f'<th style="text-align:right;padding:{cp};background:#1d4ed8;color:white;font-size:9pt">Valor Mensual</th>'
@@ -104,9 +104,9 @@ def _build_monthly_table(items: list, subtotal: float, months: int,
 
         # TOTAL row
         html += '<tr style="background:#1d4ed8;color:white;font-weight:700">'
-        html += f'<td style="padding:8px {cp[4:]};font-size:11pt">TOTAL CON IVA</td>'
-        html += f'<td style="text-align:right;padding:8px {cp[4:]};font-size:11pt">{_fmt(monthly_total_iva)}/mes</td>'
-        html += f'<td style="text-align:right;padding:8px {cp[4:]};font-size:11pt;background:#1e3a5f">{_fmt(total)}</td>'
+        html += f'<td style="padding:8px 4px;font-size:10pt">TOTAL CON IVA</td>'
+        html += f'<td style="text-align:right;padding:8px 4px;font-size:10pt;white-space:nowrap">{_fmt(monthly_total_iva)}/mes</td>'
+        html += f'<td style="text-align:right;padding:8px 4px;font-size:10pt;background:#1e3a5f;white-space:nowrap">{_fmt(total)}</td>'
         html += '</tr>'
 
         html += '</tbody></table></div>'
