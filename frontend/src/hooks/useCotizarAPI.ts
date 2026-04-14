@@ -495,6 +495,19 @@ export function useCotizarAPI() {
       });
     },
 
+    // --- Circulares ---
+
+    async checkCirculares(licitacionId: string): Promise<{ new_circulares: number; circulares: Array<Record<string, unknown>> }> {
+      return apiFetchMain(`/licitaciones/${licitacionId}/check-circulares`, { method: 'POST' });
+    },
+
+    async addCircularManual(licitacionId: string, circular: Record<string, string>): Promise<{ success: boolean }> {
+      return apiFetchMain(`/licitaciones/${licitacionId}/circulares`, {
+        method: 'POST',
+        body: JSON.stringify(circular),
+      });
+    },
+
     // --- Document text extraction ---
 
     async extractDocumentText(docId: string): Promise<{ text: string; chars: number }> {

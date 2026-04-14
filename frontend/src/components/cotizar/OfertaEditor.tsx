@@ -184,6 +184,7 @@ export default function OfertaEditor({ licitacion, onSaved }: Props) {
   const [savedAt, setSavedAt] = useState<string | null>(null);
   const [autoSaveFailed, setAutoSaveFailed] = useState(false);
   const [garantiaData, setGarantiaData] = useState<GarantiaData>({ ...GARANTIA_DEFAULT });
+  const [circulares, setCirculares] = useState<Array<Record<string, unknown>>>([]);
   const [pliegoInfo, setPliegoInfo] = useState<PliegoInfo | null>(null);
   const [marcoLegal, setMarcoLegal] = useState<MarcoLegal | null>(null);
   const [loadingMarcoLegal, setLoadingMarcoLegal] = useState(false);
@@ -361,6 +362,12 @@ export default function OfertaEditor({ licitacion, onSaved }: Props) {
 
         if (cancelled) return;
         setPhase('ready');
+
+        // Load circulares from licitacion
+        fetch(`/api/licitaciones/${licitacion.id}`, { credentials: 'include' })
+          .then(r => r.ok ? r.json() : null)
+          .then(data => { if (!cancelled && data?.circulares) setCirculares(data.circulares); })
+          .catch(() => {});
 
         // Fetch enrichments in background
         api.getBudgetHints(licitacion.id).then(h => { if (!cancelled) setBudgetHints(h); }).catch(() => {});
@@ -2100,6 +2107,13 @@ export default function OfertaEditor({ licitacion, onSaved }: Props) {
                 ivaRate={ivaRate}
                 ivaAmount={ivaAmount}
                 total={total}
+                circulares={circulares as Array<{ numero?: number; tipo?: string; fecha_publicacion?: string; descripcion?: string; aclaracion?: string; source?: string }>}
+                onCircularesChange={() => {
+                  fetch(`/api/licitaciones/${licitacion.id}`, { credentials: 'include' })
+                    .then(r => r.ok ? r.json() : null)
+                    .then(data => { if (data?.circulares) setCirculares(data.circulares); })
+                    .catch(() => {});
+                }}
               />
             </>
           )}

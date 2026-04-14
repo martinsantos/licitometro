@@ -639,6 +639,51 @@ async def get_estado_history(
     }
 
 
+@router.post("/{licitacion_id}/check-circulares")
+async def check_circulares(licitacion_id: str, request: Request):
+    """Check for new circulares on COMPR.AR for this licitacion."""
+    db = request.app.mongodb
+    from services.circular_extractor import get_circular_extractor
+    extractor = get_circular_extractor(db)
+    new_circulares = await extractor.check_circulares(licitacion_id)
+    return {
+        "success": True,
+        "new_circulares": len(new_circulares),
+        "circulares": new_circulares,
+    }
+
+
+@router.post("/{licitacion_id}/circulares")
+async def add_circular_manual(licitacion_id: str, body: Dict[str, Any], request: Request):
+    """Manually add a circular to a licitacion."""
+    db = request.app.mongodb
+
+    lic = await db.licitaciones.find_one({"_id": ObjectId(licitacion_id)})
+    if not lic:
+        raise HTTPException(404, "Licitacion not found")
+
+    circular = {
+        "numero": body.get("numero"),
+        "tipo": body.get("tipo", "Aclaratoria"),
+        "fecha_publicacion": body.get("fecha_publicacion"),
+        "descripcion": body.get("descripcion", ""),
+        "aclaracion": body.get("aclaracion", ""),
+        "motivo": body.get("motivo", ""),
+        "source": "manual",
+        "detected_at": utc_now().isoformat(),
+    }
+
+    await db.licitaciones.update_one(
+        {"_id": ObjectId(licitacion_id)},
+        {
+            "$push": {"circulares": circular},
+            "$set": {"updated_at": utc_now()},
+        }
+    )
+
+    return {"success": True, "circular": circular}
+
+
 @router.get("/distinct/{field_name}", response_model=List[str])
 async def get_distinct_values(
     field_name: str,

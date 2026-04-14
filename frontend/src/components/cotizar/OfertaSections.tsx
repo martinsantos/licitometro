@@ -20,6 +20,9 @@ interface Props {
   ivaRate?: number;
   ivaAmount?: number;
   total?: number;
+  // Circulares
+  circulares?: Array<{ numero?: number; tipo?: string; fecha_publicacion?: string; descripcion?: string; aclaracion?: string; source?: string }>;
+  onCircularesChange?: () => void;
 }
 
 function formatARS(n: number) {
@@ -30,9 +33,13 @@ function slugify(text: string): string {
   return text.toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_|_$/g, '');
 }
 
-export default function OfertaSections({ licitacionId, sections, onSectionsChange, pliegoDocuments, onPliegosChange, templateName, onChangeTemplate, items: cotizarItems, monthlyView, subtotal: cotSubtotal, ivaRate: cotIvaRate, ivaAmount: cotIvaAmount, total: cotTotal }: Props) {
+export default function OfertaSections({ licitacionId, sections, onSectionsChange, pliegoDocuments, onPliegosChange, templateName, onChangeTemplate, items: cotizarItems, monthlyView, subtotal: cotSubtotal, ivaRate: cotIvaRate, ivaAmount: cotIvaAmount, total: cotTotal, circulares, onCircularesChange }: Props) {
   const months = monthlyView && monthlyView > 1 ? monthlyView : 0;
   const api = useCotizarAPI();
+  const [circularText, setCircularText] = useState('');
+  const [circularNumero, setCircularNumero] = useState('');
+  const [checkingCirculares, setCheckingCirculares] = useState(false);
+  const [circularStatus, setCircularStatus] = useState('');
   const [expandedSlug, setExpandedSlug] = useState<string | null>(sections[0]?.slug || null);
   const [generating, setGenerating] = useState<string | null>(null);
   const [editingTitle, setEditingTitle] = useState<string | null>(null);
@@ -303,6 +310,99 @@ export default function OfertaSections({ licitacionId, sections, onSectionsChang
           )}
         </div>
       )}
+
+      {/* ─── Circulares Section ─── */}
+      <div className="border border-rose-200 rounded-xl overflow-hidden bg-rose-50/30">
+        <div className="px-4 py-3 flex items-center justify-between bg-rose-100/50">
+          <div className="flex items-center gap-2">
+            <span className="text-lg">📋</span>
+            <span className="font-semibold text-rose-800 text-sm">Circulares</span>
+            {(circulares?.length ?? 0) > 0 && (
+              <span className="text-xs bg-rose-200 text-rose-800 px-1.5 py-0.5 rounded-full font-bold">{circulares!.length}</span>
+            )}
+          </div>
+          <button
+            onClick={async () => {
+              setCheckingCirculares(true);
+              setCircularStatus('Verificando en COMPR.AR...');
+              try {
+                const result = await api.checkCirculares(licitacionId);
+                if (result.new_circulares > 0) {
+                  setCircularStatus(`${result.new_circulares} circular(es) nueva(s) encontrada(s)`);
+                  onCircularesChange?.();
+                } else {
+                  setCircularStatus('Sin circulares nuevas');
+                }
+              } catch { setCircularStatus('Error al verificar'); }
+              finally {
+                setCheckingCirculares(false);
+                setTimeout(() => setCircularStatus(''), 5000);
+              }
+            }}
+            disabled={checkingCirculares}
+            className="text-xs px-3 py-1.5 bg-rose-600 text-white rounded-lg hover:bg-rose-700 disabled:opacity-50 transition-colors"
+          >
+            {checkingCirculares ? 'Verificando...' : 'Verificar en COMPR.AR'}
+          </button>
+        </div>
+
+        {circularStatus && (
+          <div className="px-4 py-2 text-xs text-rose-700 bg-rose-100">{circularStatus}</div>
+        )}
+
+        {circulares && circulares.length > 0 && (
+          <div className="px-4 py-3 space-y-2">
+            {circulares.map((c, i) => (
+              <div key={i} className="bg-white rounded-lg p-3 border border-rose-200">
+                <div className="flex items-center justify-between">
+                  <span className="font-bold text-rose-700 text-sm">Circular N° {c.numero ?? '?'}</span>
+                  <div className="flex items-center gap-2">
+                    {c.fecha_publicacion && <span className="text-xs text-rose-500">{c.fecha_publicacion}</span>}
+                    <span className="text-[10px] px-1.5 py-0.5 rounded bg-rose-100 text-rose-600">{c.source === 'manual' ? 'Manual' : 'Auto'}</span>
+                  </div>
+                </div>
+                {c.tipo && <p className="text-xs text-gray-500 mt-0.5">Tipo: {c.tipo}</p>}
+                {c.descripcion && <p className="text-sm text-gray-700 mt-1">{c.descripcion}</p>}
+                {c.aclaracion && (
+                  <div className="mt-2 p-2 bg-amber-50 border border-amber-200 rounded text-sm text-gray-800">
+                    <span className="text-xs font-semibold text-amber-700">Aclaración: </span>
+                    {c.aclaracion}
+                  </div>
+                )}
+              </div>
+            ))}
+            <p className="text-[10px] text-rose-500 italic">Las circulares MODIFICAN el pliego y tienen PRIORIDAD al regenerar secciones.</p>
+          </div>
+        )}
+
+        {/* Manual circular input */}
+        <div className="px-4 py-3 border-t border-rose-200">
+          <p className="text-xs font-medium text-rose-700 mb-2">Cargar circular manualmente</p>
+          <div className="flex gap-2 mb-2">
+            <input type="text" value={circularNumero} onChange={e => setCircularNumero(e.target.value)} placeholder="N°" className="w-16 border border-rose-200 rounded-lg px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-rose-400" />
+            <input type="text" value={circularText.split('\n')[0] || ''} onChange={e => { const rest = circularText.includes('\n') ? circularText.split('\n').slice(1).join('\n') : ''; setCircularText(e.target.value + (rest ? '\n' + rest : '')); }} placeholder="Motivo (ej: Pliego de condiciones particulares)" className="flex-1 border border-rose-200 rounded-lg px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-rose-400" />
+          </div>
+          <textarea value={circularText.includes('\n') ? circularText.split('\n').slice(1).join('\n') : ''} onChange={e => { const motivo = circularText.split('\n')[0] || ''; setCircularText(motivo + '\n' + e.target.value); }} placeholder="Pega el texto de la aclaración aqui..." rows={3} className="w-full border border-rose-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-rose-400 resize-y mb-2" />
+          <button
+            onClick={async () => {
+              if (!circularText.trim()) return;
+              const parts = circularText.split('\n');
+              const motivo = parts[0] || '';
+              const aclaracion = parts.slice(1).join('\n').trim();
+              try {
+                await api.addCircularManual(licitacionId, { numero: circularNumero || '1', tipo: 'Aclaratoria', motivo, aclaracion, descripcion: motivo, fecha_publicacion: new Date().toLocaleDateString('es-AR') });
+                setCircularText(''); setCircularNumero('');
+                setCircularStatus('Circular guardada — regenera secciones para aplicarla');
+                onCircularesChange?.();
+              } catch { setCircularStatus('Error al guardar'); }
+            }}
+            disabled={!circularText.trim()}
+            className="text-xs px-4 py-1.5 bg-rose-600 text-white rounded-lg hover:bg-rose-700 disabled:opacity-50 transition-colors"
+          >
+            Guardar circular
+          </button>
+        </div>
+      </div>
 
       {/* Pliego Finder Panel */}
       <div className="border border-blue-200 bg-blue-50/50 rounded-xl p-4 space-y-3">

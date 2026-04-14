@@ -1108,6 +1108,20 @@ async def analyze_pliego_gaps(body: Dict[str, Any], request: Request):
 
     filled_slugs = [s.get("slug") for s in current_sections if s.get("content", "").strip()]
 
+    # Add circulares to gap analysis — they modify the pliego
+    try:
+        lic = await db.licitaciones.find_one(
+            {"_id": __import__("bson").ObjectId(licitacion_id)}, {"circulares": 1}
+        )
+        if lic and lic.get("circulares"):
+            circ_lines = ["\n\nCIRCULARES (modifican el pliego — MÁXIMA PRIORIDAD):"]
+            for c in lic["circulares"]:
+                num = c.get("numero", "?")
+                circ_lines.append(f"- Circular N° {num}: {c.get('descripcion', '')} {c.get('aclaracion', '')}")
+            pliego_text = "\n".join(circ_lines) + "\n\n" + pliego_text
+    except Exception:
+        pass  # Non-critical
+
     groq = get_groq_enrichment_service(db)
     sections_summary = ", ".join(filled_slugs) if filled_slugs else "ninguna"
 
@@ -1459,6 +1473,28 @@ async def extract_pliego_info(body: Dict[str, Any], request: Request):
         parts.append(f"Encuadre legal: {lic['encuadre_legal']}")
     if lic.get("garantias"):
         parts.append(f"Garantías: {json.dumps(lic['garantias'], ensure_ascii=False)[:500]}")
+    # Circulares — HIGH PRIORITY: these MODIFY the base pliego
+    if lic.get("circulares"):
+        circ_parts = []
+        for c in lic["circulares"]:
+            num = c.get("numero", "?")
+            circ_parts.append(f"Circular N° {num}")
+            if c.get("fecha_publicacion"):
+                circ_parts.append(f"  Fecha: {c['fecha_publicacion']}")
+            if c.get("tipo"):
+                circ_parts.append(f"  Tipo: {c['tipo']}")
+            if c.get("motivo"):
+                circ_parts.append(f"  Motivo: {c['motivo']}")
+            if c.get("aclaracion"):
+                circ_parts.append(f"  Aclaración: {c['aclaracion']}")
+            if c.get("descripcion"):
+                circ_parts.append(f"  Descripción: {c['descripcion']}")
+            circ_parts.append("")
+        parts.append("\n=== CIRCULARES (MÁXIMA PRIORIDAD — modifican el pliego base) ===")
+        parts.append("IMPORTANTE: Las circulares CORRIGEN y tienen PRIORIDAD sobre el pliego original.")
+        parts.append("Si una circular contradice algo del pliego, la circular PREVALECE.")
+        parts.append("\n".join(circ_parts))
+
     if lic.get("duracion_contrato"):
         parts.append(f"Duración contrato: {lic['duracion_contrato']}")
     if lic.get("items"):

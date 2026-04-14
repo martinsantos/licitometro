@@ -111,6 +111,15 @@ CRON_JOBS = [
         "method": "run_daily_digest",
         "max_instances": 1,
     },
+    {
+        "id": "circular_daily_check",
+        "name": "Daily circular check (vigente + cotizando)",
+        "trigger": CronTrigger(hour=20, minute=0),
+        "service_module": "services.circular_extractor",
+        "service_factory": "get_circular_extractor",
+        "method": "run_daily_check",
+        "max_instances": 1,
+    },
 ]
 
 
