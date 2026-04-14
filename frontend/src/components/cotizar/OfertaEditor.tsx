@@ -470,7 +470,7 @@ export default function OfertaEditor({ licitacion, onSaved }: Props) {
     } finally {
       if (!silent) setSaving(false);
     }
-  }, [items, ivaRate, techData, companyData, analysis, pliegoInfo, marcoLegal, marcoLegalChecks, vinculados, priceIntelligence, budgetOverride, offerSections, pliegoDocuments, garantiaData, licitacion, onSaved]);
+  }, [items, ivaRate, techData, companyData, analysis, pliegoInfo, marcoLegal, marcoLegalChecks, vinculados, priceIntelligence, budgetOverride, offerSections, pliegoDocuments, garantiaData, monthlyViewActive, contractMonths, licitacion, onSaved]);
 
   // Auto-save debounced
   useEffect(() => {
@@ -478,7 +478,7 @@ export default function OfertaEditor({ licitacion, onSaved }: Props) {
     if (debounceRef.current) clearTimeout(debounceRef.current);
     debounceRef.current = setTimeout(() => doSave(true), 2500);
     return () => { if (debounceRef.current) clearTimeout(debounceRef.current); };
-  }, [items, ivaRate, techData, companyData, analysis, pliegoInfo, marcoLegal, marcoLegalChecks, vinculados, priceIntelligence, budgetOverride, offerSections, pliegoDocuments, garantiaData, phase]);
+  }, [items, ivaRate, techData, companyData, analysis, pliegoInfo, marcoLegal, marcoLegalChecks, vinculados, priceIntelligence, budgetOverride, offerSections, pliegoDocuments, garantiaData, monthlyViewActive, contractMonths, phase]);
 
   // Auto-populate garantía from marcoLegal extraction
   useEffect(() => {
