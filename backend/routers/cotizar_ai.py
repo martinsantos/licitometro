@@ -535,19 +535,74 @@ async def generate_section(body: Dict[str, Any], request: Request):
         return {"content": "\n".join(lines), "section_slug": section_slug}
 
     if section_slug == "oferta_economica":
+        monthly_view = cot.get("monthly_view")  # int (months) or None
         lines = ["Detalle de la oferta economica:", ""]
-        for i, item in enumerate(items, 1):
-            desc = item.get("descripcion", "-")
-            cant = item.get("cantidad", 0)
-            unit = item.get("unidad", "u.")
-            precio = item.get("precio_unitario", 0)
-            sub = cant * precio
-            if desc.strip():
-                lines.append(f"{i}. {desc} — {cant} {unit} x {_fmt_ars(precio)} = {_fmt_ars(sub)}")
+
+        if monthly_view and isinstance(monthly_view, (int, float)) and monthly_view > 1:
+            months = int(monthly_view)
+            # ── Monthly breakdown table ──
+            lines.append(f"Contrato: {months} meses | Total mensual: {_fmt_ars(subtotal / months)}/mes")
+            lines.append("")
+
+            # Header row
+            header = f"{'Item':<50}"
+            for m in range(1, months + 1):
+                header += f" | {'Mes ' + str(m):>14}"
+            header += f" | {'Total':>14}"
+            lines.append(header)
+            lines.append("-" * len(header))
+
+            # Item rows
+            for i, item in enumerate(items, 1):
+                desc = item.get("descripcion", "-")
+                cant = item.get("cantidad", 0)
+                precio = item.get("precio_unitario", 0)
+                item_total = cant * precio
+                per_month = item_total / months if months > 0 else 0
+                if desc.strip():
+                    row = f"{i}. {desc[:47]:<50}"
+                    for _m in range(months):
+                        row += f" | {_fmt_ars(per_month):>14}"
+                    row += f" | {_fmt_ars(item_total):>14}"
+                    lines.append(row)
+
+            # Total row
+            lines.append("-" * len(header) if items else "")
+            total_row = f"{'TOTAL MENSUAL':<50}"
+            monthly_total = subtotal / months if months > 0 else 0
+            for _m in range(months):
+                total_row += f" | {_fmt_ars(monthly_total):>14}"
+            total_row += f" | {_fmt_ars(subtotal):>14}"
+            lines.append(total_row)
+            lines.append("")
+
+            # Also include flat summary
+            lines.append("Resumen:")
+            for i, item in enumerate(items, 1):
+                desc = item.get("descripcion", "-")
+                cant = item.get("cantidad", 0)
+                unit = item.get("unidad", "u.")
+                precio = item.get("precio_unitario", 0)
+                sub = cant * precio
+                if desc.strip():
+                    lines.append(f"  {i}. {desc} — {cant} {unit} x {_fmt_ars(precio)} = {_fmt_ars(sub)}")
+        else:
+            # ── Flat list (no monthly) ──
+            for i, item in enumerate(items, 1):
+                desc = item.get("descripcion", "-")
+                cant = item.get("cantidad", 0)
+                unit = item.get("unidad", "u.")
+                precio = item.get("precio_unitario", 0)
+                sub = cant * precio
+                if desc.strip():
+                    lines.append(f"{i}. {desc} — {cant} {unit} x {_fmt_ars(precio)} = {_fmt_ars(sub)}")
+
         lines.append("")
         lines.append(f"Subtotal: {_fmt_ars(subtotal)}")
         lines.append(f"IVA ({iva_rate}%): {_fmt_ars(iva_amount)}")
         lines.append(f"TOTAL: {_fmt_ars(total)}")
+        if monthly_view and isinstance(monthly_view, (int, float)) and monthly_view > 1:
+            lines.append(f"Total mensual: {_fmt_ars(subtotal / int(monthly_view))}/mes x {int(monthly_view)} meses")
         lines.append("")
         lines.append(f"Presupuesto oficial: {_fmt_ars(budget)}")
         if tech.get("validez"):

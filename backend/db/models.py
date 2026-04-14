@@ -317,6 +317,7 @@ def cotizacion_entity(doc) -> dict:
         "offer_sections": doc.get("offer_sections", []),
         "pliego_documents": doc.get("pliego_documents", []),
         "marco_legal_checks": doc.get("marco_legal_checks", {}),
+        "garantia_data": doc.get("garantia_data"),
         "template_id": doc.get("template_id"),
         "status": doc.get("status", "borrador"),
         "created_at": doc.get("created_at"),

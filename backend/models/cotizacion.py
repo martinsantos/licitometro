@@ -29,6 +29,7 @@ class CotizacionCreate(BaseModel):
     offer_sections: List[dict] = Field(default_factory=list)
     pliego_documents: List[dict] = Field(default_factory=list)
     marco_legal_checks: dict = Field(default_factory=dict)
+    garantia_data: Optional[dict] = None
     template_id: Optional[str] = None
     status: str = "borrador"
 

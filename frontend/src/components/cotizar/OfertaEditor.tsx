@@ -33,6 +33,22 @@ interface TechnicalData {
   notas: string;
 }
 
+interface GarantiaData {
+  oferta_pct: string;       // e.g. "5"
+  oferta_monto: number;     // calculated or manual override
+  oferta_manual: boolean;   // true if user manually set monto
+  cumplimiento_pct: string; // e.g. "10"
+  cumplimiento_monto: number;
+  cumplimiento_manual: boolean;
+  forma: string;            // e.g. "Póliza de caución"
+}
+
+const GARANTIA_DEFAULT: GarantiaData = {
+  oferta_pct: '5', oferta_monto: 0, oferta_manual: false,
+  cumplimiento_pct: '10', cumplimiento_monto: 0, cumplimiento_manual: false,
+  forma: 'Póliza de caución, seguro de caución o depósito bancario',
+};
+
 interface CompanyData {
   nombre: string;
   cuit: string;
@@ -167,6 +183,7 @@ export default function OfertaEditor({ licitacion, onSaved }: Props) {
   const [saving, setSaving] = useState(false);
   const [savedAt, setSavedAt] = useState<string | null>(null);
   const [autoSaveFailed, setAutoSaveFailed] = useState(false);
+  const [garantiaData, setGarantiaData] = useState<GarantiaData>({ ...GARANTIA_DEFAULT });
   const [pliegoInfo, setPliegoInfo] = useState<PliegoInfo | null>(null);
   const [marcoLegal, setMarcoLegal] = useState<MarcoLegal | null>(null);
   const [loadingMarcoLegal, setLoadingMarcoLegal] = useState(false);
@@ -307,9 +324,16 @@ export default function OfertaEditor({ licitacion, onSaved }: Props) {
           if (mongoCot.analysis) setAnalysis(mongoCot.analysis);
           if (mongoCot.pliego_info) setPliegoInfo(mongoCot.pliego_info);
           if (mongoCot.marco_legal) setMarcoLegal(mongoCot.marco_legal);
+          const savedGarantia = (mongoCot as unknown as Record<string, unknown>).garantia_data as GarantiaData | undefined;
+          if (savedGarantia) setGarantiaData(savedGarantia);
           if (mongoCot.antecedentes_vinculados) setVinculados(mongoCot.antecedentes_vinculados);
           if (mongoCot.price_intelligence) setPriceIntelligence(mongoCot.price_intelligence);
           if ((mongoCot as unknown as Record<string, unknown>).budget_override != null) setBudgetOverride((mongoCot as unknown as Record<string, unknown>).budget_override as number);
+          const savedMonthlyView = (mongoCot as unknown as Record<string, unknown>).monthly_view as number | null | undefined;
+          if (savedMonthlyView && savedMonthlyView > 1) {
+            setContractMonths(savedMonthlyView);
+            setMonthlyViewActive(true);
+          }
           const savedSections = (mongoCot as unknown as Record<string, unknown>).offer_sections as OfferSection[] | undefined;
           if (savedSections && savedSections.length > 0) {
             setOfferSections(savedSections);
@@ -428,6 +452,7 @@ export default function OfertaEditor({ licitacion, onSaved }: Props) {
         offer_sections: offerSections,
         pliego_documents: pliegoDocuments,
         marco_legal_checks: marcoLegalChecks,
+        garantia_data: garantiaData,
         status: 'borrador',
       });
 
@@ -445,7 +470,7 @@ export default function OfertaEditor({ licitacion, onSaved }: Props) {
     } finally {
       if (!silent) setSaving(false);
     }
-  }, [items, ivaRate, techData, companyData, analysis, pliegoInfo, marcoLegal, marcoLegalChecks, vinculados, priceIntelligence, budgetOverride, offerSections, pliegoDocuments, licitacion, onSaved]);
+  }, [items, ivaRate, techData, companyData, analysis, pliegoInfo, marcoLegal, marcoLegalChecks, vinculados, priceIntelligence, budgetOverride, offerSections, pliegoDocuments, garantiaData, licitacion, onSaved]);
 
   // Auto-save debounced
   useEffect(() => {
@@ -453,7 +478,63 @@ export default function OfertaEditor({ licitacion, onSaved }: Props) {
     if (debounceRef.current) clearTimeout(debounceRef.current);
     debounceRef.current = setTimeout(() => doSave(true), 2500);
     return () => { if (debounceRef.current) clearTimeout(debounceRef.current); };
-  }, [items, ivaRate, techData, companyData, analysis, pliegoInfo, marcoLegal, marcoLegalChecks, vinculados, priceIntelligence, budgetOverride, offerSections, pliegoDocuments, phase]);
+  }, [items, ivaRate, techData, companyData, analysis, pliegoInfo, marcoLegal, marcoLegalChecks, vinculados, priceIntelligence, budgetOverride, offerSections, pliegoDocuments, garantiaData, phase]);
+
+  // Auto-populate garantía from marcoLegal extraction
+  useEffect(() => {
+    if (!marcoLegal?.garantias_requeridas?.length) return;
+    setGarantiaData(prev => {
+      // Only auto-populate if user hasn't manually set anything yet
+      if (prev.oferta_manual || prev.cumplimiento_manual) return prev;
+      const next = { ...prev };
+      for (const g of marcoLegal.garantias_requeridas!) {
+        const tipo = g.tipo.toLowerCase();
+        if (tipo.includes('oferta') || tipo.includes('mantenimiento')) {
+          if (g.porcentaje) next.oferta_pct = g.porcentaje.replace('%', '').trim();
+          if (g.monto_estimado) { next.oferta_monto = g.monto_estimado; next.oferta_manual = true; }
+          if (g.forma) next.forma = g.forma;
+        } else if (tipo.includes('cumplimiento') || tipo.includes('contrato') || tipo.includes('adjudicacion')) {
+          if (g.porcentaje) next.cumplimiento_pct = g.porcentaje.replace('%', '').trim();
+          if (g.monto_estimado) { next.cumplimiento_monto = g.monto_estimado; next.cumplimiento_manual = true; }
+          if (g.forma && !next.forma) next.forma = g.forma;
+        }
+      }
+      return next;
+    });
+  }, [marcoLegal]);
+
+  // Auto-populate garantía from pliegoInfo extraction
+  useEffect(() => {
+    if (!pliegoInfo?.garantias) return;
+    setGarantiaData(prev => {
+      if (prev.oferta_manual || prev.cumplimiento_manual) return prev;
+      const next = { ...prev };
+      if (pliegoInfo.garantias!.oferta) {
+        const pct = pliegoInfo.garantias!.oferta.replace('%', '').trim();
+        if (!isNaN(parseFloat(pct))) next.oferta_pct = pct;
+      }
+      if (pliegoInfo.garantias!.cumplimiento) {
+        const pct = pliegoInfo.garantias!.cumplimiento.replace('%', '').trim();
+        if (!isNaN(parseFloat(pct))) next.cumplimiento_pct = pct;
+      }
+      return next;
+    });
+  }, [pliegoInfo]);
+
+  // Auto-calculate garantía montos from percentage × total
+  useEffect(() => {
+    setGarantiaData(prev => {
+      const next = { ...prev };
+      if (!prev.oferta_manual) {
+        next.oferta_monto = total * (parseFloat(prev.oferta_pct) || 0) / 100;
+      }
+      if (!prev.cumplimiento_manual) {
+        next.cumplimiento_monto = total * (parseFloat(prev.cumplimiento_pct) || 0) / 100;
+      }
+      if (next.oferta_monto === prev.oferta_monto && next.cumplimiento_monto === prev.cumplimiento_monto) return prev;
+      return next;
+    });
+  }, [total, garantiaData.oferta_pct, garantiaData.cumplimiento_pct]);
 
   // Load company profiles from localStorage
   useEffect(() => {
@@ -1274,6 +1355,106 @@ export default function OfertaEditor({ licitacion, onSaved }: Props) {
             </div>
           </div>
 
+          {/* ─── Garantias (CRITICAL) ─── */}
+          <div className="border-t-2 border-amber-300 pt-4">
+            <div className="flex items-center gap-2 mb-3">
+              <span className="text-lg">🔒</span>
+              <h4 className="font-semibold text-gray-800">Garantias</h4>
+              <span className="text-[10px] uppercase tracking-wider font-bold bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded">Variable Critica</span>
+            </div>
+
+            <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 space-y-4">
+              {/* Garantia de Oferta */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Garantia de Oferta (mantenimiento de oferta)</label>
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                  <div>
+                    <label className="block text-[11px] text-gray-500 mb-1">Porcentaje</label>
+                    <div className="relative">
+                      <input type="text" value={garantiaData.oferta_pct} onChange={e => {
+                        const v = e.target.value.replace(/[^0-9.,]/g, '');
+                        setGarantiaData(p => ({ ...p, oferta_pct: v, oferta_manual: false }));
+                      }} className="w-full border border-amber-300 rounded-lg px-3 py-2 text-sm text-right pr-7 focus:outline-none focus:ring-2 focus:ring-amber-400 bg-white" />
+                      <span className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 text-sm">%</span>
+                    </div>
+                  </div>
+                  <div>
+                    <label className="block text-[11px] text-gray-500 mb-1">Monto</label>
+                    <NumericInput value={garantiaData.oferta_monto} onChange={v => setGarantiaData(p => ({ ...p, oferta_monto: v, oferta_manual: true }))} min={0} placeholder="0.00" className="w-full border border-amber-300 rounded-lg px-3 py-2 text-sm text-right focus:outline-none focus:ring-2 focus:ring-amber-400 bg-white" />
+                    {!garantiaData.oferta_manual && garantiaData.oferta_monto > 0 && (
+                      <p className="text-[10px] text-amber-600 mt-0.5">Auto: {(parseFloat(garantiaData.oferta_pct) || 0)}% de {formatARS(total)}</p>
+                    )}
+                  </div>
+                  <div className="col-span-2 sm:col-span-1">
+                    <label className="block text-[11px] text-gray-500 mb-1">Forma</label>
+                    <select value={garantiaData.forma} onChange={e => setGarantiaData(p => ({ ...p, forma: e.target.value }))} className="w-full border border-amber-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400 bg-white">
+                      <option value="Póliza de caución, seguro de caución o depósito bancario">Póliza/seguro de caución o depósito</option>
+                      <option value="Póliza de caución">Póliza de caución</option>
+                      <option value="Seguro de caución">Seguro de caución</option>
+                      <option value="Depósito bancario">Depósito bancario</option>
+                      <option value="Pagaré">Pagaré</option>
+                      <option value="Fianza bancaria">Fianza bancaria</option>
+                      <option value="Otro">Otro</option>
+                    </select>
+                  </div>
+                </div>
+              </div>
+
+              {/* Garantia de Cumplimiento */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Garantia de Cumplimiento de Contrato</label>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-[11px] text-gray-500 mb-1">Porcentaje</label>
+                    <div className="relative">
+                      <input type="text" value={garantiaData.cumplimiento_pct} onChange={e => {
+                        const v = e.target.value.replace(/[^0-9.,]/g, '');
+                        setGarantiaData(p => ({ ...p, cumplimiento_pct: v, cumplimiento_manual: false }));
+                      }} className="w-full border border-amber-300 rounded-lg px-3 py-2 text-sm text-right pr-7 focus:outline-none focus:ring-2 focus:ring-amber-400 bg-white" />
+                      <span className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 text-sm">%</span>
+                    </div>
+                  </div>
+                  <div>
+                    <label className="block text-[11px] text-gray-500 mb-1">Monto</label>
+                    <NumericInput value={garantiaData.cumplimiento_monto} onChange={v => setGarantiaData(p => ({ ...p, cumplimiento_monto: v, cumplimiento_manual: true }))} min={0} placeholder="0.00" className="w-full border border-amber-300 rounded-lg px-3 py-2 text-sm text-right focus:outline-none focus:ring-2 focus:ring-amber-400 bg-white" />
+                    {!garantiaData.cumplimiento_manual && garantiaData.cumplimiento_monto > 0 && (
+                      <p className="text-[10px] text-amber-600 mt-0.5">Auto: {(parseFloat(garantiaData.cumplimiento_pct) || 0)}% de {formatARS(total)}</p>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              {/* Summary */}
+              {(garantiaData.oferta_monto > 0 || garantiaData.cumplimiento_monto > 0) && (
+                <div className="bg-white rounded-lg p-3 border border-amber-200">
+                  <p className="text-xs font-semibold text-amber-800 mb-1.5">Resumen de Garantias</p>
+                  <div className="space-y-1">
+                    {garantiaData.oferta_monto > 0 && (
+                      <div className="flex justify-between text-sm">
+                        <span className="text-gray-600">Garantia de Oferta ({garantiaData.oferta_pct}%)</span>
+                        <span className="font-semibold text-amber-800">{formatARS(garantiaData.oferta_monto)}</span>
+                      </div>
+                    )}
+                    {garantiaData.cumplimiento_monto > 0 && (
+                      <div className="flex justify-between text-sm">
+                        <span className="text-gray-600">Garantia de Cumplimiento ({garantiaData.cumplimiento_pct}%)</span>
+                        <span className="font-semibold text-amber-800">{formatARS(garantiaData.cumplimiento_monto)}</span>
+                      </div>
+                    )}
+                    <div className="flex justify-between text-sm border-t border-amber-200 pt-1 mt-1">
+                      <span className="text-gray-700 font-medium">Forma</span>
+                      <span className="text-gray-700">{garantiaData.forma}</span>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {total === 0 && (
+                <p className="text-xs text-amber-600 italic">Completa los items en el paso 1 para calcular montos automaticamente.</p>
+              )}
+            </div>
+          </div>
+
           {/* Antecedentes section */}
           <div className="border-t border-gray-100 pt-4">
             <button onClick={() => handleLoadAntecedentes()} className="flex items-center gap-2 text-sm text-gray-600 hover:text-gray-800 transition-colors">
@@ -1904,6 +2085,12 @@ export default function OfertaEditor({ licitacion, onSaved }: Props) {
                 onPliegosChange={setPliegoDocuments}
                 templateName={templateName}
                 onChangeTemplate={() => setShowTemplateSelector(true)}
+                items={items}
+                monthlyView={monthlyViewActive ? contractMonths : null}
+                subtotal={subtotal}
+                ivaRate={ivaRate}
+                ivaAmount={ivaAmount}
+                total={total}
               />
             </>
           )}

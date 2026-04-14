@@ -1,5 +1,5 @@
 import React, { useState, useCallback, useEffect } from 'react';
-import { OfferSection, useCotizarAPI } from '../../hooks/useCotizarAPI';
+import { OfferSection, CotizarItem, useCotizarAPI } from '../../hooks/useCotizarAPI';
 
 export interface PliegoDoc {
   name: string; url: string; type: string; priority: number; label: string; source: string;
@@ -13,13 +13,25 @@ interface Props {
   onPliegosChange: (docs: PliegoDoc[]) => void;
   templateName?: string;
   onChangeTemplate?: () => void;
+  // Monthly view data for oferta_economica rendering
+  items?: CotizarItem[];
+  monthlyView?: number | null;
+  subtotal?: number;
+  ivaRate?: number;
+  ivaAmount?: number;
+  total?: number;
+}
+
+function formatARS(n: number) {
+  return new Intl.NumberFormat('es-AR', { style: 'currency', currency: 'ARS', maximumFractionDigits: 2 }).format(n);
 }
 
 function slugify(text: string): string {
   return text.toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_|_$/g, '');
 }
 
-export default function OfertaSections({ licitacionId, sections, onSectionsChange, pliegoDocuments, onPliegosChange, templateName, onChangeTemplate }: Props) {
+export default function OfertaSections({ licitacionId, sections, onSectionsChange, pliegoDocuments, onPliegosChange, templateName, onChangeTemplate, items: cotizarItems, monthlyView, subtotal: cotSubtotal, ivaRate: cotIvaRate, ivaAmount: cotIvaAmount, total: cotTotal }: Props) {
+  const months = monthlyView && monthlyView > 1 ? monthlyView : 0;
   const api = useCotizarAPI();
   const [expandedSlug, setExpandedSlug] = useState<string | null>(sections[0]?.slug || null);
   const [generating, setGenerating] = useState<string | null>(null);
@@ -525,6 +537,97 @@ export default function OfertaSections({ licitacionId, sections, onSectionsChang
                     </>
                   )}
                 </div>
+                {/* Visual monthly table for oferta_economica */}
+                {section.slug === 'oferta_economica' && months > 0 && cotizarItems && cotizarItems.length > 0 && (
+                  <div className="mb-3 border border-blue-200 rounded-xl overflow-hidden">
+                    <div className="bg-blue-50 px-3 py-2 flex items-center justify-between">
+                      <span className="text-xs font-semibold text-blue-700">
+                        Desglose mensual: {months} meses · {formatARS((cotSubtotal || 0) / months)}/mes
+                      </span>
+                      <span className="text-[10px] text-blue-500">Esta tabla se incluye en el PDF automaticamente</span>
+                    </div>
+                    <div className="overflow-x-auto max-h-[400px] overflow-y-auto">
+                      <table className="w-full text-xs border-collapse">
+                        <thead className="sticky top-0">
+                          <tr className="bg-blue-700 text-white">
+                            <th className="px-2 py-2 text-left font-semibold sticky left-0 bg-blue-700 min-w-[180px] z-10">Item</th>
+                            {Array.from({ length: months }, (_, m) => (
+                              <th key={m} className="px-2 py-1.5 text-right font-semibold min-w-[90px] whitespace-nowrap">Mes {m + 1}</th>
+                            ))}
+                            <th className="px-2 py-1.5 text-right font-semibold min-w-[100px] bg-blue-800">Total</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {cotizarItems.filter(it => it.descripcion.trim()).map((item, idx) => {
+                            const itemTotal = (item.cantidad || 0) * (item.precio_unitario || 0);
+                            const perMonth = itemTotal / months;
+                            return (
+                              <tr key={idx} className={idx % 2 === 0 ? 'bg-white' : 'bg-blue-50/40'}>
+                                <td className="px-2 py-1.5 font-medium sticky left-0 bg-inherit truncate max-w-[180px] z-[5]" title={item.descripcion}>
+                                  {idx + 1}. {item.descripcion.slice(0, 35)}{item.descripcion.length > 35 ? '...' : ''}
+                                </td>
+                                {Array.from({ length: months }, (_, m) => (
+                                  <td key={m} className="px-2 py-1.5 text-right tabular-nums text-gray-600 whitespace-nowrap">{formatARS(perMonth)}</td>
+                                ))}
+                                <td className="px-2 py-1.5 text-right tabular-nums font-semibold bg-blue-50 whitespace-nowrap">{formatARS(itemTotal)}</td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                        <tfoot>
+                          <tr className="bg-blue-700 text-white font-bold">
+                            <td className="px-2 py-2 sticky left-0 bg-blue-700 z-10">TOTAL MENSUAL</td>
+                            {Array.from({ length: months }, (_, m) => (
+                              <td key={m} className="px-2 py-2 text-right tabular-nums whitespace-nowrap">{formatARS((cotSubtotal || 0) / months)}</td>
+                            ))}
+                            <td className="px-2 py-2 text-right tabular-nums bg-blue-800 whitespace-nowrap">{formatARS(cotSubtotal || 0)}</td>
+                          </tr>
+                        </tfoot>
+                      </table>
+                    </div>
+                    <div className="bg-gray-50 px-3 py-2 flex justify-end gap-4 text-xs border-t">
+                      <span>Subtotal: <strong>{formatARS(cotSubtotal || 0)}</strong></span>
+                      <span>IVA ({cotIvaRate || 21}%): <strong>{formatARS(cotIvaAmount || 0)}</strong></span>
+                      <span className="text-blue-700 font-bold">TOTAL: {formatARS(cotTotal || 0)}</span>
+                    </div>
+                  </div>
+                )}
+
+                {/* Visual flat items table for oferta_economica (when no monthly) */}
+                {section.slug === 'oferta_economica' && !months && cotizarItems && cotizarItems.length > 0 && (
+                  <div className="mb-3 border border-gray-200 rounded-xl overflow-hidden">
+                    <table className="w-full text-xs border-collapse">
+                      <thead>
+                        <tr className="bg-blue-700 text-white">
+                          <th className="px-2 py-2 text-center w-8">#</th>
+                          <th className="px-2 py-2 text-left">Descripcion</th>
+                          <th className="px-2 py-2 text-center w-12">Cant.</th>
+                          <th className="px-2 py-2 text-center w-10">Ud.</th>
+                          <th className="px-2 py-2 text-right w-24">P. Unit.</th>
+                          <th className="px-2 py-2 text-right w-24">Subtotal</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {cotizarItems.filter(it => it.descripcion.trim()).map((item, idx) => (
+                          <tr key={idx} className={idx % 2 === 0 ? 'bg-white' : 'bg-blue-50/40'}>
+                            <td className="px-2 py-1.5 text-center text-gray-400">{idx + 1}</td>
+                            <td className="px-2 py-1.5">{item.descripcion}</td>
+                            <td className="px-2 py-1.5 text-center tabular-nums">{item.cantidad}</td>
+                            <td className="px-2 py-1.5 text-center text-gray-500">{item.unidad}</td>
+                            <td className="px-2 py-1.5 text-right tabular-nums">{formatARS(item.precio_unitario || 0)}</td>
+                            <td className="px-2 py-1.5 text-right tabular-nums font-medium">{formatARS((item.cantidad || 0) * (item.precio_unitario || 0))}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                    <div className="bg-gray-50 px-3 py-2 flex justify-end gap-4 text-xs border-t">
+                      <span>Subtotal: <strong>{formatARS(cotSubtotal || 0)}</strong></span>
+                      <span>IVA ({cotIvaRate || 21}%): <strong>{formatARS(cotIvaAmount || 0)}</strong></span>
+                      <span className="text-blue-700 font-bold">TOTAL: {formatARS(cotTotal || 0)}</span>
+                    </div>
+                  </div>
+                )}
+
                 <textarea
                   value={section.content}
                   onChange={e => updateSection(section.slug, { content: e.target.value, generated_by: 'manual' })}

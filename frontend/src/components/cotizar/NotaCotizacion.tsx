@@ -26,6 +26,16 @@ interface Licitacion {
   budget?: number | null;
 }
 
+interface GarantiaData {
+  oferta_pct: string;
+  oferta_monto: number;
+  oferta_manual: boolean;
+  cumplimiento_pct: string;
+  cumplimiento_monto: number;
+  cumplimiento_manual: boolean;
+  forma: string;
+}
+
 interface Props {
   licitacion: Licitacion;
   items: CotizarItem[];
@@ -41,6 +51,8 @@ interface Props {
   priceIntelligence: PriceIntelligence | null;
   vinculados: string[];
   resolveAntecedente: (id: string) => Antecedente | undefined;
+  garantiaData?: GarantiaData;
+  monthlyView?: number | null; // number of months, null/undefined = no monthly
 }
 
 function formatARS(n: number) {
@@ -76,8 +88,9 @@ function ScoreBar({ label, score, max = 10 }: { label: string; score: number; ma
 const NotaCotizacion = forwardRef<HTMLDivElement, Props>(({
   licitacion, items, ivaRate, subtotal, ivaAmount, total,
   techData, companyData, analysis, marcoLegal, marcoLegalChecks,
-  priceIntelligence, vinculados, resolveAntecedente,
+  priceIntelligence, vinculados, resolveAntecedente, garantiaData, monthlyView,
 }, ref) => {
+  const months = monthlyView && monthlyView > 1 ? monthlyView : 0;
   return (
     <div ref={ref} className="bg-white border border-gray-200 rounded-xl overflow-hidden text-sm leading-relaxed print:border-none print:shadow-none print:rounded-none print:p-0">
       {/* ─── Blue accent bar ─── */}
@@ -121,7 +134,58 @@ const NotaCotizacion = forwardRef<HTMLDivElement, Props>(({
         {/* ─── Items Table ─── */}
         <div className="mb-8">
           <SectionHeader title="Detalle de la Oferta" />
+
+          {/* Monthly breakdown table */}
+          {months > 0 && (
+            <div className="mb-4">
+              <p className="text-sm text-gray-600 mb-2 font-medium">
+                Contrato: {months} meses · {formatARS(subtotal / months)}/mes
+              </p>
+              <div className="rounded-xl overflow-hidden border border-gray-200 overflow-x-auto">
+                <table className="w-full text-xs">
+                  <thead>
+                    <tr className="bg-blue-700 text-white">
+                      <th className="px-2 py-2 text-left font-semibold sticky left-0 bg-blue-700 min-w-[180px]">Item</th>
+                      {Array.from({ length: months }, (_, m) => (
+                        <th key={m} className="px-2 py-2 text-right font-semibold min-w-[100px]">Mes {m + 1}</th>
+                      ))}
+                      <th className="px-2 py-2 text-right font-semibold min-w-[110px] bg-blue-800">Total</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {items.map((item, idx) => {
+                      const itemTotal = (item.cantidad || 0) * (item.precio_unitario || 0);
+                      const perMonth = itemTotal / months;
+                      return (
+                        <tr key={idx} className={idx % 2 === 0 ? 'bg-white' : 'bg-blue-50/40'}>
+                          <td className="px-2 py-1.5 text-gray-800 font-medium sticky left-0 bg-inherit truncate max-w-[180px]" title={item.descripcion}>
+                            {idx + 1}. {item.descripcion || '-'}
+                          </td>
+                          {Array.from({ length: months }, (_, m) => (
+                            <td key={m} className="px-2 py-1.5 text-right tabular-nums text-gray-600">{formatARS(perMonth)}</td>
+                          ))}
+                          <td className="px-2 py-1.5 text-right tabular-nums font-semibold text-gray-800 bg-blue-50">{formatARS(itemTotal)}</td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                  <tfoot>
+                    <tr className="bg-blue-700 text-white font-bold">
+                      <td className="px-2 py-2 sticky left-0 bg-blue-700">TOTAL MENSUAL</td>
+                      {Array.from({ length: months }, (_, m) => (
+                        <td key={m} className="px-2 py-2 text-right tabular-nums">{formatARS(subtotal / months)}</td>
+                      ))}
+                      <td className="px-2 py-2 text-right tabular-nums bg-blue-800">{formatARS(subtotal)}</td>
+                    </tr>
+                  </tfoot>
+                </table>
+              </div>
+            </div>
+          )}
+
+          {/* Flat items table (always shown as summary, or as primary when no monthly) */}
           <div className="rounded-xl overflow-hidden border border-gray-200">
+            {months > 0 && <p className="px-3 py-2 text-xs font-semibold text-gray-500 bg-gray-50 uppercase tracking-wide">Resumen por item</p>}
             <table className="w-full text-sm">
               <thead>
                 <tr className="bg-blue-700 text-white">
@@ -162,6 +226,12 @@ const NotaCotizacion = forwardRef<HTMLDivElement, Props>(({
                     <span>TOTAL</span>
                     <span className="tabular-nums">{formatARS(total)}</span>
                   </div>
+                  {months > 0 && (
+                    <div className="flex justify-between px-4 py-2 text-sm text-blue-700 font-medium bg-blue-50 rounded-b-xl">
+                      <span>{months} meses</span>
+                      <span className="tabular-nums">{formatARS(subtotal / months)}/mes</span>
+                    </div>
+                  )}
                 </div>
               </div>
             </div>
@@ -200,7 +270,26 @@ const NotaCotizacion = forwardRef<HTMLDivElement, Props>(({
         )}
 
         {/* ─── Garantias ─── */}
-        {marcoLegal?.garantias_requeridas && marcoLegal.garantias_requeridas.length > 0 && (
+        {(garantiaData && (garantiaData.oferta_monto > 0 || garantiaData.cumplimiento_monto > 0)) ? (
+          <div className="mb-6">
+            <SectionHeader title="Garantias" />
+            <div className="space-y-1.5">
+              {garantiaData.oferta_monto > 0 && (
+                <div className="flex justify-between">
+                  <span>Garantia de Oferta ({garantiaData.oferta_pct}%)</span>
+                  <span className="font-semibold">{formatARS(garantiaData.oferta_monto)}</span>
+                </div>
+              )}
+              {garantiaData.cumplimiento_monto > 0 && (
+                <div className="flex justify-between">
+                  <span>Garantia de Cumplimiento ({garantiaData.cumplimiento_pct}%)</span>
+                  <span className="font-semibold">{formatARS(garantiaData.cumplimiento_monto)}</span>
+                </div>
+              )}
+              <p className="text-xs text-gray-500">Forma: {garantiaData.forma}</p>
+            </div>
+          </div>
+        ) : marcoLegal?.garantias_requeridas && marcoLegal.garantias_requeridas.length > 0 ? (
           <div className="mb-6">
             <SectionHeader title="Garantias" />
             <div className="space-y-1">
@@ -209,7 +298,7 @@ const NotaCotizacion = forwardRef<HTMLDivElement, Props>(({
               ))}
             </div>
           </div>
-        )}
+        ) : null}
 
         {/* ─── Propuesta Tecnica ─── */}
         {(techData.methodology || techData.plazo || techData.lugar) && (
