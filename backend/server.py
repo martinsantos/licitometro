@@ -286,19 +286,30 @@ async def startup_db_client():
     except Exception as e:
         logger.error(f"Failed to create indexes: {e}")
 
-    # Initialize and start scheduler automatically
+    # Initialize and start scheduler automatically — only in ONE worker to prevent
+    # duplicate job execution. Gunicorn spawns multiple workers, each runs startup.
+    # Use a file lock to ensure only the first worker starts the scheduler.
+    import fcntl
+    scheduler_lock_path = "/tmp/licitometro_scheduler.lock"
     try:
+        _scheduler_lock_fd = open(scheduler_lock_path, "w")
+        fcntl.flock(_scheduler_lock_fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        # Got the lock — this worker runs the scheduler
+        app._scheduler_lock_fd = _scheduler_lock_fd  # prevent GC closing fd
+
         from services.scheduler_service import get_scheduler_service
         scheduler_service = get_scheduler_service(database)
         await scheduler_service.initialize()
         await scheduler_service.load_and_schedule_scrapers()
         scheduler_service.start()
-        logger.info("Scheduler initialized and started automatically")
+        logger.info("Scheduler initialized and started automatically (this worker holds the lock)")
 
         # Register all cron jobs from declarative registry
         from services.cron_registry import register_all_crons
         register_all_crons(scheduler_service.scheduler, database)
 
+    except BlockingIOError:
+        logger.info("Scheduler already running in another worker — skipping")
     except Exception as e:
         logger.error(f"Failed to auto-start scheduler: {e}")
 

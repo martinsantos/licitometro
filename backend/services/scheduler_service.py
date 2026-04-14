@@ -288,7 +288,7 @@ class SchedulerService:
                 (getattr(config, 'selectors', None) and isinstance(config.selectors, dict) and config.selectors.get('use_selenium_pliego'))
                 or 'comprasapps' in scraper_name.lower()
             )
-            timeout_seconds = 1200 if is_heavy else 600
+            timeout_seconds = 1800 if is_heavy else 600  # 30 min for heavy scrapers (ComprasApps ~1040 items)
             try:
                 async with self._scraper_semaphore:
                     log(f"Semaphore acquired for {scraper_name} (timeout={timeout_seconds}s)")
