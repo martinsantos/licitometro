@@ -102,6 +102,15 @@ CRON_JOBS = [
         "method": "run_health_check",
         "max_instances": 1,
     },
+    {
+        "id": "scraper_daily_digest",
+        "name": "Scraper daily digest (end of day)",
+        "trigger": CronTrigger(hour=21, minute=0),
+        "service_module": "services.scraper_health_monitor",
+        "service_factory": "get_scraper_health_monitor",
+        "method": "run_daily_digest",
+        "max_instances": 1,
+    },
 ]
 
 

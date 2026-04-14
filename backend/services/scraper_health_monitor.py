@@ -159,6 +159,100 @@ class ScraperHealthMonitor:
             logger.warning(f"Telegram send error: {e}")
 
 
+    async def run_daily_digest(self):
+        """Daily digest: which sources brought 0 new items in the last 24h.
+
+        Runs once a day (e.g. 21:00). Compares each active scraper's total
+        new items over the day against its historical average.
+        """
+        try:
+            report = await self._build_daily_report()
+            if report:
+                await self._send_telegram(report)
+        except Exception as e:
+            logger.error(f"Daily digest failed: {e}")
+
+    async def _build_daily_report(self) -> Optional[str]:
+        since = _utcnow() - timedelta(hours=24)
+
+        # All active scraper configs
+        configs = await self.db.scraper_configs.find(
+            {"active": True}
+        ).to_list(200)
+        config_names = {c["name"] for c in configs}
+
+        # All runs in the last 24h
+        runs = await self.db.scraper_runs.find(
+            {"started_at": {"$gte": since}}
+        ).to_list(5000)
+
+        # Aggregate per scraper: total runs, successes, total new items
+        from collections import defaultdict
+        stats = defaultdict(lambda: {"runs": 0, "success": 0, "new": 0, "items": 0, "failed": 0, "last_dur": 0})
+        for r in runs:
+            name = r.get("scraper_name", "")
+            s = stats[name]
+            s["runs"] += 1
+            status = r.get("status", "")
+            if status == "success":
+                s["success"] += 1
+            elif status in ("failed", "error"):
+                s["failed"] += 1
+            s["new"] += r.get("items_new", 0) or r.get("items_saved", 0)
+            s["items"] = max(s["items"], r.get("items_found", 0))
+            s["last_dur"] = r.get("duration_seconds") or s["last_dur"]
+
+        # Categorize
+        zero_new = []  # ran OK but 0 new items all day
+        never_ran = []  # active config but no runs today
+        high_fail = []  # >50% failure rate
+        productive = []  # brought new items
+
+        for name in sorted(config_names):
+            s = stats.get(name)
+            is_critical = name in CRITICAL_SCRAPERS
+            icon = "🔴" if is_critical else "🟡"
+
+            if not s or s["runs"] == 0:
+                never_ran.append(f"{icon} {name}")
+                continue
+
+            fail_rate = s["failed"] / s["runs"] if s["runs"] > 0 else 0
+
+            if fail_rate > 0.5:
+                high_fail.append(f"{icon} {name}: {s['failed']}/{s['runs']} fallidos")
+            elif s["new"] == 0 and s["success"] > 0:
+                zero_new.append(f"⚪ {name}: {s['success']} runs OK, {s['items']} items, 0 nuevos")
+            elif s["new"] > 0:
+                productive.append(f"✅ {name}: +{s['new']} nuevos ({s['runs']} runs)")
+
+        now_str = _utcnow().strftime("%d/%m %H:%M")
+        lines = [f"📋 *Resumen Diario Scrapers* — {now_str}"]
+        lines.append(f"{len(config_names)} fuentes activas, {sum(s['new'] for s in stats.values())} items nuevos hoy")
+        lines.append("")
+
+        if high_fail:
+            lines.append("*🔴 ALTA TASA DE FALLOS (>50%):*")
+            lines.extend(high_fail)
+            lines.append("")
+
+        if never_ran:
+            lines.append("*⚠️ NO CORRIERON HOY:*")
+            lines.extend(never_ran)
+            lines.append("")
+
+        if zero_new:
+            lines.append("*⚪ SIN NOVEDADES (0 nuevos):*")
+            lines.extend(zero_new)
+            lines.append("")
+
+        if productive:
+            lines.append("*✅ CON NOVEDADES:*")
+            lines.extend(productive)
+
+        return "\n".join(lines)
+
+
 _instance = None
 
 def get_scraper_health_monitor(db):
