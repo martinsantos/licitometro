@@ -93,6 +93,15 @@ CRON_JOBS = [
         "method": "send_deadline_alerts",
         "max_instances": 1,
     },
+    {
+        "id": "scraper_health_check",
+        "name": "Scraper health check (post-round)",
+        "trigger": CronTrigger(hour="7,8,9,10,11,12,13,15,19", minute=30),
+        "service_module": "services.scraper_health_monitor",
+        "service_factory": "get_scraper_health_monitor",
+        "method": "run_health_check",
+        "max_instances": 1,
+    },
 ]
 
 
