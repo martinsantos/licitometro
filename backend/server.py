@@ -239,6 +239,9 @@ async def startup_db_client():
                 # Only patch scope/selectors/url — NEVER overwrite schedule (may be user-tuned)
                 patch = {k: v for k, v in src.items() if k not in ("schedule", "active", "name")}
                 patch["updated_at"] = now
+                # Ensure created_at exists (backfill for old records missing it)
+                if not existing.get("created_at"):
+                    patch["created_at"] = now
                 await database.scraper_configs.update_one(
                     {"name": src["name"]},
                     {"$set": patch},

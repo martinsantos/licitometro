@@ -74,8 +74,8 @@ class ScraperConfigUpdate(BaseModel):
 class ScraperConfig(ScraperConfigBase):
     """Model for a scraper configuration stored in the database"""
     id: str = Field(default_factory=lambda: str(uuid4()))
-    created_at: datetime = Field(default_factory=datetime.utcnow)
-    updated_at: datetime = Field(default_factory=datetime.utcnow)
+    created_at: Optional[datetime] = Field(default_factory=datetime.utcnow)
+    updated_at: Optional[datetime] = Field(default_factory=datetime.utcnow)
     last_run: Optional[datetime] = None
     runs_count: int = Field(0, description="Number of times the scraper has been run")
     
