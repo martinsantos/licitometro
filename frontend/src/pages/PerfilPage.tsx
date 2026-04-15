@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import axios from 'axios';
 import { useCotizarAPI, MongoCotizacion } from '../hooks/useCotizarAPI';
+import { useFavorites } from '../contexts/FavoritesContext';
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL || '';
 
@@ -45,6 +46,7 @@ function DeadlineCountdown({ days }: { days: number | null }) {
 
 export default function PerfilPage() {
   const api = useCotizarAPI();
+  const { favoriteIds, isLoaded } = useFavorites();
   const [savedLics, setSavedLics] = useState<SavedLicitacion[]>([]);
   const [bids, setBids] = useState<MongoCotizacion[]>([]);
   const [nodos, setNodos] = useState<NodoSummary[]>([]);
@@ -52,10 +54,11 @@ export default function PerfilPage() {
   const [loadingBids, setLoadingBids] = useState(true);
   const [loadingNodos, setLoadingNodos] = useState(true);
 
-  // Load saved licitaciones from localStorage then enrich from API
+  // Load saved licitaciones from FavoritesContext then enrich from API
   useEffect(() => {
-    const saved = JSON.parse(localStorage.getItem('savedLicitaciones') || '[]') as string[];
-    if (saved.length === 0) { setLoadingLics(false); return; }
+    if (!isLoaded) return;
+    const saved = Array.from(favoriteIds);
+    if (saved.length === 0) { setSavedLics([]); setLoadingLics(false); return; }
 
     Promise.all(
       saved.slice(0, 20).map(id =>
@@ -67,7 +70,7 @@ export default function PerfilPage() {
       setSavedLics(results.filter(Boolean) as SavedLicitacion[]);
       setLoadingLics(false);
     });
-  }, []);
+  }, [favoriteIds, isLoaded]);
 
   // Load cotizaciones from MongoDB
   useEffect(() => {

@@ -49,12 +49,21 @@ AUTH_EXEMPT_PATHS = {
 }
 
 # Prefixes where any valid token (including reader role) grants access.
-# Defined at module level to avoid recreating the tuple on every request.
-READER_ACCESSIBLE_PREFIXES = (
+# Kept empty — sensitive sections (Cotizador, Empresa, HUNTER) now require admin.
+READER_ACCESSIBLE_PREFIXES: tuple = ()
+
+# Admin-only prefixes — block GET access to non-admin (reader/viewer) tokens.
+# Non-GET requests already require admin via the existing role check below.
+ADMIN_ONLY_PREFIXES = (
     "/api/cotizar-ai/",
     "/api/company-context",
     "/api/documentos",
     "/api/cotizaciones",
+)
+
+# Admin-only exact path suffixes (e.g. HUNTER endpoint on a licitacion).
+ADMIN_ONLY_PATH_SUFFIXES = (
+    "/hunter",
 )
 
 # Create FastAPI app
@@ -146,6 +155,19 @@ async def auth_middleware(request: Request, call_next):
             status_code=403,
             content={"detail": "Acceso de administrador requerido"},
         )
+
+    # Admin-only sections (Cotizador, Empresa, Cotizaciones, Documentos, HUNTER)
+    if role != "admin":
+        if any(path.startswith(p) for p in ADMIN_ONLY_PREFIXES):
+            return JSONResponse(
+                status_code=403,
+                content={"detail": "Acceso de administrador requerido"},
+            )
+        if any(path.endswith(s) for s in ADMIN_ONLY_PATH_SUFFIXES):
+            return JSONResponse(
+                status_code=403,
+                content={"detail": "Acceso de administrador requerido"},
+            )
 
     request.state.user_role = role
     request.state.user_email = token_data.get("email", "")

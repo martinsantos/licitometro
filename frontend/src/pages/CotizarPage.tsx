@@ -4,6 +4,7 @@ import axios from 'axios';
 import MarketDataBanner from '../components/cotizar/MarketDataBanner';
 import OfertaEditor from '../components/cotizar/OfertaEditor';
 import { useCotizarAPI, MongoCotizacion } from '../hooks/useCotizarAPI';
+import { useFavorites } from '../contexts/FavoritesContext';
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL || '';
 
@@ -311,19 +312,18 @@ function FavoritosTab({
   const [licitaciones, setLicitaciones] = useState<Licitacion[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const { favoriteIds, isLoaded } = useFavorites();
 
   useEffect(() => {
-    const raw = localStorage.getItem('savedLicitaciones');
-    let saved: string[] = [];
-    try { saved = JSON.parse(raw || '[]'); } catch { saved = []; }
-    if (!Array.isArray(saved) || saved.length === 0) { setLoading(false); return; }
+    if (!isLoaded) return;
+    const saved = Array.from(favoriteIds);
+    if (saved.length === 0) { setLoading(false); return; }
 
     Promise.allSettled(
       saved.map(id =>
         axios.get(`${BACKEND_URL}/api/licitaciones/${id}`, { withCredentials: true })
           .then(r => {
             const d = r.data;
-            // Ensure id field is present (API returns it from licitacion_entity)
             return { ...d, id: d.id || id } as Licitacion;
           })
       )
@@ -336,7 +336,7 @@ function FavoritosTab({
         setError('No se pudieron cargar los favoritos. Verificá tu conexión.');
       }
     }).finally(() => setLoading(false));
-  }, []);
+  }, [favoriteIds, isLoaded]);
 
   if (loading) {
     return (

@@ -7,6 +7,7 @@ import axios from "axios";
 import Header from "./components/Header";
 import Footer from "./components/Footer";
 import ScrollToTop from "./components/ScrollToTop";
+import { FavoritesProvider } from "./contexts/FavoritesContext";
 
 // Critical pages — loaded eagerly (shown immediately after auth)
 import LoginPage from "./pages/LoginPage";
@@ -43,6 +44,7 @@ axios.defaults.withCredentials = true;
 
 // Authenticated app shell with Header/Footer
 const AuthenticatedApp = ({ userRole }) => (
+  <FavoritesProvider>
   <div className="App flex flex-col min-h-screen">
     <Header userRole={userRole} />
     <main className="flex-grow">
@@ -61,8 +63,8 @@ const AuthenticatedApp = ({ userRole }) => (
           <Route path="/admin/scraper/:id" element={userRole === 'admin' ? <ScraperFormPage /> : <Navigate to="/licitaciones" />} />
           <Route path="/templates" element={userRole === 'admin' ? <OfferTemplatesPage /> : <Navigate to="/licitaciones" />} />
           <Route path="/nodos" element={userRole === 'admin' ? <NodosPage /> : <Navigate to="/licitaciones" />} />
-          <Route path="/cotizar" element={<CotizarPage />} />
-          <Route path="/empresa" element={<CompanyContextPage />} />
+          <Route path="/cotizar" element={userRole === 'admin' ? <CotizarPage /> : <Navigate to="/licitaciones" />} />
+          <Route path="/empresa" element={userRole === 'admin' ? <CompanyContextPage /> : <Navigate to="/licitaciones" />} />
           <Route path="/perfil" element={<PerfilPage />} />
           <Route path="/lab" element={userRole === 'admin' ? <LabPage /> : <Navigate to="/licitaciones" />} />
         </Routes>
@@ -70,6 +72,7 @@ const AuthenticatedApp = ({ userRole }) => (
     </main>
     <Footer />
   </div>
+  </FavoritesProvider>
 );
 
 function AppRouter({ authState, setAuthState }) {

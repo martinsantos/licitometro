@@ -1,17 +1,19 @@
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import axios from 'axios';
+import { useFavorites } from '../contexts/FavoritesContext';
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL || '';
 const API = `${BACKEND_URL}/api`;
 
 const StatsPage = () => {
+  const { favoriteIds, removeFavorite } = useFavorites();
   const [stats, setStats] = useState(null);
-  const [savedItems, setSavedItems] = useState([]);
   const [savedLicitaciones, setSavedLicitaciones] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [activeTab, setActiveTab] = useState('overview');
+  const savedItems = Array.from(favoriteIds);
 
   useEffect(() => {
     const fetchData = async () => {
@@ -63,13 +65,12 @@ const StatsPage = () => {
 
         setStats(calculatedStats);
 
-        // Load saved licitaciones from LocalStorage
-        const saved = JSON.parse(localStorage.getItem('savedLicitaciones') || '[]');
-        setSavedItems(saved);
-
-        if (saved.length > 0) {
-          const savedData = allLicitaciones.filter(lic => saved.includes(lic.id));
+        // Saved licitaciones come from FavoritesContext (server-side source of truth)
+        if (favoriteIds.size > 0) {
+          const savedData = allLicitaciones.filter(lic => favoriteIds.has(lic.id));
           setSavedLicitaciones(savedData);
+        } else {
+          setSavedLicitaciones([]);
         }
 
         setLoading(false);
@@ -86,9 +87,7 @@ const StatsPage = () => {
   }, []);
 
   const removeSaved = (id) => {
-    const newSaved = savedItems.filter(item => item !== id);
-    localStorage.setItem('savedLicitaciones', JSON.stringify(newSaved));
-    setSavedItems(newSaved);
+    removeFavorite(id);
     setSavedLicitaciones(prev => prev.filter(lic => lic.id !== id));
   };
 

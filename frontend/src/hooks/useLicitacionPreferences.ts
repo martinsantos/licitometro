@@ -1,6 +1,7 @@
 import { useState, useCallback, useRef, useEffect } from 'react';
 import type { Licitacion, SortField, SortOrder, ViewMode } from '../types/licitacion';
 import { useLocalStorageSet } from './useLocalStorage';
+import { useFavorites } from '../contexts/FavoritesContext';
 
 function loadSessionPref<T>(key: string, fallback: T): T {
   try {
@@ -23,63 +24,14 @@ export function useLicitacionPreferences() {
   useEffect(() => { sessionStorage.setItem('pref_viewMode', JSON.stringify(viewMode)); }, [viewMode]);
   useEffect(() => { sessionStorage.setItem('pref_groupBy', JSON.stringify(groupBy)); }, [groupBy]);
 
-  // Favorites
-  const [favorites, setFavorites] = useLocalStorageSet('savedLicitaciones');
+  // Favorites: delegate to FavoritesContext (single source of truth)
+  const { favoriteIds: favorites, toggleFavorite: ctxToggleFavorite } = useFavorites();
   const [criticalRubros, setCriticalRubros] = useLocalStorageSet('criticalRubros');
-
-  // Sync: bidirectional merge between localStorage and server
-  // Server is source of truth — merge server favorites INTO local
-  useEffect(() => {
-    const backendUrl = (window as any).__BACKEND_URL || process.env.REACT_APP_BACKEND_URL || '';
-    fetch(`${backendUrl}/api/licitaciones/favorites`, { credentials: 'include' })
-      .then(r => r.ok ? r.json() : Promise.reject())
-      .then((serverIds: string[]) => {
-        const serverSet = new Set(serverIds);
-        const localSet = new Set(favorites);
-
-        // 1. Push local-only favorites to server
-        Array.from(localSet).forEach(id => {
-          if (!serverSet.has(id)) {
-            fetch(`${backendUrl}/api/licitaciones/favorites/${id}`, { method: 'POST', credentials: 'include' }).catch(() => {});
-          }
-        });
-
-        // 2. Pull server-only favorites to local (server is source of truth)
-        let hasNewFromServer = false;
-        serverSet.forEach(id => {
-          if (!localSet.has(id)) {
-            localSet.add(id);
-            hasNewFromServer = true;
-          }
-        });
-
-        if (hasNewFromServer) {
-          setFavorites(() => new Set(localSet));
-        }
-      })
-      .catch(() => {});
-  }, []); // eslint-disable-line
 
   const toggleFavorite = useCallback((id: string, e: React.MouseEvent) => {
     e.stopPropagation();
-    const savedDates = JSON.parse(localStorage.getItem('savedLicitacionesDates') || '{}');
-    const backendUrl = (window as any).__BACKEND_URL || process.env.REACT_APP_BACKEND_URL || '';
-
-    setFavorites(prev => {
-      const next = new Set(prev);
-      if (next.has(id)) {
-        next.delete(id);
-        delete savedDates[id];
-        fetch(`${backendUrl}/api/licitaciones/favorites/${id}`, { method: 'DELETE', credentials: 'include' }).catch(() => {});
-      } else {
-        next.add(id);
-        savedDates[id] = new Date().toISOString();
-        fetch(`${backendUrl}/api/licitaciones/favorites/${id}`, { method: 'POST', credentials: 'include' }).catch(() => {});
-      }
-      localStorage.setItem('savedLicitacionesDates', JSON.stringify(savedDates));
-      return next;
-    });
-  }, [setFavorites]);
+    ctxToggleFavorite(id);
+  }, [ctxToggleFavorite]);
 
   const toggleCriticalRubro = useCallback((rubro: string) => {
     setCriticalRubros(prev => {

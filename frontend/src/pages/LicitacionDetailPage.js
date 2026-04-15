@@ -8,6 +8,7 @@ import OfertaEditor from '../components/cotizar/OfertaEditor';
 import { useNodos } from '../hooks/useNodos';
 import HunterButton from '../components/hunter/HunterButton';
 import HunterPanel from '../components/hunter/HunterPanel';
+import { useFavorites } from '../contexts/FavoritesContext';
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL || '';
 const API = `${BACKEND_URL}/api`;
@@ -74,7 +75,6 @@ const LicitacionDetailPage = ({ userRole }) => {
   const [licitacion, setLicitacion] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-  const [isSaved, setIsSaved] = useState(false);
   const [enriching, setEnriching] = useState(false);
   const [hunterOpen, setHunterOpen] = useState(false);
   const [enrichMessage, setEnrichMessage] = useState(null);
@@ -84,6 +84,8 @@ const LicitacionDetailPage = ({ userRole }) => {
   const [publicSlug, setPublicSlug] = useState(null);
   const [togglingPublic, setTogglingPublic] = useState(false);
   const { nodoMap } = useNodos();
+  const { isFavorite, addFavorite, removeFavorite } = useFavorites();
+  const isSaved = isFavorite(id);
 
   useEffect(() => {
     const fetchLicitacion = async () => {
@@ -93,18 +95,6 @@ const LicitacionDetailPage = ({ userRole }) => {
         setIsPublic(response.data.is_public || false);
         setPublicSlug(response.data.public_slug || null);
         setLoading(false);
-        // Check if saved on SERVER (source of truth), fallback to localStorage
-        axios.get(`${API}/licitaciones/favorites`, { withCredentials: true })
-          .then(resp => {
-            const serverFavs = resp.data || [];
-            setIsSaved(serverFavs.includes(id));
-            // Sync localStorage cache
-            localStorage.setItem('savedLicitaciones', JSON.stringify(serverFavs));
-          })
-          .catch(() => {
-            const savedItems = JSON.parse(localStorage.getItem('savedLicitaciones') || '[]');
-            setIsSaved(savedItems.includes(id));
-          });
       } catch (error) {
         console.error('Error fetching licitacion:', error);
         setError('Error cargando la licitación');
@@ -117,21 +107,9 @@ const LicitacionDetailPage = ({ userRole }) => {
 
   const toggleSave = async () => {
     if (isSaved) {
-      // Remove: SERVER first, then localStorage cache
-      setIsSaved(false);
-      await axios.delete(`${API}/licitaciones/favorites/${id}`, { withCredentials: true }).catch(() => {});
-      const savedItems = JSON.parse(localStorage.getItem('savedLicitaciones') || '[]');
-      localStorage.setItem('savedLicitaciones', JSON.stringify(savedItems.filter(i => i !== id)));
+      await removeFavorite(id);
     } else {
-      // Add: SERVER first, then localStorage cache
-      setIsSaved(true);
-      await axios.post(`${API}/licitaciones/favorites/${id}`, {}, { withCredentials: true }).catch(() => {});
-      const savedItems = JSON.parse(localStorage.getItem('savedLicitaciones') || '[]');
-      if (!savedItems.includes(id)) savedItems.push(id);
-      localStorage.setItem('savedLicitaciones', JSON.stringify(savedItems));
-      const savedDates = JSON.parse(localStorage.getItem('savedLicitacionesDates') || '{}');
-      savedDates[id] = new Date().toISOString();
-      localStorage.setItem('savedLicitacionesDates', JSON.stringify(savedDates));
+      await addFavorite(id);
       // Trigger enrich when favoriting
       if (licitacion?.source_url) {
         enrichLicitacion();
@@ -503,28 +481,32 @@ const LicitacionDetailPage = ({ userRole }) => {
                   </div>
                 </div>
 
-                {/* Cotizar button — visible to all users */}
-                <Link
-                  to={`/cotizar?licitacion_id=${id}`}
-                  className="flex items-center gap-1.5 px-4 py-2.5 rounded-2xl bg-emerald-500 hover:bg-emerald-400 text-white text-sm font-semibold transition-all duration-300"
-                  title="Cotizar esta licitación"
-                >
-                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 7h6m0 10v-3m-3 3h.01M9 17h.01M9 14h.01M12 14h.01M15 11h.01M12 11h.01M9 11h.01M7 21h10a2 2 0 002-2V5a2 2 0 00-2-2H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
-                  </svg>
-                  Cotizar
-                </Link>
+                {/* Cotizar button — admin only */}
+                {isAdmin && (
+                  <Link
+                    to={`/cotizar?licitacion_id=${id}`}
+                    className="flex items-center gap-1.5 px-4 py-2.5 rounded-2xl bg-emerald-500 hover:bg-emerald-400 text-white text-sm font-semibold transition-all duration-300"
+                    title="Cotizar esta licitación"
+                  >
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 7h6m0 10v-3m-3 3h.01M9 17h.01M9 14h.01M12 14h.01M15 11h.01M12 11h.01M9 11h.01M7 21h10a2 2 0 002-2V5a2 2 0 00-2-2H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
+                    </svg>
+                    Cotizar
+                  </Link>
+                )}
 
-                {/* HUNTER button with label */}
-                <button
-                  onClick={() => setHunterOpen(true)}
-                  className="flex items-center gap-2 px-4 py-2.5 rounded-2xl bg-amber-500 text-white hover:bg-amber-600 transition-all duration-300 font-semibold text-sm shadow-lg"
-                >
-                  <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                    <circle cx="12" cy="12" r="10" /><circle cx="12" cy="12" r="6" /><circle cx="12" cy="12" r="2" />
-                  </svg>
-                  Hunter
-                </button>
+                {/* HUNTER button — admin only */}
+                {isAdmin && (
+                  <button
+                    onClick={() => setHunterOpen(true)}
+                    className="flex items-center gap-2 px-4 py-2.5 rounded-2xl bg-amber-500 text-white hover:bg-amber-600 transition-all duration-300 font-semibold text-sm shadow-lg"
+                  >
+                    <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                      <circle cx="12" cy="12" r="10" /><circle cx="12" cy="12" r="6" /><circle cx="12" cy="12" r="2" />
+                    </svg>
+                    Hunter
+                  </button>
+                )}
 
                 {licitacion?.source_url && (
                   <div className="flex sm:flex-col gap-2">

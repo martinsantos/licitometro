@@ -13,7 +13,7 @@ const Header = ({ userRole }) => {
   const isActive = (path) => location.pathname === path;
   const isAdmin = userRole === 'admin';
 
-  // Primary nav (always visible)
+  // Primary nav (always visible). Admin-only links filtered below.
   const primaryLinks = [
     { path: '/', label: 'Inicio' },
     { path: '/licitaciones', label: 'Licitaciones' },
@@ -25,18 +25,18 @@ const Header = ({ userRole }) => {
         <path d="M5 5a2 2 0 012-2h10a2 2 0 012 2v16l-7-3.5L5 21V5z" />
       </svg>
     )},
-    { path: '/cotizar', label: 'Cotizador', icon: (
+    { path: '/cotizar', label: 'Cotizador', adminOnly: true, icon: (
       <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 7h6m0 10v-3m-3 3h.01M9 17h.01M9 14h.01M12 14h.01M15 11h.01M12 11h.01M9 11h.01M7 21h10a2 2 0 002-2V5a2 2 0 00-2-2H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
       </svg>
     )},
-    { path: '/empresa', label: 'Empresa', icon: (
+    { path: '/empresa', label: 'Empresa', adminOnly: true, icon: (
       <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
       </svg>
     )},
     { path: '/stats', label: 'Stats' },
-  ];
+  ].filter(link => !link.adminOnly || isAdmin);
 
   // Secondary nav (in "More" dropdown on desktop)
   const secondaryLinks = [
