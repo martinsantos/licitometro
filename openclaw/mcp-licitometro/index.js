@@ -113,14 +113,14 @@ const buscar = {
       texto: { type: "string", description: "Texto de busqueda EXACTO tal como lo escribio el usuario" },
       municipio: { type: "string", description: "Municipio u organismo (ej: Guaymallen, Godoy Cruz, AYSAM, IPV)" },
       estado: { type: "string", description: "Estado: vigente o vencida" },
-      size: { type: "number", description: "Resultados a mostrar (default 10, max 20)" },
+      size: { type: "number", description: "Resultados a mostrar (default 5, max 10)" },
     },
   },
   async execute(_id, params) {
     try {
       const apiParams = {
         q: params.texto,
-        size: params.size || 10,
+        size: Math.min(params.size || 5, 10),
         sort_by: "relevance",
         sort_order: "desc",
       };

@@ -258,7 +258,10 @@ class LicitacionRepository:
                 pass
 
         # --- Phase 2: MongoDB $text search (broader, includes description) ---
-        if len(combined) < fetch_limit:
+        # In relevance mode, only expand if Phase 1 found very few results
+        phase1_count = len(combined)
+        expand_threshold = min(3, fetch_limit) if use_relevance else fetch_limit
+        if phase1_count < expand_threshold:
             text_query = {"$text": {"$search": query}}
             if extra_filters:
                 text_query.update(extra_filters)
@@ -280,7 +283,7 @@ class LicitacionRepository:
                 pass
 
         # --- Phase 3: Regex fallback (accent-agnostic, all fields) ---
-        if len(combined) < fetch_limit:
+        if len(combined) < expand_threshold:
             regex_query = self._build_regex_query(query, extra_filters)
             if regex_query:
                 regex_cursor = self.collection.find(regex_query).sort(fallback_sort).limit(fetch_limit)
