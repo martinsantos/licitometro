@@ -174,6 +174,8 @@ class AdjudicacionService:
         self,
         since: Optional[datetime] = None,
         category: Optional[str] = None,
+        supplier: Optional[str] = None,
+        organization: Optional[str] = None,
         limit: int = 20,
         min_confidence: float = 0.0,
     ) -> List[Dict[str, Any]]:
@@ -185,6 +187,10 @@ class AdjudicacionService:
             match["fecha_adjudicacion"] = {"$gte": since}
         if category:
             match["category"] = category
+        if supplier:
+            match["adjudicatario"] = {"$regex": supplier, "$options": "i"}
+        if organization:
+            match["organization"] = {"$regex": organization, "$options": "i"}
 
         pipeline = [
             {"$match": match},
@@ -221,6 +227,7 @@ class AdjudicacionService:
         since: Optional[datetime] = None,
         min_sample: int = 3,
         min_confidence: float = 0.7,
+        supplier: Optional[str] = None,
     ) -> List[Dict[str, Any]]:
         match: Dict[str, Any] = {
             "category": {"$exists": True, "$ne": None},
@@ -229,6 +236,8 @@ class AdjudicacionService:
         }
         if since:
             match["fecha_adjudicacion"] = {"$gte": since}
+        if supplier:
+            match["adjudicatario"] = {"$regex": supplier, "$options": "i"}
 
         pipeline = [
             {"$match": match},
@@ -263,11 +272,14 @@ class AdjudicacionService:
         since: Optional[datetime] = None,
         min_count: int = 2,
         max_suppliers_avg: float = 2.0,
+        supplier: Optional[str] = None,
     ) -> List[Dict[str, Any]]:
         """Categories with few competitors on average (gap opportunities)."""
         match: Dict[str, Any] = {"category": {"$exists": True, "$ne": None}}
         if since:
             match["fecha_adjudicacion"] = {"$gte": since}
+        if supplier:
+            match["adjudicatario"] = {"$regex": supplier, "$options": "i"}
 
         pipeline = [
             {"$match": match},
@@ -376,6 +388,131 @@ class AdjudicacionService:
         cursor = self.col.find(match).sort("fecha_adjudicacion", DESCENDING).limit(limit)
         docs = await cursor.to_list(limit)
         return [adjudicacion_entity(d) for d in docs]
+
+    async def supplier_detail(self, adjudicatario: str) -> Dict[str, Any]:
+        """All info about a single supplier: totals, per-year, per-category, sample awards."""
+        import re as _re
+        regex = f"^{_re.escape(adjudicatario)}$"
+        match = {"adjudicatario": {"$regex": regex, "$options": "i"}}
+
+        totals_pipeline = [
+            {"$match": match},
+            {
+                "$group": {
+                    "_id": None,
+                    "count": {"$sum": 1},
+                    "monto_total": {"$sum": {"$ifNull": ["$monto_adjudicado", 0]}},
+                    "monto_avg": {"$avg": "$monto_adjudicado"},
+                    "monto_max": {"$max": "$monto_adjudicado"},
+                    "first_fecha": {"$min": "$fecha_adjudicacion"},
+                    "last_fecha": {"$max": "$fecha_adjudicacion"},
+                    "cuit": {"$first": "$supplier_id"},
+                }
+            },
+        ]
+        totals = await self.col.aggregate(totals_pipeline).to_list(1)
+        totals = totals[0] if totals else {}
+        totals.pop("_id", None)
+
+        by_year_pipeline = [
+            {"$match": {**match, "fecha_adjudicacion": {"$ne": None}}},
+            {
+                "$group": {
+                    "_id": {"$year": "$fecha_adjudicacion"},
+                    "count": {"$sum": 1},
+                    "monto": {"$sum": {"$ifNull": ["$monto_adjudicado", 0]}},
+                }
+            },
+            {"$sort": {"_id": 1}},
+            {"$project": {"year": "$_id", "count": 1, "monto": 1, "_id": 0}},
+        ]
+        by_year = await self.col.aggregate(by_year_pipeline).to_list(50)
+
+        by_category_pipeline = [
+            {"$match": match},
+            {
+                "$group": {
+                    "_id": "$category",
+                    "count": {"$sum": 1},
+                    "monto": {"$sum": {"$ifNull": ["$monto_adjudicado", 0]}},
+                }
+            },
+            {"$sort": {"monto": -1}},
+            {"$project": {"category": "$_id", "count": 1, "monto": 1, "_id": 0}},
+        ]
+        by_category = await self.col.aggregate(by_category_pipeline).to_list(50)
+
+        by_org_pipeline = [
+            {"$match": match},
+            {
+                "$group": {
+                    "_id": "$organization",
+                    "count": {"$sum": 1},
+                    "monto": {"$sum": {"$ifNull": ["$monto_adjudicado", 0]}},
+                }
+            },
+            {"$sort": {"monto": -1}},
+            {"$limit": 10},
+            {"$project": {"organization": "$_id", "count": 1, "monto": 1, "_id": 0}},
+        ]
+        by_organization = await self.col.aggregate(by_org_pipeline).to_list(10)
+
+        recent = await self.col.find(match).sort("fecha_adjudicacion", DESCENDING).limit(20).to_list(20)
+        recent_list = [adjudicacion_entity(d) for d in recent]
+
+        return {
+            "adjudicatario": adjudicatario,
+            "totals": totals,
+            "by_year": by_year,
+            "by_category": by_category,
+            "by_organization": by_organization,
+            "recent": recent_list,
+        }
+
+    async def activity_by_year(
+        self,
+        category: Optional[str] = None,
+        supplier: Optional[str] = None,
+    ) -> List[Dict[str, Any]]:
+        """Counts + montos grouped by year."""
+        match: Dict[str, Any] = {"fecha_adjudicacion": {"$ne": None}}
+        if category:
+            match["category"] = category
+        if supplier:
+            match["adjudicatario"] = {"$regex": supplier, "$options": "i"}
+
+        pipeline = [
+            {"$match": match},
+            {
+                "$group": {
+                    "_id": {"$year": "$fecha_adjudicacion"},
+                    "count": {"$sum": 1},
+                    "monto": {"$sum": {"$ifNull": ["$monto_adjudicado", 0]}},
+                    "suppliers": {"$addToSet": "$adjudicatario"},
+                }
+            },
+            {"$sort": {"_id": 1}},
+            {
+                "$project": {
+                    "year": "$_id",
+                    "count": 1,
+                    "monto": 1,
+                    "unique_suppliers": {"$size": "$suppliers"},
+                    "_id": 0,
+                }
+            },
+        ]
+        return await self.col.aggregate(pipeline).to_list(50)
+
+    async def list_categories(self) -> List[Dict[str, Any]]:
+        """Available categories with counts — for filter dropdown."""
+        pipeline = [
+            {"$match": {"category": {"$exists": True, "$ne": None}}},
+            {"$group": {"_id": "$category", "count": {"$sum": 1}}},
+            {"$sort": {"count": -1}},
+            {"$project": {"category": "$_id", "count": 1, "_id": 0}},
+        ]
+        return await self.col.aggregate(pipeline).to_list(200)
 
     async def summary(self) -> Dict[str, Any]:
         """Counts + last ingest for dashboard header."""
