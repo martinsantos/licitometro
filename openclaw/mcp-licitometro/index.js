@@ -227,12 +227,14 @@ const estadisticas = {
   },
   async execute() {
     try {
-      const data = await apiGet("/public/stats");
+      const data = await apiGet("/licitaciones/stats/estado-distribution");
+      const byEstado = data.by_estado || {};
+      const total = Object.values(byEstado).reduce((a, b) => a + (b || 0), 0);
       const lines = [
-        `Total licitaciones: ${data.total_licitaciones || 0}`,
-        `Fuentes activas: ${data.active_scrapers || 0}`,
+        `Total licitaciones: ${total}`,
         data.vigentes_hoy !== undefined ? `Vigentes hoy: ${data.vigentes_hoy}` : null,
-        data.by_estado ? `Por estado: ${JSON.stringify(data.by_estado)}` : null,
+        Object.keys(byEstado).length ? `Por estado: ${JSON.stringify(byEstado)}` : null,
+        data.by_year ? `Por año: ${JSON.stringify(data.by_year)}` : null,
       ]
         .filter(Boolean)
         .join("\n");

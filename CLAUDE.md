@@ -18,6 +18,7 @@ Plataforma de monitoreo de licitaciones publicas de Mendoza, Argentina. Agrega d
 | Contenedores | Docker Compose (prod: mongodb + backend + nginx + certbot) |
 | Proxy/SSL | Nginx 1.25 + Let's Encrypt (certbot auto-renew) |
 | Notificaciones | Telegram Bot (@Licitobot) + Email (Postfix local relay) |
+| Asistente IA | OpenClaw + Gemini 2.5 Flash — bot Telegram @Licitometrobot (systemd nativo, aislado de Docker) |
 | Scraping | aiohttp + Selenium (para sitios con JS) + pypdf (para PDFs) |
 
 ---
@@ -400,6 +401,7 @@ ALLOWED_ORIGINS, STORAGE_MAX_MB, RUN_HISTORY_KEEP
 CACHE_TTL_HOURS, LOG_RETENTION_DAYS
 TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID
 SMTP_HOST, SMTP_PORT, SMTP_USER, SMTP_PASSWORD, NOTIFICATION_EMAIL_TO
+GEMINI_API_KEY, OPENCLAW_TELEGRAM_BOT_TOKEN, OPENCLAW_TELEGRAM_OWNER_ID
 ```
 Docker Compose lee `.env` (NO `.env.production`). En prod hay symlink `.env → .env.production`.
 
@@ -1063,6 +1065,23 @@ Los links en notificaciones de nodo incluyen `?token=xxx` (JWT con `sub: "reader
 - `backend/routers/auth.py`: `POST /api/auth/token-login`
 - `backend/server.py`: `/api/auth/token-login` en `AUTH_EXEMPT_PATHS`
 - `frontend/src/App.js`: Token exchange en `handleStartup()`
+
+---
+
+## Bots de Telegram (dos separados)
+
+| Bot | Token env var | Propósito | Servicio | Código |
+|---|---|---|---|---|
+| **@Licitobot** | `TELEGRAM_BOT_TOKEN` | Notificaciones push (digest diario 9am, nodo digests 9:15am/6pm) | backend FastAPI (container `licitometro-backend-1`) | `backend/services/notification_service.py`, `backend/services/nodo_digest_service.py` |
+| **@Licitometrobot** | `OPENCLAW_TELEGRAM_BOT_TOKEN` | Asistente IA conversacional (buscar, ver, vigentes, stats) | systemd `openclaw.service` (nativo, fuera de Docker) | `openclaw/` + `scripts/setup-openclaw-native.sh` |
+
+**Sin conflicto de polling**: @Licitobot solo usa `sendMessage` (no polling). @Licitometrobot hace long-polling vía OpenClaw. Dos tokens distintos → no pisan updates.
+
+**Aislamiento**: OpenClaw corre como servicio systemd independiente en `/opt/openclaw/`. Si falla, licitometro.ar + scrapers + @Licitobot siguen funcionando.
+
+**Deploy**: `ssh root@76.13.234.213 "cd /opt/licitometro && git pull && bash scripts/setup-openclaw-native.sh"` (idempotente, backup automático de config previa).
+
+**Troubleshooting @Licitometrobot**: ver `openclaw/README.md` sección Troubleshooting.
 
 ---
 
