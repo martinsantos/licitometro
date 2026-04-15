@@ -223,7 +223,7 @@ class LicitacionRepository:
     async def search(self, query: str, skip: int = 0, limit: int = 100,
                      sort_by: str = "publication_date", sort_order: int = pymongo.DESCENDING,
                      extra_filters: Dict = None) -> List[Licitacion]:
-        """Hybrid search: $text + accent-agnostic regex, merged and deduped."""
+        """Hybrid search: title/objeto first, then $text, then regex fallback."""
 
         use_relevance = sort_by == "relevance"
         if not use_relevance and sort_by not in Licitacion.model_fields and sort_by != "_id":
@@ -232,38 +232,64 @@ class LicitacionRepository:
         seen_ids = set()
         combined = []
         fetch_limit = limit + skip
+        fallback_sort = [(sort_by, sort_order)] if not use_relevance else [("publication_date", pymongo.DESCENDING)]
 
-        # --- Phase 1: MongoDB $text search (fast, indexed, Spanish stemming) ---
-        text_query = {"$text": {"$search": query}}
-        if extra_filters:
-            text_query.update(extra_filters)
-        try:
-            if use_relevance:
-                cursor = (self.collection
-                          .find(text_query, {"score": {"$meta": "textScore"}})
-                          .sort([("score", {"$meta": "textScore"})])
-                          .limit(fetch_limit))
-            else:
-                cursor = self.collection.find(text_query).sort(sort_by, sort_order).limit(fetch_limit)
-            for doc in await cursor.to_list(length=fetch_limit):
-                if doc["_id"] not in seen_ids:
-                    combined.append(doc)
-                    seen_ids.add(doc["_id"])
-        except Exception:
-            pass
+        # --- Phase 1: Regex on title + objeto ONLY (highest relevance) ---
+        from utils.text_search import build_accent_regex
+        tokens = query.strip().split()
+        if tokens:
+            try:
+                token_patterns = [build_accent_regex(t) for t in tokens]
+                title_conditions = []
+                for pat in token_patterns:
+                    title_conditions.append({"$or": [
+                        {"title": {"$regex": pat, "$options": "i"}},
+                        {"objeto": {"$regex": pat, "$options": "i"}},
+                    ]})
+                title_query = {"$and": title_conditions}
+                if extra_filters:
+                    title_query = {"$and": [title_query, extra_filters]}
+                cursor = self.collection.find(title_query).sort(fallback_sort).limit(fetch_limit)
+                for doc in await cursor.to_list(length=fetch_limit):
+                    if doc["_id"] not in seen_ids:
+                        combined.append(doc)
+                        seen_ids.add(doc["_id"])
+            except Exception:
+                pass
 
-        # --- Phase 2: Regex (accent-agnostic, searches objeto + 9 more fields) ---
-        regex_query = self._build_regex_query(query, extra_filters)
-        if regex_query and len(combined) < fetch_limit:
-            remaining = fetch_limit - len(combined)
-            regex_sort = [("publication_date", pymongo.DESCENDING)] if use_relevance else [(sort_by, sort_order)]
-            regex_cursor = self.collection.find(regex_query).sort(regex_sort).limit(fetch_limit)
-            for doc in await regex_cursor.to_list(length=fetch_limit):
-                if doc["_id"] not in seen_ids:
-                    combined.append(doc)
-                    seen_ids.add(doc["_id"])
-                    if len(combined) >= fetch_limit:
-                        break
+        # --- Phase 2: MongoDB $text search (broader, includes description) ---
+        if len(combined) < fetch_limit:
+            text_query = {"$text": {"$search": query}}
+            if extra_filters:
+                text_query.update(extra_filters)
+            try:
+                if use_relevance:
+                    cursor = (self.collection
+                              .find(text_query, {"score": {"$meta": "textScore"}})
+                              .sort([("score", {"$meta": "textScore"})])
+                              .limit(fetch_limit))
+                else:
+                    cursor = self.collection.find(text_query).sort(sort_by, sort_order).limit(fetch_limit)
+                for doc in await cursor.to_list(length=fetch_limit):
+                    if doc["_id"] not in seen_ids:
+                        combined.append(doc)
+                        seen_ids.add(doc["_id"])
+                        if len(combined) >= fetch_limit:
+                            break
+            except Exception:
+                pass
+
+        # --- Phase 3: Regex fallback (accent-agnostic, all fields) ---
+        if len(combined) < fetch_limit:
+            regex_query = self._build_regex_query(query, extra_filters)
+            if regex_query:
+                regex_cursor = self.collection.find(regex_query).sort(fallback_sort).limit(fetch_limit)
+                for doc in await regex_cursor.to_list(length=fetch_limit):
+                    if doc["_id"] not in seen_ids:
+                        combined.append(doc)
+                        seen_ids.add(doc["_id"])
+                        if len(combined) >= fetch_limit:
+                            break
 
         return licitaciones_entity(combined[skip:skip + limit])
 
