@@ -121,7 +121,7 @@ const buscar = {
       const apiParams = {
         q: params.texto,
         size: params.size || 10,
-        sort_by: "publication_date",
+        sort_by: "relevance",
         sort_order: "desc",
       };
       if (params.municipio) apiParams.fuente = normalizeFuente(params.municipio);

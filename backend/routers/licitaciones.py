@@ -69,7 +69,7 @@ async def get_licitaciones(
     year: Optional[str] = Query(None, description="Filter by publication year (e.g., '2026' or 'all')"),
     only_national: Optional[bool] = Query(False, description="Only show Argentina nacional sources (~11 sources)"),
     fuente_exclude: Optional[List[str]] = Query(None, description="Exclude these sources"),
-    sort_by: str = Query("publication_date", description="Field to sort by"),
+    sort_by: str = Query("publication_date", description="Field to sort by (use 'relevance' for text search ranking)"),
     sort_order: str = Query("desc", description="Sort order: asc or desc"),
     repo: LicitacionRepository = Depends(get_licitacion_repository)
 ):

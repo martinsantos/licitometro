@@ -225,7 +225,8 @@ class LicitacionRepository:
                      extra_filters: Dict = None) -> List[Licitacion]:
         """Hybrid search: $text + accent-agnostic regex, merged and deduped."""
 
-        if sort_by not in Licitacion.model_fields and sort_by != "_id":
+        use_relevance = sort_by == "relevance"
+        if not use_relevance and sort_by not in Licitacion.model_fields and sort_by != "_id":
             sort_by = "publication_date"
 
         seen_ids = set()
@@ -237,7 +238,13 @@ class LicitacionRepository:
         if extra_filters:
             text_query.update(extra_filters)
         try:
-            cursor = self.collection.find(text_query).sort(sort_by, sort_order).limit(fetch_limit)
+            if use_relevance:
+                cursor = (self.collection
+                          .find(text_query, {"score": {"$meta": "textScore"}})
+                          .sort([("score", {"$meta": "textScore"})])
+                          .limit(fetch_limit))
+            else:
+                cursor = self.collection.find(text_query).sort(sort_by, sort_order).limit(fetch_limit)
             for doc in await cursor.to_list(length=fetch_limit):
                 if doc["_id"] not in seen_ids:
                     combined.append(doc)
@@ -249,7 +256,8 @@ class LicitacionRepository:
         regex_query = self._build_regex_query(query, extra_filters)
         if regex_query and len(combined) < fetch_limit:
             remaining = fetch_limit - len(combined)
-            regex_cursor = self.collection.find(regex_query).sort(sort_by, sort_order).limit(fetch_limit)
+            regex_sort = [("publication_date", pymongo.DESCENDING)] if use_relevance else [(sort_by, sort_order)]
+            regex_cursor = self.collection.find(regex_query).sort(regex_sort).limit(fetch_limit)
             for doc in await regex_cursor.to_list(length=fetch_limit):
                 if doc["_id"] not in seen_ids:
                     combined.append(doc)
