@@ -112,6 +112,15 @@ CRON_JOBS = [
         "max_instances": 1,
     },
     {
+        "id": "adjudicaciones_ingest",
+        "name": "Adjudicaciones ingest (OCDS + Boletín, incremental)",
+        "trigger": CronTrigger(hour=4, minute=30),
+        "service_module": "services.adjudicacion_ingest_service",
+        "service_factory": "get_adjudicacion_ingest_service",
+        "method": "run_ingest_cycle",
+        "max_instances": 1,
+    },
+    {
         "id": "circular_daily_check",
         "name": "Daily circular check (vigente + cotizando)",
         "trigger": CronTrigger(hour=20, minute=0),

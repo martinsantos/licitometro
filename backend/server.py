@@ -20,7 +20,7 @@ from routers import (
     licitaciones_search, licitaciones_presets,
     scraper_configs, comprar, scheduler, workflow, offer_templates,
     auth, public, nodos, cotizar_ai, cotizaciones, market_data, documentos, company_context,
-    lab, hunter, users,
+    lab, hunter, users, analytics,
 )
 from services.auth_service import verify_token
 
@@ -59,6 +59,7 @@ ADMIN_ONLY_PREFIXES = (
     "/api/company-context",
     "/api/documentos",
     "/api/cotizaciones",
+    "/api/analytics/",
 )
 
 # Admin-only exact path suffixes (e.g. HUNTER endpoint on a licitacion).
@@ -201,6 +202,7 @@ app.include_router(market_data.router)
 app.include_router(documentos.router)
 app.include_router(company_context.router)
 app.include_router(lab.router)
+app.include_router(analytics.router)
 app.include_router(public.router)
 app.include_router(users.admin_router)
 app.include_router(users.public_router)
@@ -299,6 +301,10 @@ async def startup_db_client():
         # Documentos indexes
         await database.documentos.create_index("category")
         await database.documentos.create_index("created_at")
+
+        # Adjudicaciones indexes
+        from services.adjudicacion_service import get_adjudicacion_service
+        await get_adjudicacion_service(database).ensure_indexes()
 
         # AI cache with TTL (24 hours)
         await database.ai_cache.create_index("prompt_hash")

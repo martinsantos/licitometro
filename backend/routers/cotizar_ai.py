@@ -970,8 +970,44 @@ async def hunter_unified(body: Dict[str, Any], request: Request):
                 except Exception as e:
                     logger.warning(f"Hunter inteligencia category search failed: {e}")
 
-            # Calculate price range
+            # Query the dedicated adjudicaciones collection (historical references)
+            try:
+                from services.adjudicacion_service import get_adjudicacion_service
+                adj_svc = get_adjudicacion_service(db)
+                hist = await adj_svc.find_historical_references(lic, limit=15, min_score=2.0)
+                existing_names = {a.get("adjudicatario") for a in inteligencia["adjudicaciones"] if a.get("adjudicatario")}
+                for h in hist:
+                    name = h.get("adjudicatario")
+                    if not name or name in existing_names:
+                        continue
+                    existing_names.add(name)
+                    inteligencia["adjudicaciones"].append({
+                        "id": h.get("id"),
+                        "title": h.get("objeto") or "",
+                        "organization": h.get("organization") or "",
+                        "fuente": f"adj:{h.get('fuente','')}",
+                        "budget": h.get("budget_original"),
+                        "currency": h.get("currency", "ARS"),
+                        "items_count": 0,
+                        "adjudicatario": name,
+                        "monto_adjudicado": h.get("monto_adjudicado"),
+                        "fecha_adjudicacion": h.get("fecha_adjudicacion"),
+                        "confidence": "alta" if h.get("extraction_confidence", 0) >= 0.8 else (
+                            "media" if h.get("extraction_confidence", 0) >= 0.5 else "baja"
+                        ),
+                        "match_type": h.get("match_type"),
+                    })
+            except Exception as e:
+                logger.warning(f"Hunter inteligencia adjudicaciones collection query failed: {e}")
+
+            # Calculate price range: prefer monto_adjudicado over budget when available
+            all_montos = [
+                r["monto_adjudicado"]
+                for r in inteligencia["adjudicaciones"]
+                if r.get("monto_adjudicado")
+            ]
             all_budgets = [r["budget"] for r in inteligencia["referencias"] + inteligencia["adjudicaciones"] if r.get("budget")]
+            all_budgets = all_montos + all_budgets if all_montos else all_budgets
             if all_budgets:
                 all_budgets.sort()
                 inteligencia["price_range"] = {

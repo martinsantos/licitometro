@@ -8,6 +8,7 @@ interface PliegoDoc {
 interface RefItem {
   id: string; title: string; organization: string; fuente: string; budget?: number; currency?: string;
   items_count: number; adjudicatario?: string; monto_adjudicado?: number; confidence: string;
+  fecha_adjudicacion?: string; match_type?: string;
 }
 interface Proveedor { name: string; count: number; total: number; }
 interface Antecedente {
