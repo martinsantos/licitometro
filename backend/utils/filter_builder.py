@@ -38,6 +38,7 @@ def build_base_filters(
     fuente_exclude: Optional[List[str]] = None,
     q: Optional[str] = None,
     auto_future_opening: bool = False,
+    location: Optional[str] = None,
 ) -> Dict[str, Any]:
     """Build MongoDB filter dict from all supported parameters.
 
@@ -83,6 +84,10 @@ def build_base_filters(
     # Nodos (array field)
     if nodo:
         filters["nodos"] = nodo
+
+    # Location
+    if location:
+        filters["location"] = location
 
     # Budget range
     if budget_min is not None or budget_max is not None:
