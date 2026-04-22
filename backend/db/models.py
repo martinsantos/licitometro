@@ -117,6 +117,8 @@ def licitacion_entity(licitacion) -> dict:
         # Vigencia
         "estado": licitacion.get("estado", "vigente"),
         "fecha_prorroga": licitacion.get("fecha_prorroga"),
+        # AI-extracted requirements
+        "requisitos": licitacion.get("requisitos"),
         # Timestamps — fallback to fecha_scraping if missing
         "created_at": licitacion.get("created_at") or licitacion.get("fecha_scraping") or licitacion.get("updated_at"),
         "updated_at": licitacion.get("updated_at") or licitacion.get("fecha_scraping"),

@@ -432,3 +432,51 @@ async def resolve_licitacion_url(
         "resolved_url": url,
         "quality": resolver.determine_url_quality(url)
     }
+
+
+@router.post("/{licitacion_id}/requisitos")
+async def extract_requisitos(
+    licitacion_id: str,
+    repo: LicitacionRepository = Depends(get_licitacion_repository),
+):
+    """Extract structured participation requirements from the pliego text using Gemini AI.
+
+    Populates the `requisitos` field on the licitacion. Used by match_score_service
+    to compute per-company affinity scores without an LLM call at score time.
+    """
+    db = repo.collection.database
+    try:
+        lic = await db.licitaciones.find_one({"_id": ObjectId(licitacion_id)})
+    except Exception:
+        lic = None
+    if not lic:
+        raise HTTPException(404, "Licitación no encontrada")
+
+    # Build text from description + pliego fields
+    text_parts = []
+    description = lic.get("description") or ""
+    if description:
+        text_parts.append(description[:6000])
+    for f in (lic.get("metadata") or {}).get("comprar_pliego_fields", {}).items():
+        if f[1]:
+            text_parts.append(f"{f[0]}: {f[1]}")
+    if lic.get("objeto"):
+        text_parts.append(f"Objeto: {lic['objeto']}")
+    pliego_text = "\n".join(text_parts)
+
+    if not pliego_text or len(pliego_text) < 100:
+        raise HTTPException(400, "Sin texto de pliego suficiente. Enriquecé la licitación primero.")
+
+    from services.requisitos_extractor import get_requisitos_extractor
+    extractor = get_requisitos_extractor()
+    requisitos = await extractor.extract(pliego_text)
+
+    if requisitos is None:
+        raise HTTPException(503, "Servicio de IA no disponible (GEMINI_API_KEY no configurada)")
+
+    await db.licitaciones.update_one(
+        {"_id": ObjectId(licitacion_id)},
+        {"$set": {"requisitos": requisitos, "updated_at": utc_now()}},
+    )
+
+    return {"requisitos": requisitos, "licitacion_id": licitacion_id}

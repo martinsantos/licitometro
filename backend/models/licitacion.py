@@ -128,6 +128,9 @@ class LicitacionBase(BaseModel):
     estado: str = Field("vigente", description="Estado: vigente | vencida | prorrogada | archivada")
     fecha_prorroga: Optional[datetime] = Field(None, description="Nueva fecha si extendida por circular")
 
+    # AI-extracted participation requirements (populated by RequisitosExtractor)
+    requisitos: Optional[dict] = Field(None, description="Structured requirements extracted from pliego by AI")
+
     @model_validator(mode='after')
     def validate_dates_and_estado(self):
         """

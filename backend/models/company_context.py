@@ -37,6 +37,12 @@ class CompanyProfileCreate(BaseModel):
     cargo_representante: str = ""
     onboarding_completed: bool = False
     brand_config: Optional[dict] = None  # {logo_svg, website_url, primary_color, accent_color}
+    # Scoring-relevant fields (used by match_score_service)
+    certificaciones: List[str] = Field(default_factory=list)   # ["RUPE", "ISO 9001", "IRAM"]
+    zonas_operacion: List[str] = Field(default_factory=list)   # ["Mendoza Capital", "Malargüe"]
+    presupuesto_min: Optional[float] = None                    # ARS — minimum comfortable contract size
+    presupuesto_max: Optional[float] = None                    # ARS — maximum capacity
+    antiguedad_anios: Optional[int] = None                     # years in business
 
 
 class CompanyProfileUpdate(BaseModel):
@@ -51,6 +57,11 @@ class CompanyProfileUpdate(BaseModel):
     cargo_representante: Optional[str] = None
     onboarding_completed: Optional[bool] = None
     brand_config: Optional[dict] = None
+    certificaciones: Optional[List[str]] = None
+    zonas_operacion: Optional[List[str]] = None
+    presupuesto_min: Optional[float] = None
+    presupuesto_max: Optional[float] = None
+    antiguedad_anios: Optional[int] = None
 
 
 class CompanyContextCreate(BaseModel):

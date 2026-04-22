@@ -1786,3 +1786,65 @@ async def extract_marco_legal(body: Dict[str, Any], request: Request):
         result["threshold_info"] = threshold_info
 
     return result
+
+
+@router.post("/pliego-summary/{licitacion_id}")
+async def pliego_summary(licitacion_id: str, request: Request):
+    """Analyze a pliego and return a structured summary (legal framework, requirements, checklist)."""
+    db = _get_db(request)
+    try:
+        from services.pliego_finder import find_pliegos
+        result = await find_pliegos(db, licitacion_id)
+    except Exception as e:
+        raise HTTPException(500, f"Error buscando pliego: {e}")
+
+    text = result.get("text_extracted") or ""
+    if not text or len(text) < 100:
+        raise HTTPException(400, "Sin texto de pliego disponible. Enriquecé la licitación primero.")
+
+    try:
+        lic = await db.licitaciones.find_one({"_id": ObjectId(licitacion_id)})
+    except Exception:
+        lic = None
+
+    context = ""
+    if lic:
+        context = (
+            f"Objeto: {lic.get('objeto') or lic.get('title', '')}\n"
+            f"Organismo: {lic.get('organization', '')}\n"
+            f"Presupuesto: {lic.get('budget') or 'No informado'}\n\n"
+        )
+    context += f"TEXTO DEL PLIEGO:\n{text[:6000]}"
+
+    groq = get_groq_enrichment_service(db)
+    summary = await groq.extract_marco_legal(context)
+    summary["pliegos_encontrados"] = len([p for p in result.get("pliegos", []) if p.get("type") != "metadata"])
+    summary["strategy_used"] = result.get("strategy_used")
+    return summary
+
+
+class PliegoChatBody(dict):
+    pass
+
+
+@router.post("/pliego-chat/{licitacion_id}")
+async def pliego_chat(licitacion_id: str, body: Dict[str, Any], request: Request):
+    """Answer a free-form question about a pliego using AI."""
+    message = (body.get("message") or "").strip()
+    if not message:
+        raise HTTPException(400, "message requerido")
+
+    db = _get_db(request)
+    try:
+        from services.pliego_finder import find_pliegos
+        result = await find_pliegos(db, licitacion_id)
+    except Exception as e:
+        raise HTTPException(500, f"Error buscando pliego: {e}")
+
+    text = result.get("text_extracted") or ""
+    if not text or len(text) < 50:
+        raise HTTPException(400, "Sin texto de pliego disponible. Enriquecé la licitación primero.")
+
+    groq = get_groq_enrichment_service(db)
+    response = await groq.pliego_chat(text, message)
+    return {"response": response}
