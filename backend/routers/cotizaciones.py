@@ -2,7 +2,7 @@
 
 import logging
 from datetime import datetime, timezone
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional
 
 from bson import ObjectId
 from fastapi import APIRouter, HTTPException, Query, Request
@@ -91,6 +91,61 @@ async def delete_cotizacion(licitacion_id: str, request: Request):
     if result.deleted_count == 0:
         raise HTTPException(404, "Cotización no encontrada")
     return {"deleted": True}
+
+
+VALID_STATUSES = {"borrador", "presentada", "adjudicada", "rechazada", "perdida", "cancelada"}
+
+
+class StatusUpdate(BaseModel):
+    status: str
+    notas_resultado: Optional[str] = None
+
+
+@router.patch("/{licitacion_id}/status")
+async def update_status(licitacion_id: str, body: StatusUpdate, request: Request):
+    """Update cotizacion status and optionally record outcome notes."""
+    if body.status not in VALID_STATUSES:
+        raise HTTPException(400, f"Estado inválido. Válidos: {sorted(VALID_STATUSES)}")
+    db = _get_db(request)
+    now = datetime.now(timezone.utc)
+    update: Dict[str, Any] = {"status": body.status, "updated_at": now}
+    if body.notas_resultado:
+        update["notas_resultado"] = body.notas_resultado
+    result = await db.cotizaciones.update_one(
+        {"licitacion_id": licitacion_id},
+        {"$set": update},
+    )
+    if result.matched_count == 0:
+        raise HTTPException(404, "Cotización no encontrada")
+    doc = await db.cotizaciones.find_one({"licitacion_id": licitacion_id})
+    return cotizacion_entity(doc)
+
+
+@router.get("/stats/resumen")
+async def stats_resumen(request: Request):
+    """Aggregate stats across all cotizaciones: counts + montos by status."""
+    db = _get_db(request)
+    pipeline = [
+        {"$group": {
+            "_id": "$status",
+            "count": {"$sum": 1},
+            "monto_total": {"$sum": "$total"},
+        }},
+        {"$sort": {"_id": 1}},
+    ]
+    docs = await db.cotizaciones.aggregate(pipeline).to_list(length=20)
+    by_status = {d["_id"]: {"count": d["count"], "monto_total": d["monto_total"]} for d in docs}
+    total_count = sum(d["count"] for d in docs)
+    total_monto = sum(d["monto_total"] for d in docs)
+    adjudicadas = by_status.get("adjudicada", {})
+    return {
+        "by_status": by_status,
+        "total_count": total_count,
+        "total_monto": total_monto,
+        "adjudicadas_count": adjudicadas.get("count", 0),
+        "adjudicadas_monto": adjudicadas.get("monto_total", 0),
+        "tasa_exito_pct": round(adjudicadas.get("count", 0) / total_count * 100, 1) if total_count else 0,
+    }
 
 
 class VincularAntecedenteBody(BaseModel):

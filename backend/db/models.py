@@ -322,6 +322,7 @@ def cotizacion_entity(doc) -> dict:
         "garantia_data": doc.get("garantia_data"),
         "template_id": doc.get("template_id"),
         "status": doc.get("status", "borrador"),
+        "notas_resultado": doc.get("notas_resultado"),
         "created_at": doc.get("created_at"),
         "updated_at": doc.get("updated_at"),
     }

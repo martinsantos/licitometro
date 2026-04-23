@@ -91,90 +91,268 @@ function LicitacionCard({
   );
 }
 
-// ── Tab: Mis Cotizaciones (reads from MongoDB) ────────────────────────────────
+// ── Status config ─────────────────────────────────────────────────────────────
+const STATUS_CONFIG: Record<string, { label: string; color: string; bg: string }> = {
+  borrador:   { label: 'En proceso',  color: 'text-gray-600',    bg: 'bg-gray-100' },
+  presentada: { label: 'Presentada',  color: 'text-blue-700',    bg: 'bg-blue-50' },
+  adjudicada: { label: 'Adjudicada',  color: 'text-emerald-700', bg: 'bg-emerald-50' },
+  rechazada:  { label: 'Rechazada',   color: 'text-red-700',     bg: 'bg-red-50' },
+  perdida:    { label: 'Perdida',     color: 'text-orange-700',  bg: 'bg-orange-50' },
+  cancelada:  { label: 'Cancelada',   color: 'text-gray-500',    bg: 'bg-gray-50' },
+};
+
+const STATUS_FLOW = ['borrador', 'presentada', 'adjudicada', 'rechazada', 'perdida', 'cancelada'];
+
+// ── Tab: Mis Cotizaciones ─────────────────────────────────────────────────────
 function MisCotizacionesTab({ onSelect }: { onSelect: (id: string) => void }) {
   const api = useCotizarAPI();
-  const [cotizaciones, setCotizaciones] = useState<MongoCotizacion[]>([]);
+  const [all, setAll] = useState<MongoCotizacion[]>([]);
   const [loading, setLoading] = useState(true);
+  const [stats, setStats] = useState<any>(null);
+  const [filterStatus, setFilterStatus] = useState<string>('all');
+  const [q, setQ] = useState('');
+  const [changingStatus, setChangingStatus] = useState<string | null>(null);
+  const [notasModal, setNotasModal] = useState<{ id: string; status: string } | null>(null);
+  const [notasText, setNotasText] = useState('');
 
-  useEffect(() => {
-    api.listCotizacionesFromMongo(true)
-      .then(cs => setCotizaciones(cs))
-      .catch(() => setCotizaciones([]))
-      .finally(() => setLoading(false));
+  const load = useCallback(async () => {
+    setLoading(true);
+    try {
+      const [cs, st] = await Promise.all([
+        api.listCotizacionesFromMongo(true),
+        api.getCotizacionesStats().catch(() => null),
+      ]);
+      setAll(cs);
+      setStats(st);
+    } catch {
+      setAll([]);
+    } finally {
+      setLoading(false);
+    }
   }, []);
+
+  useEffect(() => { load(); }, [load]);
+
+  const visible = all.filter(c => {
+    if (filterStatus !== 'all' && c.status !== filterStatus) return false;
+    if (q) {
+      const lq = q.toLowerCase();
+      return (c.licitacion_title || '').toLowerCase().includes(lq) ||
+             (c.licitacion_objeto || '').toLowerCase().includes(lq) ||
+             (c.organization || '').toLowerCase().includes(lq);
+    }
+    return true;
+  });
+
+  const doChangeStatus = async (licId: string, newStatus: string, notas?: string) => {
+    setChangingStatus(licId);
+    try {
+      const updated = await api.updateCotizacionStatus(licId, newStatus, notas);
+      setAll(prev => prev.map(c => c.licitacion_id === licId ? { ...c, ...updated } : c));
+      if (stats) {
+        // Refresh stats after status change
+        const st = await api.getCotizacionesStats().catch(() => null);
+        if (st) setStats(st);
+      }
+    } catch { /* silent */ }
+    finally { setChangingStatus(null); }
+  };
+
+  const handleStatusSelect = (licId: string, newStatus: string) => {
+    if (['adjudicada', 'rechazada', 'perdida'].includes(newStatus)) {
+      setNotasModal({ id: licId, status: newStatus });
+      setNotasText('');
+    } else {
+      doChangeStatus(licId, newStatus);
+    }
+  };
 
   if (loading) {
     return (
       <div className="flex items-center gap-3 py-12 justify-center text-gray-400 text-sm">
         <div className="w-5 h-5 border-2 border-gray-200 border-t-blue-500 rounded-full animate-spin" />
-        Cargando cotizaciones…
+        Cargando historial…
       </div>
     );
   }
 
-  if (cotizaciones.length === 0) {
+  if (all.length === 0) {
     return (
       <div className="text-center py-14 space-y-3">
         <div className="text-5xl">📋</div>
         <h3 className="font-semibold text-gray-700">Sin cotizaciones aun</h3>
         <p className="text-sm text-gray-400 max-w-xs mx-auto">
-          Encontra una licitacion activa o en favoritos y presiona "Cotizar".
+          Encontra una licitacion activa y presiona "Cotizar".
         </p>
       </div>
     );
   }
 
   return (
-    <div className="space-y-3">
-      {cotizaciones.map(cot => (
-        <div
-          key={cot.id}
-          className="flex items-start gap-3 p-4 bg-white rounded-xl border border-gray-100 hover:border-blue-200 hover:shadow-sm transition-all group"
-        >
-          <div className="flex-1 min-w-0">
-            <p className="font-medium text-gray-800 text-sm line-clamp-2">
-              {cot.licitacion_objeto || cot.licitacion_title || 'Cotizacion sin titulo'}
-            </p>
-            <div className="flex items-center gap-3 mt-1.5 flex-wrap">
-              {cot.organization && (
-                <span className="text-xs text-gray-500">{cot.organization}</span>
-              )}
-              {cot.total > 0 && (
-                <span className="text-xs font-semibold text-gray-700 tabular-nums">
-                  {formatARS(cot.total)}
-                </span>
-              )}
-              {cot.budget != null && cot.budget > 0 && (
-                <span className="text-xs text-gray-400">PO: {formatARS(cot.budget)}</span>
-              )}
-              <UrgencyBadge opening_date={cot.opening_date} />
-              {cot.status && (
-                <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${
-                  cot.status === 'completada' ? 'bg-emerald-50 text-emerald-700' :
-                  cot.status === 'enviada' ? 'bg-blue-50 text-blue-700' :
-                  'bg-gray-100 text-gray-600'
-                }`}>
-                  {cot.status === 'borrador' ? 'En proceso' : cot.status}
-                </span>
-              )}
-              {cot.updated_at && (
-                <span className="text-xs text-gray-400">
-                  Editado {new Date(cot.updated_at).toLocaleDateString('es-AR')}
-                </span>
-              )}
+    <div className="space-y-4">
+      {/* Stats strip */}
+      {stats && (
+        <div className="grid grid-cols-3 gap-3">
+          {[
+            { label: 'Total cotizadas', value: stats.total_count, sub: formatARS(stats.total_monto) },
+            { label: 'Adjudicadas', value: stats.adjudicadas_count, sub: formatARS(stats.adjudicadas_monto), highlight: true },
+            { label: 'Tasa de éxito', value: `${stats.tasa_exito_pct}%`, sub: `${stats.adjudicadas_count} de ${stats.total_count}` },
+          ].map(({ label, value, sub, highlight }) => (
+            <div key={label} className={`rounded-xl p-3 text-center ${highlight ? 'bg-emerald-50 border border-emerald-200' : 'bg-gray-50 border border-gray-200'}`}>
+              <p className={`text-xl font-bold ${highlight ? 'text-emerald-700' : 'text-gray-800'}`}>{value}</p>
+              <p className="text-xs font-medium text-gray-600 mt-0.5">{label}</p>
+              <p className="text-[11px] text-gray-400 tabular-nums">{sub}</p>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Filters */}
+      <div className="space-y-2">
+        <input
+          value={q} onChange={e => setQ(e.target.value)}
+          placeholder="Buscar por título, organismo…"
+          className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-400"
+        />
+        <div className="flex gap-1.5 flex-wrap">
+          {['all', ...STATUS_FLOW].map(s => {
+            const cfg = s === 'all' ? null : STATUS_CONFIG[s];
+            const count = s === 'all' ? all.length : all.filter(c => c.status === s).length;
+            if (count === 0 && s !== 'all' && s !== 'borrador') return null;
+            return (
+              <button
+                key={s}
+                onClick={() => setFilterStatus(s)}
+                className={`text-xs px-2.5 py-1 rounded-full border transition-colors ${
+                  filterStatus === s
+                    ? 'bg-gray-800 text-white border-gray-800'
+                    : 'bg-white text-gray-600 border-gray-200 hover:border-gray-400'
+                }`}
+              >
+                {cfg ? cfg.label : 'Todas'} {count > 0 && <span className="opacity-60">({count})</span>}
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* List */}
+      <div className="space-y-2">
+        {visible.length === 0 ? (
+          <p className="text-sm text-gray-400 text-center py-8">Sin resultados para este filtro.</p>
+        ) : visible.map(cot => {
+          const cfg = STATUS_CONFIG[cot.status] || STATUS_CONFIG.borrador;
+          const isFinal = ['adjudicada', 'rechazada', 'perdida', 'cancelada'].includes(cot.status);
+          return (
+            <div key={cot.id} className="flex items-start gap-3 p-4 bg-white rounded-xl border border-gray-100 hover:border-blue-100 hover:shadow-sm transition-all">
+              {/* Status indicator bar */}
+              <div className={`w-1 self-stretch rounded-full shrink-0 ${
+                cot.status === 'adjudicada' ? 'bg-emerald-400' :
+                cot.status === 'presentada' ? 'bg-blue-400' :
+                cot.status === 'rechazada' || cot.status === 'perdida' ? 'bg-red-300' : 'bg-gray-200'
+              }`} />
+
+              <div className="flex-1 min-w-0">
+                <p className="font-medium text-gray-800 text-sm line-clamp-2">
+                  {cot.licitacion_objeto || cot.licitacion_title || 'Sin título'}
+                </p>
+                <div className="flex items-center gap-2 mt-1 flex-wrap">
+                  {cot.organization && <span className="text-xs text-gray-500">{cot.organization}</span>}
+                  {cot.total > 0 && <span className="text-xs font-semibold text-gray-700 tabular-nums">{formatARS(cot.total)}</span>}
+                  {cot.budget != null && cot.budget > 0 && (
+                    <span className="text-xs text-gray-400">PO: {formatARS(cot.budget)}</span>
+                  )}
+                  <UrgencyBadge opening_date={cot.opening_date} />
+                  {cot.updated_at && <span className="text-xs text-gray-400">{new Date(cot.updated_at).toLocaleDateString('es-AR')}</span>}
+                </div>
+                {cot.notas_resultado && (
+                  <p className="text-xs text-gray-500 italic mt-1 line-clamp-1">"{cot.notas_resultado}"</p>
+                )}
+
+                {/* Status changer */}
+                <div className="flex items-center gap-2 mt-2">
+                  <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${cfg.bg} ${cfg.color}`}>{cfg.label}</span>
+                  {!isFinal && (
+                    <select
+                      value=""
+                      disabled={changingStatus === cot.licitacion_id}
+                      onChange={e => e.target.value && handleStatusSelect(cot.licitacion_id, e.target.value)}
+                      className="text-xs border border-gray-200 rounded px-1.5 py-0.5 text-gray-500 bg-white focus:outline-none"
+                    >
+                      <option value="">Cambiar estado…</option>
+                      {STATUS_FLOW.filter(s => s !== cot.status).map(s => (
+                        <option key={s} value={s}>{STATUS_CONFIG[s].label}</option>
+                      ))}
+                    </select>
+                  )}
+                  {isFinal && cot.status !== 'adjudicada' && (
+                    <button
+                      onClick={() => handleStatusSelect(cot.licitacion_id, 'borrador')}
+                      className="text-xs text-gray-400 hover:text-gray-600 border border-gray-200 rounded px-1.5 py-0.5"
+                    >
+                      Reabrir
+                    </button>
+                  )}
+                  {changingStatus === cot.licitacion_id && (
+                    <span className="w-3 h-3 border border-gray-300 border-t-blue-500 rounded-full animate-spin inline-block" />
+                  )}
+                </div>
+              </div>
+
+              <div className="shrink-0 flex flex-col gap-1.5">
+                <button
+                  onClick={() => onSelect(cot.licitacion_id)}
+                  className="text-xs font-semibold px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors"
+                >
+                  {isFinal ? 'Ver' : 'Continuar'}
+                </button>
+                <a
+                  href={`/api/cotizaciones/${cot.licitacion_id}/xlsx`}
+                  download
+                  className="text-xs text-center px-3 py-1 border border-emerald-200 text-emerald-700 rounded-lg hover:bg-emerald-50 transition-colors"
+                >
+                  XLSX
+                </a>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+
+      {/* Notas modal for terminal statuses */}
+      {notasModal && (
+        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50">
+          <div className="bg-white rounded-xl p-6 w-80 space-y-4 shadow-xl">
+            <h3 className="font-semibold text-gray-800">
+              Marcar como {STATUS_CONFIG[notasModal.status]?.label}
+            </h3>
+            <div>
+              <label className="text-xs text-gray-500 mb-1 block">Notas / resultado (opcional)</label>
+              <textarea
+                value={notasText}
+                onChange={e => setNotasText(e.target.value)}
+                placeholder="Ej: Adjudicada a $12.500.000 — competidor ofertó $14M"
+                rows={3}
+                className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400"
+              />
+            </div>
+            <div className="flex gap-2 justify-end">
+              <button onClick={() => setNotasModal(null)} className="text-sm px-3 py-1.5 text-gray-600 border border-gray-200 rounded-lg hover:bg-gray-50">
+                Cancelar
+              </button>
+              <button
+                onClick={() => {
+                  doChangeStatus(notasModal.id, notasModal.status, notasText || undefined);
+                  setNotasModal(null);
+                }}
+                className="text-sm px-4 py-1.5 bg-gray-800 text-white rounded-lg hover:bg-gray-900"
+              >
+                Confirmar
+              </button>
             </div>
           </div>
-          <div className="shrink-0">
-            <button
-              onClick={() => onSelect(cot.licitacion_id)}
-              className="text-xs font-semibold px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors"
-            >
-              Continuar
-            </button>
-          </div>
         </div>
-      ))}
+      )}
     </div>
   );
 }

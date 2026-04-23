@@ -213,6 +213,7 @@ export interface MongoCotizacion {
   antecedentes_vinculados?: string[];
   price_intelligence?: PriceIntelligence | null;
   status: string;
+  notas_resultado?: string | null;
   created_at?: string;
   updated_at?: string;
   // Enriched fields (from ?enrich=true)
@@ -388,6 +389,18 @@ export function useCotizarAPI() {
 
     async deleteCotizacionFromMongo(licitacionId: string): Promise<void> {
       await apiFetchMain(`/cotizaciones/${licitacionId}`, { method: 'DELETE' });
+    },
+
+    async updateCotizacionStatus(licitacionId: string, status: string, notas?: string): Promise<MongoCotizacion> {
+      return apiFetchMain(`/cotizaciones/${licitacionId}/status`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status, notas_resultado: notas }),
+      });
+    },
+
+    async getCotizacionesStats(): Promise<any> {
+      return apiFetchMain('/cotizaciones/stats/resumen');
     },
 
     // --- Pliego intelligence ---
