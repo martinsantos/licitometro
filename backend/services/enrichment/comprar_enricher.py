@@ -38,8 +38,11 @@ def _extract_doc_links(html: str, base_url: str) -> List[Dict[str, str]]:
         docs.append({"url": abs_url, "titulo": titulo or "Pliego", "tipo": tipo})
 
     # <a href="...GetDoc.aspx..."> or href ending in .pdf / .docx
+    # Skip javascript: hrefs entirely — they are ASP.NET postback buttons, not real URLs
     for a in soup.find_all("a", href=True):
         href = a["href"]
+        if href.lower().startswith("javascript:"):
+            continue
         text = a.get_text(" ", strip=True)[:100]
         if "GetDoc.aspx" in href or "GetDocumento.aspx" in href:
             ext = "PDF" if "pdf" in href.lower() else "DOC"
