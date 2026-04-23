@@ -20,7 +20,7 @@ from routers import (
     licitaciones_search, licitaciones_presets,
     scraper_configs, comprar, scheduler, workflow, offer_templates,
     auth, public, nodos, cotizar_ai, cotizaciones, market_data, documentos, company_context,
-    lab, hunter, users, analytics, pileta, empresa, knowledge, empresa_perfiles,
+    lab, hunter, users, analytics, pileta, empresa, knowledge, empresa_perfiles, open_data,
 )
 from services.auth_service import verify_token
 
@@ -131,8 +131,8 @@ async def auth_middleware(request: Request, call_next):
     if not path.startswith("/api") or path in AUTH_EXEMPT_PATHS or path.startswith("/api/public/"):
         return await call_next(request)
 
-    # Allow public GET access to licitaciones and market data endpoints
-    if request.method == "GET" and (path.startswith("/api/licitaciones") or path.startswith("/api/licitaciones-ar") or path.startswith("/api/market/")):
+    # Allow public GET access to licitaciones, market data, and open-data endpoints
+    if request.method == "GET" and (path.startswith("/api/licitaciones") or path.startswith("/api/licitaciones-ar") or path.startswith("/api/market/") or path.startswith("/api/open-data/")):
         return await call_next(request)
 
     # Reader-accessible prefixes (any valid token grants access, regardless of role)
@@ -211,6 +211,7 @@ app.include_router(analytics.router)
 app.include_router(empresa.router)
 app.include_router(empresa_perfiles.router)
 app.include_router(knowledge.router)
+app.include_router(open_data.router)
 app.include_router(public.router)
 app.include_router(users.admin_router)
 app.include_router(users.public_router)
