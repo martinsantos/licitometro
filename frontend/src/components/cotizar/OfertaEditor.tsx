@@ -205,6 +205,8 @@ export default function OfertaEditor({ licitacion, onSaved }: Props) {
   const [pliegoDocuments, setPliegoDocuments] = useState<PliegoDoc[]>([]);
   const [templateName, setTemplateName] = useState('');
   const [showTemplateSelector, setShowTemplateSelector] = useState(false);
+  const [catalogMatches, setCatalogMatches] = useState<Record<number, any[]>>({});
+  const [loadingCatalog, setLoadingCatalog] = useState(false);
   const [availableTemplates, setAvailableTemplates] = useState<Array<{id: string; name: string; slug: string; template_type: string; description: string; sections_count: number}>>([]);
   const offerRef = useRef<HTMLDivElement>(null);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -669,6 +671,36 @@ export default function OfertaEditor({ licitacion, onSaved }: Props) {
     }
   }, [licitacion.id, budgetHints]);
 
+  const handleMatchCatalogo = useCallback(async () => {
+    setLoadingCatalog(true);
+    try {
+      const r = await fetch(`/api/licitaciones/${licitacion.id}/match-catalogo?empresa_id=default`, {
+        method: 'POST', credentials: 'include',
+      });
+      const data = await r.json();
+      if (data.items?.length) {
+        const newItems: CotizarItem[] = data.items.map((row: any) => ({
+          descripcion: row.item.descripcion || '',
+          cantidad: row.item.cantidad || 1,
+          unidad: (row.item.unidad_medida || 'u.').toLowerCase(),
+          precio_unitario: row.matches?.[0]?.precio_unitario || 0,
+        }));
+        setItems(newItems);
+        const matches: Record<number, any[]> = {};
+        data.items.forEach((row: any, i: number) => {
+          if (row.matches?.length) matches[i] = row.matches;
+        });
+        setCatalogMatches(matches);
+      } else {
+        alert('No se encontraron ítems en el pliego o el catálogo está vacío.');
+      }
+    } catch (e) {
+      alert('Error al cargar desde catálogo');
+    } finally {
+      setLoadingCatalog(false);
+    }
+  }, [licitacion.id]);
+
   const handleApplyTemplate = useCallback(async (slug: string) => {
     try {
       const t = await api.getDefaultTemplate(slug);
@@ -991,6 +1023,14 @@ export default function OfertaEditor({ licitacion, onSaved }: Props) {
                 Cargar items con IA
               </button>
               <button
+                onClick={handleMatchCatalogo}
+                disabled={loadingCatalog}
+                className="text-xs text-emerald-600 hover:text-emerald-800 border border-emerald-200 hover:border-emerald-400 px-3 py-1.5 rounded-lg transition-colors disabled:opacity-50 flex items-center gap-1"
+              >
+                {loadingCatalog ? <span className="w-3 h-3 border border-emerald-400 border-t-transparent rounded-full animate-spin" /> : '📦'}
+                Desde catálogo
+              </button>
+              <button
                 onClick={() => { setHunterTab('pliego'); setHunterOpen(true); }}
                 className="text-xs text-amber-600 hover:text-amber-800 border border-amber-200 hover:border-amber-400 px-3 py-1.5 rounded-lg transition-colors flex items-center gap-1 font-semibold"
               >
@@ -1234,6 +1274,20 @@ export default function OfertaEditor({ licitacion, onSaved }: Props) {
                     <td className="py-2.5 pr-2 text-gray-400 text-xs font-mono">{idx + 1}</td>
                     <td className="py-2.5 pr-3">
                       <input type="text" value={item.descripcion} onChange={e => handleItemChange(idx, 'descripcion', e.target.value)} placeholder="Descripcion del item…" className="w-full bg-transparent border-b border-transparent focus:border-blue-400 outline-none text-gray-800 placeholder-gray-300 py-0.5" />
+                      {catalogMatches[idx]?.length > 0 && (
+                        <div className="flex gap-1 mt-1 flex-wrap">
+                          {catalogMatches[idx].map((m: any, mi: number) => (
+                            <button
+                              key={mi}
+                              onClick={() => handleItemChange(idx, 'precio_unitario', m.precio_unitario)}
+                              title={`Aplicar precio de catálogo: ${m.descripcion}`}
+                              className="text-[10px] bg-emerald-50 border border-emerald-200 text-emerald-700 rounded px-1.5 py-0.5 hover:bg-emerald-100 whitespace-nowrap"
+                            >
+                              📦 {m.descripcion.slice(0, 25)}{m.descripcion.length > 25 ? '…' : ''} · {new Intl.NumberFormat('es-AR', { style: 'currency', currency: 'ARS', maximumFractionDigits: 0 }).format(m.precio_unitario)}/{m.unidad_medida}
+                            </button>
+                          ))}
+                        </div>
+                      )}
                     </td>
                     <td className="py-2.5 pr-3">
                       <NumericInput value={item.cantidad} onChange={v => handleItemChange(idx, 'cantidad', v)} integer min={1} placeholder="1" className="w-full text-right bg-transparent border-b border-transparent focus:border-blue-400 outline-none text-gray-800 py-0.5" />
@@ -2063,6 +2117,13 @@ export default function OfertaEditor({ licitacion, onSaved }: Props) {
                 Descargar PDF
               </a>
               <a
+                href={`/api/cotizaciones/${licitacion.id}/xlsx`}
+                download
+                className="text-xs px-3 py-1.5 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 transition-colors"
+              >
+                Descargar XLSX
+              </a>
+              <a
                 href={`/api/documentos/pagare/${licitacion.id}`}
                 target="_blank" rel="noopener noreferrer"
                 className="text-xs px-3 py-1.5 border border-amber-200 text-amber-700 rounded-lg hover:bg-amber-50 transition-colors"
@@ -2131,9 +2192,16 @@ export default function OfertaEditor({ licitacion, onSaved }: Props) {
             <a
               href={`/api/cotizaciones/${licitacion.id}/pdf`}
               target="_blank" rel="noopener noreferrer"
-              className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-semibold rounded-xl transition-colors"
+              className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold rounded-xl transition-colors"
             >
               Descargar PDF
+            </a>
+            <a
+              href={`/api/cotizaciones/${licitacion.id}/xlsx`}
+              download
+              className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-semibold rounded-xl transition-colors"
+            >
+              Descargar XLSX
             </a>
           </div>
         </div>
