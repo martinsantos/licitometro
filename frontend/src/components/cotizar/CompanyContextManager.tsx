@@ -1,8 +1,9 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, lazy, Suspense } from 'react';
 import {
   useCotizarAPI, CompanyProfile, CompanyContext, Documento, BrandConfig,
 } from '../../hooks/useCotizarAPI';
 import DocumentRepository from './DocumentRepository';
+const EmpresaKnowledge = lazy(() => import('./EmpresaKnowledge'));
 
 const TIPOS_PROCESO = [
   'Contratacion Directa', 'Licitacion Privada', 'Licitacion Publica',
@@ -17,6 +18,7 @@ const WIZARD_STEPS = [
   { id: 5, label: 'Zonas', icon: '📍' },
   { id: 6, label: 'Tips', icon: '💡' },
   { id: 7, label: 'HUNTER', icon: '🔑' },
+  { id: 8, label: 'Conocimiento', icon: '🧠' },
 ];
 
 function formatDate(d?: string) {
@@ -803,6 +805,11 @@ export default function CompanyContextManager() {
         )}
 
         {step === 7 && <StepCredentials />}
+        {step === 8 && (
+          <Suspense fallback={<div className="py-12 text-center text-sm text-gray-400">Cargando...</div>}>
+            <EmpresaKnowledge />
+          </Suspense>
+        )}
 
         {/* Navigation */}
         <div className="flex justify-between pt-2">
@@ -815,7 +822,7 @@ export default function CompanyContextManager() {
             <button onClick={handleSaveProfile} disabled={saving} className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold rounded-xl transition-colors disabled:opacity-50">
               {saving ? 'Guardando...' : 'Guardar'}
             </button>
-            {step < 7 ? (
+            {step < 8 ? (
               <button onClick={() => setStep(step + 1)} className="flex items-center gap-2 px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 text-sm font-medium rounded-xl transition-colors">
                 Siguiente <span>→</span>
               </button>

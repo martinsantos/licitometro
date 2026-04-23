@@ -392,6 +392,14 @@ const LicitacionCard: React.FC<LicitacionCardProps> = ({
                 </svg>
                 Cotizar
               </Link>
+              {lic.metadata?.sgi_antecedentes && lic.metadata.sgi_antecedentes.length > 0 && (
+                <span
+                  className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-indigo-100 text-indigo-700 cursor-default"
+                  title={`Antecedente SGI: ${lic.metadata.sgi_antecedentes[0].nombre}`}
+                >
+                  📁 Antec. SGI
+                </span>
+              )}
               <WorkflowBadge state={lic.workflow_state || 'descubierta'} compact />
               <span className={`px-2 py-0.5 rounded-full text-[10px] lg:text-xs font-bold ${
                 lic.status === 'active' ? 'bg-emerald-100 text-emerald-700' : 'bg-red-100 text-red-700'

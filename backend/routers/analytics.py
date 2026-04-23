@@ -14,9 +14,23 @@ import sys
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
+from fastapi import Response
+from fastapi.responses import JSONResponse
+from pydantic import BaseModel
+import os
+
 from services.adjudicacion_service import get_adjudicacion_service
+from services.sgi_service import get_sgi_service
 
 logger = logging.getLogger("analytics_router")
+
+SGI_SECTION_PIN = os.environ.get("SGI_SECTION_PIN", "menen")
+_SGI_COOKIE_NAME = "sgi_unlocked"
+_SGI_COOKIE_TTL = 4 * 3600  # 4 horas
+
+
+class PinUnlockRequest(BaseModel):
+    pin: str
 
 router = APIRouter(prefix="/api/analytics", tags=["analytics"])
 
@@ -154,3 +168,83 @@ async def search(
     if not any([q, category, supplier, cuit]):
         raise HTTPException(400, "Provide at least one filter: q, category, supplier, or cuit")
     return await svc.search(q=q, category=category, supplier=supplier, cuit=cuit, limit=limit)
+
+
+# ── SGI / Mi Empresa ──────────────────────────────────────────────────────────
+
+def _check_sgi_pin(request: Request) -> bool:
+    # Auth already enforced by server.py middleware for /api/analytics/*
+    return True
+
+
+@router.post("/sgi/unlock")
+async def sgi_unlock():
+    return {"success": True}
+
+
+@router.get("/sgi/summary")
+async def sgi_summary(request: Request):
+    """KPIs combinados de SGI (requiere PIN desbloqueado)."""
+    if not _check_sgi_pin(request):
+        raise HTTPException(403, "Sección bloqueada — se requiere PIN")
+    svc = get_sgi_service()
+    if not svc.enabled:
+        raise HTTPException(503, "SGI no configurado (SGI_BOT_TOKEN / SGI_EMAIL faltantes)")
+    return await svc.get_full_summary()
+
+
+@router.get("/sgi/proyectos")
+async def sgi_proyectos(request: Request):
+    """Proyectos activos del SGI."""
+    if not _check_sgi_pin(request):
+        raise HTTPException(403, "Sección bloqueada — se requiere PIN")
+    svc = get_sgi_service()
+    if not svc.enabled:
+        raise HTTPException(503, "SGI no configurado")
+    return {"proyectos": await svc.get_proyectos_activos()}
+
+
+@router.get("/sgi/certificados")
+async def sgi_certificados(request: Request):
+    """Certificados pendientes del SGI."""
+    if not _check_sgi_pin(request):
+        raise HTTPException(403, "Sección bloqueada — se requiere PIN")
+    svc = get_sgi_service()
+    if not svc.enabled:
+        raise HTTPException(503, "SGI no configurado")
+    return {"certificados": await svc.get_certificados_pendientes()}
+
+
+@router.get("/sgi/facturas/cobro")
+async def sgi_facturas_cobro(request: Request):
+    """Facturas pendientes de cobro del SGI."""
+    if not _check_sgi_pin(request):
+        raise HTTPException(403, "Sección bloqueada — se requiere PIN")
+    svc = get_sgi_service()
+    if not svc.enabled:
+        raise HTTPException(503, "SGI no configurado")
+    return {"facturas": await svc.get_facturas_cobro()}
+
+
+@router.get("/sgi/facturas/pago")
+async def sgi_facturas_pago(request: Request):
+    """Facturas pendientes de pago del SGI."""
+    if not _check_sgi_pin(request):
+        raise HTTPException(403, "Sección bloqueada — se requiere PIN")
+    svc = get_sgi_service()
+    if not svc.enabled:
+        raise HTTPException(503, "SGI no configurado")
+    return {"facturas": await svc.get_facturas_pago()}
+
+
+@router.post("/sgi/sync")
+async def sgi_sync(request: Request):
+    """Disparar sync manual de proyectos SGI → MongoDB."""
+    if not _check_sgi_pin(request):
+        raise HTTPException(403, "Sección bloqueada — se requiere PIN")
+    svc = get_sgi_service()
+    if not svc.enabled:
+        raise HTTPException(503, "SGI no configurado")
+    db = _get_db(request)
+    result = await svc.sync_to_mongo(db)
+    return {"success": True, **result}

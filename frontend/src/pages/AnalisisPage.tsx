@@ -1,6 +1,11 @@
 import React, { useEffect, useState, useCallback, useMemo } from 'react';
+import { SGISection } from '../components/analytics/SGISection';
+import { PiletaUpload } from '../components/analytics/PiletaUpload';
+import { PiletaDocumentos } from '../components/analytics/PiletaDocumentos';
 
 const API_URL = process.env.REACT_APP_API_URL || '';
+
+type MainTab = 'adjudicaciones' | 'miempresa' | 'pileta';
 
 // ── Types ────────────────────────────────────────────────────────────
 type Summary = {
@@ -99,6 +104,8 @@ const fmtNum = (n: number): string => n.toLocaleString('es-AR');
 
 // ── Component ────────────────────────────────────────────────────────
 const AnalisisPage: React.FC = () => {
+  const [mainTab, setMainTab] = useState<MainTab>('adjudicaciones');
+
   // Data
   const [summary, setSummary] = useState<Summary | null>(null);
   const [suppliers, setSuppliers] = useState<TopSupplier[]>([]);
@@ -221,13 +228,52 @@ const AnalisisPage: React.FC = () => {
       {/* Header */}
       <div className="mb-4 flex items-start justify-between gap-4 flex-wrap">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Análisis de Adjudicaciones</h1>
-          <p className="text-sm text-gray-500 mt-1">Quién gana qué, a qué precio, qué rubros tienen poca competencia.</p>
+          <h1 className="text-2xl font-bold text-gray-900">Análisis</h1>
+          <p className="text-sm text-gray-500 mt-1">Pileta de datos — adjudicaciones públicas, inteligencia propia y documentos.</p>
         </div>
-        <button onClick={fetchAll} className="text-xs border border-gray-200 rounded px-3 py-1.5 bg-white hover:bg-gray-50">
-          ↻ Actualizar
-        </button>
+        {mainTab === 'adjudicaciones' && (
+          <button onClick={fetchAll} className="text-xs border border-gray-200 rounded px-3 py-1.5 bg-white hover:bg-gray-50">
+            ↻ Actualizar
+          </button>
+        )}
       </div>
+
+      {/* Main tabs */}
+      <div className="flex gap-1 mb-6 border-b border-gray-200">
+        {([
+          { id: 'adjudicaciones', label: '📊 Adjudicaciones' },
+          { id: 'miempresa', label: '🏢 Mi Empresa' },
+          { id: 'pileta', label: '📥 Pileta' },
+        ] as { id: MainTab; label: string }[]).map((t) => (
+          <button
+            key={t.id}
+            onClick={() => setMainTab(t.id)}
+            className={`px-4 py-2 text-sm font-medium rounded-t transition-colors ${
+              mainTab === t.id
+                ? 'bg-white border border-b-white border-gray-200 text-blue-700 -mb-px'
+                : 'text-gray-500 hover:text-gray-700'
+            }`}
+          >
+            {t.label}
+          </button>
+        ))}
+      </div>
+
+      {/* Mi Empresa */}
+      {mainTab === 'miempresa' && (
+        <div className="bg-white border border-gray-100 rounded p-6">
+          <SGISection />
+        </div>
+      )}
+
+      {/* Pileta de documentos */}
+      {mainTab === 'pileta' && (
+        <PiletaTab />
+      )}
+
+      {/* Adjudicaciones — contenido existente */}
+      {mainTab === 'adjudicaciones' && (
+      <div>
 
       {/* Filters bar */}
       <div className="mb-4 p-3 bg-white border border-gray-200 rounded flex items-center gap-3 flex-wrap">
@@ -451,6 +497,8 @@ const AnalisisPage: React.FC = () => {
             )}
           </Section>
         </>
+      )}
+      </div>
       )}
 
       {/* Supplier detail side panel */}
@@ -707,6 +755,38 @@ const MiniBarChart: React.FC<{ data: { label: string; value: number; sub?: strin
           <div className="text-[9px] text-gray-500">{d.label}</div>
         </div>
       ))}
+    </div>
+  );
+};
+
+const PiletaTab: React.FC = () => {
+  const [sub, setSub] = useState<'subir' | 'documentos'>('subir');
+  return (
+    <div className="space-y-4">
+      <div className="flex gap-2 border-b border-gray-200 pb-0">
+        {(['subir', 'documentos'] as const).map((t) => (
+          <button
+            key={t}
+            onClick={() => setSub(t)}
+            className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors -mb-px ${
+              sub === t
+                ? 'border-indigo-600 text-indigo-700'
+                : 'border-transparent text-gray-500 hover:text-gray-700'
+            }`}
+          >
+            {t === 'subir' ? '📤 Subir documento' : '📋 Documentos'}
+          </button>
+        ))}
+      </div>
+      {sub === 'subir' ? (
+        <div className="bg-white border border-gray-100 rounded p-6">
+          <PiletaUpload />
+        </div>
+      ) : (
+        <div className="bg-white border border-gray-100 rounded p-6">
+          <PiletaDocumentos />
+        </div>
+      )}
     </div>
   );
 };

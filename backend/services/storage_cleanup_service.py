@@ -43,6 +43,13 @@ class StorageCleanupService:
         results["storage_files"] = self._cleanup_old_files()
         results["storage_mb"] = self._get_storage_size_mb()
 
+        # Pliego LRU eviction (only kicks in past high-water mark)
+        try:
+            from services.pliego_storage_service import evict_lru
+            results["pliego_evict"] = await evict_lru(self.db)
+        except Exception as e:
+            logger.warning(f"Pliego LRU eviction failed: {e}")
+
         logger.info(f"Cleanup completed: {results}")
         return results
 

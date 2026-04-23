@@ -335,7 +335,40 @@ class CrossSourceService:
                 f"merged fields: {result['fields_merged']}"
             )
 
+        # Step 7 (SGI): buscar antecedentes propios en sgi_proyectos
+        await self._hunt_sgi_antecedentes(lic_id, title, objeto)
+
         return result
+
+    async def _hunt_sgi_antecedentes(self, lic_id: str, title: str, objeto: str):
+        """Buscar proyectos similares en SGI cache y guardar en metadata.sgi_antecedentes."""
+        try:
+            search_text = " ".join(filter(None, [title, objeto]))[:200]
+            if not search_text.strip():
+                return
+            cursor = self.db.sgi_proyectos.find(
+                {"$text": {"$search": search_text}},
+                {"score": {"$meta": "textScore"}, "nombre": 1, "cliente": 1, "presupuesto": 1, "sgi_id": 1},
+            ).sort([("score", {"$meta": "textScore"})]).limit(3)
+            matches = await cursor.to_list(3)
+            if not matches or matches[0].get("score", 0) < 1.5:
+                return
+            antecedentes = [
+                {
+                    "nombre": m.get("nombre", "")[:80],
+                    "cliente": m.get("cliente", ""),
+                    "presupuesto": m.get("presupuesto", 0),
+                    "sgi_id": m.get("sgi_id", ""),
+                }
+                for m in matches
+            ]
+            await self.db.licitaciones.update_one(
+                {"_id": ObjectId(lic_id)},
+                {"$set": {"metadata.sgi_antecedentes": antecedentes}},
+            )
+            logger.info(f"SGI antecedentes found for {lic_id}: {len(antecedentes)} matches")
+        except Exception as e:
+            logger.debug(f"SGI antecedentes search failed for {lic_id}: {e}")
 
     @staticmethod
     def _build_title_search_query(title: str) -> Optional[str]:

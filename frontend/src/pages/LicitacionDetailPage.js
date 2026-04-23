@@ -575,6 +575,7 @@ const LicitacionDetailPage = ({ userRole }) => {
                 { id: 'oferta', label: 'Oferta', show: isAdmin && ['evaluando', 'preparando'].includes(licitacion?.workflow_state) },
                 { id: 'pliego_ia', label: '🤖 Pliego IA', show: isAdmin },
                 { id: 'similares', label: 'Similares' },
+                { id: 'ia_pliego', label: '💬 IA del pliego', show: isAdmin },
               ].filter(t => t.show !== false).map(tab => (
                 <button
                   key={tab.id}

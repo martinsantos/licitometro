@@ -191,11 +191,40 @@ def _flatten_kids_to_text(data: dict) -> str:
     return "\n".join(parts)
 
 
-async def extract_text_from_pdf_url(http: ResilientHttpClient, url: str) -> Optional[str]:
-    """Download a PDF and extract text."""
+async def extract_text_from_pdf_url(
+    http: ResilientHttpClient,
+    url: str,
+    lic_doc: Optional[dict] = None,
+) -> Optional[str]:
+    """Download a PDF and extract text.
+
+    If lic_doc is provided, also persist the PDF locally via
+    pliego_storage_service (filtered by priority fuente + size cap).
+    DB is resolved from the global ref set by server.py at startup.
+    """
     data = await download_binary(http, url, MAX_PDF_BYTES)
     if not data:
         return None
+
+    if lic_doc is not None:
+        try:
+            from services import pliego_storage_service as pss
+            workflow_state = lic_doc.get("workflow_state")
+            if workflow_state != "archivada":
+                fuente = lic_doc.get("fuente") or ""
+                if pss.is_priority_fuente(fuente):
+                    numero = (
+                        lic_doc.get("licitacion_number")
+                        or lic_doc.get("id_licitacion")
+                        or (lic_doc.get("metadata") or {}).get("comprasapps_numero")
+                        or str(lic_doc.get("_id", ""))
+                    )
+                    await pss.store_pliego(
+                        None, lic_doc.get("_id"), data, fuente, numero, source_url=url
+                    )
+        except Exception as e:
+            logger.debug(f"Pliego local store skipped: {e}")
+
     text = extract_text_from_pdf_bytes(data)
     return text if text else None
 
@@ -235,7 +264,7 @@ async def enrich_from_attached_files(http: ResilientHttpClient, lic_doc: dict) -
         file_type = file_obj.get("type", "").lower()
 
         if file_type == "pdf":
-            text = await extract_text_from_pdf_url(http, file_url)
+            text = await extract_text_from_pdf_url(http, file_url, lic_doc=lic_doc)
             if text:
                 logger.info(f"Enriched from attached PDF: {file_url[:60]}...")
                 return analyze_extracted_text(text, lic_doc)

@@ -41,6 +41,7 @@ export interface Licitacion {
     costo_pliego?: number;
     pliego_to_budget_ratio?: number;
     nodo_scores?: Record<string, number>;
+    sgi_antecedentes?: { nombre: string; cliente: string; presupuesto?: number; sgi_id: string }[];
   };
 }
 

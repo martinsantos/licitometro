@@ -84,6 +84,47 @@ class SchedulerService:
                 name="Orphan Run Cleanup",
                 replace_existing=True,
             )
+            # SGI sync — daily at 7am (before scraping runs)
+            self.scheduler.add_job(
+                func=self._sgi_sync_job,
+                trigger=CronTrigger(hour=7, minute=0),
+                id="sgi_sync_daily",
+                name="SGI Sync Daily",
+                replace_existing=True,
+            )
+            # Inbox watcher — every 5 minutes
+            self.scheduler.add_job(
+                func=self._inbox_watch_job,
+                trigger="interval",
+                minutes=5,
+                id="inbox_watcher",
+                name="Inbox folder watcher",
+                replace_existing=True,
+            )
+            # Link health — daily 5am, probes COMPR.AR canonical URLs and re-resolves dead ones
+            self.scheduler.add_job(
+                func=self._link_health_job,
+                trigger=CronTrigger(hour=5, minute=0),
+                id="link_health_daily",
+                name="COMPR.AR link health probe",
+                replace_existing=True,
+            )
+            # ComprasApps adjudicaciones extractor — daily 7am
+            self.scheduler.add_job(
+                func=self._comprasapps_adj_job,
+                trigger=CronTrigger(hour=7, minute=15),
+                id="comprasapps_adjudicaciones_daily",
+                name="ComprasApps adjudicaciones extraction",
+                replace_existing=True,
+            )
+            # Boletín Oficial adjudicaciones — daily 7:30am, runs over recent BO items
+            self.scheduler.add_job(
+                func=self._boletin_adj_job,
+                trigger=CronTrigger(hour=7, minute=30),
+                id="boletin_adjudicaciones_daily",
+                name="Boletín Oficial adjudicaciones extraction",
+                replace_existing=True,
+            )
             self.scheduler.start()
             self._is_running = True
             logger.info("Scheduler started")
@@ -433,10 +474,29 @@ class SchedulerService:
                                 log(f"Nodo matching failed for {item.id_licitacion}: {nodo_err}", "warning")
 
                         if id_exists:
-                            # Skip items whose content hasn't changed
+                            # Skip items whose content hasn't changed,
+                            # but ALWAYS sync state-tracking metadata fields that
+                            # source can change without touching title/org/numero
+                            # (e.g. ComprasApps "Vigente" → "Adjudicada").
                             old_hash = existing_id_hashes.get(item.id_licitacion)
                             if old_hash and item.content_hash and old_hash == item.content_hash:
                                 items_unchanged += 1
+                                meta_only_set = {}
+                                src_meta = item_data.get("metadata") or {}
+                                for k in ("comprasapps_estado", "comprasapps_detail_url",
+                                          "comprasapps_anio", "comprasapps_seq",
+                                          "comprasapps_tipo_code"):
+                                    if k in src_meta and src_meta[k] is not None:
+                                        meta_only_set[f"metadata.{k}"] = src_meta[k]
+                                # Sync canonical_url too if scraper produced a stable one
+                                if item.url_quality == "direct" and item_data.get("canonical_url"):
+                                    meta_only_set["canonical_url"] = item_data["canonical_url"]
+                                    meta_only_set["url_quality"] = "direct"
+                                if meta_only_set:
+                                    bulk_ops.append(UpdateOne(
+                                        {"id_licitacion": item.id_licitacion},
+                                        {"$set": meta_only_set},
+                                    ))
                                 continue
 
                             # Skip re-processing vencida/archivada items — they're dead
@@ -725,6 +785,103 @@ class SchedulerService:
             replace_existing=True,
         )
         logger.info(f"Scheduled retry #{retry_count + 1} for {scraper_name} in {delay_minutes}min")
+
+    async def _sgi_sync_job(self):
+        """Sync SGI proyectos activos → MongoDB sgi_proyectos collection."""
+        try:
+            from services.sgi_service import get_sgi_service
+            svc = get_sgi_service()
+            if svc.enabled:
+                result = await svc.sync_to_mongo(self.db)
+                logger.info(f"SGI sync completed: {result}")
+        except Exception as e:
+            logger.error(f"SGI sync job failed: {e}")
+
+    async def _inbox_watch_job(self):
+        """Process files dropped in /opt/licitometro/inbox/."""
+        try:
+            from services.inbox_watcher_service import watch_inbox
+            result = await watch_inbox(self.db)
+            if result["processed"] or result["failed"]:
+                logger.info(f"Inbox watcher: {result}")
+        except Exception as e:
+            logger.error(f"Inbox watcher job failed: {e}")
+
+    async def _link_health_job(self):
+        """Daily probe of COMPR.AR canonical URLs; mark dead, attempt re-resolve."""
+        try:
+            from services.link_health_service import check_comprar_links
+            result = await check_comprar_links(self.db)
+            logger.info(f"Link health: {result}")
+        except Exception as e:
+            logger.error(f"Link health job failed: {e}")
+
+    async def _comprasapps_adj_job(self):
+        """Extract awards from ComprasApps Adjudicada items into adjudicaciones col."""
+        try:
+            from services import comprasapps_adjudicaciones_service as casvc
+            result = await casvc.run(self.db)
+            logger.info(f"ComprasApps adjudicaciones: {result}")
+        except Exception as e:
+            logger.error(f"ComprasApps adjudicaciones job failed: {e}")
+
+    async def _boletin_adj_job(self):
+        """Extract awards from recent Boletín Oficial items via regex extractor."""
+        try:
+            from services.adjudicacion_service import get_adjudicacion_service
+            from services.boletin_adjudicacion_extractor import extract_adjudicaciones
+            svc = get_adjudicacion_service(self.db)
+            await svc.ensure_indexes()
+
+            from datetime import timedelta
+            cutoff = utc_now() - timedelta(days=14)
+            cursor = self.db.licitaciones.find(
+                {
+                    "fuente": {"$regex": "boletin", "$options": "i"},
+                    "description": {"$exists": True, "$nin": [None, ""]},
+                    "fecha_scraping": {"$gte": cutoff},
+                    "metadata.adj_extracted_at": {"$exists": False},
+                },
+                {"_id": 1, "description": 1, "objeto": 1, "organization": 1,
+                 "category": 1, "tipo_procedimiento": 1, "budget": 1,
+                 "licitacion_number": 1, "expedient_number": 1, "proceso_id": 1},
+            ).limit(500)
+
+            inserted = 0
+            scanned = 0
+            async for lic in cursor:
+                scanned += 1
+                text = lic.get("description") or ""
+                for ext in extract_adjudicaciones(text):
+                    d = ext.to_dict()
+                    if d.get("extraction_confidence", 0) < 0.5:
+                        continue
+                    doc = {
+                        **d,
+                        "currency": "ARS",
+                        "estado_adjudicacion": "active",
+                        "objeto": lic.get("objeto"),
+                        "organization": lic.get("organization"),
+                        "category": lic.get("category"),
+                        "tipo_procedimiento": lic.get("tipo_procedimiento"),
+                        "budget_original": lic.get("budget"),
+                        "licitacion_id": str(lic["_id"]),
+                        "proceso_id": lic.get("proceso_id"),
+                        "fuente": "boletin_oficial",
+                        "dedup_key": f"boletin:{lic['_id']}:{(d['adjudicatario'] or '').lower()[:60]}",
+                    }
+                    try:
+                        await svc.upsert(doc)
+                        inserted += 1
+                    except Exception as e:
+                        logger.debug(f"BO upsert failed: {e}")
+                await self.db.licitaciones.update_one(
+                    {"_id": lic["_id"]},
+                    {"$set": {"metadata.adj_extracted_at": utc_now()}},
+                )
+            logger.info(f"BO adj extract: scanned={scanned} inserted={inserted}")
+        except Exception as e:
+            logger.error(f"BO adjudicaciones job failed: {e}")
 
     async def _execute_retry_job(self, scraper_name: str, retry_count: int, original_run_id: str):
         """Execute a retry: create a new run record linked to the original, then run."""

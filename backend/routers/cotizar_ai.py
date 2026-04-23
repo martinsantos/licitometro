@@ -99,9 +99,49 @@ async def _get_company_context_str(db, organization: str = "", tipo_procedimient
             if ant_count:
                 parts.append(f"ANTECEDENTES EMPRESA EN ZONA: {ant_count} proyectos previos")
 
+    # Knowledge base context
+    try:
+        from services.knowledge_service import get_knowledge_service
+        km = get_knowledge_service()
+        knowledge_ctx = await km.get_context_for_cotizar(db, category=tipo_procedimiento, objeto=organization)
+        if knowledge_ctx:
+            parts.append(knowledge_ctx)
+    except Exception as e:
+        logger.debug(f"knowledge context skipped: {e}")
+
     if not parts:
         return ""
     return "\n".join(parts)
+
+
+@router.post("/pliego/{licitacion_id}/resumen")
+async def pliego_resumen(licitacion_id: str, body: Dict[str, Any], request: Request):
+    """Genera (o devuelve cacheado) un resumen estructurado del pliego.
+
+    Body opcional: { "force_refresh": false }
+    """
+    db = _get_db(request)
+    from services.pliego_ai_service import get_pliego_ai_service
+    svc = get_pliego_ai_service(db)
+    force = bool(body.get("force_refresh"))
+    return await svc.generate_resumen(licitacion_id, force_refresh=force)
+
+
+@router.post("/pliego/{licitacion_id}/chat")
+async def pliego_chat(licitacion_id: str, body: Dict[str, Any], request: Request):
+    """Pregunta al pliego en lenguaje natural.
+
+    Body: { "pregunta": "...", "history": [{role, content}, ...] }
+    """
+    db = _get_db(request)
+    pregunta = (body.get("pregunta") or "").strip()
+    if not pregunta:
+        raise HTTPException(400, "pregunta requerida")
+    history = body.get("history") or []
+    user_email = getattr(request.state, "user_email", None)
+    from services.pliego_ai_service import get_pliego_ai_service
+    svc = get_pliego_ai_service(db)
+    return await svc.chat(licitacion_id, pregunta, history=history, user_email=user_email)
 
 
 @router.get("/ai-usage")
@@ -299,6 +339,21 @@ Presupuesto: ${lic.get('budget', 'N/A')}"""
     )
     if company_ctx:
         context += f"\n\n{company_ctx}"
+
+    # Inject UMSA knowledge chunks as style/price reference
+    try:
+        from services.um_knowledge_service import get_um_knowledge_service
+        km = get_um_knowledge_service()
+        objeto = lic.get("objeto") or lic.get("title", "")
+        km_chunks = await km.search(db, query=objeto, top_k=3)
+        if km_chunks:
+            ref_text = "\n\n".join(
+                f"[Antecedente UMSA — {c['tipo']} · {c['fuente']}]\n{c['chunk_text'][:400]}"
+                for c in km_chunks
+            )
+            context += f"\n\n--- PROPUESTAS ANTERIORES UMSA (estilo y términos de referencia) ---\n{ref_text}"
+    except Exception as e:
+        logger.warning(f"UMSA knowledge inject in suggest-propuesta failed: {e}")
 
     groq = get_groq_enrichment_service(db)
     result = await groq.suggest_propuesta(context)
@@ -1085,6 +1140,27 @@ async def hunter_unified(body: Dict[str, Any], request: Request):
             logger.warning(f"Hunter antecedentes failed: {e}")
 
         result["antecedentes"] = antecedentes
+
+    # ── UMSA KNOWLEDGE (base vectorial interna) ──
+    if action in ("full", "antecedentes"):
+        try:
+            from services.um_knowledge_service import get_um_knowledge_service
+            km = get_um_knowledge_service()
+            objeto = lic.get("objeto") or lic.get("title", "")
+            category = lic.get("category", "")
+            km_chunks = await km.search(db, query=f"{objeto} {category}", top_k=5)
+            if km_chunks:
+                result["umsa_knowledge"] = [
+                    {
+                        "texto": c["chunk_text"][:600],
+                        "fuente": c["filename"],
+                        "tipo": c["tipo"],
+                        "score": c["score"],
+                    }
+                    for c in km_chunks
+                ]
+        except Exception as e:
+            logger.warning(f"UMSA knowledge search failed: {e}")
 
     # Cache result
     try:

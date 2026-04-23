@@ -517,7 +517,11 @@ class ComprasAppsMendozaScraper(BaseScraper):
             org_name = col(COL_ORG_NAME) or col(COL_ORG_NAME2)
             apertura_date = col(COL_APERTURA_DATE)
             apertura_time = col(COL_APERTURA_TIME)
-            estado = col(COL_ESTADO, "Vigente")
+            estado = col(COL_ESTADO, "")
+            if not estado:
+                # GeneXus returns blank COL_ESTADO when filtered; infer from search filter
+                search_estado = getattr(self, "_search_estado", "")
+                estado = {"A": "Adjudicada", "V": "Vigente", "P": "En Proceso"}.get(search_estado, "Vigente")
             titulo = col(COL_TITULO_FULL) or col(COL_TITULO_SHORT) or numero
             cuc_code = col(COL_CUC)
 
@@ -597,6 +601,22 @@ class ComprasAppsMendozaScraper(BaseScraper):
                 "comprasapps_apertura_raw": f"{apertura_date} {apertura_time}".strip(),
             }
 
+            # Reconstruct stable detail URL (hli00048 — public, no session)
+            anio_raw = col(COL_ANIO)
+            seq_raw = col(COL_SEQ)
+            tip_code_raw = col(COL_TIPO_CODE)
+            cuc_raw = col(COL_CUC)
+            stable_detail_url = None
+            if anio_raw and seq_raw and tip_code_raw and cuc_raw:
+                stable_detail_url = (
+                    f"https://comprasapps.mendoza.gov.ar/Compras/servlet/"
+                    f"hli00048?{anio_raw},{cuc_raw},{tip_code_raw},{seq_raw}"
+                )
+                metadata["comprasapps_detail_url"] = stable_detail_url
+                metadata["comprasapps_anio"] = anio_raw
+                metadata["comprasapps_seq"] = seq_raw
+                metadata["comprasapps_tipo_code"] = tip_code_raw
+
             # Determine jurisdiccion from CUC
             jurisdiccion = "Mendoza"
             if cuc_code and cuc_code in CUC_NAMES:
@@ -640,10 +660,13 @@ class ComprasAppsMendozaScraper(BaseScraper):
                 currency=currency,
                 expedient_number=expedient_number,
                 objeto=objeto,
-                source_url=self.BASE_URL,
-                canonical_url=self.BASE_URL,
-                source_urls={"comprasapps_list": self.BASE_URL},
-                url_quality="list_only" if not detail_data else "detail",
+                source_url=stable_detail_url or self.BASE_URL,
+                canonical_url=stable_detail_url or self.BASE_URL,
+                source_urls={
+                    "comprasapps_list": self.BASE_URL,
+                    **({"comprasapps_detail": stable_detail_url} if stable_detail_url else {}),
+                },
+                url_quality="direct" if stable_detail_url else "list_only",
                 content_hash=content_hash,
                 status=status,
                 location="Mendoza",

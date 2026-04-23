@@ -20,7 +20,7 @@ from routers import (
     licitaciones_search, licitaciones_presets,
     scraper_configs, comprar, scheduler, workflow, offer_templates,
     auth, public, nodos, cotizar_ai, cotizaciones, market_data, documentos, company_context,
-    lab, hunter, users, analytics,
+    lab, hunter, users, analytics, pileta, empresa, knowledge, empresa_perfiles,
 )
 from services.auth_service import verify_token
 
@@ -60,6 +60,10 @@ ADMIN_ONLY_PREFIXES = (
     "/api/documentos",
     "/api/cotizaciones",
     "/api/analytics/",
+    "/api/pileta/",
+    "/api/empresa/",
+    "/api/empresa-perfiles",
+    "/api/knowledge/",
 )
 
 # Admin-only exact path suffixes (e.g. HUNTER endpoint on a licitacion).
@@ -202,7 +206,11 @@ app.include_router(market_data.router)
 app.include_router(documentos.router)
 app.include_router(company_context.router)
 app.include_router(lab.router)
+app.include_router(pileta.router)
 app.include_router(analytics.router)
+app.include_router(empresa.router)
+app.include_router(empresa_perfiles.router)
+app.include_router(knowledge.router)
 app.include_router(public.router)
 app.include_router(users.admin_router)
 app.include_router(users.public_router)
@@ -214,6 +222,14 @@ async def startup_db_client():
     app.mongodb_client = client
     app.mongodb = database
     logger.info(f"Connected to MongoDB at {MONGO_URL}, database: {DB_NAME}")
+
+    # Wire mongo db reference into pliego_storage_service so enrichment hooks
+    # can persist pliegos without threading db through the entire call chain.
+    try:
+        from services import pliego_storage_service
+        pliego_storage_service.set_db(database)
+    except Exception as e:
+        logger.warning(f"pliego_storage_service.set_db failed: {e}")
 
     # Auto-seed admin user if users collection is empty
     try:

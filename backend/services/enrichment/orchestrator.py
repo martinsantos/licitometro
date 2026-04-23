@@ -74,7 +74,7 @@ class GenericEnrichmentService:
                 # Fall through to generic PDF path if BOE enrichment found nothing
 
             if is_pdf_url:
-                text = await pdf_zip_enricher.extract_text_from_pdf_url(self.http, source_url)
+                text = await pdf_zip_enricher.extract_text_from_pdf_url(self.http, source_url, lic_doc=lic_doc)
                 if text:
                     return analyze_extracted_text(text, lic_doc)
             elif url_lower.endswith(".zip"):

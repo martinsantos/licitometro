@@ -223,6 +223,23 @@ class GroqEnrichmentService:
             return []
 
 
+    async def interpret_knowledge_doc(self, text: str, doc_type: str, filename: str) -> dict:
+        """Interpreta un documento de conocimiento empresarial con LLM."""
+        try:
+            content = await self._call_llm(
+                [{"role": "user", "content": PROMPT_INTERPRET_KNOWLEDGE.format(
+                    doc_type=doc_type, filename=filename, text=text[:3000]
+                )}],
+                max_tokens=600, temperature=0.2, endpoint="interpret_knowledge_doc",
+            )
+            if not content:
+                return {}
+            result = self._extract_json(content)
+            return result if isinstance(result, dict) else {}
+        except Exception as e:
+            logger.warning(f"interpret_knowledge_doc failed: {e}")
+            return {}
+
     async def suggest_propuesta(self, context: str) -> Dict[str, Any]:
         """Generate a technical proposal suggestion using LLM."""
         try:
@@ -540,6 +557,23 @@ CONTEXTO (UNICA fuente de verdad):
         if not content:
             return "IA no disponible en este momento. Intentá de nuevo más tarde."
         return content
+
+
+PROMPT_INTERPRET_KNOWLEDGE = """Analiza este documento empresarial e identifica qué contiene.
+Tipo: {doc_type} | Archivo: {filename}
+
+Texto:
+{text}
+
+Responde SOLO con JSON válido (sin markdown, sin explicaciones):
+{{"summary": "2-3 oraciones describiendo qué es este documento",
+  "productos": ["producto o servicio mencionado"],
+  "clientes": ["entidad o cliente mencionado"],
+  "precios": [{{"item": "nombre del item", "unit_price": 0}}],
+  "resultado": "adjudicado|perdido|desistido|null",
+  "monto_total": null,
+  "fecha": "YYYY-MM o null",
+  "notas": "dato relevante adicional o null"}}"""
 
 
 _groq_service: Optional[GroqEnrichmentService] = None

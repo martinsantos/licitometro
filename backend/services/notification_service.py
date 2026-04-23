@@ -220,7 +220,8 @@ class NotificationService:
 
         # Last success relative time
         if last_success_at:
-            delta = utc_now() - last_success_at
+            last_success_at = last_success_at.replace(tzinfo=None) if last_success_at.tzinfo else last_success_at
+            delta = datetime.utcnow() - last_success_at
             hours = int(delta.total_seconds() / 3600)
             if hours < 1:
                 last_success_str = f"hace {int(delta.total_seconds() / 60)}min"

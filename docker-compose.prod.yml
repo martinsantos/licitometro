@@ -41,7 +41,8 @@ services:
       - AUTH_PASSWORD_HASH=${AUTH_PASSWORD_HASH}
       - TOKEN_EXPIRY_HOURS=${TOKEN_EXPIRY_HOURS:-24}
       - ALLOWED_ORIGINS=${ALLOWED_ORIGINS}
-      - STORAGE_MAX_MB=${STORAGE_MAX_MB:-500}
+      - STORAGE_MAX_MB=${STORAGE_MAX_MB:-5000}
+      - PLIEGO_STORE_MAX_FILE_MB=${PLIEGO_STORE_MAX_FILE_MB:-10}
       - RUN_HISTORY_KEEP=${RUN_HISTORY_KEEP:-10}
       - CACHE_TTL_HOURS=${CACHE_TTL_HOURS:-168}
       - LOG_RETENTION_DAYS=${LOG_RETENTION_DAYS:-7}
@@ -59,6 +60,11 @@ services:
       - COMPRAR_PASS=${COMPRAR_PASS:-}
       - FIRECRAWL_API_KEY=${FIRECRAWL_API_KEY:-}
       - USE_OPENDATALOADER_PDF=${USE_OPENDATALOADER_PDF:-false}
+      - GEMINI_API_KEY=${GEMINI_API_KEY:-}
+      - SGI_BOT_TOKEN=${SGI_BOT_TOKEN:-}
+      - SGI_EMAIL=${SGI_EMAIL:-}
+      - SGI_PASSWORD=${SGI_PASSWORD:-}
+      - SGI_SECTION_PIN=${SGI_SECTION_PIN:-}
     volumes:
       - storage_data:/app/storage
     networks:
@@ -93,6 +99,7 @@ services:
     volumes:
       - ./frontend/build:/usr/share/nginx/html:ro
       - ./manual:/usr/share/nginx/manual:ro
+      - storage_data:/usr/share/nginx/storage:ro
       - ./nginx/nginx.conf:/etc/nginx/templates/nginx-ssl.conf:ro
       - ./nginx/nginx-initial.conf:/etc/nginx/templates/nginx-initial.conf:ro
       - ./nginx/entrypoint.sh:/entrypoint.sh:ro
