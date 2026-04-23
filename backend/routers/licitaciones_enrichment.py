@@ -480,3 +480,40 @@ async def extract_requisitos(
     )
 
     return {"requisitos": requisitos, "licitacion_id": licitacion_id}
+
+
+@router.post("/{licitacion_id}/match-catalogo")
+async def match_catalogo_items(
+    licitacion_id: str,
+    empresa_id: str,
+    repo: LicitacionRepository = Depends(get_licitacion_repository),
+):
+    """Extract pliego items via Gemini and match each against company catalog.
+
+    Returns list of {item, matches} for display in cotizar flow.
+    """
+    db = repo.collection.database
+    try:
+        lic = await db.licitaciones.find_one({"_id": ObjectId(licitacion_id)})
+    except Exception:
+        lic = None
+    if not lic:
+        raise HTTPException(404, "Licitación no encontrada")
+
+    text_parts = []
+    if lic.get("description"):
+        text_parts.append(lic["description"][:6000])
+    if lic.get("objeto"):
+        text_parts.append(f"Objeto: {lic['objeto']}")
+    for f in (lic.get("metadata") or {}).get("comprar_pliego_fields", {}).items():
+        if f[1]:
+            text_parts.append(f"{f[0]}: {f[1]}")
+    pliego_text = "\n".join(text_parts)
+
+    if not pliego_text or len(pliego_text) < 50:
+        raise HTTPException(400, "Sin texto de pliego. Enriquecé la licitación primero.")
+
+    from services.items_matcher_service import get_items_matcher
+    matcher = get_items_matcher()
+    result = await matcher.run(pliego_text, empresa_id, db)
+    return {**result, "licitacion_id": licitacion_id, "empresa_id": empresa_id}

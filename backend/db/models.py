@@ -325,3 +325,21 @@ def cotizacion_entity(doc) -> dict:
         "created_at": doc.get("created_at"),
         "updated_at": doc.get("updated_at"),
     }
+
+
+def catalogo_entity(doc) -> dict:
+    return {
+        "id": str(doc["_id"]),
+        "empresa_id": doc.get("empresa_id", ""),
+        "sku": doc.get("sku"),
+        "descripcion": doc.get("descripcion", ""),
+        "unidad_medida": doc.get("unidad_medida", "UN"),
+        "precio_unitario": doc.get("precio_unitario", 0),
+        "moneda": doc.get("moneda", "ARS"),
+        "vigencia_desde": doc.get("vigencia_desde"),
+        "vigencia_hasta": doc.get("vigencia_hasta"),
+        "categoria": doc.get("categoria"),
+        "notas": doc.get("notas"),
+        "created_at": doc.get("created_at"),
+        "updated_at": doc.get("updated_at"),
+    }

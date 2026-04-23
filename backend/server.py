@@ -21,7 +21,7 @@ from routers import (
     scraper_configs, comprar, scheduler, workflow, offer_templates,
     auth, public, nodos, cotizar_ai, cotizaciones, market_data, documentos, company_context,
     lab, hunter, users, analytics, pileta, empresa, knowledge, empresa_perfiles, open_data,
-    adjudicaciones,
+    adjudicaciones, catalogo,
 )
 from services.auth_service import verify_token
 
@@ -65,6 +65,7 @@ ADMIN_ONLY_PREFIXES = (
     "/api/empresa/",
     "/api/empresa-perfiles",
     "/api/knowledge/",
+    "/api/catalogo",
 )
 
 # Admin-only exact path suffixes (e.g. HUNTER endpoint on a licitacion).
@@ -214,6 +215,7 @@ app.include_router(empresa_perfiles.router)
 app.include_router(knowledge.router)
 app.include_router(open_data.router)
 app.include_router(adjudicaciones.router)
+app.include_router(catalogo.router)
 app.include_router(public.router)
 app.include_router(users.admin_router)
 app.include_router(users.public_router)
