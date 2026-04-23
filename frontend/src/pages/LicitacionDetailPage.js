@@ -9,6 +9,7 @@ import { useNodos } from '../hooks/useNodos';
 import HunterButton from '../components/hunter/HunterButton';
 import HunterPanel from '../components/hunter/HunterPanel';
 import PliegoChatPanel from '../components/licitaciones/PliegoChatPanel';
+import { RequisitosChecklist } from '../components/licitaciones/RequisitosChecklist';
 import ScoreAfinidad from '../components/licitaciones/ScoreAfinidad';
 import { useFavorites } from '../contexts/FavoritesContext';
 
@@ -574,6 +575,7 @@ const LicitacionDetailPage = ({ userRole }) => {
                 { id: 'workflow', label: 'Workflow', show: isAdmin },
                 { id: 'oferta', label: 'Oferta', show: isAdmin && ['evaluando', 'preparando'].includes(licitacion?.workflow_state) },
                 { id: 'pliego_ia', label: '🤖 Pliego IA', show: isAdmin },
+                { id: 'checklist', label: '✅ Checklist', show: isAdmin },
                 { id: 'similares', label: 'Similares' },
                 { id: 'ia_pliego', label: '💬 IA del pliego', show: isAdmin },
               ].filter(t => t.show !== false).map(tab => (
@@ -654,8 +656,16 @@ const LicitacionDetailPage = ({ userRole }) => {
               </div>
             )}
 
+            {/* Checklist Tab */}
+            {activeTab === 'checklist' && (
+              <RequisitosChecklist
+                licitacionId={licitacion.id || licitacion._id}
+                requisitos={licitacion.requisitos || null}
+              />
+            )}
+
             {/* All other tabs show the existing grid layout */}
-            <div className={`grid grid-cols-1 lg:grid-cols-3 gap-8 ${activeTab === 'workflow' || activeTab === 'oferta' || activeTab === 'similares' || activeTab === 'pliego_ia' ? 'hidden' : ''}`}>
+            <div className={`grid grid-cols-1 lg:grid-cols-3 gap-8 ${activeTab === 'workflow' || activeTab === 'oferta' || activeTab === 'similares' || activeTab === 'pliego_ia' || activeTab === 'checklist' ? 'hidden' : ''}`}>
               {/* Left Column - Main Info */}
               <div className="lg:col-span-2 space-y-8">
                 {/* Información General */}
