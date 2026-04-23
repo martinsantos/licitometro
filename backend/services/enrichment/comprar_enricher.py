@@ -1,7 +1,9 @@
 """COMPR.AR label-based extraction from pliego pages."""
 
 import logging
-from typing import Any, Dict
+import re
+from typing import Any, Dict, List
+from urllib.parse import urljoin
 
 from bs4 import BeautifulSoup
 
@@ -13,6 +15,46 @@ from .text_analyzer import extract_budget_from_text, enrich_title_only
 logger = logging.getLogger("generic_enrichment")
 
 MAX_DESCRIPTION_LEN = 10000
+PLIEGO_TEXT_MAX = 60_000  # chars saved to metadata for AI use
+DOC_DOWNLOAD_TIMEOUT_S = 25
+DOC_MAX_SIZE_BYTES = 10 * 1024 * 1024  # 10 MB
+
+
+def _extract_doc_links(html: str, base_url: str) -> List[Dict[str, str]]:
+    """Extract embedded document links from VistaPreviaPliegoCiudadano HTML.
+
+    Returns list of {url, titulo, tipo} dicts (deduplicated, up to 5).
+    Targets: GetDoc.aspx, .pdf hrefs, iframe PDF src.
+    """
+    soup = BeautifulSoup(html, "html.parser")
+    seen: set = set()
+    docs: List[Dict[str, str]] = []
+
+    def _add(url: str, titulo: str, tipo: str):
+        abs_url = urljoin(base_url, url)
+        if abs_url in seen:
+            return
+        seen.add(abs_url)
+        docs.append({"url": abs_url, "titulo": titulo or "Pliego", "tipo": tipo})
+
+    # <a href="...GetDoc.aspx..."> or href ending in .pdf / .docx
+    for a in soup.find_all("a", href=True):
+        href = a["href"]
+        text = a.get_text(" ", strip=True)[:100]
+        if "GetDoc.aspx" in href or "GetDocumento.aspx" in href:
+            ext = "PDF" if "pdf" in href.lower() else "DOC"
+            _add(href, text or "Documento", ext)
+        elif re.search(r"\.(pdf|docx|doc|zip)(\?|$)", href, re.I):
+            ext = re.search(r"\.(pdf|docx?|zip)", href, re.I).group(1).upper()
+            _add(href, text or "Pliego", ext)
+
+    # <iframe src="...pdf...">
+    for fr in soup.find_all("iframe", src=True):
+        src = fr["src"]
+        if re.search(r"\.(pdf)(\?|$)", src, re.I):
+            _add(src, "Pliego PDF", "PDF")
+
+    return docs[:5]
 
 
 async def enrich_comprar(http: ResilientHttpClient, lic_doc: dict, source_url: str) -> Dict[str, Any]:
@@ -36,7 +78,9 @@ async def enrich_comprar(http: ResilientHttpClient, lic_doc: dict, source_url: s
         # VistaPreviaPliegoCiudadano pages are ~400KB and accessible without proxy.
         # The Cloudflare Worker proxy truncates large responses, causing 0 labels.
         # Fetch directly with ssl=False (gov.ar certs are often broken).
+        # Keep session open to download embedded docs (GetDoc.aspx cookies required).
         import aiohttp
+        downloaded_docs: List[Dict[str, Any]] = []  # {url, titulo, tipo, local_url}
         if "VistaPreviaPliegoCiudadano" in fetch_url:
             try:
                 connector = aiohttp.TCPConnector(ssl=False)
@@ -50,6 +94,51 @@ async def enrich_comprar(http: ResilientHttpClient, lic_doc: dict, source_url: s
                             html = await resp.text()
                         else:
                             html = None
+
+                    # R4: download embedded docs within the SAME session (cookies intact)
+                    if html:
+                        doc_links = _extract_doc_links(html, fetch_url)
+                        fuente = lic_doc.get("fuente", "COMPR.AR Mendoza")
+                        numero = lic_doc.get("licitacion_number", "") or lic_doc.get("numero_proceso", "")
+                        doc_id = lic_doc.get("_id")
+                        for i, dlink in enumerate(doc_links[:3]):
+                            try:
+                                async with session.get(
+                                    dlink["url"],
+                                    timeout=aiohttp.ClientTimeout(total=DOC_DOWNLOAD_TIMEOUT_S),
+                                ) as dresp:
+                                    if dresp.status != 200:
+                                        continue
+                                    ctype = dresp.headers.get("Content-Type", "")
+                                    is_binary = "pdf" in ctype.lower() or "octet" in ctype.lower() or "zip" in ctype.lower()
+                                    if not is_binary and dlink["tipo"] not in ("PDF", "ZIP"):
+                                        continue
+                                    data = await dresp.content.read(DOC_MAX_SIZE_BYTES + 1)
+                                    if len(data) > DOC_MAX_SIZE_BYTES:
+                                        logger.debug(f"COMPR.AR doc too large: {dlink['url'][:60]}")
+                                        continue
+                                    if len(data) < 500:
+                                        continue
+                                    # Store locally — suffix with index to distinguish multiple docs
+                                    suffix = f"_doc{i}" if i > 0 else ""
+                                    try:
+                                        from services.pliego_storage_service import store_pliego
+                                        local_url = await store_pliego(
+                                            None, doc_id, data, fuente,
+                                            f"{numero}{suffix}", source_url=dlink["url"]
+                                        )
+                                    except Exception as se:
+                                        logger.debug(f"store_pliego failed: {se}")
+                                        local_url = None
+                                    downloaded_docs.append({
+                                        "url": local_url or dlink["url"],
+                                        "titulo": dlink["titulo"],
+                                        "tipo": dlink["tipo"],
+                                        "fuente": "local" if local_url else "comprar_ar",
+                                        "source_url": dlink["url"],
+                                    })
+                            except Exception as de:
+                                logger.debug(f"COMPR.AR doc download failed {dlink['url'][:60]}: {de}")
             except Exception:
                 html = await http.fetch(fetch_url)  # fallback to proxy
         else:
@@ -137,9 +226,31 @@ async def enrich_comprar(http: ResilientHttpClient, lic_doc: dict, source_url: s
             if dt:
                 updates["publication_date"] = dt
 
+    # R4: save pliego text for AI use (survives qs= expiry)
+    soup_text = soup.get_text(" ", strip=True)
+    meta_pliego_text = soup_text[:PLIEGO_TEXT_MAX] if soup_text else ""
+
+    # R4: merge downloaded docs into pliegos_bases (deduplicate by url)
+    if downloaded_docs:
+        existing_bases = list(lic_doc.get("pliegos_bases") or [])
+        existing_urls = {p.get("url") for p in existing_bases}
+        for d in downloaded_docs:
+            if d["url"] not in existing_urls:
+                existing_bases.append({
+                    "url": d["url"],
+                    "titulo": d["titulo"],
+                    "tipo": d["tipo"],
+                    "fuente": d["fuente"],
+                })
+                existing_urls.add(d["url"])
+        updates["pliegos_bases"] = existing_bases
+        logger.info(f"COMPR.AR R4: stored {len(downloaded_docs)} docs locally for {lic_doc.get('licitacion_number', '')}")
+
     # Store pliego fields in metadata and update source_url if we used a better one
     meta_updates = dict(meta)
     meta_updates["comprar_pliego_fields"] = fields
+    if meta_pliego_text:
+        meta_updates["comprar_pliego_text"] = meta_pliego_text
     if fetch_url != source_url:
         meta_updates["comprar_pliego_url"] = fetch_url
         updates["source_url"] = fetch_url
