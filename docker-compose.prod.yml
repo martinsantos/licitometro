@@ -98,6 +98,7 @@ services:
         condition: service_healthy
     volumes:
       - ./frontend/build:/usr/share/nginx/html:ro
+      - /usr/share/nginx/html-v2:/usr/share/nginx/html-v2:ro
       - ./manual:/usr/share/nginx/manual:ro
       - storage_data:/usr/share/nginx/storage:ro
       - ./nginx/nginx.conf:/etc/nginx/templates/nginx-ssl.conf:ro
