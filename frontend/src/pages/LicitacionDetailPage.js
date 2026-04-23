@@ -8,6 +8,8 @@ import OfertaEditor from '../components/cotizar/OfertaEditor';
 import { useNodos } from '../hooks/useNodos';
 import HunterButton from '../components/hunter/HunterButton';
 import HunterPanel from '../components/hunter/HunterPanel';
+import PliegoChatPanel from '../components/licitaciones/PliegoChatPanel';
+import ScoreAfinidad from '../components/licitaciones/ScoreAfinidad';
 import { useFavorites } from '../contexts/FavoritesContext';
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL || '';
@@ -542,6 +544,13 @@ const LicitacionDetailPage = ({ userRole }) => {
             </div>
           </div>
 
+          {/* Score Afinidad (admin only) */}
+          {isAdmin && (
+            <div className="px-8 sm:px-10 py-3 bg-gray-50 border-t border-gray-100">
+              <ScoreAfinidad licitacionId={id} />
+            </div>
+          )}
+
           {/* Workflow Stepper (admin only) */}
           {isAdmin && (
             <div className="px-8 sm:px-10 py-4 bg-gray-50 border-t border-gray-100">
@@ -564,6 +573,7 @@ const LicitacionDetailPage = ({ userRole }) => {
                 { id: 'cronograma', label: 'Cronograma', show: hasCronograma },
                 { id: 'workflow', label: 'Workflow', show: isAdmin },
                 { id: 'oferta', label: 'Oferta', show: isAdmin && ['evaluando', 'preparando'].includes(licitacion?.workflow_state) },
+                { id: 'pliego_ia', label: '🤖 Pliego IA', show: isAdmin },
                 { id: 'similares', label: 'Similares' },
               ].filter(t => t.show !== false).map(tab => (
                 <button
@@ -636,8 +646,15 @@ const LicitacionDetailPage = ({ userRole }) => {
               <SimilaresTab licitacionId={id} />
             )}
 
+            {/* Pliego IA Tab */}
+            {activeTab === 'pliego_ia' && (
+              <div className="max-w-2xl mx-auto">
+                <PliegoChatPanel licitacionId={id} />
+              </div>
+            )}
+
             {/* All other tabs show the existing grid layout */}
-            <div className={`grid grid-cols-1 lg:grid-cols-3 gap-8 ${activeTab === 'workflow' || activeTab === 'oferta' || activeTab === 'similares' ? 'hidden' : ''}`}>
+            <div className={`grid grid-cols-1 lg:grid-cols-3 gap-8 ${activeTab === 'workflow' || activeTab === 'oferta' || activeTab === 'similares' || activeTab === 'pliego_ia' ? 'hidden' : ''}`}>
               {/* Left Column - Main Info */}
               <div className="lg:col-span-2 space-y-8">
                 {/* Información General */}

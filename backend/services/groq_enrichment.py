@@ -522,6 +522,26 @@ CONTEXTO (UNICA fuente de verdad):
         return "[Groq y Cerebras no disponibles. Completa esta seccion manualmente.]"
 
 
+    async def pliego_chat(self, pliego_context: str, user_message: str) -> str:
+        """Answer a free-form question about a pliego using LLM chat."""
+        system = (
+            "Sos un asistente experto en licitaciones públicas argentinas. "
+            "Respondé preguntas sobre el pliego de la licitación usando exclusivamente la información provista. "
+            "Si algo no está en el pliego, decilo claramente. Sé conciso y directo.\n\n"
+            f"CONTEXTO DEL PLIEGO:\n{pliego_context[:6000]}"
+        )
+        content = await self._call_llm(
+            [
+                {"role": "system", "content": system},
+                {"role": "user", "content": user_message[:500]},
+            ],
+            max_tokens=800, temperature=0.3, endpoint="pliego_chat",
+        )
+        if not content:
+            return "IA no disponible en este momento. Intentá de nuevo más tarde."
+        return content
+
+
 _groq_service: Optional[GroqEnrichmentService] = None
 
 

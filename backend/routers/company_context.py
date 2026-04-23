@@ -421,3 +421,33 @@ async def get_credential_for_site(request: Request, site_url: str = Query("")):
             "site_name": doc.get("site_name", ""),
         }
     return None
+
+
+@router.get("/profiles/{company_id}/score/{licitacion_id}")
+async def get_affinity_score(company_id: str, licitacion_id: str, request: Request):
+    """Compute affinity score between a company profile and a licitacion's extracted requirements.
+
+    Returns a 0-100 score with explainable reasons. The licitacion must have had
+    POST /api/licitaciones/{id}/requisitos called first to populate the requisitos field.
+    """
+    db = _get_db(request)
+    profile = await db.company_profiles.find_one({"company_id": company_id})
+    if not profile:
+        raise HTTPException(404, f"Perfil de empresa '{company_id}' no encontrado")
+
+    try:
+        from bson import ObjectId as _OID
+        lic = await db.licitaciones.find_one({"_id": _OID(licitacion_id)})
+    except Exception:
+        lic = None
+    if not lic:
+        raise HTTPException(404, "Licitación no encontrada")
+
+    requisitos = lic.get("requisitos") or {}
+
+    from services.match_score_service import match_score
+    result = match_score(profile, requisitos)
+    result["company_id"] = company_id
+    result["licitacion_id"] = licitacion_id
+    result["requisitos_available"] = bool(requisitos)
+    return result
