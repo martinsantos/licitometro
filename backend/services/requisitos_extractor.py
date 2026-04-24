@@ -69,6 +69,7 @@ class RequisitosExtractor:
     def __init__(self):
         self._api_key = os.getenv("GEMINI_API_KEY")
         self._model = None
+        self._gemini_quota_exceeded = False  # circuit breaker for free-tier quota = 0
 
     def _get_model(self):
         if self._model is None:
@@ -98,7 +99,7 @@ class RequisitosExtractor:
         if not text or len(text) < 100:
             return None
         model = self._get_model()
-        if model is not None:
+        if model is not None and not self._gemini_quota_exceeded:
             try:
                 import asyncio as _asyncio
                 response = await _asyncio.to_thread(
@@ -109,7 +110,10 @@ class RequisitosExtractor:
                 if isinstance(data, dict):
                     return data
             except Exception as e:
-                logger.warning(f"RequisitosExtractor Gemini failed, trying Groq: {e}")
+                err_str = str(e)
+                if "429" in err_str or "quota" in err_str.lower():
+                    self._gemini_quota_exceeded = True
+                logger.warning(f"RequisitosExtractor Gemini failed, trying Groq: {err_str[:120]}")
         return await self._extract_with_groq(text)
 
     async def _extract_with_groq(self, text: str) -> Optional[dict]:
