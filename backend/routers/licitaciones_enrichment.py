@@ -452,14 +452,19 @@ async def extract_requisitos(
     if not lic:
         raise HTTPException(404, "Licitación no encontrada")
 
-    # Build text from description + pliego fields
+    # Build text from all available sources — prefer full pliego text when stored
+    meta = lic.get("metadata") or {}
     text_parts = []
-    description = lic.get("description") or ""
-    if description:
-        text_parts.append(description[:6000])
-    for f in (lic.get("metadata") or {}).get("comprar_pliego_fields", {}).items():
-        if f[1]:
-            text_parts.append(f"{f[0]}: {f[1]}")
+    pliego_full = meta.get("comprar_pliego_text") or ""
+    if pliego_full:
+        text_parts.append(pliego_full[:15000])
+    else:
+        description = lic.get("description") or ""
+        if description:
+            text_parts.append(description[:6000])
+        for k, v in meta.get("comprar_pliego_fields", {}).items():
+            if v:
+                text_parts.append(f"{k}: {v}")
     if lic.get("objeto"):
         text_parts.append(f"Objeto: {lic['objeto']}")
     pliego_text = "\n".join(text_parts)

@@ -91,26 +91,62 @@ class RequisitosExtractor:
         return self._model
 
     async def extract(self, text: str) -> Optional[dict]:
-        """Extract structured requirements from pliego text. Returns None if unavailable."""
+        """Extract structured requirements from pliego text. Returns None if unavailable.
+
+        Tries Gemini first, falls back to Groq (llama-3.3-70b) on quota/rate errors.
+        """
         if not text or len(text) < 100:
             return None
         model = self._get_model()
-        if model is None:
-            logger.info("Gemini not available (no GEMINI_API_KEY), skipping requisitos extraction")
+        if model is not None:
+            try:
+                import asyncio as _asyncio
+                response = await _asyncio.to_thread(
+                    model.generate_content,
+                    PROMPT.format(texto=text[:8000]),
+                )
+                data = json.loads(response.text)
+                if isinstance(data, dict):
+                    return data
+            except Exception as e:
+                logger.warning(f"RequisitosExtractor Gemini failed, trying Groq: {e}")
+        return await self._extract_with_groq(text)
+
+    async def _extract_with_groq(self, text: str) -> Optional[dict]:
+        """Groq fallback for requisitos extraction."""
+        groq_key = os.getenv("GROQ_API_KEY")
+        if not groq_key:
             return None
         try:
-            import asyncio
-            response = await asyncio.to_thread(
-                model.generate_content,
-                PROMPT.format(texto=text[:8000]),
+            from groq import AsyncGroq
+            client = AsyncGroq(api_key=groq_key)
+            schema_str = json.dumps(REQUISITOS_SCHEMA, ensure_ascii=False, indent=2)
+            system = (
+                "Sos un extractor de requisitos de licitaciones públicas argentinas. "
+                "Respondé SOLO con JSON válido (sin markdown, sin explicaciones) "
+                f"siguiendo este schema: {schema_str}"
             )
-            data = json.loads(response.text)
+            resp = await client.chat.completions.create(
+                model="llama-3.3-70b-versatile",
+                messages=[
+                    {"role": "system", "content": system},
+                    {"role": "user", "content": PROMPT.format(texto=text[:8000])},
+                ],
+                temperature=0.1,
+                max_tokens=1200,
+            )
+            raw = resp.choices[0].message.content or ""
+            # Strip markdown code fences if present
+            raw = raw.strip()
+            if raw.startswith("```"):
+                raw = raw.split("```")[1].lstrip("json").strip()
+            data = json.loads(raw)
             if isinstance(data, dict):
+                logger.info("RequisitosExtractor: used Groq fallback successfully")
                 return data
-            return None
         except Exception as e:
-            logger.warning(f"RequisitosExtractor.extract failed: {e}")
-            return None
+            logger.warning(f"RequisitosExtractor Groq fallback failed: {e}")
+        return None
 
 
 _instance: Optional[RequisitosExtractor] = None

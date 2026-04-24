@@ -46,5 +46,6 @@ tzdata>=2024.2
 
 # AI / Embeddings (lightweight; sentence-transformers installed manually post-deploy)
 groq>=0.4.0
+google-generativeai>=0.8.0
 numpy>=1.26.0
 # sentence-transformers installed separately: pip install sentence-transformers>=3.0.0
