@@ -35,8 +35,7 @@ class PinUnlockRequest(BaseModel):
 router = APIRouter(prefix="/api/analytics", tags=["analytics"])
 
 
-def _get_db(request: Request):
-    return request.app.mongodb
+from db import get_db
 
 
 def _parse_since(days: Optional[int]) -> Optional[datetime]:
@@ -48,7 +47,7 @@ def _parse_since(days: Optional[int]) -> Optional[datetime]:
 @router.get("/summary")
 async def summary(request: Request):
     """Dashboard header: counts by source, unique suppliers, last ingest."""
-    db = _get_db(request)
+    db = get_db(request)
     svc = get_adjudicacion_service(db)
     return await svc.summary()
 
@@ -64,7 +63,7 @@ async def top_suppliers(
     min_confidence: float = Query(0.0, ge=0.0, le=1.0),
 ):
     """Top adjudicatarios por monto total."""
-    db = _get_db(request)
+    db = get_db(request)
     svc = get_adjudicacion_service(db)
     return await svc.top_suppliers(
         since=_parse_since(days),
@@ -85,7 +84,7 @@ async def price_ranges(
     supplier: Optional[str] = None,
 ):
     """Spread de precios por categoría (min/p25/median/p75/max)."""
-    db = _get_db(request)
+    db = get_db(request)
     svc = get_adjudicacion_service(db)
     return await svc.price_ranges_by_category(
         since=_parse_since(days),
@@ -104,7 +103,7 @@ async def vacancias(
     supplier: Optional[str] = None,
 ):
     """Rubros con pocos competidores (oportunidades de entrada)."""
-    db = _get_db(request)
+    db = get_db(request)
     svc = get_adjudicacion_service(db)
     return await svc.vacancias(
         since=_parse_since(days),
@@ -117,7 +116,7 @@ async def vacancias(
 @router.get("/adjudicaciones/supplier")
 async def supplier_detail(request: Request, name: str = Query(..., min_length=2)):
     """Todo sobre un proveedor específico: totales, por año, por rubro, historial reciente."""
-    db = _get_db(request)
+    db = get_db(request)
     svc = get_adjudicacion_service(db)
     return await svc.supplier_detail(name)
 
@@ -129,7 +128,7 @@ async def activity_by_year(
     supplier: Optional[str] = None,
 ):
     """Actividad año-a-año: cantidad, monto total, proveedores únicos."""
-    db = _get_db(request)
+    db = get_db(request)
     svc = get_adjudicacion_service(db)
     return await svc.activity_by_year(category=category, supplier=supplier)
 
@@ -137,7 +136,7 @@ async def activity_by_year(
 @router.get("/adjudicaciones/categories")
 async def categories(request: Request):
     """Lista de rubros disponibles con conteo — para dropdown de filtro."""
-    db = _get_db(request)
+    db = get_db(request)
     svc = get_adjudicacion_service(db)
     return await svc.list_categories()
 
@@ -148,7 +147,7 @@ async def monto_vs_budget(
     days: Optional[int] = None,
 ):
     """Ratio adjudicado/presupuestado por organización."""
-    db = _get_db(request)
+    db = get_db(request)
     svc = get_adjudicacion_service(db)
     return await svc.monto_vs_budget(since=_parse_since(days))
 
@@ -163,7 +162,7 @@ async def search(
     limit: int = Query(50, ge=1, le=200),
 ):
     """Buscador libre sobre adjudicaciones."""
-    db = _get_db(request)
+    db = get_db(request)
     svc = get_adjudicacion_service(db)
     if not any([q, category, supplier, cuit]):
         raise HTTPException(400, "Provide at least one filter: q, category, supplier, or cuit")
@@ -245,6 +244,6 @@ async def sgi_sync(request: Request):
     svc = get_sgi_service()
     if not svc.enabled:
         raise HTTPException(503, "SGI no configurado")
-    db = _get_db(request)
+    db = get_db(request)
     result = await svc.sync_to_mongo(db)
     return {"success": True, **result}

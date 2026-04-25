@@ -640,15 +640,7 @@ class MendozaCompraScraper(BaseScraper):
         return mapping
 
     async def _postback(self, url: str, fields: Dict[str, str]) -> Optional[str]:
-        try:
-            async with self.session.post(str(url), data=fields) as response:
-                if response.status < 200 or response.status >= 300:
-                    logger.error(f"Postback failed {response.status}")
-                    return None
-                return await response.text()
-        except Exception as e:
-            logger.error(f"Postback error: {e}")
-            return None
+        return await self.http.post(str(url), data=fields)
 
     async def run(self) -> List[LicitacionCreate]:
         await self.setup()

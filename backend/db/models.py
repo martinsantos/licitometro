@@ -1,6 +1,7 @@
 from typing import List, Dict, Any, Optional
 from uuid import UUID
 from bson import Binary, ObjectId
+from config.company import DEFAULT_COMPANY_ID
 
 
 def mongo_id_to_str(raw_id) -> str:
@@ -232,7 +233,7 @@ def company_profile_entity(doc) -> dict:
     """Convert MongoDB company_profile document to dict"""
     return {
         "id": str(doc["_id"]),
-        "company_id": doc.get("company_id", "default"),
+        "company_id": doc.get("company_id", DEFAULT_COMPANY_ID),
         "nombre": doc.get("nombre", ""),
         "cuit": doc.get("cuit", ""),
         "email": doc.get("email", ""),
@@ -253,7 +254,7 @@ def company_context_entity(doc) -> dict:
     """Convert MongoDB company_context document to dict"""
     return {
         "id": str(doc["_id"]),
-        "company_id": doc.get("company_id", "default"),
+        "company_id": doc.get("company_id", DEFAULT_COMPANY_ID),
         "zona": doc.get("zona", ""),
         "tipo_proceso": doc.get("tipo_proceso", "Otro"),
         "documentos_requeridos": doc.get("documentos_requeridos", []),
@@ -323,6 +324,7 @@ def cotizacion_entity(doc) -> dict:
         "template_id": doc.get("template_id"),
         "status": doc.get("status", "borrador"),
         "notas_resultado": doc.get("notas_resultado"),
+        "hitos": doc.get("hitos", []),
         "created_at": doc.get("created_at"),
         "updated_at": doc.get("updated_at"),
     }

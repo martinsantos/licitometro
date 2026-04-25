@@ -24,8 +24,8 @@ router = APIRouter(
 )
 
 
-def _get_db(request: Request):
-    return request.app.mongodb
+from db import get_db
+from config.company import DEFAULT_COMPANY_ID
 
 
 # ─── Company Profiles (multi-company) ───
@@ -34,7 +34,7 @@ def _get_db(request: Request):
 @router.get("/profiles")
 async def list_profiles(request: Request):
     """List all company profiles."""
-    db = _get_db(request)
+    db = get_db(request)
     docs = await db.company_profiles.find().sort("nombre", 1).to_list(50)
     return [company_profile_entity(d) for d in docs]
 
@@ -42,7 +42,7 @@ async def list_profiles(request: Request):
 @router.post("/profiles")
 async def create_profile(body: CompanyProfileCreate, request: Request):
     """Create a new company profile."""
-    db = _get_db(request)
+    db = get_db(request)
     now = datetime.now(timezone.utc)
     data = body.model_dump()
     # Generate unique company_id from ObjectId
@@ -61,7 +61,7 @@ async def create_profile(body: CompanyProfileCreate, request: Request):
 @router.put("/profiles/{profile_id}")
 async def update_profile_by_id(profile_id: str, body: CompanyProfileCreate, request: Request):
     """Update a company profile by ID."""
-    db = _get_db(request)
+    db = get_db(request)
     try:
         existing = await db.company_profiles.find_one({"_id": ObjectId(profile_id)})
     except Exception:
@@ -82,7 +82,7 @@ async def update_profile_by_id(profile_id: str, body: CompanyProfileCreate, requ
 @router.delete("/profiles/{profile_id}")
 async def delete_profile(profile_id: str, request: Request):
     """Delete a company profile."""
-    db = _get_db(request)
+    db = get_db(request)
     result = await db.company_profiles.delete_one({"_id": ObjectId(profile_id)})
     if result.deleted_count == 0:
         raise HTTPException(404, "Empresa no encontrada")
@@ -95,14 +95,14 @@ async def delete_profile(profile_id: str, request: Request):
 @router.get("/profile")
 async def get_profile(request: Request):
     """Get company profile (singleton — backward compat)."""
-    db = _get_db(request)
-    doc = await db.company_profiles.find_one({"company_id": "default"})
+    db = get_db(request)
+    doc = await db.company_profiles.find_one({"company_id": DEFAULT_COMPANY_ID})
     if not doc:
         # Return first profile if exists
         doc = await db.company_profiles.find_one()
     if not doc:
         return {
-            "id": None, "company_id": "default", "nombre": "", "cuit": "",
+            "id": None, "company_id": DEFAULT_COMPANY_ID, "nombre": "", "cuit": "",
             "email": "", "telefono": "", "domicilio": "",
             "numero_proveedor_estado": "", "rubros_inscriptos": [],
             "representante_legal": "", "cargo_representante": "",
@@ -114,35 +114,35 @@ async def get_profile(request: Request):
 @router.put("/profile")
 async def upsert_profile(body: CompanyProfileCreate, request: Request):
     """Upsert company profile (singleton — backward compat)."""
-    db = _get_db(request)
+    db = get_db(request)
     now = datetime.now(timezone.utc)
     data = body.model_dump()
-    data["company_id"] = "default"
+    data["company_id"] = DEFAULT_COMPANY_ID
     data["updated_at"] = now
 
-    existing = await db.company_profiles.find_one({"company_id": "default"})
+    existing = await db.company_profiles.find_one({"company_id": DEFAULT_COMPANY_ID})
     if existing:
         await db.company_profiles.update_one(
-            {"company_id": "default"}, {"$set": data}
+            {"company_id": DEFAULT_COMPANY_ID}, {"$set": data}
         )
     else:
         data["created_at"] = now
         await db.company_profiles.insert_one(data)
 
-    doc = await db.company_profiles.find_one({"company_id": "default"})
+    doc = await db.company_profiles.find_one({"company_id": DEFAULT_COMPANY_ID})
     return company_profile_entity(doc)
 
 
 @router.patch("/profile")
 async def patch_profile(body: CompanyProfileUpdate, request: Request):
     """Partial update of company profile (singleton — backward compat)."""
-    db = _get_db(request)
+    db = get_db(request)
     update_data = {k: v for k, v in body.model_dump().items() if v is not None}
     if not update_data:
         raise HTTPException(400, "No fields to update")
     update_data["updated_at"] = datetime.now(timezone.utc)
 
-    existing = await db.company_profiles.find_one({"company_id": "default"})
+    existing = await db.company_profiles.find_one({"company_id": DEFAULT_COMPANY_ID})
     if not existing:
         # Create with defaults + patch
         full = CompanyProfileCreate().model_dump()
@@ -151,19 +151,19 @@ async def patch_profile(body: CompanyProfileUpdate, request: Request):
         await db.company_profiles.insert_one(full)
     else:
         await db.company_profiles.update_one(
-            {"company_id": "default"}, {"$set": update_data}
+            {"company_id": DEFAULT_COMPANY_ID}, {"$set": update_data}
         )
 
-    doc = await db.company_profiles.find_one({"company_id": "default"})
+    doc = await db.company_profiles.find_one({"company_id": DEFAULT_COMPANY_ID})
     return company_profile_entity(doc)
 
 
 @router.get("/onboarding-status")
 async def onboarding_status(request: Request):
     """Check if onboarding is completed."""
-    db = _get_db(request)
+    db = get_db(request)
     doc = await db.company_profiles.find_one(
-        {"company_id": "default"}, {"onboarding_completed": 1}
+        {"company_id": DEFAULT_COMPANY_ID}, {"onboarding_completed": 1}
     )
     return {"completed": bool(doc and doc.get("onboarding_completed"))}
 
@@ -183,8 +183,8 @@ async def get_tipos_proceso():
 @router.get("/zones")
 async def list_zones(request: Request):
     """List all configured zone contexts."""
-    db = _get_db(request)
-    cursor = db.company_contexts.find({"company_id": "default"}).sort("zona", 1)
+    db = get_db(request)
+    cursor = db.company_contexts.find({"company_id": DEFAULT_COMPANY_ID}).sort("zona", 1)
     docs = await cursor.to_list(200)
     return [company_context_entity(d) for d in docs]
 
@@ -192,7 +192,7 @@ async def list_zones(request: Request):
 @router.get("/zones/available")
 async def available_zones(request: Request):
     """Distinct organizations from licitaciones for zone picker."""
-    db = _get_db(request)
+    db = get_db(request)
     orgs = await db.licitaciones.distinct("organization")
     # Filter empty/null and sort
     return sorted([o for o in orgs if o and o.strip()])
@@ -201,10 +201,10 @@ async def available_zones(request: Request):
 @router.post("/zones")
 async def create_zone(body: CompanyContextCreate, request: Request):
     """Create a zone + process type context."""
-    db = _get_db(request)
+    db = get_db(request)
     now = datetime.now(timezone.utc)
     data = body.model_dump()
-    data["company_id"] = "default"
+    data["company_id"] = DEFAULT_COMPANY_ID
     data["created_at"] = now
     data["updated_at"] = now
 
@@ -217,7 +217,7 @@ async def create_zone(body: CompanyContextCreate, request: Request):
 
     # Check for duplicate zona + tipo_proceso
     existing = await db.company_contexts.find_one({
-        "company_id": "default",
+        "company_id": DEFAULT_COMPANY_ID,
         "zona": body.zona,
         "tipo_proceso": body.tipo_proceso,
     })
@@ -232,7 +232,7 @@ async def create_zone(body: CompanyContextCreate, request: Request):
 @router.put("/zones/{zone_id}")
 async def update_zone(zone_id: str, body: CompanyContextUpdate, request: Request):
     """Update a zone context."""
-    db = _get_db(request)
+    db = get_db(request)
     try:
         existing = await db.company_contexts.find_one({"_id": ObjectId(zone_id)})
     except Exception:
@@ -262,7 +262,7 @@ async def update_zone(zone_id: str, body: CompanyContextUpdate, request: Request
 @router.delete("/zones/{zone_id}")
 async def delete_zone(zone_id: str, request: Request):
     """Delete a zone context."""
-    db = _get_db(request)
+    db = get_db(request)
     result = await db.company_contexts.delete_one({"_id": ObjectId(zone_id)})
     if result.deleted_count == 0:
         raise HTTPException(404, "Contexto de zona no encontrado")
@@ -276,52 +276,14 @@ async def match_zone(
     tipo: str = Query(""),
 ):
     """Find best matching context for a licitacion's organization + tipo_procedimiento."""
-    db = _get_db(request)
+    db = get_db(request)
     if not organization:
         return None
 
-    # 1. Exact match
-    query = {"company_id": "default", "zona": organization}
-    if tipo:
-        query["tipo_proceso"] = tipo
-    doc = await db.company_contexts.find_one(query)
+    from services.zone_matcher import find_best_zone
+    doc = await find_best_zone(db, organization, tipo)
     if doc:
         return company_context_entity(doc)
-
-    # 2. Contains match (organization contains zona or vice versa)
-    all_contexts = await db.company_contexts.find(
-        {"company_id": "default"}
-    ).to_list(200)
-
-    org_lower = organization.lower()
-    best = None
-    best_score = 0
-    for ctx in all_contexts:
-        zona_lower = ctx.get("zona", "").lower()
-        if not zona_lower:
-            continue
-        # Check containment both ways
-        if zona_lower in org_lower or org_lower in zona_lower:
-            score = len(zona_lower)  # Longer match = more specific
-            if tipo and ctx.get("tipo_proceso") == tipo:
-                score += 100  # Boost for tipo match
-            if score > best_score:
-                best = ctx
-                best_score = score
-
-    # 3. Fallback to "General" zona
-    if not best:
-        fallback_query = {"company_id": "default", "zona": "General"}
-        if tipo:
-            fallback_query["tipo_proceso"] = tipo
-        best = await db.company_contexts.find_one(fallback_query)
-        if not best:
-            best = await db.company_contexts.find_one(
-                {"company_id": "default", "zona": "General"}
-            )
-
-    if best:
-        return company_context_entity(best)
     return None
 
 
@@ -331,7 +293,7 @@ async def match_zone(
 @router.get("/credentials")
 async def list_credentials(request: Request):
     """List all site credentials for HUNTER."""
-    db = _get_db(request)
+    db = get_db(request)
     docs = await db.site_credentials.find().to_list(50)
     return [
         {
@@ -352,7 +314,7 @@ async def list_credentials(request: Request):
 @router.post("/credentials")
 async def create_credential(body: dict, request: Request):
     """Create a new site credential."""
-    db = _get_db(request)
+    db = get_db(request)
     now = datetime.now(timezone.utc)
     doc = {
         "site_name": body.get("site_name", ""),
@@ -376,7 +338,7 @@ async def create_credential(body: dict, request: Request):
 @router.put("/credentials/{cred_id}")
 async def update_credential(cred_id: str, body: dict, request: Request):
     """Update a site credential."""
-    db = _get_db(request)
+    db = get_db(request)
     update = {"updated_at": datetime.now(timezone.utc)}
     for field in ("site_name", "site_url", "username", "enabled", "notes"):
         if field in body:
@@ -396,7 +358,7 @@ async def update_credential(cred_id: str, body: dict, request: Request):
 @router.delete("/credentials/{cred_id}")
 async def delete_credential(cred_id: str, request: Request):
     """Delete a site credential."""
-    db = _get_db(request)
+    db = get_db(request)
     result = await db.site_credentials.delete_one({"_id": ObjectId(cred_id)})
     if result.deleted_count == 0:
         raise HTTPException(404, "Credential not found")
@@ -406,7 +368,7 @@ async def delete_credential(cred_id: str, request: Request):
 @router.get("/credentials/for-site")
 async def get_credential_for_site(request: Request, site_url: str = Query("")):
     """Get active credential for a specific site URL (internal use by HUNTER)."""
-    db = _get_db(request)
+    db = get_db(request)
     if not site_url:
         return None
     # Match by site_url substring
@@ -430,7 +392,7 @@ async def get_affinity_score(company_id: str, licitacion_id: str, request: Reque
     Returns a 0-100 score with explainable reasons. The licitacion must have had
     POST /api/licitaciones/{id}/requisitos called first to populate the requisitos field.
     """
-    db = _get_db(request)
+    db = get_db(request)
     profile = await db.company_profiles.find_one({"company_id": company_id})
     if not profile:
         raise HTTPException(404, f"Perfil de empresa '{company_id}' no encontrado")

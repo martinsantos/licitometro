@@ -11,6 +11,7 @@ It NEVER changes workflow_state. Workflow transitions must be explicit and manua
 
 import asyncio
 import logging
+import os
 from datetime import datetime
 from typing import Dict, Any, Optional
 from utils.time import utc_now
@@ -23,11 +24,11 @@ from motor.motor_asyncio import AsyncIOMotorDatabase
 
 logger = logging.getLogger("enrichment_cron")
 
-# Limits
-MAX_HTTP_BATCH = 75        # max items per HTTP enrichment run (was 50)
-MAX_TITLEONLY_BATCH = 300  # max items per title-only run (was 200)
-MAX_RUNTIME_SECONDS = 25 * 60  # 25 min safety cap for HTTP pass
-HTTP_DELAY = 1.0           # seconds between HTTP fetches (was 2.0 — still polite)
+# Limits — tuneable via env vars
+MAX_HTTP_BATCH = int(os.getenv("ENRICH_MAX_HTTP_BATCH", "75"))
+MAX_TITLEONLY_BATCH = int(os.getenv("ENRICH_MAX_TITLEONLY_BATCH", "300"))
+MAX_RUNTIME_SECONDS = int(os.getenv("ENRICH_MAX_RUNTIME_SECONDS", str(25 * 60)))
+HTTP_DELAY = float(os.getenv("ENRICH_HTTP_DELAY", "1.0"))
 
 
 class EnrichmentCronService:
@@ -46,8 +47,7 @@ class EnrichmentCronService:
             "started_at": start.isoformat(),
             "title_only": {"processed": 0, "enriched": 0, "errors": 0},
             "http": {"processed": 0, "enriched": 0, "errors": 0},
-            # Groq LLM removed from cron — reserved for manual HUNTER enrichment only
-            # to preserve 100K tokens/day free tier quota.
+            "pliego_download": {"processed": 0, "downloaded": 0, "errors": 0},
         }
 
         # Pass 1: Title-only enrichment (ComprasApps + items without usable source_url)
@@ -62,6 +62,12 @@ class EnrichmentCronService:
         except Exception as e:
             logger.error(f"HTTP pass failed: {e}")
 
+        # Pass 3: Pliego PDF download for COMPR.AR items
+        try:
+            await self._pass_pliego_download(stats)
+        except Exception as e:
+            logger.error(f"Pliego download pass failed: {e}")
+
         stats["finished_at"] = utc_now().isoformat()
         duration = (utc_now() - start).total_seconds()
         stats["duration_seconds"] = round(duration, 1)
@@ -69,7 +75,8 @@ class EnrichmentCronService:
         logger.info(
             f"Enrichment cycle complete in {duration:.0f}s — "
             f"title-only: {stats['title_only']['enriched']}/{stats['title_only']['processed']}, "
-            f"HTTP: {stats['http']['enriched']}/{stats['http']['processed']}"
+            f"HTTP: {stats['http']['enriched']}/{stats['http']['processed']}, "
+            f"Pliegos: {stats['pliego_download']['downloaded']}/{stats['pliego_download']['processed']}"
         )
         return stats
 
@@ -226,6 +233,65 @@ class EnrichmentCronService:
                     logger.error(f"HTTP enrichment failed for {doc.get('_id')}: {e}")
         finally:
             await enrichment_service.close()
+
+    async def _pass_pliego_download(self, stats: dict):
+        """Download pliego PDFs for COMPR.AR items that have a known pliego URL
+        but no local copy yet. Runs in small batches due to auth + anti-ban delays.
+
+        Stores PDFs via pliego_storage_service so Nginx can serve them at /pliegos/...
+        This makes links permanent — independent of upstream qs= token expiry.
+        """
+        MAX_BATCH = 5  # small: each download login + anti-ban delays
+
+        query = {
+            "metadata.comprar_pliego_url": {"$regex": "VistaPreviaPliegoCiudadano"},
+            "metadata.pliego_local_url": {"$in": [None, ""]},
+        }
+        cursor = self.collection.find(query).limit(MAX_BATCH)
+        items = await cursor.to_list(length=MAX_BATCH)
+
+        if not items:
+            return
+
+        logger.info(f"Pliego download pass: {len(items)} items to process")
+
+        from services.comprar_pliego_downloader import ComprarPliegoDownloader
+        from services.pliego_storage_service import store_pliego
+
+        downloader = ComprarPliegoDownloader(db=self.db)
+
+        for doc in items:
+            stats["pliego_download"]["processed"] += 1
+            try:
+                pliego_url = doc.get("metadata", {}).get("comprar_pliego_url", "")
+                if not pliego_url:
+                    continue
+
+                lic_id = doc["_id"]
+                fuente = doc.get("fuente", "COMPR.AR")
+                numero = doc.get("licitacion_number") or doc.get("id_licitacion", "")
+
+                pdf_bytes = await downloader.download_pliego_pdf(pliego_url)
+                if not pdf_bytes:
+                    continue
+
+                public_url = await store_pliego(
+                    db=self.db,
+                    licitacion_id=lic_id,
+                    pdf_bytes=pdf_bytes,
+                    fuente=fuente,
+                    numero=numero,
+                    source_url=pliego_url,
+                )
+                if public_url:
+                    stats["pliego_download"]["downloaded"] += 1
+                    logger.info(f"Stored pliego for {numero}: {public_url} ({len(pdf_bytes)} bytes)")
+                else:
+                    stats["pliego_download"]["errors"] += 1
+
+            except Exception as e:
+                stats["pliego_download"]["errors"] += 1
+                logger.error(f"Pliego download failed for {doc.get('_id')}: {e}")
 
     def _get_selectors_from_cache(self, fuente: str, cache: Dict[str, Optional[dict]]) -> Optional[dict]:
         """O(1) lookup of CSS selectors using the pre-loaded configs cache."""

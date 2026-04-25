@@ -226,21 +226,7 @@ class OsepScraper(BaseScraper):
         return fields
     
     async def _postback(self, url: str, fields: Dict[str, str]) -> Optional[str]:
-        try:
-            async with self.session.post(str(url), data=fields) as response:
-                if response.status < 200 or response.status >= 300:
-                    logger.error(f"Postback failed {response.status}")
-                    return None
-                # Read raw bytes and decode manually (servers may lie about charset)
-                raw = await response.read()
-                encoding = response.charset or "utf-8"
-                try:
-                    return raw.decode(encoding)
-                except (UnicodeDecodeError, LookupError):
-                    return raw.decode("latin-1", errors="replace")
-        except Exception as e:
-            logger.error(f"Postback error: {e}")
-            return None
+        return await self.http.post(str(url), data=fields)
 
     async def run(self) -> List[LicitacionCreate]:
         """Run the OSEP scraper"""

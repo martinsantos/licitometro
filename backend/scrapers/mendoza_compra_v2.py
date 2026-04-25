@@ -35,7 +35,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from models.scraper_config import ScraperConfig
 from models.licitacion import LicitacionCreate
-from scrapers.base_scraper import BaseScraper
+from scrapers.comprar_asp_base import ComprarASPBaseScraper
 from utils.dates import parse_date_guess, last_business_days_set
 
 logger = logging.getLogger("scraper.mendoza_compra_v2")
@@ -97,6 +97,14 @@ class PliegoURLCache:
         }
         self._save()
 
+    def invalidate(self, process_number: str) -> bool:
+        """Remove a stale entry so next scrape re-fetches it."""
+        if process_number in self.cache:
+            del self.cache[process_number]
+            self._save()
+            return True
+        return False
+
     def get_stats(self) -> Dict[str, int]:
         """Get cache statistics"""
         return {
@@ -104,7 +112,7 @@ class PliegoURLCache:
         }
 
 
-class MendozaCompraScraperV2(BaseScraper):
+class MendozaCompraScraperV2(ComprarASPBaseScraper):
     """HTTP-only scraper for Mendoza Compra with PLIEGO URL caching."""
 
     def __init__(self, config: ScraperConfig):
@@ -325,98 +333,8 @@ class MendozaCompraScraperV2(BaseScraper):
             logger.error(f"Error extracting licitacion data from {url}: {e}")
             return None
 
-    # ------------------------------------------------------------------
-    # ASP.NET postback helpers
-    # ------------------------------------------------------------------
-
-    @staticmethod
-    def _is_pager_row(text: str) -> bool:
-        """Detect ASP.NET grid pager rows (e.g. '1 2 3 4 5 6 7 8 9 10')."""
-        return bool(re.match(r'^[\d\s.…]+$', text.strip()))
-
-    def _extract_rows_from_list(self, html: str) -> List[Dict[str, Any]]:
-        """Extract row data from Compras list table."""
-        soup = BeautifulSoup(html, 'html.parser')
-        table = soup.find('table', {'id': re.compile('GridListaPliegosAperturaProxima')})
-        if not table:
-            return []
-        rows = []
-        for row in table.find_all('tr'):
-            cols = row.find_all('td')
-            if len(cols) < 6:
-                continue
-            link = cols[0].find('a', href=True)
-            target = None
-            if link:
-                m = re.search(r"__doPostBack\('([^']+)'\s*,\s*'([^']*)'\)", link.get('href', ''))
-                if m:
-                    target = m.group(1)
-            numero = cols[0].get_text(' ', strip=True)
-            # Skip pager navigation rows (e.g. "1 2 3 4 5 6 7 8 9 10")
-            if self._is_pager_row(numero):
-                continue
-            title = cols[1].get_text(' ', strip=True)
-            tipo = cols[2].get_text(' ', strip=True)
-            apertura = cols[3].get_text(' ', strip=True)
-            estado = cols[4].get_text(' ', strip=True)
-            unidad = cols[5].get_text(' ', strip=True) if len(cols) > 5 else None
-            servicio_admin = cols[6].get_text(' ', strip=True) if len(cols) > 6 else None
-            rows.append({
-                "target": target,
-                "numero": numero,
-                "title": title,
-                "tipo": tipo,
-                "apertura": apertura,
-                "estado": estado,
-                "unidad": unidad,
-                "servicio_admin": servicio_admin,
-            })
-        return rows
-
-    def _extract_hidden_fields(self, html: str) -> Dict[str, str]:
-        soup = BeautifulSoup(html, 'html.parser')
-        fields: Dict[str, str] = {}
-        for name in ["__VIEWSTATE", "__EVENTVALIDATION", "__VIEWSTATEGENERATOR", "__EVENTTARGET", "__EVENTARGUMENT"]:
-            inp = soup.find('input', {'name': name})
-            if inp and inp.get('value') is not None:
-                fields[name] = inp.get('value')
-        for inp in soup.find_all('input', {'type': 'hidden'}):
-            name = inp.get('name')
-            if name and name not in fields:
-                fields[name] = inp.get('value', '')
-        return fields
-
-    def _extract_pager_args(self, html: str) -> Dict[str, List[str]]:
-        """Extract paging args for grids"""
-        soup = BeautifulSoup(html, 'html.parser')
-        pages: Dict[str, List[str]] = {}
-        for a in soup.find_all('a', href=True):
-            href = a.get('href', '')
-            m = re.search(r"__doPostBack\('([^']+)'\s*,\s*'([^']*)'\)", href)
-            if not m:
-                continue
-            target, arg = m.group(1), m.group(2)
-            if arg.startswith("Page$"):
-                pages.setdefault(target, []).append(arg)
-        for k, v in list(pages.items()):
-            pages[k] = list(dict.fromkeys(v))
-        return pages
-
-    async def _postback(self, url: str, fields: Dict[str, str]) -> Optional[str]:
-        try:
-            async with self.session.post(str(url), data=fields) as response:
-                if response.status < 200 or response.status >= 300:
-                    logger.error(f"Postback failed {response.status}")
-                    return None
-                raw = await response.read()
-                encoding = response.charset or "utf-8"
-                try:
-                    return raw.decode(encoding)
-                except (UnicodeDecodeError, LookupError):
-                    return raw.decode("latin-1", errors="replace")
-        except Exception as e:
-            logger.error(f"Postback error: {e}")
-            return None
+    # ASP.NET helpers now inherited from ComprarASPBaseScraper:
+    #   extract_hidden_fields, extract_rows_from_list, extract_pager_args, postback
 
     # ------------------------------------------------------------------
     # Main run — HTTP only
@@ -451,15 +369,15 @@ class MendozaCompraScraperV2(BaseScraper):
                 if not list_html:
                     continue
 
-                rows = self._extract_rows_from_list(list_html)
+                rows = self.extract_rows_from_list(list_html, min_cols=6)
                 logger.info(f"Found {len(rows)} rows on first page")
 
-                page_fields = self._extract_hidden_fields(list_html)
+                page_fields = self.extract_hidden_fields(list_html)
 
                 # Tag each row with its page's hidden fields for detail postbacks
                 all_rows = [(row, dict(page_fields)) for row in rows]
 
-                pager_args = self._extract_pager_args(list_html)
+                pager_args = self.extract_pager_args(list_html)
                 grid_targets = list(pager_args.keys())
 
                 if grid_targets and max_pages > 1:
@@ -471,10 +389,10 @@ class MendozaCompraScraperV2(BaseScraper):
                         fields["__EVENTTARGET"] = grid_target
                         fields["__EVENTARGUMENT"] = page_arg
 
-                        next_html = await self._postback(list_url, fields)
+                        next_html = await self.postback(list_url, fields)
                         if next_html:
-                            page_rows = self._extract_rows_from_list(next_html)
-                            page_fields = self._extract_hidden_fields(next_html)
+                            page_rows = self.extract_rows_from_list(next_html, min_cols=6)
+                            page_fields = self.extract_hidden_fields(next_html)
                             all_rows.extend((r, dict(page_fields)) for r in page_rows)
                             await asyncio.sleep(self.config.wait_time)
 
@@ -497,7 +415,7 @@ class MendozaCompraScraperV2(BaseScraper):
                         detail_fields["__EVENTTARGET"] = row["target"]
                         detail_fields["__EVENTARGUMENT"] = ""
 
-                        detail_html = await self._postback(list_url, detail_fields)
+                        detail_html = await self.postback(list_url, detail_fields)
                         await asyncio.sleep(self.config.wait_time)
 
                         if detail_html:
@@ -677,8 +595,18 @@ class MendozaCompraScraperV2(BaseScraper):
 
                 estado = self._compute_estado(publication_date, opening_date, fecha_prorroga=None)
 
-                if pliego_url and "VistaPreviaPliegoCiudadano" in (pliego_url or ""):
+                if is_stable_pliego:
                     self.stats['pliego_urls_found'] += 1
+
+                # Build pliegos_bases from stable pliego URL
+                pliegos_bases = []
+                if is_stable_pliego and pliego_url:
+                    pliegos_bases.append({
+                        "url": pliego_url,
+                        "titulo": f"Pliego — {numero}",
+                        "tipo": "HTML",
+                        "fuente": "comprar_ar",
+                    })
 
                 lic = LicitacionCreate(**{
                     "title": title,
@@ -698,6 +626,7 @@ class MendozaCompraScraperV2(BaseScraper):
                     "status": "active",
                     "location": "Mendoza",
                     "attached_files": [],
+                    "pliegos_bases": pliegos_bases,
                     "id_licitacion": numero or str(uuid.uuid4()),
                     "jurisdiccion": "Mendoza",
                     "tipo_procedimiento": tipo,

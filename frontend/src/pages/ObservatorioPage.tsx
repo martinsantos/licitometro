@@ -116,7 +116,7 @@ export default function ObservatorioPage() {
               Observatorio de Licitaciones
             </h1>
             <p style={{ color: '#6b7280', fontSize: 14, margin: '6px 0 0' }}>
-              Datos abiertos de contrataciones públicas de Mendoza, Argentina
+              Datos abiertos de contrataciones publicas de Argentina
             </p>
           </div>
           <a
@@ -135,7 +135,7 @@ export default function ObservatorioPage() {
 
         {/* OCDS badge */}
         <div style={{ marginTop: 12, display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-          {['OCDS 1.1', 'Datos abiertos', 'Mendoza AR', 'Actualización diaria'].map(tag => (
+              {['OCDS 1.1', 'Datos abiertos', 'Argentina', 'Actualizacion diaria'].map(tag => (
             <span key={tag} style={{ background: '#eef2ff', color: '#4338ca', borderRadius: 4, padding: '2px 8px', fontSize: 11, fontWeight: 600 }}>
               {tag}
             </span>

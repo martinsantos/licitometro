@@ -1,6 +1,7 @@
 from typing import Optional, List
 from datetime import datetime, timezone
 from pydantic import BaseModel, Field
+from config.company import DEFAULT_COMPANY_ID
 
 
 def _utcnow():
@@ -25,7 +26,7 @@ class AntecedenteRef(BaseModel):
 
 
 class CompanyProfileCreate(BaseModel):
-    company_id: str = "default"
+    company_id: str = DEFAULT_COMPANY_ID
     nombre: str = ""
     cuit: str = ""
     email: str = ""
@@ -65,7 +66,7 @@ class CompanyProfileUpdate(BaseModel):
 
 
 class CompanyContextCreate(BaseModel):
-    company_id: str = "default"
+    company_id: str = DEFAULT_COMPANY_ID
     zona: str
     tipo_proceso: str = "Otro"
 

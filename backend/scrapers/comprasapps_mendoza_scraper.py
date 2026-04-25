@@ -145,46 +145,10 @@ class ComprasAppsMendozaScraper(BaseScraper):
     async def _init_session(self) -> bool:
         """GET initial page to establish session and extract GXState."""
         try:
-            # Route through Cloudflare proxy if domain is blocked
-            target_url = self.BASE_URL
-            extra_headers = {}
-            use_proxy = self._needs_proxy(self.BASE_URL)
-            if use_proxy:
-                from scrapers.resilient_http import PROXY_URL, PROXY_SECRET
-                extra_headers = {"X-Target-URL": self.BASE_URL, "X-Proxy-Secret": PROXY_SECRET}
-                target_url = PROXY_URL
-                logger.info("ComprasApps: using Cloudflare proxy")
-
-            # Retry up to 3 times (proxy may return 522 on first attempt)
-            html = None
-            proxy_timeout = aiohttp.ClientTimeout(total=30, connect=10, sock_read=25)
-            for attempt in range(3):
-                try:
-                    async with self.session.get(
-                        target_url,
-                        ssl=(use_proxy or None),  # True for proxy, None (default) for direct
-                        timeout=proxy_timeout if use_proxy else self._REQUEST_TIMEOUT,
-                        headers=extra_headers,
-                    ) as resp:
-                        if resp.status == 522 and attempt < 2:
-                            logger.warning(f"Proxy returned 522, retry {attempt + 1}")
-                            await asyncio.sleep(1)
-                            continue
-                        if resp.status >= 400:
-                            logger.error(f"Init failed: HTTP {resp.status}")
-                            return False
-                        raw = await resp.read()
-                        html = raw.decode("utf-8", errors="replace")
-                        break
-                except (aiohttp.ClientError, asyncio.TimeoutError) as e:
-                    if attempt < 2:
-                        logger.warning(f"Init attempt {attempt + 1} failed: {e}, retrying...")
-                        await asyncio.sleep(1)
-                        continue
-                    raise
-
+            # ResilientHttpClient handles proxy routing, retry, and 522 backoff automatically
+            html = await self.http.fetch(self.BASE_URL)
             if not html:
-                logger.error("Init failed: no response after retries")
+                logger.error("Init failed: no response from ComprasApps")
                 return False
 
             soup = BeautifulSoup(html, "html.parser")
@@ -251,57 +215,22 @@ class ComprasAppsMendozaScraper(BaseScraper):
     async def _post_search(self, form_data: Dict[str, str]) -> Optional[str]:
         """Execute a POST search and return HTML."""
         try:
-            target_url = self.BASE_URL
-            post_headers = {
-                "Content-Type": "application/x-www-form-urlencoded",
-                "Referer": self.BASE_URL,
-            }
-            use_proxy = self._needs_proxy(self.BASE_URL)
-            if use_proxy:
-                from scrapers.resilient_http import PROXY_URL, PROXY_SECRET
-                post_headers["X-Target-URL"] = self.BASE_URL
-                post_headers["X-Proxy-Secret"] = PROXY_SECRET
-                target_url = PROXY_URL
+            post_headers = {"Referer": self.BASE_URL}
+            # ResilientHttpClient handles proxy routing, retry, 522 backoff, and SSL automatically
+            html = await self.http.post(self.BASE_URL, data=form_data, headers=post_headers)
+            if not html:
+                logger.error(f"POST search failed for ComprasApps")
+                return None
 
-            proxy_timeout = aiohttp.ClientTimeout(total=30, connect=10, sock_read=25)
-            resp_status = None
-            html = None
-            for attempt in range(3):
+            # Update GXState from response for pagination
+            soup = BeautifulSoup(html, "html.parser")
+            gxstate_input = soup.find("input", {"name": "GXState"})
+            if gxstate_input and gxstate_input.get("value"):
+                self._gxstate_raw = gxstate_input["value"]
                 try:
-                    async with self.session.post(
-                        target_url,
-                        data=form_data,
-                        headers=post_headers,
-                        ssl=(use_proxy or None),
-                        timeout=proxy_timeout if use_proxy else self._REQUEST_TIMEOUT,
-                    ) as resp:
-                        resp_status = resp.status
-                        if resp.status == 522 and attempt < 2:
-                            logger.warning(f"Proxy POST returned 522, retry {attempt + 1}")
-                            await asyncio.sleep(1)
-                            continue
-                        if resp.status >= 400:
-                            logger.error(f"POST failed: HTTP {resp.status}")
-                            return None
-                        raw = await resp.read()
-                        html = raw.decode("utf-8", errors="replace")
-
-                        # Update GXState from response for pagination
-                        soup = BeautifulSoup(html, "html.parser")
-                        gxstate_input = soup.find("input", {"name": "GXState"})
-                        if gxstate_input and gxstate_input.get("value"):
-                            self._gxstate_raw = gxstate_input["value"]
-                            try:
-                                self._gxstate = json.loads(self._gxstate_raw)
-                            except json.JSONDecodeError:
-                                pass
-                        return html
-                except (aiohttp.ClientError, asyncio.TimeoutError) as e:
-                    if attempt < 2:
-                        logger.warning(f"POST attempt {attempt + 1} failed: {e}, retrying...")
-                        await asyncio.sleep(1)
-                        continue
-                    raise
+                    self._gxstate = json.loads(self._gxstate_raw)
+                except json.JSONDecodeError:
+                    pass
             return html
         except Exception as e:
             logger.error(f"POST search failed: {e}")
@@ -342,31 +271,122 @@ class ComprasAppsMendozaScraper(BaseScraper):
     def _parse_detail_html(self, html: str) -> Dict[str, Any]:
         """Parse hli00048 detail page HTML.
 
-        GeneXus renders label-value pairs as adjacent <span>/<label>/<td> elements.
-        The page has fields like "Presupuesto Oficial" followed by "30.000.000,00".
-        We use regex on full text as primary strategy since DOM structure varies.
+        Priority strategy:
+        1. GXState JSON — LICAPRESUP (raw budget), LICAMONEDA, all MovimientosContainerData URLs
+        2. Direct input fields (vPRESUPUESTO fallback, vVALORPLIEGO)
+        3. Regex on raw HTML for any remaining mendoza.gov.ar file URLs
+        4. Regex on full text for description, expediente, other fields
         """
         soup = BeautifulSoup(html, "html.parser")
         result: Dict[str, Any] = {}
 
-        # Get all text content
+        # ── 1. GXState JSON (richest source) ──────────────────────────────────
+        pliego_urls: List[str] = []
+        gx_input = soup.find("input", {"name": "GXState"})
+        if gx_input:
+            try:
+                gxstate = json.loads(gx_input.get("value", "{}"))
+
+                # Budget: LICAPRESUP is raw decimal "10380000,00" — no thousands dots
+                licapresup = gxstate.get("LICAPRESUP", "").strip()
+                if licapresup:
+                    result["licapresup"] = licapresup
+
+                # Pliego value: LICAPLIVAL (cost of the pliego document)
+                licaplival = gxstate.get("LICAPLIVAL", "").strip()
+                if licaplival and licaplival.strip("0 ,."):
+                    result["licaplival"] = licaplival
+
+                # Currency from LICAMONEDA (direct field in GXState or input)
+                moneda_input = soup.find("input", {"name": "LICAMONEDA"})
+                if moneda_input:
+                    result["currency_raw"] = (moneda_input.get("value") or "").strip()
+
+                # All file URLs from MovimientosContainerData nested JSON
+                # Structure: {"0": {"Props": [["vLIHARCHIVO_0001","https://...","..."], ...]}, ...}
+                mov_data_str = gxstate.get("MovimientosContainerData", "{}")
+                if isinstance(mov_data_str, str) and mov_data_str.startswith("{"):
+                    try:
+                        mov_data = json.loads(mov_data_str)
+                        i = 0
+                        while str(i) in mov_data:
+                            row = mov_data[str(i)]
+                            for prop in (row.get("Props") or []):
+                                if not prop or len(prop) < 2:
+                                    continue
+                                fname = str(prop[0])
+                                fval = str(prop[1]).strip() if prop[1] else ""
+                                if "LIHARCHIVO" in fname and fval.startswith("http"):
+                                    if fval not in pliego_urls:
+                                        pliego_urls.append(fval)
+                            i += 1
+                    except (json.JSONDecodeError, TypeError, AttributeError) as e:
+                        logger.debug(f"MovimientosContainerData parse: {e}")
+
+                # Fallback: LIHARCHIVO top-level key (last attached file)
+                if not pliego_urls:
+                    liharchivo = gxstate.get("LIHARCHIVO", "").strip()
+                    if liharchivo:
+                        pliego_urls.append(
+                            f"https://www.mendoza.gov.ar/compras/files/Licita/{liharchivo}"
+                        )
+                        result["liharchivo"] = liharchivo
+
+            except (json.JSONDecodeError, KeyError) as e:
+                logger.debug(f"GXState parse in detail page: {e}")
+
+        # ── 2. Direct input fields (fallback for budget/valor) ────────────────
+        def _input_val(name: str) -> str:
+            inp = soup.find("input", {"name": name})
+            if inp:
+                return (inp.get("value") or "").strip()
+            span = soup.find(id=f"span_{name}")
+            if span:
+                return span.get_text(strip=True)
+            return ""
+
+        # Budget fallback from vPRESUPUESTO (e.g. "    9.286.725,00" with dots)
+        if not result.get("licapresup"):
+            presupuesto_raw = _input_val("vPRESUPUESTO")
+            if presupuesto_raw:
+                result["budget_raw"] = presupuesto_raw
+
+        # Valor del pliego fallback
+        if not result.get("licaplival"):
+            valor_pliego_raw = _input_val("vVALORPLIEGO")
+            if valor_pliego_raw and valor_pliego_raw.strip("0 ,."):
+                result["valor_pliego"] = valor_pliego_raw
+
+        # ── 3. Regex scan for any remaining mendoza.gov.ar/compras/files URLs ──
+        for u in re.findall(
+            r'https?://(?:www\.)?mendoza\.gov\.ar/compras/files/[^\s"\'\\>]+\.(?:zip|pdf|ZIP|PDF)',
+            html,
+        ):
+            if u not in pliego_urls:
+                pliego_urls.append(u)
+
+        if pliego_urls:
+            result["pliego_urls"] = pliego_urls
+
+        # ── 4. Regex on full text for remaining fields ─────────────────────────
         full_text = soup.get_text(" ", strip=True)
 
-        # Strategy: regex on full text for key fields
-        # Budget: "Presupuesto Oficial 30.000.000,00"
-        m = re.search(
-            r"Presupuesto\s+Oficial\s+([\d]+(?:\.[\d]{3})*(?:,[\d]{1,2})?)",
-            full_text,
-        )
-        if m:
-            result["budget_raw"] = m.group(1)
+        # Currency fallback from text
+        if not result.get("currency_raw"):
+            m = re.search(r"Moneda\s+(PESOS|DOLARES|USD|EUROS)", full_text, re.I)
+            if m:
+                result["currency_raw"] = m.group(1)
 
-        # Currency: "Moneda PESOS"
-        m = re.search(r"Moneda\s+(PESOS|DOLARES|USD|EUROS)", full_text, re.I)
-        if m:
-            result["currency_raw"] = m.group(1)
+        # Budget fallback from text
+        if not result.get("licapresup") and not result.get("budget_raw"):
+            m = re.search(
+                r"Presupuesto\s+Oficial\s+([\d]+(?:\.[\d]{3})*(?:,[\d]{1,2})?)",
+                full_text,
+            )
+            if m:
+                result["budget_raw"] = m.group(1)
 
-        # Description: "Descripción XXXXX" (up to next label)
+        # Description
         m = re.search(
             r"Descripci[oó]n\s+(.+?)(?:Presupuesto|Valor\s+del\s+pliego|Moneda|$)",
             full_text,
@@ -377,17 +397,15 @@ class ComprasAppsMendozaScraper(BaseScraper):
             if len(desc) > 5:
                 result["description"] = desc[:2000]
 
-        # Expediente: "Nro 388815 Letra Año 2026"
+        # Expediente
         m = re.search(r"Expediente\s+Nro\s*(\d+)\s*Letra\s*.*?A[ñn]o\s*(\d{4})", full_text, re.I)
         if m:
             result["expedient_raw"] = f"Nro {m.group(1)} Año {m.group(2)}"
 
-        # Fecha de apertura: "Fecha de apertura 10/04/26"
+        # Fecha/hora apertura
         m = re.search(r"Fecha\s+de\s+apertura\s+(\d{1,2}/\d{1,2}/\d{2,4})", full_text, re.I)
         if m:
             result["opening_date_str"] = m.group(1)
-
-        # Hora de apertura: "Hora de apertura 11:00"
         m = re.search(r"Hora\s+de\s+apertura\s+(\d{1,2}:\d{2})", full_text, re.I)
         if m:
             result["opening_time_str"] = m.group(1)
@@ -397,15 +415,10 @@ class ComprasAppsMendozaScraper(BaseScraper):
         if m:
             result["reparticion_destino"] = m.group(1).strip()[:200]
 
-        # Norma Legal: "Tipo Ley N° 9497 Letra Año 2023"
+        # Norma Legal
         m = re.search(r"Norma\s+Legal\s+Tipo\s+(\w+)\s+N[°º]?\s*(\d+)\s*.*?A[ñn]o\s*(\d{4})", full_text, re.I)
         if m:
             result["norma_legal"] = f"{m.group(1)} {m.group(2)}/{m.group(3)}"
-
-        # Valor del pliego
-        m = re.search(r"Valor\s+del\s+pliego\s+([\d.,]+)", full_text, re.I)
-        if m:
-            result["valor_pliego"] = m.group(1)
 
         # Garantía de oferta
         m = re.search(r"Garant[ií]a\s+de\s+oferta\s+(.+?)(?:Plazo|Lugar|Vigencia|$)", full_text, re.I)
@@ -422,13 +435,20 @@ class ComprasAppsMendozaScraper(BaseScraper):
         if m:
             result["financiamiento"] = m.group(1).strip()[:100]
 
-        # --- Post-processing ---
+        # ── Post-processing ───────────────────────────────────────────────────
 
-        # Parse budget: "30.000.000,00" → 30000000.00
-        if result.get("budget_raw"):
+        # Parse budget: LICAPRESUP is "10380000,00" (decimal comma, no thousands dots)
+        if result.get("licapresup"):
             try:
-                raw = result["budget_raw"].replace(".", "").replace(",", ".")
-                budget = float(raw)
+                budget = float(result["licapresup"].replace(",", "."))
+                if budget > 0:
+                    result["budget_parsed"] = budget
+            except (ValueError, TypeError):
+                pass
+        elif result.get("budget_raw"):
+            # vPRESUPUESTO uses Spanish format: "9.286.725,00"
+            try:
+                budget = float(result["budget_raw"].replace(".", "").replace(",", "."))
                 if budget > 0:
                     result["budget_parsed"] = budget
             except (ValueError, TypeError):
@@ -633,21 +653,51 @@ class ComprasAppsMendozaScraper(BaseScraper):
             expedient_number = None
             detail_description = None
 
+            pliegos_bases = []
             if detail_data:
                 budget = detail_data.get("budget_parsed")
                 currency = detail_data.get("currency") if budget else None
                 expedient_number = detail_data.get("expedient_number")
                 detail_description = detail_data.get("description")
-                # Store all detail fields in metadata
+
+                # Build pliegos_bases from discovered URLs
+                for pliego_url in (detail_data.get("pliego_urls") or []):
+                    fname = pliego_url.rsplit("/", 1)[-1]
+                    ext = fname.rsplit(".", 1)[-1].lower() if "." in fname else ""
+                    pliegos_bases.append({
+                        "url": pliego_url,
+                        "titulo": f"Pliego/Adjuntos — {fname}",
+                        "tipo": "ZIP" if ext == "zip" else "PDF",
+                        "fuente": "comprasapps",
+                    })
+
+                # Store detail fields in metadata
                 metadata["detail_popup"] = {
                     k: v for k, v in detail_data.items()
-                    if k not in ("budget_parsed",)
+                    if k not in ("budget_parsed", "pliego_urls")
                 }
 
-            # Extract objeto from title or detail description
+            # Extract objeto — avoid duplicating the title verbatim
             from utils.object_extractor import extract_objeto
             desc_for_obj = detail_description or titulo
-            objeto = extract_objeto(titulo, desc_for_obj[:1000], None)
+            objeto_raw = extract_objeto(titulo, desc_for_obj[:1000], None)
+            # If extract_objeto returned the full title unchanged (common in ComprasApps
+            # where title IS the description), clean it: strip legal prefixes and
+            # deduplicate repeated sentences.
+            if objeto_raw and titulo:
+                # Remove common title prefixes that pollute the objeto
+                cleaned = re.sub(
+                    r'^(?:S/ADQ\.\s+DE\s+|OBJETO:\s*|ADQUISICI[OÓ]N\s+DE\s+|'
+                    r'CONTRATACI[OÓ]N\s+(?:DIRECTA\s+)?(?:DE\s+)?)',
+                    '', objeto_raw, flags=re.I
+                ).strip()
+                # Deduplicate: if the string is literally doubled ("X X" where X==X)
+                half = len(cleaned) // 2
+                if half > 10 and cleaned[:half].strip() == cleaned[half:].strip():
+                    cleaned = cleaned[:half].strip()
+                objeto = cleaned if len(cleaned) >= 5 else objeto_raw
+            else:
+                objeto = objeto_raw
 
             return LicitacionCreate(
                 title=titulo,
@@ -671,6 +721,7 @@ class ComprasAppsMendozaScraper(BaseScraper):
                 status=status,
                 location="Mendoza",
                 attached_files=[],
+                pliegos_bases=pliegos_bases,
                 id_licitacion=numero,
                 jurisdiccion=jurisdiccion,
                 tipo_procedimiento=tipo,

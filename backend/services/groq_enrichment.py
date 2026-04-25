@@ -14,7 +14,7 @@ from typing import Any, Dict, List, Optional
 
 logger = logging.getLogger("groq_enrichment")
 
-GROQ_MODEL = "llama-3.3-70b-versatile"
+GROQ_MODEL = os.getenv("GROQ_MODEL", "llama-3.3-70b-versatile")
 
 PROMPT_OBJETO = """Dado el siguiente texto de una licitación pública argentina, extrae el objeto principal de la contratación en máximo 150 caracteres. Solo devuelve el texto del objeto, sin explicaciones ni formato adicional.
 
@@ -61,7 +61,7 @@ Responde SOLO con JSON válido (sin markdown, sin backticks):
 
 
 CEREBRAS_API_URL = "https://api.cerebras.ai/v1/chat/completions"
-CEREBRAS_MODEL = "llama3.1-8b"
+CEREBRAS_MODEL = os.getenv("CEREBRAS_MODEL", "llama3.1-8b")
 
 
 class GroqEnrichmentService:

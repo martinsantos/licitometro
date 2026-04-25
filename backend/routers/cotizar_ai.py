@@ -26,8 +26,8 @@ router = APIRouter(
 )
 
 
-def _get_db(request: Request):
-    return request.app.mongodb
+from db import get_db
+from config.company import DEFAULT_COMPANY_ID
 
 
 async def _get_company_context_str(db, organization: str = "", tipo_procedimiento: str = "") -> str:
@@ -35,7 +35,7 @@ async def _get_company_context_str(db, organization: str = "", tipo_procedimient
     parts = []
 
     # Company profile
-    profile = await db.company_profiles.find_one({"company_id": "default"})
+    profile = await db.company_profiles.find_one({"company_id": DEFAULT_COMPANY_ID})
     if profile and profile.get("nombre"):
         p_parts = [f"Empresa: {profile['nombre']}"]
         if profile.get("cuit"):
@@ -48,23 +48,8 @@ async def _get_company_context_str(db, organization: str = "", tipo_procedimient
 
     # Zone context matching
     if organization:
-        org_lower = organization.lower()
-        all_ctx = await db.company_contexts.find({"company_id": "default"}).to_list(200)
-        best = None
-        best_score = 0
-        for ctx in all_ctx:
-            zona_lower = (ctx.get("zona") or "").lower()
-            if not zona_lower:
-                continue
-            if zona_lower in org_lower or org_lower in zona_lower:
-                score = len(zona_lower)
-                if tipo_procedimiento and ctx.get("tipo_proceso", "").lower() in tipo_procedimiento.lower():
-                    score += 100
-                if score > best_score:
-                    best = ctx
-                    best_score = score
-        if not best:
-            best = await db.company_contexts.find_one({"company_id": "default", "zona": "General"})
+        from services.zone_matcher import find_best_zone
+        best = await find_best_zone(db, organization, tipo_procedimiento)
 
         if best:
             if best.get("documentos_requeridos"):
@@ -120,7 +105,7 @@ async def pliego_resumen(licitacion_id: str, body: Dict[str, Any], request: Requ
 
     Body opcional: { "force_refresh": false }
     """
-    db = _get_db(request)
+    db = get_db(request)
     from services.pliego_ai_service import get_pliego_ai_service
     svc = get_pliego_ai_service(db)
     force = bool(body.get("force_refresh"))
@@ -133,7 +118,7 @@ async def pliego_chat(licitacion_id: str, body: Dict[str, Any], request: Request
 
     Body: { "pregunta": "...", "history": [{role, content}, ...] }
     """
-    db = _get_db(request)
+    db = get_db(request)
     pregunta = (body.get("pregunta") or "").strip()
     if not pregunta:
         raise HTTPException(400, "pregunta requerida")
@@ -190,7 +175,7 @@ async def adjust_prices(body: Dict[str, Any], request: Request):
     - scale_to_target: scale current prices to hit a target total (no AI)
     - ai_adjust: use AI to adjust prices per user instruction
     """
-    db = _get_db(request)
+    db = get_db(request)
     items = body.get("items", [])
     budget = float(body.get("budget", 0))
     iva_rate = float(body.get("iva_rate", 21))
@@ -316,7 +301,7 @@ Responde SOLO JSON valido (sin markdown):
 @router.post("/suggest-propuesta")
 async def suggest_propuesta(body: Dict[str, Any], request: Request):
     """Generate AI-powered technical proposal suggestion."""
-    db = _get_db(request)
+    db = get_db(request)
     licitacion_id = body.get("licitacion_id")
     if not licitacion_id:
         raise HTTPException(400, "licitacion_id required")
@@ -363,7 +348,7 @@ Presupuesto: ${lic.get('budget', 'N/A')}"""
 @router.post("/search-antecedentes")
 async def search_antecedentes(body: Dict[str, Any], request: Request):
     """Search for similar past tenders as reference using full-text search."""
-    db = _get_db(request)
+    db = get_db(request)
     licitacion_id = body.get("licitacion_id")
     skip = body.get("skip", 0)
     limit = body.get("limit", 10)
@@ -495,7 +480,7 @@ async def search_antecedentes(body: Dict[str, Any], request: Request):
 @router.post("/analyze-bid")
 async def analyze_bid(body: Dict[str, Any], request: Request):
     """Run comprehensive AI analysis on a bid."""
-    db = _get_db(request)
+    db = get_db(request)
     licitacion_id = body.get("licitacion_id")
     if not licitacion_id:
         raise HTTPException(400, "licitacion_id required")
@@ -541,7 +526,7 @@ def _fmt_ars(n: float) -> str:
 @router.post("/generate-section")
 async def generate_section(body: Dict[str, Any], request: Request):
     """Generate content for an offer section. Data-first: uses real data, IA only for narrative."""
-    db = _get_db(request)
+    db = get_db(request)
     licitacion_id = body.get("licitacion_id")
     section_slug = body.get("section_slug")
     if not licitacion_id or not section_slug:
@@ -847,7 +832,7 @@ async def generate_section(body: Dict[str, Any], request: Request):
 @router.get("/offer-template-default")
 async def get_default_template(request: Request, slug: str = ""):
     """Get an offer template by slug (default: software_it)."""
-    db = _get_db(request)
+    db = get_db(request)
     query = {"slug": slug} if slug else {"slug": "software_it"}
     template = await db.offer_templates.find_one(query)
     if not template:
@@ -862,7 +847,7 @@ async def get_default_template(request: Request, slug: str = ""):
 @router.get("/offer-templates-list")
 async def list_offer_templates(request: Request):
     """List all available offer templates (summary)."""
-    db = _get_db(request)
+    db = get_db(request)
     cursor = db.offer_templates.find({}, {
         "name": 1, "slug": 1, "template_type": 1, "description": 1,
         "tags": 1, "sections": 1, "usage_count": 1,
@@ -886,7 +871,7 @@ async def list_offer_templates(request: Request):
 @router.post("/find-pliegos")
 async def find_pliegos_endpoint(body: Dict[str, Any], request: Request):
     """Find pliego documents for a licitacion using HUNTER strategies."""
-    db = _get_db(request)
+    db = get_db(request)
     licitacion_id = body.get("licitacion_id")
     if not licitacion_id:
         raise HTTPException(400, "licitacion_id required")
@@ -901,7 +886,7 @@ async def hunter_unified(body: Dict[str, Any], request: Request):
 
     Caches results in cotizacion for 1 hour.
     """
-    db = _get_db(request)
+    db = get_db(request)
     licitacion_id = body.get("licitacion_id")
     action = body.get("action", "full")  # "full" | "pliego" | "inteligencia" | "antecedentes"
     if not licitacion_id:
@@ -1177,7 +1162,7 @@ async def hunter_unified(body: Dict[str, Any], request: Request):
 @router.post("/analyze-pliego-gaps")
 async def analyze_pliego_gaps(body: Dict[str, Any], request: Request):
     """Analyze pliego text vs current offer sections to find gaps."""
-    db = _get_db(request)
+    db = get_db(request)
     licitacion_id = body.get("licitacion_id")
     pliego_text = body.get("pliego_text", "")
 
@@ -1251,7 +1236,7 @@ Responde SOLO con JSON valido:
 @router.post("/extract-pliego-info")
 async def extract_pliego_info(body: Dict[str, Any], request: Request):
     """Deep extraction of pliego info for bidding."""
-    db = _get_db(request)
+    db = get_db(request)
     licitacion_id = body.get("licitacion_id")
     if not licitacion_id:
         raise HTTPException(400, "licitacion_id required")
@@ -1658,7 +1643,7 @@ async def extract_pliego_info(body: Dict[str, Any], request: Request):
 @router.get("/company-antecedentes/sectors")
 async def get_company_antecedentes_sectors(request: Request):
     """Get available sectors with counts from UM antecedentes."""
-    db = _get_db(request)
+    db = get_db(request)
     from services.um_antecedentes import get_um_antecedente_service
     service = get_um_antecedente_service(db)
     await service.ensure_indexes()
@@ -1668,7 +1653,7 @@ async def get_company_antecedentes_sectors(request: Request):
 @router.post("/antecedentes-by-ids")
 async def get_antecedentes_by_ids(body: Dict[str, Any], request: Request):
     """Resolve antecedente IDs to full objects. Searches both licitaciones and um_antecedentes."""
-    db = _get_db(request)
+    db = get_db(request)
     ids = body.get("ids", [])
     if not ids:
         return []
@@ -1708,7 +1693,7 @@ async def get_antecedentes_by_ids(body: Dict[str, Any], request: Request):
 @router.post("/search-company-antecedentes")
 async def search_company_antecedentes(body: Dict[str, Any], request: Request):
     """Search Ultima Milla company antecedentes from ultimamilla.com.ar + SGI."""
-    db = _get_db(request)
+    db = get_db(request)
     licitacion_id = body.get("licitacion_id")
     keywords = body.get("keywords")
     sector = body.get("sector")
@@ -1740,7 +1725,7 @@ async def search_company_antecedentes(body: Dict[str, Any], request: Request):
 @router.post("/extract-marco-legal")
 async def extract_marco_legal(body: Dict[str, Any], request: Request):
     """Extract legal framework analysis for bidding preparation."""
-    db = _get_db(request)
+    db = get_db(request)
     licitacion_id = body.get("licitacion_id")
     if not licitacion_id:
         raise HTTPException(400, "licitacion_id required")
@@ -1867,7 +1852,7 @@ async def extract_marco_legal(body: Dict[str, Any], request: Request):
 @router.post("/pliego-summary/{licitacion_id}")
 async def pliego_summary(licitacion_id: str, request: Request):
     """Analyze a pliego and return a structured summary (legal framework, requirements, checklist)."""
-    db = _get_db(request)
+    db = get_db(request)
     try:
         from services.pliego_finder import find_pliegos
         result = await find_pliegos(db, licitacion_id)
@@ -1910,7 +1895,7 @@ async def pliego_chat(licitacion_id: str, body: Dict[str, Any], request: Request
     if not message:
         raise HTTPException(400, "message requerido")
 
-    db = _get_db(request)
+    db = get_db(request)
     try:
         from services.pliego_finder import find_pliegos
         result = await find_pliegos(db, licitacion_id)

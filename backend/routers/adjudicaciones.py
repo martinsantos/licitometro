@@ -1,5 +1,9 @@
-from fastapi import APIRouter, Query, Request
+import logging
+
+from fastapi import APIRouter, HTTPException, Query, Request
 from bson import ObjectId
+
+logger = logging.getLogger("adjudicaciones_router")
 
 router = APIRouter(prefix="/api/adjudicaciones", tags=["adjudicaciones"])
 
@@ -32,7 +36,8 @@ async def list_adjudicaciones(
     docs = await db.adjudicaciones.find(query).sort("fecha_adjudicacion", -1).skip(skip).limit(limit).to_list(length=limit)
     for d in docs:
         d["_id"] = str(d["_id"])
-    return {"items": docs, "total": total, "page": page, "pages": max(1, (total + limit - 1) // limit)}
+    from utils.pagination import paginated_response
+    return paginated_response(docs, total, page, limit)
 
 
 @router.get("/por-proveedor/{cuit}")
@@ -65,6 +70,101 @@ async def precios_referencia(
     for d in docs:
         d["_id"] = str(d["_id"])
     return {"items": docs, "query": q, "total": len(docs)}
+
+
+@router.get("/competencia/{licitacion_id}")
+async def panel_competencia(licitacion_id: str, request: Request):
+    """
+    For a given licitacion, find adjudicatarios that won similar tenders in the last 24 months.
+
+    Returns top 8 adjudicatarios grouped by adjudicatario name, with count and total monto.
+    Uses $text search on adjudicaciones collection with the objeto/title of the licitacion.
+    """
+    db = request.app.mongodb
+
+    # Fetch the licitacion
+    try:
+        oid = ObjectId(licitacion_id)
+    except Exception:
+        raise HTTPException(status_code=400, detail="ID de licitación inválido")
+
+    lic = await db.licitaciones.find_one(
+        {"_id": oid},
+        {"objeto": 1, "title": 1},
+    )
+    if not lic:
+        raise HTTPException(status_code=404, detail="Licitación no encontrada")
+
+    search_text = lic.get("objeto") or lic.get("title") or ""
+    if not search_text.strip():
+        return {"licitacion_id": licitacion_id, "competidores": [], "total": 0}
+
+    # Date cutoff: last 24 months
+    from datetime import timedelta
+    from utils.time import utc_now
+    cutoff = utc_now() - timedelta(days=730)
+
+    # $text search on adjudicaciones
+    text_query: dict = {
+        "$text": {"$search": search_text},
+        "fecha_adjudicacion": {"$gte": cutoff},
+    }
+
+    try:
+        # Aggregate: group by adjudicatario
+        pipeline = [
+            {"$match": text_query},
+            {"$group": {
+                "_id": "$adjudicatario",
+                "cuit": {"$first": "$supplier_id"},
+                "count": {"$sum": 1},
+                "monto_total": {"$sum": {"$ifNull": ["$monto_adjudicado", 0]}},
+                "licitaciones": {
+                    "$push": {
+                        "titulo": {"$ifNull": ["$objeto", "$title"]},
+                        "fecha": "$fecha_adjudicacion",
+                        "monto": "$monto_adjudicado",
+                    }
+                },
+            }},
+            {"$sort": {"count": -1, "monto_total": -1}},
+            {"$limit": 8},
+        ]
+
+        results = await db.adjudicaciones.aggregate(pipeline).to_list(length=8)
+    except Exception as e:
+        # Fallback: if no text index, return empty
+        logger.warning(f"panel_competencia text search failed (no index?): {e}")
+        return {"licitacion_id": licitacion_id, "competidores": [], "total": 0, "error": str(e)}
+
+    competidores = []
+    for r in results:
+        # Trim licitaciones list to top 5 by monto (descending)
+        lics = r.get("licitaciones", [])
+        lics_sorted = sorted(
+            lics,
+            key=lambda x: (x.get("monto") or 0),
+            reverse=True,
+        )[:5]
+        # Serialize datetimes
+        for l in lics_sorted:
+            if hasattr(l.get("fecha"), "isoformat"):
+                l["fecha"] = l["fecha"].isoformat()
+
+        competidores.append({
+            "adjudicatario": r.get("_id") or "Desconocido",
+            "cuit": r.get("cuit"),
+            "count": r.get("count", 0),
+            "monto_total": r.get("monto_total", 0),
+            "licitaciones": lics_sorted,
+        })
+
+    return {
+        "licitacion_id": licitacion_id,
+        "search_text": search_text[:100],
+        "competidores": competidores,
+        "total": len(competidores),
+    }
 
 
 @router.post("/run-comprasapps")

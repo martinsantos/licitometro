@@ -58,7 +58,7 @@ Rutas fijas (`/stats/*`, `/search/*`) ANTES de rutas con path params (`/{id}`) e
 Convierte datetimes a ISO strings → MongoDB ordena strings y dates por separado. Usar `model_dump()` (modo python).
 
 ### COMPR.AR URLs (CRÍTICO)
-- `VistaPreviaPliegoCiudadano.aspx?qs=...` → ESTABLE, datos ricos
+- `VistaPreviaPliegoCiudadano.aspx?qs=...` → SEMI-ESTABLE: dura ~24-48hs. COMPR.AR invalida el token en cada re-scrape o rotación de servidor. `link_health_service` (cron 5am) detecta expiración vía 302→PantallaError y activa re-resolución. **NO es permanente.**
 - `ComprasElectronicas.aspx?qs=...` → SESSION-DEPENDENT, resuelve al homepage sin sesión
 - NUNCA reintroducir Selenium para listing. HTTP postback = 82s vs 15 min.
 - **VIEWSTATE es per-page**: guardar hidden fields por página para detail postbacks.

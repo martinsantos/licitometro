@@ -25,8 +25,7 @@ MIME_MAP = {
 }
 
 
-def _get_db(request: Request):
-    return request.app.mongodb
+from db import get_db
 
 
 def _require_empresa_access(request: Request):
@@ -49,7 +48,7 @@ async def upload_conocimiento(
 ):
     """Subir documento a la base de conocimiento UMSA. Extrae texto, chunkea y embeds."""
     _require_empresa_access(request)
-    db = _get_db(request)
+    db = get_db(request)
 
     from services.um_knowledge_service import get_um_knowledge_service
     svc = get_um_knowledge_service()
@@ -87,7 +86,7 @@ async def upload_conocimiento(
 async def list_docs(request: Request):
     """Lista documentos cargados en la base de conocimiento, agrupados por doc."""
     _require_empresa_access(request)
-    db = _get_db(request)
+    db = get_db(request)
     from services.um_knowledge_service import get_um_knowledge_service
     svc = get_um_knowledge_service()
     docs = await svc.list_docs(db)
@@ -98,7 +97,7 @@ async def list_docs(request: Request):
 async def delete_doc(doc_id: str, request: Request):
     """Eliminar todos los chunks de un documento."""
     _require_empresa_access(request)
-    db = _get_db(request)
+    db = get_db(request)
     from services.um_knowledge_service import get_um_knowledge_service
     svc = get_um_knowledge_service()
     deleted = await svc.delete_doc(db, doc_id)
@@ -111,7 +110,7 @@ async def delete_doc(doc_id: str, request: Request):
 async def search_conocimiento(body: SearchRequest, request: Request):
     """Búsqueda semántica en la base de conocimiento UMSA."""
     _require_empresa_access(request)
-    db = _get_db(request)
+    db = get_db(request)
     from services.um_knowledge_service import get_um_knowledge_service
     svc = get_um_knowledge_service()
     results = await svc.search(db, query=body.query, tipo=body.tipo, top_k=body.top_k)
@@ -122,7 +121,7 @@ async def search_conocimiento(body: SearchRequest, request: Request):
 async def search_docs(body: SearchRequest, request: Request):
     """Búsqueda semántica agrupada por documento — devuelve ofertas similares con síntesis."""
     _require_empresa_access(request)
-    db = _get_db(request)
+    db = get_db(request)
     from services.um_knowledge_service import get_um_knowledge_service
     svc = get_um_knowledge_service()
     docs = await svc.search_documents(db, query=body.query, top_k=body.top_k or 4)
@@ -133,7 +132,7 @@ async def search_docs(body: SearchRequest, request: Request):
 async def get_stats(request: Request):
     """Estadísticas de la base de conocimiento."""
     _require_empresa_access(request)
-    db = _get_db(request)
+    db = get_db(request)
     from services.um_knowledge_service import get_um_knowledge_service
     svc = get_um_knowledge_service()
     return await svc.get_stats(db)

@@ -16,6 +16,73 @@ import { useFavorites } from '../contexts/FavoritesContext';
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL || '';
 const API = `${BACKEND_URL}/api`;
 
+function CompetenciaPanel({ licitacionId }) {
+  const [data, setData] = React.useState(null);
+  const [loading, setLoading] = React.useState(true);
+
+  React.useEffect(() => {
+    fetch(`${API}/adjudicaciones/competencia/${licitacionId}`, { credentials: 'include' })
+      .then(r => r.json())
+      .then(d => { setData(d); setLoading(false); })
+      .catch(() => setLoading(false));
+  }, [licitacionId]);
+
+  const fmtARS = n => n ? new Intl.NumberFormat('es-AR', { style: 'currency', currency: 'ARS', maximumFractionDigits: 0 }).format(n) : '—';
+
+  if (loading) return <div className="py-12 text-center text-gray-400 text-sm">Buscando historial competitivo…</div>;
+  if (!data || !data.proveedores || data.proveedores.length === 0) return (
+    <div className="py-12 text-center text-gray-400 text-sm">
+      <div className="text-3xl mb-3">🏆</div>
+      <p>No se encontraron adjudicaciones similares en la base de datos.</p>
+      <p className="text-xs mt-1">A medida que se indexen más adjudicaciones, aquí aparecerán los competidores habituales.</p>
+    </div>
+  );
+
+  const maxCount = Math.max(...data.proveedores.map(p => p.count));
+
+  return (
+    <div>
+      <h2 className="text-lg font-black text-gray-900 mb-2">Historial competitivo</h2>
+      <p className="text-sm text-gray-500 mb-6">
+        Proveedores que adjudicaron licitaciones similares a <em>"{data.query}"</em> — {data.total_adjudicaciones} registros encontrados.
+      </p>
+      <div className="space-y-3">
+        {data.proveedores.map((p, i) => {
+          const pct = Math.max(4, (p.count / maxCount) * 100);
+          return (
+            <div key={i} className="bg-white border border-gray-100 rounded-xl p-4">
+              <div className="flex items-start justify-between gap-4 mb-2">
+                <div>
+                  <span className="font-semibold text-gray-800 text-sm">{p.adjudicatario}</span>
+                  {p.cuit && <span className="ml-2 text-xs text-gray-400">CUIT: {p.cuit}</span>}
+                </div>
+                <div className="text-right shrink-0">
+                  <div className="text-sm font-bold text-indigo-600">{fmtARS(p.monto_total)}</div>
+                  <div className="text-xs text-gray-400">{p.count} adjudicación{p.count !== 1 ? 'es' : ''}</div>
+                </div>
+              </div>
+              <div className="w-full bg-gray-100 rounded-full h-2 mb-3">
+                <div className="h-2 rounded-full bg-indigo-400 transition-all" style={{ width: `${pct}%` }} />
+              </div>
+              {p.sample && p.sample.length > 0 && (
+                <div className="space-y-1">
+                  {p.sample.map((s, si) => (
+                    <div key={si} className="text-xs text-gray-500 flex gap-2">
+                      <span className="shrink-0 text-gray-300">·</span>
+                      <span className="line-clamp-1">{s.objeto || s.title}</span>
+                      {s.monto > 0 && <span className="shrink-0 font-medium text-gray-600">{fmtARS(s.monto)}</span>}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 function SimilaresTab({ licitacionId }) {
   const [items, setItems] = React.useState([]);
   const [loading, setLoading] = React.useState(true);
@@ -89,6 +156,8 @@ const LicitacionDetailPage = ({ userRole }) => {
   const { nodoMap } = useNodos();
   const { isFavorite, addFavorite, removeFavorite } = useFavorites();
   const isSaved = isFavorite(id);
+  const [aiResumenLoading, setAiResumenLoading] = useState(false);
+  const [aiResumenError, setAiResumenError] = useState(null);
 
   useEffect(() => {
     const fetchLicitacion = async () => {
@@ -146,6 +215,20 @@ const LicitacionDetailPage = ({ userRole }) => {
       });
     } finally {
       setEnriching(false);
+    }
+  };
+
+  const generateAIResumen = async (forceRefresh = false) => {
+    setAiResumenLoading(true);
+    setAiResumenError(null);
+    try {
+      await axios.post(`${API}/cotizar-ai/pliego/${id}/resumen`, { force_refresh: forceRefresh }, { withCredentials: true });
+      const updatedResponse = await axios.get(`${API}/licitaciones/${id}`);
+      setLicitacion(updatedResponse.data);
+    } catch (err) {
+      setAiResumenError(err.response?.data?.detail || 'Error al generar resumen IA');
+    } finally {
+      setAiResumenLoading(false);
     }
   };
 
@@ -577,6 +660,7 @@ const LicitacionDetailPage = ({ userRole }) => {
                 { id: 'pliego_ia', label: '🤖 Pliego IA', show: isAdmin },
                 { id: 'checklist', label: '✅ Checklist', show: isAdmin },
                 { id: 'similares', label: 'Similares' },
+                { id: 'competencia', label: '🏆 Competencia', show: isAdmin },
                 { id: 'ia_pliego', label: '💬 IA del pliego', show: isAdmin },
               ].filter(t => t.show !== false).map(tab => (
                 <button
@@ -656,6 +740,11 @@ const LicitacionDetailPage = ({ userRole }) => {
               </div>
             )}
 
+            {/* Competencia Tab */}
+            {activeTab === 'competencia' && (
+              <CompetenciaPanel licitacionId={id} />
+            )}
+
             {/* Checklist Tab */}
             {activeTab === 'checklist' && (
               <RequisitosChecklist
@@ -665,7 +754,7 @@ const LicitacionDetailPage = ({ userRole }) => {
             )}
 
             {/* All other tabs show the existing grid layout */}
-            <div className={`grid grid-cols-1 lg:grid-cols-3 gap-8 ${activeTab === 'workflow' || activeTab === 'oferta' || activeTab === 'similares' || activeTab === 'pliego_ia' || activeTab === 'checklist' ? 'hidden' : ''}`}>
+            <div className={`grid grid-cols-1 lg:grid-cols-3 gap-8 ${activeTab === 'workflow' || activeTab === 'oferta' || activeTab === 'similares' || activeTab === 'pliego_ia' || activeTab === 'checklist' || activeTab === 'competencia' ? 'hidden' : ''}`}>
               {/* Left Column - Main Info */}
               <div className="lg:col-span-2 space-y-8">
                 {/* Información General */}
@@ -960,27 +1049,55 @@ const LicitacionDetailPage = ({ userRole }) => {
                       </span>
                       Pliego de Bases y Condiciones
                     </h2>
+                    {/* Dead link warning banner */}
+                    {licitacion.metadata?.link_dead_at && (
+                      <div className="mb-3 flex items-start gap-2 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 text-sm text-amber-800">
+                        <svg className="w-4 h-4 mt-0.5 flex-shrink-0 text-amber-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                        </svg>
+                        <span>El enlace de COMPR.AR expiró — los tokens <code>qs=</code> se invalidan cada ~24-48hs. Se renovará automáticamente en el próximo ciclo de scraping (5am).</span>
+                      </div>
+                    )}
                     <div className="space-y-2">
-                      {licitacion.pliegos_bases.map((pliego, idx) => (
-                        <div key={idx} className="bg-blue-50 rounded-xl p-4 border border-blue-100">
-                          <p className="font-bold text-blue-800">{pliego.documento}</p>
-                          {pliego.disposicion && (
-                            <p className="text-sm text-blue-600 mt-1">Disposición: {pliego.disposicion}</p>
-                          )}
-                          {pliego.fecha_creacion && (
-                            <p className="text-xs text-blue-500 mt-1">Fecha: {pliego.fecha_creacion}</p>
-                          )}
-                          {pliego.url && (
-                            <a href={pliego.url} target="_blank" rel="noopener noreferrer"
-                               className="inline-flex items-center gap-1 mt-2 text-sm text-blue-600 hover:text-blue-800">
-                              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
-                              </svg>
-                              Ver documento
-                            </a>
-                          )}
-                        </div>
-                      ))}
+                      {licitacion.pliegos_bases.map((pliego, idx) => {
+                        const isDead = !!licitacion.metadata?.link_dead_at && pliego.fuente === 'comprar_ar';
+                        const isComprar = pliego.fuente === 'comprar_ar';
+                        const label = pliego.titulo || pliego.documento || pliego.url?.split('/').pop() || 'Pliego';
+                        return (
+                          <div key={idx} className={`rounded-xl p-4 border ${isDead ? 'bg-gray-50 border-gray-200' : 'bg-blue-50 border-blue-100'}`}>
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <p className={`font-semibold text-sm ${isDead ? 'text-gray-500' : 'text-blue-800'}`}>{label}</p>
+                              {pliego.tipo && (
+                                <span className={`text-xs px-1.5 py-0.5 rounded font-mono ${isDead ? 'bg-gray-200 text-gray-500' : 'bg-blue-200 text-blue-700'}`}>
+                                  {pliego.tipo}
+                                </span>
+                              )}
+                              {isDead && (
+                                <span className="text-xs px-1.5 py-0.5 rounded bg-amber-100 text-amber-700 font-medium">
+                                  ⚠ expirado
+                                </span>
+                              )}
+                              {isComprar && !isDead && (
+                                <span className="text-xs text-blue-400" title="Los enlaces de COMPR.AR pueden expirar a las 24-48hs">
+                                  ⏱ caduca
+                                </span>
+                              )}
+                            </div>
+                            {pliego.url && !isDead && (
+                              <a href={pliego.url} target="_blank" rel="noopener noreferrer"
+                                 className="inline-flex items-center gap-1 mt-2 text-sm text-blue-600 hover:text-blue-800">
+                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                                </svg>
+                                Ver {pliego.tipo === 'HTML' ? 'pliego en línea' : pliego.tipo === 'ZIP' ? 'descargar ZIP' : 'documento'}
+                              </a>
+                            )}
+                            {isDead && (
+                              <p className="mt-1 text-xs text-gray-400">Enlace no disponible — se renovará automáticamente</p>
+                            )}
+                          </div>
+                        );
+                      })}
                     </div>
                   </section>
                 )}
@@ -1125,6 +1242,115 @@ const LicitacionDetailPage = ({ userRole }) => {
                     </div>
                   </section>
                 )}
+
+                {/* Resumen IA del Pliego — admin only */}
+                {isAdmin && (() => {
+                  const iaResumen = licitacion.metadata?.ia_resumen;
+                  return (
+                    <section className="bg-gradient-to-r from-violet-50 to-purple-50 rounded-2xl p-6 border border-violet-200">
+                      <div className="flex items-center justify-between mb-4">
+                        <h2 className="text-lg font-black text-gray-900 flex items-center">
+                          <span className="w-8 h-8 rounded-xl bg-violet-100 text-violet-600 flex items-center justify-center mr-3">
+                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+                            </svg>
+                          </span>
+                          Resumen IA del Pliego
+                          {licitacion.metadata?.ia_resumen_provider && (
+                            <span className="ml-2 text-xs font-normal text-violet-400">via {licitacion.metadata.ia_resumen_provider}</span>
+                          )}
+                        </h2>
+                        {iaResumen && (
+                          <button
+                            onClick={() => generateAIResumen(true)}
+                            disabled={aiResumenLoading}
+                            className="text-xs text-violet-500 hover:text-violet-700 underline shrink-0"
+                          >
+                            Regenerar
+                          </button>
+                        )}
+                      </div>
+
+                      {aiResumenLoading && (
+                        <div className="flex items-center gap-3 py-8 text-gray-400 text-sm justify-center">
+                          <div className="w-4 h-4 border-2 border-violet-200 border-t-violet-500 rounded-full animate-spin" />
+                          Analizando pliego con IA...
+                        </div>
+                      )}
+
+                      {aiResumenError && (
+                        <div className="text-sm text-red-600 bg-red-50 rounded-lg p-3 mb-3">
+                          {aiResumenError}
+                        </div>
+                      )}
+
+                      {!aiResumenLoading && iaResumen ? (
+                        <div className="space-y-4">
+                          {iaResumen.documentacion_requerida?.length > 0 && (
+                            <div>
+                              <p className="text-xs font-bold text-violet-600 uppercase tracking-wider mb-2">Documentacion Requerida</p>
+                              <ul className="space-y-1.5">
+                                {iaResumen.documentacion_requerida.map((d, i) => (
+                                  <li key={i} className="flex gap-2 text-sm text-gray-700">
+                                    <span className="text-violet-400 mt-0.5 shrink-0">&#8226;</span>
+                                    <span>{d}</span>
+                                  </li>
+                                ))}
+                              </ul>
+                            </div>
+                          )}
+
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                            {iaResumen.plazo_entrega && iaResumen.plazo_entrega !== 'No se especifica' && (
+                              <div className="bg-white/60 rounded-xl p-3">
+                                <p className="text-xs font-bold text-violet-500 uppercase mb-0.5">Plazo de Entrega</p>
+                                <p className="text-sm text-gray-800">{iaResumen.plazo_entrega}</p>
+                              </div>
+                            )}
+                            {iaResumen.lugar_entrega && iaResumen.lugar_entrega !== 'No se especifica' && (
+                              <div className="bg-white/60 rounded-xl p-3">
+                                <p className="text-xs font-bold text-violet-500 uppercase mb-0.5">Lugar de Entrega</p>
+                                <p className="text-sm text-gray-800">{iaResumen.lugar_entrega}</p>
+                              </div>
+                            )}
+                            {iaResumen.garantia_mantenimiento_oferta && iaResumen.garantia_mantenimiento_oferta !== 'No se especifica' && (
+                              <div className="bg-white/60 rounded-xl p-3">
+                                <p className="text-xs font-bold text-violet-500 uppercase mb-0.5">Garantia de Oferta</p>
+                                <p className="text-sm text-gray-800">{iaResumen.garantia_mantenimiento_oferta}</p>
+                              </div>
+                            )}
+                            {(iaResumen.contactos?.email || iaResumen.contactos?.telefono) && (
+                              <div className="bg-white/60 rounded-xl p-3">
+                                <p className="text-xs font-bold text-violet-500 uppercase mb-0.5">Contactos</p>
+                                <p className="text-sm text-gray-800">
+                                  {[iaResumen.contactos.email, iaResumen.contactos.telefono].filter(Boolean).join(' | ')}
+                                </p>
+                              </div>
+                            )}
+                          </div>
+
+                          {iaResumen.observaciones && (
+                            <div className="bg-amber-50 border border-amber-200 rounded-xl p-4">
+                              <p className="text-xs font-bold text-amber-600 uppercase tracking-wider mb-1">Observaciones</p>
+                              <p className="text-sm text-amber-800">{iaResumen.observaciones}</p>
+                            </div>
+                          )}
+                        </div>
+                      ) : !aiResumenLoading && (
+                        <div className="text-center py-4">
+                          <p className="text-sm text-gray-500 mb-3">Genera un resumen automatico del pliego con IA</p>
+                          <button
+                            onClick={() => generateAIResumen(false)}
+                            disabled={aiResumenLoading}
+                            className="px-4 py-2 bg-violet-600 text-white text-sm rounded-lg hover:bg-violet-700 transition-colors disabled:opacity-50"
+                          >
+                            Generar resumen IA
+                          </button>
+                        </div>
+                      )}
+                    </section>
+                  );
+                })()}
 
                 {/* Contacto */}
                 {licitacion.contact && (

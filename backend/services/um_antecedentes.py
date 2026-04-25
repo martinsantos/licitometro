@@ -22,7 +22,7 @@ logger = logging.getLogger("um_antecedentes")
 
 # SGI API config
 SGI_API_URL = os.getenv("SGI_API_URL", "https://sgi.ultimamilla.com.ar/api/bot/proyectos")
-SGI_API_KEY = os.getenv("SGI_API_KEY", "um_bot_2026_secret_key_here")
+SGI_API_KEY = os.getenv("SGI_API_KEY", "")
 
 # Website
 WEBSITE_BASE = "https://ultimamilla.com.ar"

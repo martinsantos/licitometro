@@ -156,7 +156,8 @@ async def list_documentos(
     for d in docs:
         d["id"] = str(d.pop("_id"))
 
-    return {"total": total, "page": page, "size": size, "items": docs}
+    from utils.pagination import paginated_response
+    return paginated_response(docs, total, page, size)
 
 
 # ── Match doc ↔ licitación ────────────────────────────────────────────────────

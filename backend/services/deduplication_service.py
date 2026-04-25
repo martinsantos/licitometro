@@ -7,6 +7,7 @@ Uses multiple matching strategies: expedient number, licitacion number, and fuzz
 
 import hashlib
 import logging
+import os
 from typing import List, Optional, Tuple, Dict, Any
 from datetime import datetime, timedelta
 from difflib import SequenceMatcher
@@ -32,10 +33,10 @@ class DeduplicationService:
     """Service for deduplicating licitaciones"""
     
     # Similarity threshold for fuzzy matching (0-100)
-    SIMILARITY_THRESHOLD = 85
-    
+    SIMILARITY_THRESHOLD = int(os.getenv("DEDUP_SIMILARITY_THRESHOLD", "85"))
+
     # Maximum days difference for considering same publication
-    MAX_DAYS_DIFFERENCE = 7
+    MAX_DAYS_DIFFERENCE = int(os.getenv("DEDUP_MAX_DAYS_DIFFERENCE", "7"))
     
     def __init__(self, database: AsyncIOMotorDatabase):
         self.db = database

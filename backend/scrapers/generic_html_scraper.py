@@ -202,8 +202,30 @@ class GenericHtmlScraper(BaseScraper):
                     "name": a.get_text(strip=True) or href.split("/")[-1],
                     "url": urljoin(url, href),
                     "type": href.rsplit(".", 1)[-1].lower() if "." in href else "unknown",
-                    "filename": href.split("/")[-1],  # For date extraction
+                    "filename": href.split("/")[-1],
                 })
+
+        # Promote pliego-related files to pliegos_bases
+        _PLIEGO_KW = {"pliego", "bases", "condicion", "plieg", "bases_y_cond", "licitacion", "bases_condiciones"}
+        pliegos_bases = []
+        for f in attached_files:
+            needle = (f.get("name", "") + " " + f.get("url", "") + " " + f.get("filename", "")).lower()
+            if any(kw in needle for kw in _PLIEGO_KW):
+                pliegos_bases.append({
+                    "url": f["url"],
+                    "titulo": f.get("name") or f.get("filename", ""),
+                    "tipo": (f.get("type") or "pdf").upper(),
+                    "fuente": "web",
+                })
+        # If nothing matched keywords but there's only one PDF, treat it as the pliego
+        if not pliegos_bases and len(attached_files) == 1:
+            f = attached_files[0]
+            pliegos_bases.append({
+                "url": f["url"],
+                "titulo": f.get("name") or f.get("filename", ""),
+                "tipo": (f.get("type") or "pdf").upper(),
+                "fuente": "web",
+            })
 
         # VIGENCIA MODEL: Resolve dates with multi-source fallback
         publication_date = self._resolve_publication_date(
@@ -244,6 +266,7 @@ class GenericHtmlScraper(BaseScraper):
             tipo_acceso="Portal Web",
             fecha_scraping=utc_now(),
             attached_files=attached_files,
+            pliegos_bases=pliegos_bases,
             content_hash=self._content_hash(title, publication_date),
             budget=budget,
             currency=currency if budget else None,

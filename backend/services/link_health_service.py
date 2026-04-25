@@ -68,20 +68,55 @@ async def _probe_one(session: aiohttp.ClientSession, url: str) -> Dict[str, Any]
         return {"alive": False, "status": 0, "reason": f"error: {type(e).__name__}"}
 
 
-async def _try_reresolve(numero_proceso: str, host_hint: str) -> Optional[str]:
-    """Best-effort re-resolution: ask the scraper's pliego URL cache to look up
-    a fresh qs= token for this numero. Currently uses the existing
-    PliegoURLCache mechanism via the comprar router; falls back to None.
+async def _try_reresolve(
+    numero_proceso: str,
+    host_hint: str,
+    doc: Optional[Dict[str, Any]] = None,
+    db=None,
+) -> Optional[str]:
+    """Best-effort re-resolution. Priority:
+    1. PliegoURLCache (last scrape result for this numero)
+    2. ComprasApps hli00048 URL from a cross-source merged doc
     """
+    # 1. PliegoURLCache — fastest, uses last scraper run
     try:
         from scrapers.mendoza_compra_v2 import PliegoURLCache
         cache = PliegoURLCache()
-        # cache lookup is keyed by numero — if a recent scrape resolved it, use that
+        # Invalidate dead entry so next scrape re-fetches
+        cache.invalidate(numero_proceso)
         cached = cache.get(numero_proceso)
-        if cached:
+        if cached and "VistaPreviaPliegoCiudadano" in cached:
             return cached
     except Exception as e:
-        logger.debug(f"re-resolve failed for {numero_proceso}: {e}")
+        logger.debug(f"PliegoURLCache re-resolve failed for {numero_proceso}: {e}")
+
+    # 2. ComprasApps fallback — if this doc was merged with ComprasApps,
+    #    use the hli00048 detail URL as a stable permanent fallback
+    if db is not None and doc is not None:
+        try:
+            fuentes = doc.get("fuentes") or []
+            cross_merges = (doc.get("metadata") or {}).get("cross_source_merges") or []
+            comprasapps_ids = [
+                m["from_id"] for m in cross_merges
+                if m.get("from_fuente") == "ComprasApps Mendoza" and m.get("from_id")
+            ]
+            if "ComprasApps Mendoza" in fuentes and comprasapps_ids:
+                from bson import ObjectId
+                for cid in comprasapps_ids[:2]:
+                    ca_doc = await db.licitaciones.find_one(
+                        {"_id": ObjectId(cid)},
+                        {"metadata": 1, "canonical_url": 1},
+                    )
+                    if not ca_doc:
+                        continue
+                    ca_meta = ca_doc.get("metadata") or {}
+                    hli_url = ca_meta.get("comprasapps_detail_url") or ""
+                    if hli_url and "hli00048" in hli_url:
+                        logger.info(f"Re-resolved {numero_proceso} → ComprasApps {hli_url}")
+                        return hli_url
+        except Exception as e:
+            logger.debug(f"ComprasApps fallback re-resolve failed: {e}")
+
     return None
 
 
@@ -140,8 +175,8 @@ async def check_comprar_links(db: AsyncIOMotorDatabase, max_items: int = 500) ->
                     numero = it.get("licitacion_number") or ""
                     if numero:
                         host_hint = "mendoza" if "mendoza" in str(it.get("canonical_url", "")) else "nacional"
-                        candidate = await _try_reresolve(numero, host_hint)
-                        if candidate and "VistaPreviaPliegoCiudadano" in candidate:
+                        candidate = await _try_reresolve(numero, host_hint, doc=it, db=db)
+                        if candidate:
                             new_url = candidate
                             summary["rerolved"] += 1
 

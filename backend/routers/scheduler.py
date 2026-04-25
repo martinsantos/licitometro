@@ -413,3 +413,38 @@ async def get_cross_source_duplicates(request: Request):
         return {"total": len(dupes), "duplicates": dupes}
     except Exception as e:
         return {"error": str(e)}
+
+
+@router.get("/health")
+async def get_scraper_health(request: Request, days: int = Query(7, ge=1, le=90)):
+    """Health dashboard: success rates, circuit breakers, items/day per scraper."""
+    db = request.app.mongodb
+    from services.scraper_health_monitor import get_scraper_health_monitor
+    monitor = get_scraper_health_monitor(db)
+    return await monitor.get_health_report(days=days)
+
+
+@router.get("/health/circuit-breakers")
+async def get_circuit_breakers(request: Request):
+    """List all circuit breaker states."""
+    db = request.app.mongodb
+    from services.scraper_health_monitor import get_scraper_health_monitor
+    monitor = get_scraper_health_monitor(db)
+    configs = await db.scraper_configs.find(
+        {"active": True}, {"name": 1}
+    ).to_list(200)
+    states = {}
+    for cfg in configs:
+        name = cfg["name"]
+        states[name] = await monitor.get_circuit_state(name)
+    return {"circuit_breakers": states}
+
+
+@router.post("/health/circuit-breakers/{scraper_name}/reset")
+async def reset_circuit_breaker(scraper_name: str, request: Request):
+    """Manually reset a circuit breaker (closed state, 0 failures)."""
+    db = request.app.mongodb
+    from services.scraper_health_monitor import get_scraper_health_monitor
+    monitor = get_scraper_health_monitor(db)
+    await monitor.record_success(scraper_name)
+    return {"ok": True, "scraper": scraper_name, "state": "closed"}

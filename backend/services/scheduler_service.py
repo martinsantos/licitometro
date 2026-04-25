@@ -7,6 +7,7 @@ Tracks execution history and provides monitoring capabilities.
 
 import asyncio
 import logging
+import os
 import re
 from datetime import datetime, timedelta
 from typing import Optional, List, Dict, Any
@@ -43,7 +44,7 @@ class SchedulerService:
         self._active_jobs: Dict[str, str] = {}  # scraper_name -> job_id
         # Global concurrency limit: max 6 scrapers running simultaneously.
         # Prevents network overload when many scrapers fire at the same cron hour.
-        self._scraper_semaphore = asyncio.Semaphore(6)
+        self._scraper_semaphore = asyncio.Semaphore(int(os.getenv("SCRAPER_MAX_CONCURRENCY", "6")))
         
     async def initialize(self):
         """Initialize the scheduler"""
@@ -300,6 +301,19 @@ class SchedulerService:
                 logger.info(msg)
         
         try:
+            # Circuit breaker check — prevent execution when circuit is open
+            from services.scraper_health_monitor import get_scraper_health_monitor
+            health = get_scraper_health_monitor(self.db)
+            if await health.is_circuit_open(scraper_name):
+                cooldown_msg = f"Circuit breaker OPEN — skipping execution of '{scraper_name}'"
+                log(cooldown_msg, "warning")
+                await runs_collection.update_one(
+                    {"_id": ObjectId(run_id)},
+                    {"$set": {"status": "skipped", "error_message": cooldown_msg,
+                              "started_at": start_time, "ended_at": utc_now(), "duration_seconds": 0}}
+                )
+                return
+
             # Update status to running
             await runs_collection.update_one(
                 {"_id": ObjectId(run_id)},
@@ -660,6 +674,12 @@ class SchedulerService:
                     {"name": scraper_name, "needs_repair": True},
                     {"$unset": {"needs_repair": "", "needs_repair_since": ""}}
                 )
+
+            # Circuit breaker: record success or failure
+            if status == "success":
+                await health.record_success(scraper_name)
+            elif status in ("failed", "empty_suspicious"):
+                await health.record_failure(scraper_name)
 
             log(f"Scraper '{scraper_name}' completed. Found: {items_found}, Saved: {items_saved}, Updated: {items_updated}, Unchanged: {items_unchanged}, Dupes skipped: {duplicates_skipped}")
 

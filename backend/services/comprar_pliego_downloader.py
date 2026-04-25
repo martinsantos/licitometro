@@ -155,6 +155,63 @@ class ComprarPliegoDownloader:
 
         return downloaded
 
+    async def download_pliego_pdf(self, pliego_url: str) -> Optional[bytes]:
+        """Download the main pliego PDF from a VistaPreviaPliego URL and return raw bytes.
+
+        Handles login, pliego page access, anexo discovery, and postback download.
+        Returns None if any step fails. Does NOT save to disk.
+        """
+        parsed = urlparse(pliego_url)
+        self.base_url = f"{parsed.scheme}://{parsed.netloc}"
+        self.domain = parsed.netloc
+
+        await self._load_credentials()
+        if not self.user or not self.password:
+            logger.warning(f"No credentials for {self.domain} — cannot download pliego")
+            return None
+
+        internal_url = pliego_url.replace("VistaPreviaPliegoCiudadano.aspx", "PLIEGO/VistaPreviaPliego.aspx")
+        if "PLIEGO/VistaPreviaPliego" not in internal_url:
+            qs_match = re.search(r'qs=([^&]+)', pliego_url)
+            if qs_match:
+                internal_url = f"{self.base_url}/PLIEGO/VistaPreviaPliego.aspx?qs={qs_match.group(1)}"
+            else:
+                return None
+
+        connector = aiohttp.TCPConnector(ssl=False)
+        timeout = aiohttp.ClientTimeout(total=60)
+
+        async with aiohttp.ClientSession(connector=connector, timeout=timeout) as session:
+            try:
+                if not await self._login(session):
+                    return None
+
+                async with session.get(internal_url) as resp:
+                    if resp.status != 200:
+                        logger.warning(f"Pliego page returned {resp.status}")
+                        return None
+                    html = (await resp.read()).decode("utf-8", errors="replace")
+
+                soup = BeautifulSoup(html, "html.parser")
+                anexos = self._find_anexos(soup)
+                if not anexos:
+                    return None
+
+                hidden_fields = self._extract_hidden_fields(soup)
+
+                for anexo in anexos:
+                    await asyncio.sleep(self.AUTH_DELAY)
+                    pdf_bytes = await self._download_anexo(
+                        session, internal_url, hidden_fields, anexo["postback_target"]
+                    )
+                    if pdf_bytes and pdf_bytes[:4] == b"%PDF":
+                        return pdf_bytes
+
+                return None
+            except Exception as e:
+                logger.error(f"download_pliego_pdf failed: {e}")
+                return None
+
     async def search_by_number_authenticated(self, numero: str, domain: str = "comprar.mendoza.gov.ar") -> Optional[str]:
         """Search COMPR.AR by process number using AUTHENTICATED session.
 

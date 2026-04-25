@@ -133,6 +133,19 @@ class ResilientHttpClient:
                 connector=connector,
             )
 
+    async def post(self, url: str, data: Dict = None, **kwargs) -> Optional[str]:
+        """Convenience wrapper for POST requests with form data.
+
+        Sets Content-Type header automatically for form-encoded POSTs.
+        Uses the same retry/backoff/circuit-breaker/proxy logic as fetch().
+        """
+        if data:
+            headers = kwargs.pop("headers", {})
+            headers.setdefault("Content-Type", "application/x-www-form-urlencoded")
+            kwargs["headers"] = headers
+            kwargs["data"] = data
+        return await self.fetch(url, method="POST", **kwargs)
+
     async def fetch(self, url: str, method: str = "GET", **kwargs) -> Optional[str]:
         """Fetch a URL with retries, backoff, and anti-ban protections."""
         await self._ensure_session()

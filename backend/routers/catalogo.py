@@ -57,7 +57,8 @@ async def list_catalogo(
 
     cursor = db.catalogo_productos.find(query, projection).sort(sort).skip(skip).limit(limit)
     docs = await cursor.to_list(length=limit)
-    return {"items": [catalogo_entity(d) for d in docs], "total": total, "page": page}
+    from utils.pagination import paginated_response
+    return paginated_response([catalogo_entity(d) for d in docs], total, page, limit)
 
 
 @router.post("")

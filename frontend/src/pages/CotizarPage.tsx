@@ -114,6 +114,8 @@ function MisCotizacionesTab({ onSelect }: { onSelect: (id: string) => void }) {
   const [changingStatus, setChangingStatus] = useState<string | null>(null);
   const [notasModal, setNotasModal] = useState<{ id: string; status: string } | null>(null);
   const [notasText, setNotasText] = useState('');
+  const [hitosModal, setHitosModal] = useState<{ licId: string; hitos: any[] } | null>(null);
+  const [savingHitos, setSavingHitos] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -156,6 +158,32 @@ function MisCotizacionesTab({ onSelect }: { onSelect: (id: string) => void }) {
       }
     } catch { /* silent */ }
     finally { setChangingStatus(null); }
+  };
+
+  const openHitos = (cot: MongoCotizacion) => {
+    setHitosModal({ licId: cot.licitacion_id, hitos: (cot as any).hitos || [] });
+  };
+
+  const saveHitos = async () => {
+    if (!hitosModal) return;
+    setSavingHitos(true);
+    try {
+      await fetch(`${BACKEND_URL}/api/cotizaciones/${hitosModal.licId}/hitos`, {
+        method: 'PATCH',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ hitos: hitosModal.hitos }),
+      });
+      setAll(prev => prev.map(c => c.licitacion_id === hitosModal.licId ? { ...c, hitos: hitosModal.hitos } as any : c));
+      setHitosModal(null);
+    } catch { /* silent */ }
+    finally { setSavingHitos(false); }
+  };
+
+  const addHito = () => {
+    if (!hitosModal) return;
+    const today = new Date().toISOString().split('T')[0];
+    setHitosModal(h => h ? { ...h, hitos: [...h.hitos, { id: '', titulo: '', fecha: today, completado: false, notas: '' }] } : h);
   };
 
   const handleStatusSelect = (licId: string, newStatus: string) => {
@@ -313,6 +341,14 @@ function MisCotizacionesTab({ onSelect }: { onSelect: (id: string) => void }) {
                 >
                   XLSX
                 </a>
+                {cot.status === 'adjudicada' && (
+                  <button
+                    onClick={() => openHitos(cot)}
+                    className="text-xs px-3 py-1 border border-indigo-200 text-indigo-700 rounded-lg hover:bg-indigo-50 transition-colors"
+                  >
+                    📅 Hitos
+                  </button>
+                )}
               </div>
             </div>
           );
@@ -348,6 +384,66 @@ function MisCotizacionesTab({ onSelect }: { onSelect: (id: string) => void }) {
                 className="text-sm px-4 py-1.5 bg-gray-800 text-white rounded-lg hover:bg-gray-900"
               >
                 Confirmar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Hitos modal */}
+      {hitosModal && (
+        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-xl w-full max-w-lg shadow-xl flex flex-col max-h-[80vh]">
+            <div className="p-5 border-b border-gray-100 flex justify-between items-center">
+              <h3 className="font-bold text-gray-800">📅 Hitos post-adjudicación</h3>
+              <button onClick={() => setHitosModal(null)} className="text-gray-400 hover:text-gray-600 text-lg">✕</button>
+            </div>
+            <div className="flex-1 overflow-y-auto p-5 space-y-3">
+              {hitosModal.hitos.length === 0 && (
+                <p className="text-sm text-gray-400 text-center py-4">Sin hitos todavía. Agregá el primero.</p>
+              )}
+              {hitosModal.hitos.map((h, i) => (
+                <div key={i} className="flex gap-2 items-start bg-gray-50 rounded-lg p-3">
+                  <input
+                    type="checkbox"
+                    checked={h.completado}
+                    onChange={e => setHitosModal(m => m ? { ...m, hitos: m.hitos.map((x, xi) => xi === i ? { ...x, completado: e.target.checked } : x) } : m)}
+                    className="mt-1"
+                  />
+                  <div className="flex-1 space-y-1.5">
+                    <input
+                      value={h.titulo}
+                      onChange={e => setHitosModal(m => m ? { ...m, hitos: m.hitos.map((x, xi) => xi === i ? { ...x, titulo: e.target.value } : x) } : m)}
+                      placeholder="Título del hito"
+                      className="w-full text-sm border border-gray-200 rounded px-2 py-1 focus:outline-none focus:ring-1 focus:ring-indigo-400"
+                    />
+                    <input
+                      type="date"
+                      value={h.fecha}
+                      onChange={e => setHitosModal(m => m ? { ...m, hitos: m.hitos.map((x, xi) => xi === i ? { ...x, fecha: e.target.value } : x) } : m)}
+                      className="text-sm border border-gray-200 rounded px-2 py-1 focus:outline-none focus:ring-1 focus:ring-indigo-400"
+                    />
+                  </div>
+                  <button
+                    onClick={() => setHitosModal(m => m ? { ...m, hitos: m.hitos.filter((_, xi) => xi !== i) } : m)}
+                    className="text-red-400 hover:text-red-600 text-xs mt-1"
+                  >✕</button>
+                </div>
+              ))}
+              <button onClick={addHito} className="w-full text-sm py-2 border border-dashed border-indigo-300 text-indigo-600 rounded-lg hover:bg-indigo-50 transition-colors">
+                + Agregar hito
+              </button>
+            </div>
+            <div className="p-4 border-t border-gray-100 flex justify-end gap-2">
+              <button onClick={() => setHitosModal(null)} className="text-sm px-3 py-1.5 text-gray-600 border border-gray-200 rounded-lg hover:bg-gray-50">
+                Cancelar
+              </button>
+              <button
+                onClick={saveHitos}
+                disabled={savingHitos}
+                className="text-sm px-4 py-1.5 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:opacity-60"
+              >
+                {savingHitos ? 'Guardando...' : 'Guardar hitos'}
               </button>
             </div>
           </div>

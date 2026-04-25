@@ -53,6 +53,8 @@ from .santa_fe_scraper import SantaFeScraper
 from .contratar_gob_ar_scraper import ContratarGobArScraper
 from .boletin_oficial_nacional_scraper import BoletinOficialNacionalScraper
 from .pbac_buenos_aires_scraper import PbacBuenosAiresScraper
+from .bac_scraper import BACScraper
+from .pjn_scraper import PJNScraper
 
 logger = logging.getLogger("scraper_factory")
 
@@ -184,6 +186,16 @@ def create_scraper(config: ScraperConfig) -> Optional[BaseScraper]:
     if "boletinoficial.gob.ar" in config_url_lower or "boletin_oficial_nacional" in config_name_lower:
         logger.info(f"Using BoletinOficialNacionalScraper for {config.name}")
         return BoletinOficialNacionalScraper(config)
+
+    # BAC Buenos Aires (Buenos Aires Compras — COMPR.AR engine at bac.buyarg.com)
+    if "bac.buyarg.com" in config_url_lower or "bac_buenos_aires" in config_name_lower:
+        logger.info(f"Using BACScraper for {config.name}")
+        return BACScraper(config)
+
+    # Magistratura PJN (srpcm.pjn.gov.ar)
+    if "srpcm.pjn.gov.ar" in config_url_lower or "magistratura_pjn" in config_name_lower or "pjn" in config_name_lower:
+        logger.info(f"Using PJNScraper for {config.name}")
+        return PJNScraper(config)
 
     # PBAC Buenos Aires
     if "pbac.cgp.gba.gov.ar" in config_url_lower or "pbac" in config_name_lower:

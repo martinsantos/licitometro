@@ -2,46 +2,45 @@
 Scraper for COMPR.AR Nacional (comprar.gob.ar).
 
 Same ASP.NET WebForms platform as COMPR.AR Mendoza.
-HTTP-only — no Selenium. Handles 503 gracefully.
+HTTP-only — no Selenium. Uses ResilientHttpClient with circuit breaker,
+IPv6 routing, and User-Agent rotation to bypass datacenter IP blocking.
 
 Strategies:
 1. Primary: ASP.NET postback on comprar.gob.ar/Compras.aspx
-2. If 503: log warning, return empty (site may be blocking datacenter IPs)
-
-The scraper will automatically start returning data when the site becomes accessible.
+2. If 503: circuit breaker trips, scraper returns empty gracefully
 """
 
 from typing import List, Dict, Any, Optional
 import asyncio
 import logging
 from bs4 import BeautifulSoup
-from urllib.parse import urljoin, quote_plus
+from urllib.parse import urljoin
 from datetime import datetime, timedelta
 from utils.time import utc_now
 import re
 import uuid
 import sys
 import hashlib
-import json
 from pathlib import Path
-import os
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from models.scraper_config import ScraperConfig
 from models.licitacion import LicitacionCreate
-from scrapers.base_scraper import BaseScraper
+from scrapers.comprar_asp_base import ComprarASPBaseScraper
 from utils.dates import parse_date_guess
 
 logger = logging.getLogger("scraper.comprar_nacional")
 
-# COMPR.AR Nacional base
 COMPRAR_BASE = "https://comprar.gob.ar"
 COMPRAS_LIST = f"{COMPRAR_BASE}/Compras.aspx"
 
 
-class ComprarNacionalScraper(BaseScraper):
+class ComprarNacionalScraper(ComprarASPBaseScraper):
     """HTTP-only scraper for COMPR.AR Nacional (comprar.gob.ar)."""
+
+    # Override in subclasses for different COMPR.AR instances (BAC, etc.)
+    compra_base_url: str = COMPRAR_BASE
 
     def __init__(self, config: ScraperConfig):
         super().__init__(config)
@@ -53,102 +52,27 @@ class ComprarNacionalScraper(BaseScraper):
         }
 
     # ------------------------------------------------------------------
-    # ASP.NET postback helpers (same as Mendoza v2)
+    # Grid detection — nacional has wider grid IDs + fallback
     # ------------------------------------------------------------------
 
-    def _extract_hidden_fields(self, html: str) -> Dict[str, str]:
-        soup = BeautifulSoup(html, 'html.parser')
-        fields: Dict[str, str] = {}
-        for name in ["__VIEWSTATE", "__EVENTVALIDATION", "__VIEWSTATEGENERATOR",
-                      "__EVENTTARGET", "__EVENTARGUMENT"]:
-            inp = soup.find('input', {'name': name})
-            if inp and inp.get('value') is not None:
-                fields[name] = inp.get('value')
-        for inp in soup.find_all('input', {'type': 'hidden'}):
-            name = inp.get('name')
-            if name and name not in fields:
-                fields[name] = inp.get('value', '')
-        return fields
+    def _find_grid_table(self, html: str) -> Optional[BeautifulSoup]:
+        """Find grid table with nacional-specific patterns + fallback."""
+        # Try base class patterns first (includes all known COMPR.AR grid IDs)
+        table = super()._find_grid_table(html)
+        if table:
+            return table
 
-    def _extract_rows_from_list(self, html: str) -> List[Dict[str, Any]]:
-        """Extract row data from the Compras list table.
+        # Fallback: any table with >3 rows
+        soup = BeautifulSoup(html, "html.parser")
+        for t in soup.find_all("table"):
+            rows = t.find_all("tr")
+            if len(rows) > 3:
+                return t
+        return None
 
-        The grid ID may vary — try multiple known patterns.
-        """
-        soup = BeautifulSoup(html, 'html.parser')
-
-        # Try known grid IDs (COMPR.AR uses variations)
-        grid_ids = [
-            re.compile(r'GridListaPliegosAperturaProxima'),
-            re.compile(r'GridListaPliegos'),
-            re.compile(r'grdListadoProcesos'),
-            re.compile(r'GridListaProcesos'),
-        ]
-
-        table = None
-        for grid_re in grid_ids:
-            table = soup.find('table', {'id': grid_re})
-            if table:
-                break
-
-        if not table:
-            # Fallback: find any large data table
-            for t in soup.find_all('table'):
-                rows = t.find_all('tr')
-                if len(rows) > 3:
-                    table = t
-                    break
-
-        if not table:
-            return []
-
-        rows = []
-        for row in table.find_all('tr'):
-            cols = row.find_all('td')
-            if len(cols) < 4:
-                continue
-            link = cols[0].find('a', href=True)
-            target = None
-            if link:
-                m = re.search(r"__doPostBack\('([^']+)'\s*,\s*'([^']*)'\)", link.get('href', ''))
-                if m:
-                    target = m.group(1)
-            numero = cols[0].get_text(' ', strip=True)
-            # Skip pager navigation rows (e.g. "1 2 3 4 5 6 7 8 9 10")
-            if re.match(r'^[\d\s.…]+$', numero.strip()):
-                continue
-            title = cols[1].get_text(' ', strip=True) if len(cols) > 1 else ""
-            tipo = cols[2].get_text(' ', strip=True) if len(cols) > 2 else ""
-            apertura = cols[3].get_text(' ', strip=True) if len(cols) > 3 else ""
-            estado = cols[4].get_text(' ', strip=True) if len(cols) > 4 else ""
-            unidad = cols[5].get_text(' ', strip=True) if len(cols) > 5 else None
-            servicio_admin = cols[6].get_text(' ', strip=True) if len(cols) > 6 else None
-            rows.append({
-                "target": target,
-                "numero": numero,
-                "title": title,
-                "tipo": tipo,
-                "apertura": apertura,
-                "estado": estado,
-                "unidad": unidad,
-                "servicio_admin": servicio_admin,
-            })
-        return rows
-
-    def _extract_pager_args(self, html: str) -> Dict[str, List[str]]:
-        soup = BeautifulSoup(html, 'html.parser')
-        pages: Dict[str, List[str]] = {}
-        for a in soup.find_all('a', href=True):
-            href = a.get('href', '')
-            m = re.search(r"__doPostBack\('([^']+)'\s*,\s*'([^']*)'\)", href)
-            if not m:
-                continue
-            target, arg = m.group(1), m.group(2)
-            if arg.startswith("Page$"):
-                pages.setdefault(target, []).append(arg)
-        for k, v in list(pages.items()):
-            pages[k] = list(dict.fromkeys(v))
-        return pages
+    # ------------------------------------------------------------------
+    # Pliego URL extraction
+    # ------------------------------------------------------------------
 
     def _extract_pliego_url(self, html: str, base_url: str) -> Optional[str]:
         """Extract PLIEGO URL from detail page HTML."""
@@ -197,25 +121,6 @@ class ComprarNacionalScraper(BaseScraper):
 
         return None
 
-    async def _postback(self, url: str, fields: Dict[str, str]) -> Optional[str]:
-        try:
-            async with self.session.post(str(url), data=fields) as response:
-                if response.status == 503:
-                    logger.warning(f"comprar.gob.ar returned 503 — site may be blocking datacenter IPs")
-                    return None
-                if response.status < 200 or response.status >= 300:
-                    logger.error(f"Postback failed {response.status}")
-                    return None
-                raw = await response.read()
-                encoding = response.charset or "utf-8"
-                try:
-                    return raw.decode(encoding)
-                except (UnicodeDecodeError, LookupError):
-                    return raw.decode("latin-1", errors="replace")
-        except Exception as e:
-            logger.error(f"Postback error: {e}")
-            return None
-
     async def _fetch_and_parse_pliego(self, pliego_url: str, numero: str) -> tuple:
         """Fetch pliego page and extract label-value fields."""
         if not pliego_url:
@@ -261,68 +166,41 @@ class ComprarNacionalScraper(BaseScraper):
         finally:
             await self.cleanup()
 
-    async def _quick_fetch(self, url: str) -> Optional[str]:
-        """Fetch URL directly via raw session — no retries, fast fail on 503.
-        Used for the initial probe so the scraper doesn't hang for minutes."""
-        try:
-            import aiohttp as _aio
-            headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"}
-            timeout = _aio.ClientTimeout(total=30, connect=10, sock_read=20)
-            async with self.session.get(url, headers=headers, timeout=timeout) as resp:
-                if resp.status == 503:
-                    logger.warning(f"comprar.gob.ar returned 503 — site blocking datacenter IPs or under maintenance")
-                    return None
-                if resp.status != 200:
-                    logger.warning(f"comprar.gob.ar returned HTTP {resp.status}")
-                    return None
-                raw = await resp.read()
-                try:
-                    return raw.decode(resp.charset or "utf-8")
-                except (UnicodeDecodeError, LookupError):
-                    return raw.decode("latin-1", errors="replace")
-        except Exception as e:
-            logger.error(f"comprar.gob.ar connection failed: {e}")
-            return None
-
     async def _scrape_comprar(self) -> List[LicitacionCreate]:
-        """Scrape comprar.gob.ar via ASP.NET postback."""
+        """Scrape comprar.gob.ar via ASP.NET postback with circuit breaker."""
         licitaciones: List[LicitacionCreate] = []
         max_items = self.config.max_items or 200
         max_pages = int(self.config.selectors.get("max_pages", 10))
 
-        # Determine the list URL — either from config or default
         list_url = str(self.config.url)
         if "BuscarAvanzado" in list_url:
-            # BuscarAvanzado doesn't work without session — use Compras.aspx
-            list_url = COMPRAS_LIST
+            list_url = f"{self.compra_base_url}/Compras.aspx"
 
         logger.info(f"Starting ComprarNacionalScraper with URL: {list_url}")
 
-        # Phase 1: Quick probe — fail fast on 503 instead of retrying for minutes
-        list_html = await self._quick_fetch(list_url)
+        # Phase 1: Initial fetch via ResilientHttpClient (circuit breaker + IPv6)
+        list_html = await self.http.fetch(list_url)
         if not list_html:
-            logger.error("comprar.gob.ar inaccessible — skipping this run")
+            logger.error("comprar.gob.ar inaccessible — circuit breaker may be open, skipping run")
             return []
 
-        # Check for error/maintenance page
         if len(list_html) < 500 or "Error" in list_html[:200]:
             logger.warning(f"comprar.gob.ar returned error page ({len(list_html)} bytes)")
             return []
 
-        rows = self._extract_rows_from_list(list_html)
+        rows = self.extract_rows_from_list(list_html, min_cols=4)
         if not rows:
-            logger.warning("No rows found on comprar.gob.ar list page — page structure may have changed")
+            logger.warning("No rows found on comprar.gob.ar list page — structure may have changed")
             return []
 
         self.stats['pages_fetched'] += 1
         logger.info(f"Found {len(rows)} rows on first page")
 
-        page_fields = self._extract_hidden_fields(list_html)
-        # Tag each row with its page's hidden fields for correct detail postbacks
+        page_fields = self.extract_hidden_fields(list_html)
         all_rows = [(row, dict(page_fields)) for row in rows]
 
-        # Phase 2: Paginate
-        pager_args = self._extract_pager_args(list_html)
+        # Phase 2: Paginate via ASP.NET postbacks
+        pager_args = self.extract_pager_args(list_html)
         grid_targets = list(pager_args.keys())
 
         if grid_targets and max_pages > 1:
@@ -334,10 +212,10 @@ class ComprarNacionalScraper(BaseScraper):
                 fields["__EVENTTARGET"] = grid_target
                 fields["__EVENTARGUMENT"] = page_arg
 
-                next_html = await self._postback(list_url, fields)
+                next_html = await self.postback(list_url, fields)
                 if next_html:
-                    page_rows = self._extract_rows_from_list(next_html)
-                    page_fields = self._extract_hidden_fields(next_html)
+                    page_rows = self.extract_rows_from_list(next_html, min_cols=4)
+                    page_fields = self.extract_hidden_fields(next_html)
                     all_rows.extend((r, dict(page_fields)) for r in page_rows)
                     self.stats['pages_fetched'] += 1
                     await asyncio.sleep(self.config.wait_time)
@@ -356,11 +234,11 @@ class ComprarNacionalScraper(BaseScraper):
                 detail_fields["__EVENTTARGET"] = row["target"]
                 detail_fields["__EVENTARGUMENT"] = ""
 
-                detail_html = await self._postback(list_url, detail_fields)
+                detail_html = await self.postback(list_url, detail_fields)
                 await asyncio.sleep(self.config.wait_time)
 
                 if detail_html:
-                    pliego_url = self._extract_pliego_url(detail_html, COMPRAR_BASE)
+                    pliego_url = self._extract_pliego_url(detail_html, self.compra_base_url)
 
             row_entries.append({
                 **row,
@@ -420,7 +298,6 @@ class ComprarNacionalScraper(BaseScraper):
 
             pliego_fields, pliego_url = pliego_data.get(entry_idx, ({}, entry.get("pliego_url")))
 
-            # Extract fields from pliego
             description = title
             expedient_number = None
             contact = None
@@ -429,21 +306,18 @@ class ComprarNacionalScraper(BaseScraper):
             objeto = None
 
             if pliego_fields:
-                expedient_number = pliego_fields.get("Número de expediente") or pliego_fields.get("Número de Expediente")
-                description = pliego_fields.get("Objeto de la contratación") or pliego_fields.get("Objeto") or description
-                objeto = pliego_fields.get("Objeto de la contratación") or pliego_fields.get("Objeto")
+                expedient_number = pliego_fields.get("Numero de expediente") or pliego_fields.get("Numero de Expediente")
+                description = pliego_fields.get("Objeto de la contratacion") or pliego_fields.get("Objeto") or description
+                objeto = pliego_fields.get("Objeto de la contratacion") or pliego_fields.get("Objeto")
                 if not objeto:
                     from utils.object_extractor import extract_objeto
                     objeto = extract_objeto(title, description[:1000] if description else "", None)
                 currency = pliego_fields.get("Moneda")
-                contact = pliego_fields.get("Lugar de recepción de documentación física")
+                contact = pliego_fields.get("Lugar de recepcion de documentacion fisica")
                 nombre_desc = pliego_fields.get("Nombre descriptivo del proceso") or pliego_fields.get("Nombre descriptivo de proceso")
                 if nombre_desc and len(nombre_desc.strip()) > 10:
                     title = nombre_desc.strip()
 
-            # Determine URL quality
-            # CRITICAL: Only VistaPreviaPliegoCiudadano URLs are stable.
-            # ComprasElectronicas URLs are session-dependent and expire.
             url_quality = "list_only"
             source_url = list_url
             is_stable_pliego = pliego_url and "VistaPreviaPliegoCiudadano" in (pliego_url or "")
