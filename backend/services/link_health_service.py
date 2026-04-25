@@ -196,6 +196,37 @@ async def check_comprar_links(db: AsyncIOMotorDatabase, max_items: int = 500) ->
                             },
                         )
                     else:
+                        # --- Try re-downloading pliego via authenticated session ---
+                        try:
+                            pliego_url = str(it.get("canonical_url", ""))
+                            if pliego_url and "VistaPreviaPliegoCiudadano" in pliego_url:
+                                from services.comprar_pliego_downloader import ComprarPliegoDownloader
+                                from services.pliego_storage_service import store_pliego
+                                downloader = ComprarPliegoDownloader(db)
+                                pdf_bytes = await downloader.download_pliego_pdf(pliego_url)
+                                if pdf_bytes:
+                                    local = await store_pliego(
+                                        db=db,
+                                        licitacion_id=it["_id"],
+                                        pdf_bytes=pdf_bytes,
+                                        fuente=it.get("fuente", "COMPR.AR"),
+                                        numero=it.get("licitacion_number") or "",
+                                        source_url=pliego_url,
+                                    )
+                                    if local:
+                                        summary["rerolved"] += 1
+                                        await db.licitaciones.update_one(
+                                            {"_id": it["_id"]},
+                                            {
+                                                "$set": {"metadata.link_checked_at": now},
+                                                "$unset": {"metadata.link_dead_at": "", "metadata.link_dead_reason": ""},
+                                            },
+                                        )
+                                        logger.info(f"Pliego re-downloaded for {it['_id']}: {local}")
+                                        continue
+                        except Exception as e:
+                            logger.debug(f"Pliego auth re-download failed for {it['_id']}: {e}")
+
                         await db.licitaciones.update_one(
                             {"_id": it["_id"]},
                             {

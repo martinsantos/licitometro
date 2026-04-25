@@ -293,12 +293,17 @@ const LicitacionDetailPage = ({ userRole }) => {
   const getComprarUrl = () => {
     if (!licitacion) return null;
 
-    // Priority 1: Direct pliego URL (VistaPreviaPliegoCiudadano - ESTABLE)
+    // Priority 0: Pliego local persistido (nunca expira)
+    if (licitacion.metadata?.pliego_local_url) {
+      return licitacion.metadata.pliego_local_url;
+    }
+
+    // Priority 1: Direct pliego URL (VistaPreviaPliegoCiudadano - SEMI-ESTABLE)
     if (licitacion.metadata?.comprar_pliego_url) {
       return licitacion.metadata.comprar_pliego_url;
     }
 
-    // Priority 2: source_url con PLIEGO (tambien estable)
+    // Priority 2: source_url con PLIEGO (tambien semi-estable)
     if (licitacion.source_url?.includes('VistaPreviaPliegoCiudadano')) {
       return licitacion.source_url;
     }

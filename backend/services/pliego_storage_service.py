@@ -97,7 +97,7 @@ def set_db(db: AsyncIOMotorDatabase):
 
 
 def _get_db(db: Optional[AsyncIOMotorDatabase]) -> Optional[AsyncIOMotorDatabase]:
-    return db or _db_ref
+    return db if db is not None else _db_ref
 
 
 async def store_pliego(
@@ -153,7 +153,11 @@ async def store_pliego(
                     "metadata.pliego_local_size": len(pdf_bytes),
                     "metadata.pliego_stored_at": utc_now(),
                     "metadata.pliego_source_url": source_url,
-                }
+                },
+                "$unset": {
+                    "metadata.link_dead_at": "",
+                    "metadata.link_dead_reason": "",
+                },
             },
         )
         logger.info(f"Stored pliego {public_url} ({size_mb:.2f}MB)")
