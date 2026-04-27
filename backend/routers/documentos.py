@@ -56,7 +56,7 @@ async def upload_document(
     expiration_date: str = Form(""),
 ):
     """Upload a document with metadata."""
-    db = get_db(request)
+    db = await get_db(request)
 
     # Validate file size
     contents = await file.read()
@@ -109,7 +109,7 @@ async def upload_document(
 @router.get("/")
 async def list_documents(request: Request, category: str = Query(None)):
     """List documents, optionally filtered by category."""
-    db = get_db(request)
+    db = await get_db(request)
     query = {}
     if category:
         query["category"] = category
@@ -127,7 +127,7 @@ async def get_categories():
 @router.get("/{doc_id}")
 async def get_document(doc_id: str, request: Request):
     """Get document metadata."""
-    db = get_db(request)
+    db = await get_db(request)
     try:
         doc = await db.documentos.find_one({"_id": ObjectId(doc_id)})
     except Exception:
@@ -140,7 +140,7 @@ async def get_document(doc_id: str, request: Request):
 @router.get("/{doc_id}/download")
 async def download_document(doc_id: str, request: Request):
     """Download document file."""
-    db = get_db(request)
+    db = await get_db(request)
     try:
         doc = await db.documentos.find_one({"_id": ObjectId(doc_id)})
     except Exception:
@@ -167,7 +167,7 @@ async def download_document(doc_id: str, request: Request):
 @router.get("/{doc_id}/extract-text")
 async def extract_text(doc_id: str, request: Request):
     """Extract text from an uploaded PDF document using pypdf (0 AI tokens)."""
-    db = get_db(request)
+    db = await get_db(request)
     try:
         doc = await db.documentos.find_one({"_id": ObjectId(doc_id)})
     except Exception:
@@ -198,7 +198,7 @@ async def extract_text(doc_id: str, request: Request):
 @router.put("/{doc_id}")
 async def update_document(doc_id: str, body: DocumentoUpdate, request: Request):
     """Update document metadata."""
-    db = get_db(request)
+    db = await get_db(request)
     try:
         existing = await db.documentos.find_one({"_id": ObjectId(doc_id)})
     except Exception:
@@ -217,7 +217,7 @@ async def update_document(doc_id: str, body: DocumentoUpdate, request: Request):
 @router.delete("/{doc_id}")
 async def delete_document(doc_id: str, request: Request):
     """Delete document and its file."""
-    db = get_db(request)
+    db = await get_db(request)
     try:
         doc = await db.documentos.find_one({"_id": ObjectId(doc_id)})
     except Exception:
@@ -240,7 +240,7 @@ async def delete_document(doc_id: str, request: Request):
 @router.get("/pagare/{licitacion_id}")
 async def generate_pagare(licitacion_id: str, request: Request):
     """Generate Pagare de Garantia de Oferta PDF for a licitacion."""
-    db = get_db(request)
+    db = await get_db(request)
 
     # Get cotizacion data
     cotizacion = await db.cotizaciones.find_one({"licitacion_id": licitacion_id})

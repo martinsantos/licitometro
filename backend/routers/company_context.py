@@ -34,7 +34,7 @@ from config.company import DEFAULT_COMPANY_ID
 @router.get("/profiles")
 async def list_profiles(request: Request):
     """List all company profiles."""
-    db = get_db(request)
+    db = await get_db(request)
     docs = await db.company_profiles.find().sort("nombre", 1).to_list(50)
     return [company_profile_entity(d) for d in docs]
 
@@ -42,7 +42,7 @@ async def list_profiles(request: Request):
 @router.post("/profiles")
 async def create_profile(body: CompanyProfileCreate, request: Request):
     """Create a new company profile."""
-    db = get_db(request)
+    db = await get_db(request)
     now = datetime.now(timezone.utc)
     data = body.model_dump()
     # Generate unique company_id from ObjectId
@@ -61,7 +61,7 @@ async def create_profile(body: CompanyProfileCreate, request: Request):
 @router.put("/profiles/{profile_id}")
 async def update_profile_by_id(profile_id: str, body: CompanyProfileCreate, request: Request):
     """Update a company profile by ID."""
-    db = get_db(request)
+    db = await get_db(request)
     try:
         existing = await db.company_profiles.find_one({"_id": ObjectId(profile_id)})
     except Exception:
@@ -82,7 +82,7 @@ async def update_profile_by_id(profile_id: str, body: CompanyProfileCreate, requ
 @router.delete("/profiles/{profile_id}")
 async def delete_profile(profile_id: str, request: Request):
     """Delete a company profile."""
-    db = get_db(request)
+    db = await get_db(request)
     result = await db.company_profiles.delete_one({"_id": ObjectId(profile_id)})
     if result.deleted_count == 0:
         raise HTTPException(404, "Empresa no encontrada")
@@ -95,7 +95,7 @@ async def delete_profile(profile_id: str, request: Request):
 @router.get("/profile")
 async def get_profile(request: Request):
     """Get company profile (singleton — backward compat)."""
-    db = get_db(request)
+    db = await get_db(request)
     doc = await db.company_profiles.find_one({"company_id": DEFAULT_COMPANY_ID})
     if not doc:
         # Return first profile if exists
@@ -114,7 +114,7 @@ async def get_profile(request: Request):
 @router.put("/profile")
 async def upsert_profile(body: CompanyProfileCreate, request: Request):
     """Upsert company profile (singleton — backward compat)."""
-    db = get_db(request)
+    db = await get_db(request)
     now = datetime.now(timezone.utc)
     data = body.model_dump()
     data["company_id"] = DEFAULT_COMPANY_ID
@@ -136,7 +136,7 @@ async def upsert_profile(body: CompanyProfileCreate, request: Request):
 @router.patch("/profile")
 async def patch_profile(body: CompanyProfileUpdate, request: Request):
     """Partial update of company profile (singleton — backward compat)."""
-    db = get_db(request)
+    db = await get_db(request)
     update_data = {k: v for k, v in body.model_dump().items() if v is not None}
     if not update_data:
         raise HTTPException(400, "No fields to update")
@@ -161,7 +161,7 @@ async def patch_profile(body: CompanyProfileUpdate, request: Request):
 @router.get("/onboarding-status")
 async def onboarding_status(request: Request):
     """Check if onboarding is completed."""
-    db = get_db(request)
+    db = await get_db(request)
     doc = await db.company_profiles.find_one(
         {"company_id": DEFAULT_COMPANY_ID}, {"onboarding_completed": 1}
     )
@@ -183,7 +183,7 @@ async def get_tipos_proceso():
 @router.get("/zones")
 async def list_zones(request: Request):
     """List all configured zone contexts."""
-    db = get_db(request)
+    db = await get_db(request)
     cursor = db.company_contexts.find({"company_id": DEFAULT_COMPANY_ID}).sort("zona", 1)
     docs = await cursor.to_list(200)
     return [company_context_entity(d) for d in docs]
@@ -192,7 +192,7 @@ async def list_zones(request: Request):
 @router.get("/zones/available")
 async def available_zones(request: Request):
     """Distinct organizations from licitaciones for zone picker."""
-    db = get_db(request)
+    db = await get_db(request)
     orgs = await db.licitaciones.distinct("organization")
     # Filter empty/null and sort
     return sorted([o for o in orgs if o and o.strip()])
@@ -201,7 +201,7 @@ async def available_zones(request: Request):
 @router.post("/zones")
 async def create_zone(body: CompanyContextCreate, request: Request):
     """Create a zone + process type context."""
-    db = get_db(request)
+    db = await get_db(request)
     now = datetime.now(timezone.utc)
     data = body.model_dump()
     data["company_id"] = DEFAULT_COMPANY_ID
@@ -232,7 +232,7 @@ async def create_zone(body: CompanyContextCreate, request: Request):
 @router.put("/zones/{zone_id}")
 async def update_zone(zone_id: str, body: CompanyContextUpdate, request: Request):
     """Update a zone context."""
-    db = get_db(request)
+    db = await get_db(request)
     try:
         existing = await db.company_contexts.find_one({"_id": ObjectId(zone_id)})
     except Exception:
@@ -262,7 +262,7 @@ async def update_zone(zone_id: str, body: CompanyContextUpdate, request: Request
 @router.delete("/zones/{zone_id}")
 async def delete_zone(zone_id: str, request: Request):
     """Delete a zone context."""
-    db = get_db(request)
+    db = await get_db(request)
     result = await db.company_contexts.delete_one({"_id": ObjectId(zone_id)})
     if result.deleted_count == 0:
         raise HTTPException(404, "Contexto de zona no encontrado")
@@ -276,7 +276,7 @@ async def match_zone(
     tipo: str = Query(""),
 ):
     """Find best matching context for a licitacion's organization + tipo_procedimiento."""
-    db = get_db(request)
+    db = await get_db(request)
     if not organization:
         return None
 
@@ -293,7 +293,7 @@ async def match_zone(
 @router.get("/credentials")
 async def list_credentials(request: Request):
     """List all site credentials for HUNTER."""
-    db = get_db(request)
+    db = await get_db(request)
     docs = await db.site_credentials.find().to_list(50)
     return [
         {
@@ -314,7 +314,7 @@ async def list_credentials(request: Request):
 @router.post("/credentials")
 async def create_credential(body: dict, request: Request):
     """Create a new site credential."""
-    db = get_db(request)
+    db = await get_db(request)
     now = datetime.now(timezone.utc)
     doc = {
         "site_name": body.get("site_name", ""),
@@ -338,7 +338,7 @@ async def create_credential(body: dict, request: Request):
 @router.put("/credentials/{cred_id}")
 async def update_credential(cred_id: str, body: dict, request: Request):
     """Update a site credential."""
-    db = get_db(request)
+    db = await get_db(request)
     update = {"updated_at": datetime.now(timezone.utc)}
     for field in ("site_name", "site_url", "username", "enabled", "notes"):
         if field in body:
@@ -358,7 +358,7 @@ async def update_credential(cred_id: str, body: dict, request: Request):
 @router.delete("/credentials/{cred_id}")
 async def delete_credential(cred_id: str, request: Request):
     """Delete a site credential."""
-    db = get_db(request)
+    db = await get_db(request)
     result = await db.site_credentials.delete_one({"_id": ObjectId(cred_id)})
     if result.deleted_count == 0:
         raise HTTPException(404, "Credential not found")
@@ -368,7 +368,7 @@ async def delete_credential(cred_id: str, request: Request):
 @router.get("/credentials/for-site")
 async def get_credential_for_site(request: Request, site_url: str = Query("")):
     """Get active credential for a specific site URL (internal use by HUNTER)."""
-    db = get_db(request)
+    db = await get_db(request)
     if not site_url:
         return None
     # Match by site_url substring
@@ -392,7 +392,7 @@ async def get_affinity_score(company_id: str, licitacion_id: str, request: Reque
     Returns a 0-100 score with explainable reasons. The licitacion must have had
     POST /api/licitaciones/{id}/requisitos called first to populate the requisitos field.
     """
-    db = get_db(request)
+    db = await get_db(request)
     profile = await db.company_profiles.find_one({"company_id": company_id})
     if not profile:
         raise HTTPException(404, f"Perfil de empresa '{company_id}' no encontrado")

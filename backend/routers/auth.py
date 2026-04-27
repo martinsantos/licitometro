@@ -50,7 +50,7 @@ from db import get_db
 @router.post("/login")
 async def login(body: LoginRequest, request: Request):
     """Authenticate with email and password."""
-    db = get_db(request)
+    db = await get_db(request)
     user = await authenticate_user(db, body.email, body.password)
     if not user:
         return JSONResponse(
@@ -141,7 +141,7 @@ async def logout(response: Response):
 @router.post("/register")
 async def register(body: RegisterRequest, request: Request):
     """Create a new user account. Admin only (enforced by middleware)."""
-    db = get_db(request)
+    db = await get_db(request)
 
     # Check if email already exists
     existing = await db.users.find_one({"email": body.email})
@@ -179,7 +179,7 @@ async def list_users(request: Request):
     token_data = verify_token(token)
     if token_data.get("role") != "admin":
         return JSONResponse(status_code=403, content={"detail": "Acceso de administrador requerido"})
-    db = get_db(request)
+    db = await get_db(request)
     users = await db.users.find().to_list(100)
     return [user_entity(u) for u in users]
 
@@ -188,7 +188,7 @@ async def list_users(request: Request):
 async def delete_user(user_id: str, request: Request):
     """Delete a user. Admin only (enforced by middleware)."""
     from db.models import str_to_mongo_id
-    db = get_db(request)
+    db = await get_db(request)
 
     # Prevent self-deletion
     token = request.cookies.get("access_token")

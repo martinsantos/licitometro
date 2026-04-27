@@ -28,7 +28,7 @@ from config.company import DEFAULT_COMPANY_ID
 @router.put("/{licitacion_id}")
 async def upsert_cotizacion(licitacion_id: str, body: CotizacionCreate, request: Request):
     """Upsert a cotizacion keyed by licitacion_id."""
-    db = get_db(request)
+    db = await get_db(request)
     now = datetime.now(timezone.utc)
     data = body.model_dump()
     data["licitacion_id"] = licitacion_id
@@ -52,7 +52,7 @@ async def upsert_cotizacion(licitacion_id: str, body: CotizacionCreate, request:
 @router.get("/")
 async def list_cotizaciones(request: Request, enrich: bool = Query(False)):
     """List all cotizaciones, newest first. When enrich=true, add licitacion data."""
-    db = get_db(request)
+    db = await get_db(request)
     cursor = db.cotizaciones.find().sort("updated_at", -1).limit(100)
     docs = await cursor.to_list(100)
     results = [cotizacion_entity(d) for d in docs]
@@ -77,7 +77,7 @@ async def list_cotizaciones(request: Request, enrich: bool = Query(False)):
 @router.get("/{licitacion_id}")
 async def get_cotizacion(licitacion_id: str, request: Request):
     """Get a single cotizacion by licitacion_id."""
-    db = get_db(request)
+    db = await get_db(request)
     doc = await db.cotizaciones.find_one({"licitacion_id": licitacion_id})
     if not doc:
         raise HTTPException(404, "Cotización no encontrada")
@@ -87,7 +87,7 @@ async def get_cotizacion(licitacion_id: str, request: Request):
 @router.delete("/{licitacion_id}")
 async def delete_cotizacion(licitacion_id: str, request: Request):
     """Delete a cotizacion."""
-    db = get_db(request)
+    db = await get_db(request)
     result = await db.cotizaciones.delete_one({"licitacion_id": licitacion_id})
     if result.deleted_count == 0:
         raise HTTPException(404, "Cotización no encontrada")
@@ -107,7 +107,7 @@ async def update_status(licitacion_id: str, body: StatusUpdate, request: Request
     """Update cotizacion status and optionally record outcome notes."""
     if body.status not in VALID_STATUSES:
         raise HTTPException(400, f"Estado inválido. Válidos: {sorted(VALID_STATUSES)}")
-    db = get_db(request)
+    db = await get_db(request)
     now = datetime.now(timezone.utc)
     update: Dict[str, Any] = {"status": body.status, "updated_at": now}
     if body.notas_resultado:
@@ -125,7 +125,7 @@ async def update_status(licitacion_id: str, body: StatusUpdate, request: Request
 @router.get("/stats/resumen")
 async def stats_resumen(request: Request):
     """Aggregate stats across all cotizaciones: counts + montos by status."""
-    db = get_db(request)
+    db = await get_db(request)
     pipeline = [
         {"$group": {
             "_id": "$status",
@@ -156,7 +156,7 @@ class VincularAntecedenteBody(BaseModel):
 @router.post("/{licitacion_id}/vincular-antecedente")
 async def vincular_antecedente(licitacion_id: str, body: VincularAntecedenteBody, request: Request):
     """Add an antecedente to a cotizacion."""
-    db = get_db(request)
+    db = await get_db(request)
     result = await db.cotizaciones.update_one(
         {"licitacion_id": licitacion_id},
         {"$addToSet": {"antecedentes_vinculados": body.antecedente_id}},
@@ -170,7 +170,7 @@ async def vincular_antecedente(licitacion_id: str, body: VincularAntecedenteBody
 @router.get("/{licitacion_id}/pdf")
 async def generate_pdf(licitacion_id: str, request: Request):
     """Generate professional offer PDF for a cotizacion."""
-    db = get_db(request)
+    db = await get_db(request)
     cot = await db.cotizaciones.find_one({"licitacion_id": licitacion_id})
     if not cot:
         raise HTTPException(404, "Cotizacion not found")
@@ -207,7 +207,7 @@ async def export_xlsx(licitacion_id: str, request: Request):
     from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
     from openpyxl.utils import get_column_letter
 
-    db = get_db(request)
+    db = await get_db(request)
     cot = await db.cotizaciones.find_one({"licitacion_id": licitacion_id})
     if not cot:
         raise HTTPException(404, "Cotización no encontrada")
@@ -312,7 +312,7 @@ async def export_xlsx(licitacion_id: str, request: Request):
 @router.get("/{licitacion_id}/price-intelligence")
 async def get_price_intelligence(licitacion_id: str, request: Request):
     """Get price intelligence data for a licitacion."""
-    db = get_db(request)
+    db = await get_db(request)
     from services.price_intelligence import get_price_intelligence_service
     service = get_price_intelligence_service(db)
     return await service.get_price_intelligence(licitacion_id)
@@ -333,7 +333,7 @@ class HitosUpdate(BaseModel):
 @router.patch("/{licitacion_id}/hitos")
 async def update_hitos(licitacion_id: str, body: HitosUpdate, request: Request):
     """Replace the hitos list for a cotizacion."""
-    db = get_db(request)
+    db = await get_db(request)
     now = datetime.now(timezone.utc)
     hitos = []
     for hito in body.hitos:
@@ -354,7 +354,7 @@ async def update_hitos(licitacion_id: str, body: HitosUpdate, request: Request):
 @router.delete("/{licitacion_id}/vincular-antecedente/{antecedente_id}")
 async def desvincular_antecedente(licitacion_id: str, antecedente_id: str, request: Request):
     """Remove an antecedente from a cotizacion."""
-    db = get_db(request)
+    db = await get_db(request)
     result = await db.cotizaciones.update_one(
         {"licitacion_id": licitacion_id},
         {"$pull": {"antecedentes_vinculados": antecedente_id}},
