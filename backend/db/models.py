@@ -35,7 +35,7 @@ def licitacion_entity(licitacion) -> dict:
     """Convert MongoDB document to dict.
     Uses .get() for all fields to prevent KeyError on incomplete documents."""
     return {
-        "id": str(licitacion["_id"]),
+        "id": mongo_id_to_str(licitacion["_id"]),
         "title": licitacion.get("title", "Sin título"),
         "organization": licitacion.get("organization", "Sin organización"),
         "publication_date": licitacion.get("publication_date"),

@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import type { Nodo } from '../types/licitacion';
 
-const API_URL = process.env.REACT_APP_API_URL || '';
+const API_URL = process.env.REACT_APP_API_URL || process.env.REACT_APP_BACKEND_URL || '';
 
 export function useNodos() {
   const [nodos, setNodos] = useState<Nodo[]>([]);

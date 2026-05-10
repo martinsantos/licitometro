@@ -29,8 +29,12 @@ yarn-debug.log*
 yarn-error.log*
 
 # local env files
-# .env*.local
+.env
+.env.*
+backend/.env
+frontend/.env
 *token.json*
+gha-creds-*.json
 # vercel
 .vercel
 

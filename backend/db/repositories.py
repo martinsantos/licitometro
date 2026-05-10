@@ -63,7 +63,7 @@ class LicitacionRepository:
         for url_field in ("source_url", "canonical_url"):
             if licitacion_dict.get(url_field) is not None:
                 licitacion_dict[url_field] = str(licitacion_dict[url_field])
-        licitacion_dict["_id"] = uuid4()
+        licitacion_dict["_id"] = str_to_mongo_id(str(uuid4()))
         licitacion_dict["created_at"] = utc_now()
         licitacion_dict["updated_at"] = utc_now()
 
@@ -150,12 +150,7 @@ class LicitacionRepository:
     
     async def get_by_id(self, id) -> Optional[Licitacion]:
         """Get a licitacion by id"""
-        query_id = id
-        if isinstance(id, str):
-            try:
-                query_id = ObjectId(id)
-            except Exception:
-                pass
+        query_id = str_to_mongo_id(id) if isinstance(id, str) else id
         licitacion = await self.collection.find_one({"_id": query_id})
         if licitacion:
             return licitacion_entity(licitacion)
@@ -167,12 +162,7 @@ class LicitacionRepository:
         update_data["updated_at"] = utc_now()
 
         if update_data:
-            query_id = id
-            if isinstance(id, str):
-                try:
-                    query_id = ObjectId(id)
-                except Exception:
-                    pass
+            query_id = str_to_mongo_id(id) if isinstance(id, str) else id
             result = await self.collection.update_one(
                 {"_id": query_id},
                 {"$set": update_data}
@@ -183,12 +173,7 @@ class LicitacionRepository:
 
     async def delete(self, id) -> bool:
         """Delete a licitacion"""
-        query_id = id
-        if isinstance(id, str):
-            try:
-                query_id = ObjectId(id)
-            except Exception:
-                pass
+        query_id = str_to_mongo_id(id) if isinstance(id, str) else id
         result = await self.collection.delete_one({"_id": query_id})
         return result.deleted_count > 0
     

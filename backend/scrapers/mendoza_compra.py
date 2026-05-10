@@ -23,6 +23,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from models.scraper_config import ScraperConfig
 from models.licitacion import LicitacionCreate
+from scrapers.contracts import EvidenceKind, ScrapeResult, SourceEvidence
 from scrapers.base_scraper import BaseScraper
 from utils.dates import parse_date_guess, last_business_days_set
 
@@ -1060,17 +1061,78 @@ class MendozaCompraScraper(BaseScraper):
                     licitaciones.append(lic)
                     seen_ids.add(lic.id_licitacion)
                 else:
-                    pub_date = lic.publication_date.date()
-                    if pub_date not in allowed_dates and lic.opening_date:
-                        pub_date = lic.opening_date.date()
-                    if pub_date in allowed_dates:
+                    candidate_dates = []
+                    if lic.publication_date:
+                        candidate_dates.append(lic.publication_date.date())
+                    if lic.opening_date:
+                        candidate_dates.append(lic.opening_date.date())
+                    if any(candidate_date in allowed_dates for candidate_date in candidate_dates):
                         licitaciones.append(lic)
                         seen_ids.add(lic.id_licitacion)
                 if self.config.max_items and len(licitaciones) >= self.config.max_items:
                     break
 
             # Order by publication date (newest first)
-            licitaciones.sort(key=lambda l: l.publication_date, reverse=True)
+            licitaciones.sort(key=lambda l: l.publication_date or l.opening_date or utc_now(), reverse=True)
             return licitaciones
         finally:
             await self.cleanup()
+
+    async def run_with_evidence(self) -> List[ScrapeResult]:
+        """Run scraper and return Licitometro 0.2 evidence-aware results."""
+
+        licitaciones = await self.run()
+        results: List[ScrapeResult] = []
+        for lic in licitaciones:
+            evidence_by_url: Dict[str, SourceEvidence] = {}
+
+            def add_evidence(kind: EvidenceKind, url: Optional[str], metadata: Optional[Dict[str, Any]] = None):
+                if not url:
+                    return
+                clean_url = str(url)
+                if clean_url in evidence_by_url:
+                    return
+                evidence_by_url[clean_url] = SourceEvidence(
+                    kind=kind,
+                    source_url=clean_url,
+                    metadata=metadata or {},
+                )
+
+            add_evidence(EvidenceKind.HTML, str(lic.source_url) if lic.source_url else None, {"role": "source_url"})
+            add_evidence(EvidenceKind.HTML, str(lic.canonical_url) if lic.canonical_url else None, {"role": "canonical_url"})
+
+            if isinstance(lic.source_urls, dict):
+                for role, source_url in lic.source_urls.items():
+                    add_evidence(EvidenceKind.HTML, source_url, {"role": role or "source_urls"})
+            else:
+                for source_url in lic.source_urls or []:
+                    if isinstance(source_url, dict):
+                        add_evidence(
+                            EvidenceKind.HTML,
+                            source_url.get("url"),
+                            {"role": source_url.get("type") or "source_urls"},
+                        )
+                    else:
+                        add_evidence(EvidenceKind.HTML, str(source_url), {"role": "source_urls"})
+
+            for attached in lic.attached_files or []:
+                if not isinstance(attached, dict):
+                    continue
+                url = attached.get("url")
+                if not url:
+                    continue
+                lowered = str(url).lower().split("?")[0]
+                kind = EvidenceKind.PDF if lowered.endswith(".pdf") else EvidenceKind.TEXT
+                add_evidence(kind, url, {"role": "attached_file", "name": attached.get("name")})
+
+            confidence = 0.82 if lic.url_quality == "direct" else 0.72
+            if not evidence_by_url:
+                confidence = 0.55
+            results.append(ScrapeResult(
+                item=lic,
+                source_id="comprar_mendoza",
+                evidence=list(evidence_by_url.values()),
+                extraction_confidence=confidence,
+                extraction_version="mendoza_compra_v1_evidence",
+            ))
+        return results

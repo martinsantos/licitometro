@@ -246,6 +246,26 @@ export interface PliegoInfo {
   fecha_apertura?: string | null;
   condiciones_especiales?: string[];
   info_faltante?: string[];
+  red_flags?: string[];
+  ai_v2?: boolean;
+  cached?: boolean;
+  provider?: string | null;
+  schema_version?: string;
+  prompt_version?: string;
+  source?: string;
+  error?: string;
+}
+
+export interface PliegoExtractionV2Response {
+  ok: boolean;
+  cached?: boolean;
+  source?: string;
+  document_hash?: string;
+  schema_version?: string;
+  prompt_version?: string;
+  provider?: string | null;
+  model?: string | null;
+  result?: PliegoInfo;
   error?: string;
 }
 
@@ -410,6 +430,25 @@ export function useCotizarAPI() {
         method: 'POST',
         body: JSON.stringify({ licitacion_id: licitacionId }),
       });
+    },
+
+    async extractPliegoInfoV2(licitacionId: string, forceRefresh = false): Promise<PliegoInfo> {
+      const res = await apiFetchMain<PliegoExtractionV2Response>(`/cotizar-ai/pliego/${licitacionId}/extract-v2`, {
+        method: 'POST',
+        body: JSON.stringify({ force_refresh: forceRefresh }),
+      });
+      if (!res.ok || !res.result) {
+        return { error: res.error || 'ai_v2_unavailable' };
+      }
+      return {
+        ...res.result,
+        ai_v2: true,
+        cached: res.cached,
+        provider: res.provider,
+        schema_version: res.schema_version,
+        prompt_version: res.prompt_version,
+        source: res.source,
+      };
     },
 
     // --- Document Repository ---

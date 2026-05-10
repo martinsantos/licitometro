@@ -3,7 +3,7 @@ import { SGISection } from '../components/analytics/SGISection';
 import { PiletaUpload } from '../components/analytics/PiletaUpload';
 import { PiletaDocumentos } from '../components/analytics/PiletaDocumentos';
 
-const API_URL = process.env.REACT_APP_API_URL || '';
+const API_URL = process.env.REACT_APP_API_URL || process.env.REACT_APP_BACKEND_URL || '';
 
 type MainTab = 'adjudicaciones' | 'miempresa' | 'pileta';
 

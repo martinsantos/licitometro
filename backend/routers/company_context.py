@@ -3,6 +3,7 @@
 import logging
 import re
 from datetime import datetime, timezone
+from typing import Optional
 
 from bson import ObjectId
 from fastapi import APIRouter, HTTPException, Query, Request
@@ -385,6 +386,43 @@ async def get_credential_for_site(request: Request, site_url: str = Query("")):
     return None
 
 
+def _requirements_score_context(requisitos: dict) -> dict:
+    """Compact metadata that explains what the affinity score was based on."""
+
+    red_flags = requisitos.get("red_flags") or []
+    documentacion = requisitos.get("documentacion_requerida") or []
+    capacidad_tecnica = requisitos.get("capacidad_tecnica") or []
+    source = requisitos.get("source") or "legacy"
+
+    return {
+        "source": source,
+        "schema_version": requisitos.get("schema_version"),
+        "prompt_version": requisitos.get("prompt_version"),
+        "score_basis": "ai_extraction_v2" if source == "ai_extraction_v2" else source,
+        "red_flags_count": len(red_flags) if isinstance(red_flags, list) else 0,
+        "documentacion_count": len(documentacion) if isinstance(documentacion, list) else 0,
+        "capacidad_tecnica_count": len(capacidad_tecnica) if isinstance(capacidad_tecnica, list) else 0,
+        "has_budget": requisitos.get("presupuesto_oficial_estimado") is not None,
+        "has_zone": bool(requisitos.get("zona_ejecucion")),
+    }
+
+
+async def _profile_with_document_inventory(db, company_id: str) -> Optional[dict]:
+    profile = await db.company_profiles.find_one({"company_id": company_id})
+    if not profile:
+        return None
+    contexts = await db.company_contexts.find({"company_id": company_id}).to_list(100)
+    documentos_disponibles = sorted({
+        str(doc)
+        for context in contexts
+        for doc in (context.get("documentos_disponibles") or [])
+        if doc
+    })
+    if documentos_disponibles:
+        profile["documentos_disponibles"] = documentos_disponibles
+    return profile
+
+
 @router.get("/profiles/{company_id}/score/{licitacion_id}")
 async def get_affinity_score(company_id: str, licitacion_id: str, request: Request):
     """Compute affinity score between a company profile and a licitacion's extracted requirements.
@@ -393,7 +431,7 @@ async def get_affinity_score(company_id: str, licitacion_id: str, request: Reque
     POST /api/licitaciones/{id}/requisitos called first to populate the requisitos field.
     """
     db = await get_db(request)
-    profile = await db.company_profiles.find_one({"company_id": company_id})
+    profile = await _profile_with_document_inventory(db, company_id)
     if not profile:
         raise HTTPException(404, f"Perfil de empresa '{company_id}' no encontrado")
 
@@ -412,4 +450,38 @@ async def get_affinity_score(company_id: str, licitacion_id: str, request: Reque
     result["company_id"] = company_id
     result["licitacion_id"] = licitacion_id
     result["requisitos_available"] = bool(requisitos)
+    result["requirements_context"] = _requirements_score_context(requisitos) if requisitos else None
     return result
+
+
+@router.get("/profiles/{company_id}/readiness/{licitacion_id}")
+async def get_offer_readiness(company_id: str, licitacion_id: str, request: Request):
+    """Compute and persist an offer readiness snapshot for one company/licitation."""
+
+    db = await get_db(request)
+    profile = await _profile_with_document_inventory(db, company_id)
+    if not profile:
+        raise HTTPException(404, f"Perfil de empresa '{company_id}' no encontrado")
+
+    try:
+        from bson import ObjectId as _OID
+        lic = await db.licitaciones.find_one({"_id": _OID(licitacion_id)})
+    except Exception:
+        lic = None
+    if not lic:
+        raise HTTPException(404, "Licitación no encontrada")
+
+    from services.match_score_service import match_score
+    from services.offer_readiness_service import (
+        build_offer_readiness_snapshot,
+        upsert_offer_readiness_snapshot,
+    )
+
+    score_result = match_score(profile, lic.get("requisitos") or {})
+    snapshot = build_offer_readiness_snapshot(
+        licitacion=lic,
+        company_profile=profile,
+        score_result=score_result,
+    )
+    await upsert_offer_readiness_snapshot(db, snapshot)
+    return snapshot

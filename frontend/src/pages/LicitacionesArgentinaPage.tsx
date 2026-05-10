@@ -19,7 +19,7 @@ interface ARStats {
  * Updated: Mar 2026 - Added stats strip, consolidated from LicitacionesARPage
  */
 export default function LicitacionesArgentinaPage() {
-  const apiUrl = process.env.REACT_APP_API_URL || '';
+  const apiUrl = process.env.REACT_APP_API_URL || process.env.REACT_APP_BACKEND_URL || '';
   const [stats, setStats] = useState<ARStats | null>(null);
 
   const fetchStats = useCallback(async () => {

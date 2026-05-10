@@ -10,7 +10,7 @@ Plataforma de monitoreo de licitaciones publicas de Mendoza, Argentina. 24+ fuen
 |------|-----------|
 | Backend | FastAPI + Gunicorn (Python 3.11) |
 | DB | MongoDB 7.0 (Motor async) |
-| Frontend | React 18 + TypeScript |
+| Frontend | React 19 + TypeScript (Create React App) |
 | Infra | Docker Compose (mongodb + backend + nginx + certbot) |
 | Proxy/SSL | Nginx 1.25 + Let's Encrypt |
 | Notif | Telegram @Licitobot + Email (Postfix local relay) |

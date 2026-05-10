@@ -112,6 +112,43 @@ async def pliego_resumen(licitacion_id: str, body: Dict[str, Any], request: Requ
     return await svc.generate_resumen(licitacion_id, force_refresh=force)
 
 
+@router.post("/pliego/{licitacion_id}/extract-v2")
+async def pliego_extract_v2(licitacion_id: str, body: Dict[str, Any], request: Request):
+    """Licitometro 0.2 schema-first pliego extraction with document-hash cache."""
+    db = await get_db(request)
+    from services.pliego_ai_service import get_pliego_ai_service
+    svc = get_pliego_ai_service(db)
+    force = bool(body.get("force_refresh"))
+    return await svc.extract_v2(licitacion_id, force_refresh=force)
+
+
+@router.post("/pliego/extract-v2-batch")
+async def pliego_extract_v2_batch(body: Dict[str, Any], request: Request):
+    """Run AI 0.2 extraction for a bounded batch of licitaciones."""
+    db = await get_db(request)
+    from services.ai_extraction_cron_service import get_ai_extraction_cron_service
+    svc = get_ai_extraction_cron_service(db)
+    return await svc.run_batch(
+        jurisdiction=body.get("jurisdiccion") or body.get("jurisdiction") or "Mendoza",
+        limit=int(body.get("limit") or 10),
+        force_refresh=bool(body.get("force_refresh")),
+        licitacion_ids=body.get("licitacion_ids") or None,
+    )
+
+
+@router.get("/pliego/extract-v2-batch/runs")
+async def pliego_extract_v2_batch_runs(request: Request, limit: int = 10):
+    """Recent AI 0.2 extraction batch runs."""
+    db = await get_db(request)
+    limit = max(1, min(int(limit or 10), 50))
+    docs = await db.ai_extraction_batch_runs.find().sort("created_at", -1).limit(limit).to_list(length=limit)
+    for doc in docs:
+        doc["id"] = str(doc.pop("_id"))
+        if doc.get("created_at") and hasattr(doc["created_at"], "isoformat"):
+            doc["created_at"] = doc["created_at"].isoformat()
+    return {"items": docs}
+
+
 @router.post("/pliego/{licitacion_id}/chat")
 async def pliego_chat(licitacion_id: str, body: Dict[str, Any], request: Request):
     """Pregunta al pliego en lenguaje natural.
@@ -1415,6 +1452,21 @@ async def extract_pliego_info(body: Dict[str, Any], request: Request):
                 logger.warning(f"Failed to scrape landing page {durl_clean}: {_e}")
 
     pdf_texts = []
+
+    # Check for locally stored pliego PDF (permanent copy, no HTTP re-download)
+    try:
+        pliego_local_url = (lic.get("metadata") or {}).get("pliego_local_url")
+        if pliego_local_url:
+            from services.pliego_storage_service import read_local_pliego
+            from services.enrichment.pdf_zip_enricher import extract_text_from_pdf_bytes
+            local_bytes = read_local_pliego(pliego_local_url)
+            if local_bytes:
+                text = extract_text_from_pdf_bytes(local_bytes)
+                if text and text.strip():
+                    pdf_texts.append(text)
+                    logger.info(f"CotizAR pliego: extracted {len(text)} chars from local pliego {pliego_local_url}")
+    except Exception as e:
+        logger.warning(f"Failed to read local pliego: {e}")
 
     # Check manually uploaded pliego documents in cotizacion (read from disk, no HTTP)
     try:

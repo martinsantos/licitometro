@@ -29,6 +29,7 @@ PROXIED_DOMAINS = [
     "www.mendoza.gov.ar",
     "mendoza.gov.ar",
     "informacionoficial.mendoza.gob.ar",
+    "comprar.gob.ar",
 ]
 
 USER_AGENTS = [

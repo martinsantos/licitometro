@@ -33,6 +33,7 @@ class BaseScraper(ABC):
             headers=self.config.headers,
             cookies=self.config.cookies,
         )
+        self.http = self.http_client  # alias for subclasses that reference self.http directly
         # Keep a raw aiohttp session for subclasses that use self.session directly
         timeout = aiohttp.ClientTimeout(total=60, connect=15, sock_read=30)
         self.session = aiohttp.ClientSession(

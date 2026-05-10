@@ -10,8 +10,8 @@ from services.cron_registry import CRON_JOBS, register_all_crons
 
 class TestCronJobDefinitions:
     def test_expected_job_count(self):
-        """Registry should have 9 cron jobs defined."""
-        assert len(CRON_JOBS) == 9
+        """Registry should have the current expected cron jobs defined."""
+        assert len(CRON_JOBS) == 21
 
     def test_all_jobs_have_required_fields(self):
         required = {"id", "name", "trigger", "service_module", "service_factory", "method"}
@@ -29,6 +29,12 @@ class TestCronJobDefinitions:
             "storage_cleanup", "auto_update_active", "enrichment_cron",
             "daily_digest", "nodo_digest_morning", "nodo_digest_evening",
             "daily_estado_update", "embedding_batch", "deadline_alerts",
+            "scraper_health_check", "scraper_daily_digest",
+            "adjudicaciones_ingest", "circular_daily_check", "alertas_checker",
+            "ai_extraction_v2_mendoza", "ai_source_backfill_v2_mendoza",
+            "readiness_overdue_digest",
+            "readiness_source_coverage_digest", "ai_backfill_retry_digest",
+            "input_quality_repair_digest", "readiness_source_coverage_snapshot",
         }
         assert ids == expected
 

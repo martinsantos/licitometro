@@ -5,7 +5,7 @@
 import React, { useState, useEffect, useCallback, lazy, Suspense } from 'react';
 const EmpresaKnowledge = lazy(() => import('./EmpresaKnowledge'));
 
-const API_URL = process.env.REACT_APP_API_URL || '';
+const API_URL = process.env.REACT_APP_API_URL || process.env.REACT_APP_BACKEND_URL || '';
 
 const fmt = (n: number) =>
   new Intl.NumberFormat('es-AR', { style: 'currency', currency: 'ARS', maximumFractionDigits: 0 }).format(n);

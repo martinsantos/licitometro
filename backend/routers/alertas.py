@@ -102,6 +102,18 @@ def _build_alerta_query(alerta: Dict[str, Any]) -> Dict[str, Any]:
     return query
 
 
+def _requirements_summary(requisitos: Optional[Dict[str, Any]]) -> Dict[str, Any]:
+    requisitos = requisitos or {}
+    return {
+        "available": bool(requisitos),
+        "source": requisitos.get("source"),
+        "schema_version": requisitos.get("schema_version"),
+        "red_flags": (requisitos.get("red_flags") or [])[:5],
+        "documentacion_requerida": (requisitos.get("documentacion_requerida") or [])[:5],
+        "capacidad_tecnica_count": len(requisitos.get("capacidad_tecnica") or []),
+    }
+
+
 # ── Endpoints ──────────────────────────────────────────────────────────────────
 
 @router.get("")
@@ -227,6 +239,7 @@ async def test_alerta(alerta_id: str, request: Request):
             "organization": doc.get("organization", ""),
             "budget": doc.get("budget"),
             "opening_date": doc.get("opening_date").isoformat() if doc.get("opening_date") else None,
+            "requirements_summary": _requirements_summary(doc.get("requisitos")),
         }
         if "score" in doc:
             item["score"] = doc["score"]

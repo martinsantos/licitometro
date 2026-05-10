@@ -12,6 +12,7 @@ Adjustments:
   -8 per red_flag in requisitos
 Final score clamped to [0, 100]. Nivel: alto ≥ 70, medio ≥ 45, bajo < 45.
 """
+import re
 from typing import Any
 
 
@@ -21,6 +22,28 @@ def _normalize(s: str) -> str:
     for src, dst in [("á","a"),("é","e"),("í","i"),("ó","o"),("ú","u"),("ü","u"),("ñ","n")]:
         s = s.replace(src, dst)
     return s
+
+
+def _tokens(value: str) -> set[str]:
+    normalized = _normalize(value or "")
+    return {t for t in re.split(r"[^a-z0-9]+", normalized) if len(t) >= 4}
+
+
+def _overlaps_any(requirement: str, profile_signals: list[str]) -> bool:
+    req_tokens = _tokens(requirement)
+    if not req_tokens:
+        return False
+    for signal in profile_signals:
+        signal_tokens = _tokens(signal)
+        if req_tokens & signal_tokens:
+            return True
+        for req_token in req_tokens:
+            for signal_token in signal_tokens:
+                if min(len(req_token), len(signal_token)) >= 6 and (
+                    req_token.startswith(signal_token[:6]) or signal_token.startswith(req_token[:6])
+                ):
+                    return True
+    return False
 
 
 def match_score(company_profile: dict, requisitos: dict) -> dict:
@@ -35,6 +58,7 @@ def match_score(company_profile: dict, requisitos: dict) -> dict:
     """
     score = 50
     razones: list[dict[str, Any]] = []
+    ai_v2_details: dict[str, Any] | None = None
 
     # ── Certificaciones ──────────────────────────────────────────────
     certs_req = {_normalize(c) for c in (requisitos.get("certificaciones_exigidas") or [])}
@@ -79,6 +103,61 @@ def match_score(company_profile: dict, requisitos: dict) -> dict:
         score += 5
         razones.append({"peso": +5, "texto": "Presupuesto dentro del rango de la empresa"})
 
+    # ── AI 0.2 structured requirements ───────────────────────────────
+    if requisitos.get("source") == "ai_extraction_v2":
+        ai_v2_details = {
+            "technical_matches": [],
+            "document_matches": [],
+            "missing_documents": [],
+            "document_inventory_available": False,
+        }
+        profile_signals = [
+            company_profile.get("nombre") or "",
+            *(company_profile.get("rubros_inscriptos") or []),
+            *(company_profile.get("certificaciones") or []),
+        ]
+        technical_matches = [
+            req for req in (requisitos.get("capacidad_tecnica") or [])
+            if _overlaps_any(str(req), profile_signals)
+        ]
+        ai_v2_details["technical_matches"] = technical_matches
+        if technical_matches:
+            points = min(12, 4 * len(technical_matches))
+            score += points
+            razones.append({
+                "peso": points,
+                "texto": f"AI 0.2 detectó {len(technical_matches)} requisito(s) técnico(s) alineado(s) al perfil",
+            })
+
+        document_inventory = company_profile.get("documentos_disponibles") or []
+        ai_v2_details["document_inventory_available"] = bool(document_inventory)
+        doc_signals = [
+            *(company_profile.get("certificaciones") or []),
+            *document_inventory,
+            company_profile.get("numero_proveedor_estado") or "",
+            "cuit" if company_profile.get("cuit") else "",
+        ]
+        required_docs = [str(doc) for doc in (requisitos.get("documentacion_requerida") or [])]
+        doc_matches = [doc for doc in required_docs if _overlaps_any(doc, doc_signals)]
+        ai_v2_details["document_matches"] = doc_matches
+        if doc_matches:
+            points = min(6, 2 * len(doc_matches))
+            score += points
+            razones.append({
+                "peso": points,
+                "texto": f"AI 0.2 encontró {len(doc_matches)} documento(s) compatibles con el perfil",
+            })
+        if document_inventory:
+            missing_docs = [doc for doc in required_docs if doc not in doc_matches]
+            ai_v2_details["missing_documents"] = missing_docs
+            if missing_docs:
+                penalty = min(9, 3 * len(missing_docs))
+                score -= penalty
+                razones.append({
+                    "peso": -penalty,
+                    "texto": f"AI 0.2 detectó {len(missing_docs)} documento(s) requerido(s) no presentes en el inventario",
+                })
+
     # ── Red flags ────────────────────────────────────────────────────
     for flag in (requisitos.get("red_flags") or []):
         score -= 8
@@ -86,4 +165,7 @@ def match_score(company_profile: dict, requisitos: dict) -> dict:
 
     score = max(0, min(100, score))
     nivel = "alto" if score >= 70 else "medio" if score >= 45 else "bajo"
-    return {"score": score, "nivel": nivel, "razones": razones}
+    result = {"score": score, "nivel": nivel, "razones": razones}
+    if ai_v2_details is not None:
+        result["ai_v2"] = ai_v2_details
+    return result

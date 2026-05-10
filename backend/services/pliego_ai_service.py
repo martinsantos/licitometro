@@ -197,6 +197,99 @@ class PliegoAIService:
         )
         return {"ok": True, "resumen": parsed, "cached": False, "provider": provider, "source": pliego["source"]}
 
+    async def extract_v2(self, licitacion_id: str, force_refresh: bool = False) -> Dict[str, Any]:
+        """Licitometro 0.2 schema-first pliego extraction.
+
+        Uses the AIExtractionPipeline cache keyed by normalized document hash.
+        It does not replace legacy resumen/chat flows yet.
+        """
+        lic = await self._find_lic(licitacion_id)
+        if not lic:
+            return {"ok": False, "error": "licitacion not found"}
+
+        pliego = await self.get_pliego_text(str(lic["_id"]))
+        if not pliego["text"]:
+            return {"ok": False, "error": "no_pliego_text", "source": pliego["source"]}
+
+        from services.ai_extraction_pipeline import AIExtractionPipeline
+        pipeline = AIExtractionPipeline(self.db)
+
+        if not force_refresh:
+            cached = await pipeline.get_cached(pliego["text"])
+            if cached:
+                await self._persist_extraction_v2(lic, cached, cached=True)
+                return {
+                    "ok": True,
+                    "cached": True,
+                    "source": pliego["source"],
+                    "document_hash": cached.document_hash,
+                    "schema_version": cached.schema_version,
+                    "prompt_version": cached.prompt_version,
+                    "provider": cached.provider,
+                    "model": cached.model,
+                    "result": cached.result.model_dump(),
+                }
+
+        raw = await self.llm.extract_pliego_info(pliego["text"])
+        if not raw or raw.get("error"):
+            return {"ok": False, "error": raw.get("error", "llm_unavailable") if isinstance(raw, dict) else "llm_unavailable"}
+
+        provider = "groq" if self.llm._get_client() else "cerebras"
+        model = "llama-3.3-70b-versatile" if provider == "groq" else "llama3.1-8b"
+        record = await pipeline.store(
+            text=pliego["text"],
+            raw_result=raw,
+            source=pliego["source"],
+            provider=provider,
+            model=model,
+            metadata={"licitacion_id": str(lic["_id"]), "filename": pliego.get("filename", "")},
+        )
+
+        await self.db.licitaciones.update_one(
+            {"_id": lic["_id"]},
+            {"$set": {
+                "metadata.ai_extraction_v2_hash": record.document_hash,
+                "metadata.ai_extraction_v2_at": utc_now(),
+                "metadata.ai_extraction_v2_schema": record.schema_version,
+            }},
+        )
+        await self._persist_extraction_v2(lic, record, cached=False)
+
+        return {
+            "ok": True,
+            "cached": False,
+            "source": pliego["source"],
+            "document_hash": record.document_hash,
+            "schema_version": record.schema_version,
+            "prompt_version": record.prompt_version,
+            "provider": provider,
+            "model": model,
+            "result": record.result.model_dump(),
+        }
+
+    async def _persist_extraction_v2(self, lic: Dict[str, Any], record, cached: bool) -> None:
+        """Persist a compact v2 snapshot on the licitacion for downstream flows."""
+
+        from services.ai_extraction_pipeline import requirements_from_extraction
+
+        result_doc = record.result.model_dump()
+        requisitos = requirements_from_extraction(record.result)
+        await self.db.licitaciones.update_one(
+            {"_id": lic["_id"]},
+            {"$set": {
+                "metadata.ai_extraction_v2_hash": record.document_hash,
+                "metadata.ai_extraction_v2_at": utc_now(),
+                "metadata.ai_extraction_v2_schema": record.schema_version,
+                "metadata.ai_extraction_v2_prompt": record.prompt_version,
+                "metadata.ai_extraction_v2_provider": record.provider,
+                "metadata.ai_extraction_v2_model": record.model,
+                "metadata.ai_extraction_v2_cached": cached,
+                "metadata.ai_extraction_v2_result": result_doc,
+                "requisitos": requisitos,
+                "updated_at": utc_now(),
+            }},
+        )
+
     # ── Chat Q&A ──────────────────────────────────────────────────────
 
     async def chat(

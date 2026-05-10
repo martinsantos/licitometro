@@ -14,7 +14,7 @@ interface RubroItem {
 
 const COLORS = ['#3B82F6', '#22C55E', '#EF4444', '#F59E0B', '#8B5CF6', '#EC4899', '#06B6D4', '#F97316'];
 
-const API_URL = process.env.REACT_APP_API_URL || '';
+const API_URL = process.env.REACT_APP_API_URL || process.env.REACT_APP_BACKEND_URL || '';
 
 const NodoForm: React.FC<NodoFormProps> = ({ nodo, onSave, onCancel }) => {
   const [name, setName] = useState('');

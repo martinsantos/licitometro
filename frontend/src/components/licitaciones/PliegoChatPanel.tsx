@@ -9,6 +9,17 @@ interface AIResumen {
   observaciones?: string;
 }
 
+interface AIExtractionV2 {
+  items?: Array<{ descripcion: string; cantidad?: number; unidad?: string; confidence?: number }>;
+  requisitos_tecnicos?: string[];
+  documentacion_requerida?: string[];
+  plazo_ejecucion?: string;
+  lugar_entrega?: string;
+  condiciones_especiales?: string[];
+  info_faltante?: string[];
+  red_flags?: string[];
+}
+
 interface Message {
   role: 'user' | 'assistant';
   content: string;
@@ -27,7 +38,7 @@ const SUGGESTED_QUESTIONS = [
 ];
 
 export default function PliegoChatPanel({ licitacionId }: Props) {
-  const [tab, setTab] = useState<'resumen' | 'chat'>('resumen');
+  const [tab, setTab] = useState<'resumen' | 'extraccion' | 'chat'>('resumen');
   const [summary, setSummary] = useState<AIResumen | null>(null);
   const [summaryLoading, setSummaryLoading] = useState(false);
   const [summaryError, setSummaryError] = useState<string | null>(null);
@@ -35,6 +46,10 @@ export default function PliegoChatPanel({ licitacionId }: Props) {
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState('');
   const [chatLoading, setChatLoading] = useState(false);
+  const [extractV2, setExtractV2] = useState<AIExtractionV2 | null>(null);
+  const [extractV2Meta, setExtractV2Meta] = useState<{ cached?: boolean; schema_version?: string; provider?: string } | null>(null);
+  const [extractV2Loading, setExtractV2Loading] = useState(false);
+  const [extractV2Error, setExtractV2Error] = useState<string | null>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
 
   const loadSummary = async () => {
@@ -58,6 +73,30 @@ export default function PliegoChatPanel({ licitacionId }: Props) {
       setSummaryError('Error de conexion');
     } finally {
       setSummaryLoading(false);
+    }
+  };
+
+  const loadExtractionV2 = async (forceRefresh = false) => {
+    setExtractV2Loading(true);
+    setExtractV2Error(null);
+    try {
+      const res = await fetch(`/api/cotizar-ai/pliego/${licitacionId}/extract-v2`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ force_refresh: forceRefresh }),
+      });
+      const data = await res.json();
+      if (!res.ok || !data.ok) {
+        setExtractV2Error(data.detail || data.error || 'Error en extraccion 0.2');
+      } else {
+        setExtractV2(data.result);
+        setExtractV2Meta({ cached: data.cached, schema_version: data.schema_version, provider: data.provider });
+      }
+    } catch {
+      setExtractV2Error('Error de conexion');
+    } finally {
+      setExtractV2Loading(false);
     }
   };
 
@@ -106,7 +145,7 @@ export default function PliegoChatPanel({ licitacionId }: Props) {
 
       {/* Tabs */}
       <div className="flex border-b border-gray-100">
-        {(['resumen', 'chat'] as const).map(t => (
+        {(['resumen', 'extraccion', 'chat'] as const).map(t => (
           <button
             key={t}
             onClick={() => setTab(t)}
@@ -116,7 +155,7 @@ export default function PliegoChatPanel({ licitacionId }: Props) {
                 : 'text-gray-500 hover:text-gray-700'
             }`}
           >
-            {t === 'resumen' ? '📋 Resumen' : '💬 Chat'}
+            {t === 'resumen' ? '📋 Resumen' : t === 'extraccion' ? '🧪 0.2' : '💬 Chat'}
           </button>
         ))}
       </div>
@@ -204,6 +243,107 @@ export default function PliegoChatPanel({ licitacionId }: Props) {
                   className="text-xs text-purple-500 hover:text-purple-700 underline"
                 >
                   Reanalizar
+                </button>
+              </div>
+            )}
+          </div>
+        )}
+
+        {tab === 'extraccion' && (
+          <div>
+            {!extractV2 && !extractV2Loading && (
+              <div className="text-center py-6">
+                <p className="text-sm text-gray-500 mb-4">
+                  Extraccion 0.2 con schema versionado y cache por hash del documento.
+                </p>
+                <button
+                  onClick={() => loadExtractionV2(false)}
+                  className="px-4 py-2 bg-indigo-600 text-white text-sm rounded-lg hover:bg-indigo-700 transition-colors"
+                >
+                  Extraer con 0.2
+                </button>
+              </div>
+            )}
+            {extractV2Loading && (
+              <div className="flex items-center gap-3 py-8 text-gray-400 text-sm justify-center">
+                <div className="w-4 h-4 border-2 border-indigo-200 border-t-indigo-500 rounded-full animate-spin" />
+                Ejecutando extraccion 0.2...
+              </div>
+            )}
+            {extractV2Error && (
+              <div className="text-sm text-red-600 bg-red-50 rounded-lg p-3">
+                {extractV2Error}
+                <button onClick={() => loadExtractionV2(false)} className="ml-3 underline text-red-700">Reintentar</button>
+              </div>
+            )}
+            {extractV2 && !extractV2Error && (
+              <div className="space-y-4 text-sm">
+                <div className="flex flex-wrap gap-2 text-xs text-gray-500">
+                  <span className="px-2 py-0.5 bg-indigo-50 text-indigo-700 rounded-full">{extractV2Meta?.schema_version || 'schema'}</span>
+                  {extractV2Meta?.provider && <span className="px-2 py-0.5 bg-gray-100 rounded-full">{extractV2Meta.provider}</span>}
+                  {extractV2Meta?.cached && <span className="px-2 py-0.5 bg-emerald-50 text-emerald-700 rounded-full">cacheado</span>}
+                </div>
+
+                {extractV2.items && extractV2.items.length > 0 && (
+                  <div>
+                    <p className="font-medium text-gray-700 mb-1">Items detectados</p>
+                    <div className="space-y-1">
+                      {extractV2.items.slice(0, 8).map((it, i) => (
+                        <div key={i} className="bg-gray-50 rounded-lg px-2.5 py-2">
+                          <span className="text-gray-700">{it.descripcion}</span>
+                          <span className="text-xs text-gray-400 ml-2">{it.cantidad || 1} {it.unidad || 'u.'}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {extractV2.documentacion_requerida && extractV2.documentacion_requerida.length > 0 && (
+                  <div>
+                    <p className="font-medium text-gray-700 mb-1">Documentacion requerida</p>
+                    <ul className="space-y-1">
+                      {extractV2.documentacion_requerida.map((d, i) => (
+                        <li key={i} className="flex gap-2 text-gray-600">
+                          <span className="text-indigo-400 mt-0.5">•</span>
+                          <span>{d}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+
+                {extractV2.requisitos_tecnicos && extractV2.requisitos_tecnicos.length > 0 && (
+                  <div>
+                    <p className="font-medium text-gray-700 mb-1">Requisitos tecnicos</p>
+                    <ul className="space-y-1">
+                      {extractV2.requisitos_tecnicos.slice(0, 8).map((r, i) => (
+                        <li key={i} className="flex gap-2 text-gray-600">
+                          <span className="text-indigo-400 mt-0.5">•</span>
+                          <span>{r}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+
+                {(extractV2.plazo_ejecucion || extractV2.lugar_entrega) && (
+                  <div className="grid grid-cols-1 gap-2">
+                    {extractV2.plazo_ejecucion && <div className="bg-gray-50 rounded-lg p-2.5"><span className="text-xs font-bold text-indigo-500">Plazo: </span>{extractV2.plazo_ejecucion}</div>}
+                    {extractV2.lugar_entrega && <div className="bg-gray-50 rounded-lg p-2.5"><span className="text-xs font-bold text-indigo-500">Lugar: </span>{extractV2.lugar_entrega}</div>}
+                  </div>
+                )}
+
+                {extractV2.red_flags && extractV2.red_flags.length > 0 && (
+                  <div className="bg-red-50 border border-red-100 rounded-lg p-3">
+                    <p className="text-xs font-bold text-red-600 mb-1">Riesgos</p>
+                    <ul className="space-y-1 text-red-700">
+                      {extractV2.red_flags.map((flag, i) => <li key={i}>{flag}</li>)}
+                    </ul>
+                  </div>
+                )}
+
+                <button onClick={() => loadExtractionV2(true)} className="text-xs text-indigo-500 hover:text-indigo-700 underline">
+                  Forzar nueva extraccion
                 </button>
               </div>
             )}

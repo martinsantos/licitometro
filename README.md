@@ -15,7 +15,7 @@
 ## Stack Actual
 
 - **Backend:** FastAPI + MongoDB (Motor async driver)
-- **Frontend:** React 18 + TypeScript
+- **Frontend:** React 19 + TypeScript (Create React App)
 - **Scraping:** 24+ fuentes gubernamentales (aiohttp + Selenium + pypdf)
 - **Deploy:** Docker Compose en VPS con preview automático por PR
 
@@ -243,4 +243,3 @@ Ver guía completa: [`WORKING_WITH_BRANCHES.md`](./WORKING_WITH_BRANCHES.md)
 ---
 
 **Desarrollado con ❤️ en Mendoza, Argentina**
-

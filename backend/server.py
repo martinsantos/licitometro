@@ -24,7 +24,6 @@ from routers import (
     lab, hunter, users, analytics, pileta, empresa, knowledge, empresa_perfiles, open_data,
     adjudicaciones, catalogo, alertas,
     canonical,
-    admin_query, admin_open_data,
 )
 from services.auth_service import verify_token
 
@@ -59,7 +58,6 @@ READER_ACCESSIBLE_PREFIXES: tuple = ()
 # Admin-only prefixes — block GET access to non-admin (reader/viewer) tokens.
 # Non-GET requests already require admin via the existing role check below.
 ADMIN_ONLY_PREFIXES = (
-    "/api/admin/",
     "/api/cotizar-ai/",
     "/api/company-context",
     "/api/documentos",
@@ -224,8 +222,6 @@ app.include_router(adjudicaciones.router)
 app.include_router(catalogo.router)
 app.include_router(alertas.router)
 app.include_router(canonical.router)
-app.include_router(admin_query.router)
-app.include_router(admin_open_data.router)
 app.include_router(public.router)
 app.include_router(users.admin_router)
 app.include_router(users.public_router)
@@ -438,10 +434,9 @@ async def health_check():
         scheduler_running = bool(scheduler_status["running"])
         scheduled_jobs = len(scheduler_status["jobs"])
 
-        # In multi-worker Gunicorn only one worker holds the scheduler lock. A
-        # health request can land on a non-scheduler worker, where the singleton
-        # reports stopped even though another worker is running jobs. Use recent
-        # run activity as a process-independent fallback signal.
+        # Gunicorn can route this request to a worker that does not hold the
+        # scheduler lock. Check the process-wide scheduler lock first, then use
+        # recent scraper activity as a fallback signal.
         if not scheduler_running:
             import fcntl
             try:

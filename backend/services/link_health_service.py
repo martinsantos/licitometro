@@ -22,7 +22,9 @@ USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Licit
 
 PROBE_BATCH = 20
 PROBE_TIMEOUT_S = 10
-RECHECK_INTERVAL_DAYS = 1  # only probe if last probe > N days ago
+# Use 0.9 day to avoid off-by-one: items checked at exactly the same time
+# N days ago would fail `link_checked_at < cutoff` with a whole-day interval.
+RECHECK_INTERVAL_DAYS = 0.9
 
 
 def _is_comprar_url(url: str) -> bool:
@@ -90,7 +92,22 @@ async def _try_reresolve(
     except Exception as e:
         logger.debug(f"PliegoURLCache re-resolve failed for {numero_proceso}: {e}")
 
-    # 2. ComprasApps fallback — if this doc was merged with ComprasApps,
+    # 2. PliegoURL cache in MongoDB — persisted from scraper runs
+    if db is not None:
+        try:
+            cached = await db.pliego_url_cache.find_one(
+                {"numero_proceso": numero_proceso},
+                sort=[("resolved_at", -1)],
+            )
+            if cached and cached.get("pliego_url"):
+                url = cached["pliego_url"]
+                if "VistaPreviaPliegoCiudadano" in url:
+                    logger.info(f"Mongo cache re-resolved {numero_proceso} → {url[:80]}")
+                    return url
+        except Exception as e:
+            logger.debug(f"Mongo cache re-resolve failed: {e}")
+
+    # 3. ComprasApps fallback — if this doc was merged with ComprasApps,
     #    use the hli00048 detail URL as a stable permanent fallback
     if db is not None and doc is not None:
         try:
@@ -139,11 +156,11 @@ async def check_comprar_links(db: AsyncIOMotorDatabase, max_items: int = 500) ->
 
     cursor = db.licitaciones.find(
         query,
-        {"_id": 1, "canonical_url": 1, "licitacion_number": 1, "metadata": 1, "fuente": 1},
+        {"_id": 1, "canonical_url": 1, "licitacion_number": 1, "enrichment_level": 1, "metadata": 1, "fuente": 1},
     ).limit(max_items)
 
     items: List[Dict[str, Any]] = await cursor.to_list(length=max_items)
-    summary = {"probed": len(items), "alive": 0, "dead": 0, "rerolved": 0}
+    summary = {"probed": len(items), "alive": 0, "dead": 0, "resolved": 0}
 
     if not items:
         return summary
@@ -178,7 +195,7 @@ async def check_comprar_links(db: AsyncIOMotorDatabase, max_items: int = 500) ->
                         candidate = await _try_reresolve(numero, host_hint, doc=it, db=db)
                         if candidate:
                             new_url = candidate
-                            summary["rerolved"] += 1
+                            summary["resolved"] += 1
 
                     if new_url:
                         await db.licitaciones.update_one(
@@ -196,36 +213,41 @@ async def check_comprar_links(db: AsyncIOMotorDatabase, max_items: int = 500) ->
                             },
                         )
                     else:
-                        # --- Try re-downloading pliego via authenticated session ---
-                        try:
-                            pliego_url = str(it.get("canonical_url", ""))
-                            if pliego_url and "VistaPreviaPliegoCiudadano" in pliego_url:
-                                from services.comprar_pliego_downloader import ComprarPliegoDownloader
-                                from services.pliego_storage_service import store_pliego
-                                downloader = ComprarPliegoDownloader(db)
-                                pdf_bytes = await downloader.download_pliego_pdf(pliego_url)
-                                if pdf_bytes:
-                                    local = await store_pliego(
-                                        db=db,
-                                        licitacion_id=it["_id"],
-                                        pdf_bytes=pdf_bytes,
-                                        fuente=it.get("fuente", "COMPR.AR"),
-                                        numero=it.get("licitacion_number") or "",
-                                        source_url=pliego_url,
-                                    )
-                                    if local:
-                                        summary["rerolved"] += 1
-                                        await db.licitaciones.update_one(
-                                            {"_id": it["_id"]},
-                                            {
-                                                "$set": {"metadata.link_checked_at": now},
-                                                "$unset": {"metadata.link_dead_at": "", "metadata.link_dead_reason": ""},
-                                            },
+                        # Only re-download pliegos for items with active user interest
+                        enrich_level = it.get("enrichment_level") or 0
+                        if enrich_level < 2:
+                            logger.debug(f"Skip pliego re-download for {it['_id']}: enrichment_level={enrich_level} < 2")
+                        else:
+                            # --- Try re-downloading pliego via authenticated session ---
+                            try:
+                                pliego_url = str(it.get("canonical_url", ""))
+                                if pliego_url and "VistaPreviaPliegoCiudadano" in pliego_url:
+                                    from services.comprar_pliego_downloader import ComprarPliegoDownloader
+                                    from services.pliego_storage_service import store_pliego
+                                    downloader = ComprarPliegoDownloader(db)
+                                    pdf_bytes = await downloader.download_pliego_pdf(pliego_url)
+                                    if pdf_bytes:
+                                        local = await store_pliego(
+                                            db=db,
+                                            licitacion_id=it["_id"],
+                                            pdf_bytes=pdf_bytes,
+                                            fuente=it.get("fuente", "COMPR.AR"),
+                                            numero=it.get("licitacion_number") or "",
+                                            source_url=pliego_url,
                                         )
-                                        logger.info(f"Pliego re-downloaded for {it['_id']}: {local}")
-                                        continue
-                        except Exception as e:
-                            logger.debug(f"Pliego auth re-download failed for {it['_id']}: {e}")
+                                        if local:
+                                            summary["resolved"] += 1
+                                            await db.licitaciones.update_one(
+                                                {"_id": it["_id"]},
+                                                {
+                                                    "$set": {"metadata.link_checked_at": now},
+                                                    "$unset": {"metadata.link_dead_at": "", "metadata.link_dead_reason": ""},
+                                                },
+                                            )
+                                            logger.info(f"Pliego re-downloaded for {it['_id']}: {local}")
+                                            continue
+                            except Exception as e:
+                                logger.debug(f"Pliego auth re-download failed for {it['_id']}: {e}")
 
                         await db.licitaciones.update_one(
                             {"_id": it["_id"]},

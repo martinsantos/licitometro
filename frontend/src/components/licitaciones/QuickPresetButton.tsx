@@ -25,7 +25,7 @@ const QuickPresetButton: React.FC<QuickPresetButtonProps> = ({
   const [loading, setLoading] = useState(false);
 
   const todayDate = new Date().toISOString().slice(0, 10);
-  const baseUrl = apiUrlProp ?? process.env.REACT_APP_API_URL ?? '';
+  const baseUrl = apiUrlProp ?? process.env.REACT_APP_API_URL ?? process.env.REACT_APP_BACKEND_URL ?? '';
 
   // Fetch real count from stats endpoint
   useEffect(() => {

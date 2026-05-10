@@ -57,6 +57,18 @@ interface CompanyData {
   domicilio: string;
 }
 
+interface ScoreInsight {
+  company_id: string;
+  score: number;
+  nivel: 'alto' | 'medio' | 'bajo';
+  ai_v2?: {
+    technical_matches?: string[];
+    document_matches?: string[];
+    missing_documents?: string[];
+    document_inventory_available?: boolean;
+  };
+}
+
 const IVA_OPTIONS = [
   { label: 'Exento (0%)', value: 0 },
   { label: '10.5%', value: 10.5 },
@@ -92,6 +104,10 @@ function parseNumber(raw: string): number {
 function parseInteger(raw: string): number {
   const n = parseInt(raw.trim(), 10);
   return isNaN(n) || n < 0 ? 0 : n;
+}
+
+function uniqueStrings(values: string[]) {
+  return Array.from(new Set(values.filter(Boolean)));
 }
 
 // NumericInput that stores a raw string locally and only parses on blur
@@ -203,11 +219,14 @@ export default function OfertaEditor({ licitacion, onSaved }: Props) {
   const [vinculadosCache, setVinculadosCache] = useState<Record<string, Antecedente>>({});
   const [offerSections, setOfferSections] = useState<OfferSection[]>([]);
   const [pliegoDocuments, setPliegoDocuments] = useState<PliegoDoc[]>([]);
+  const [scoreInsights, setScoreInsights] = useState<ScoreInsight[]>([]);
   const [templateName, setTemplateName] = useState('');
   const [showTemplateSelector, setShowTemplateSelector] = useState(false);
   const [catalogMatches, setCatalogMatches] = useState<Record<number, any[]>>({});
   const [loadingCatalog, setLoadingCatalog] = useState(false);
   const [availableTemplates, setAvailableTemplates] = useState<Array<{id: string; name: string; slug: string; template_type: string; description: string; sections_count: number}>>([]);
+  const [hasLocalPliego, setHasLocalPliego] = useState(false);
+  const [pliegoExtracting, setPliegoExtracting] = useState(false);
   const offerRef = useRef<HTMLDivElement>(null);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -365,15 +384,31 @@ export default function OfertaEditor({ licitacion, onSaved }: Props) {
         if (cancelled) return;
         setPhase('ready');
 
-        // Load circulares from licitacion
+        // Load circulares + pliego status from licitacion
         fetch(`/api/licitaciones/${licitacion.id}`, { credentials: 'include' })
           .then(r => r.ok ? r.json() : null)
-          .then(data => { if (!cancelled && data?.circulares) setCirculares(data.circulares); })
+          .then(data => {
+            if (cancelled || !data) return;
+            if (data.circulares) setCirculares(data.circulares);
+            if (data.metadata?.pliego_local_url) setHasLocalPliego(true);
+          })
           .catch(() => {});
 
         // Fetch enrichments in background
         api.getBudgetHints(licitacion.id).then(h => { if (!cancelled) setBudgetHints(h); }).catch(() => {});
-        api.extractPliegoInfo(licitacion.id).then(p => {
+        setPliegoExtracting(true);
+        const loadPliegoInfo = async () => {
+          const v2 = await api.extractPliegoInfoV2(licitacion.id);
+          if (!v2.error && (
+            (v2.items && v2.items.length > 0) ||
+            (v2.documentacion_requerida && v2.documentacion_requerida.length > 0) ||
+            (v2.requisitos_tecnicos && v2.requisitos_tecnicos.length > 0)
+          )) {
+            return v2;
+          }
+          return api.extractPliegoInfo(licitacion.id);
+        };
+        loadPliegoInfo().then(p => {
           if (cancelled || p.error) return;
           setPliegoInfo(p);
           // Auto-import items from pliego analysis if editor is empty
@@ -391,7 +426,7 @@ export default function OfertaEditor({ licitacion, onSaved }: Props) {
               return prev;
             });
           }
-        }).catch(() => {});
+        }).catch(() => {}).finally(() => { if (!cancelled) setPliegoExtracting(false); });
         api.listDocuments().then(d => { if (!cancelled) setCompanyDocs(d); }).catch(() => {});
         // Load templates list for selector
         api.listTemplates().then(t => { if (!cancelled) setAvailableTemplates(t); }).catch(() => {});
@@ -413,6 +448,30 @@ export default function OfertaEditor({ licitacion, onSaved }: Props) {
     init();
     return () => { cancelled = true; };
   }, [licitacion.id]);
+
+  useEffect(() => {
+    if (!pliegoInfo?.ai_v2) {
+      setScoreInsights([]);
+      return;
+    }
+    let cancelled = false;
+    fetch('/api/company-context/profiles', { credentials: 'include' })
+      .then(r => r.ok ? r.json() : [])
+      .then(async profiles => {
+        const results = await Promise.all(
+          (profiles || []).map((profile: any) =>
+            fetch(`/api/company-context/profiles/${profile.company_id}/readiness/${licitacion.id}`, { credentials: 'include' })
+              .then(r => r.ok ? r.json() : null)
+              .catch(() => null)
+          ),
+        );
+        if (!cancelled) setScoreInsights(results.filter(Boolean) as ScoreInsight[]);
+      })
+      .catch(() => {
+        if (!cancelled) setScoreInsights([]);
+      });
+    return () => { cancelled = true; };
+  }, [pliegoInfo?.ai_v2, licitacion.id]);
 
   const { subtotal, ivaAmount, total } = useMemo(() => {
     const sub = items.reduce((acc, it) => acc + (it.cantidad || 0) * (it.precio_unitario || 0), 0);
@@ -800,6 +859,10 @@ export default function OfertaEditor({ licitacion, onSaved }: Props) {
     ? new Date(licitacion.opening_date).toLocaleDateString('es-AR')
     : 'N/A';
   const hasPliegoItems = (licitacion.items || []).length > 0;
+  const missingAiDocuments = uniqueStrings(scoreInsights.flatMap(s => s.ai_v2?.missing_documents || []));
+  const matchedAiDocuments = uniqueStrings(scoreInsights.flatMap(s => s.ai_v2?.document_matches || []));
+  const matchedAiTechnical = uniqueStrings(scoreInsights.flatMap(s => s.ai_v2?.technical_matches || []));
+  const hasDocumentInventory = scoreInsights.some(s => s.ai_v2?.document_inventory_available);
 
   return (
     <div className="space-y-6">
@@ -858,6 +921,108 @@ export default function OfertaEditor({ licitacion, onSaved }: Props) {
       </div>
 
       {/* Pliego Intelligence Banner */}
+      {pliegoInfo?.ai_v2 && (
+        <div className="bg-indigo-50 border border-indigo-200 rounded-xl p-4 text-sm">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+            <div>
+              <p className="font-semibold text-indigo-800">Extraccion AI 0.2 activa</p>
+              <p className="text-indigo-700 text-xs mt-0.5">
+                {pliegoInfo.schema_version || 'schema versionado'}
+                {pliegoInfo.provider && <span className="mx-1">· {pliegoInfo.provider}</span>}
+                {pliegoInfo.cached && <span className="mx-1">· cache</span>}
+              </p>
+            </div>
+            <div className="flex flex-wrap gap-1.5 text-xs">
+              <span className="px-2 py-0.5 bg-white border border-indigo-100 rounded-full text-indigo-700">{pliegoInfo.items?.length || 0} items</span>
+              <span className="px-2 py-0.5 bg-white border border-indigo-100 rounded-full text-indigo-700">{pliegoInfo.documentacion_requerida?.length || 0} docs</span>
+              <span className="px-2 py-0.5 bg-white border border-indigo-100 rounded-full text-indigo-700">{pliegoInfo.requisitos_tecnicos?.length || 0} req.</span>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {pliegoInfo?.ai_v2 && scoreInsights.length > 0 && (
+        <div className="bg-white border border-gray-200 rounded-xl p-4 text-sm">
+          <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-2 mb-3">
+            <div>
+              <p className="font-semibold text-gray-800">Brechas para preparar la oferta</p>
+              <p className="text-xs text-gray-500 mt-0.5">
+                Comparado contra requisitos AI 0.2 y contexto documental de empresa.
+              </p>
+            </div>
+            <span className={`px-2 py-0.5 rounded-full text-xs font-semibold ${missingAiDocuments.length > 0 ? 'bg-rose-50 text-rose-700 border border-rose-100' : 'bg-emerald-50 text-emerald-700 border border-emerald-100'}`}>
+              {missingAiDocuments.length > 0 ? `${missingAiDocuments.length} faltantes` : 'Sin faltantes detectados'}
+            </span>
+          </div>
+          {!hasDocumentInventory && (
+            <p className="mb-3 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
+              No hay inventario documental cargado; los faltantes solo se calculan cuando existen documentos disponibles en el contexto de empresa.
+            </p>
+          )}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+            <div>
+              <p className="text-xs font-semibold text-rose-700 mb-1">Documentos faltantes</p>
+              {missingAiDocuments.length > 0 ? (
+                <ul className="space-y-1">
+                  {missingAiDocuments.slice(0, 6).map((doc, i) => (
+                    <li key={i} className="flex items-start gap-1.5 text-xs text-rose-700">
+                      <span className="mt-0.5">-</span>
+                      <span>{doc}</span>
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                <p className="text-xs text-gray-500">No hay brechas documentales con la informacion disponible.</p>
+              )}
+            </div>
+            <div>
+              <p className="text-xs font-semibold text-emerald-700 mb-1">Documentos compatibles</p>
+              {matchedAiDocuments.length > 0 ? (
+                <ul className="space-y-1">
+                  {matchedAiDocuments.slice(0, 6).map((doc, i) => (
+                    <li key={i} className="flex items-start gap-1.5 text-xs text-emerald-700">
+                      <span className="mt-0.5">+</span>
+                      <span>{doc}</span>
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                <p className="text-xs text-gray-500">Todavia no hay documentos compatibles detectados.</p>
+              )}
+            </div>
+            <div>
+              <p className="text-xs font-semibold text-blue-700 mb-1">Requisitos tecnicos alineados</p>
+              {matchedAiTechnical.length > 0 ? (
+                <ul className="space-y-1">
+                  {matchedAiTechnical.slice(0, 6).map((req, i) => (
+                    <li key={i} className="flex items-start gap-1.5 text-xs text-blue-700">
+                      <span className="mt-0.5">+</span>
+                      <span>{req}</span>
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                <p className="text-xs text-gray-500">No se detectaron coincidencias tecnicas directas.</p>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {pliegoInfo?.red_flags && pliegoInfo.red_flags.length > 0 && (
+        <div className="bg-red-50 border border-red-200 rounded-xl p-4 text-sm">
+          <p className="font-semibold text-red-800 mb-1">Riesgos detectados por AI 0.2</p>
+          <ul className="space-y-1">
+            {pliegoInfo.red_flags.slice(0, 4).map((flag, i) => (
+              <li key={i} className="text-red-700 flex items-start gap-1.5">
+                <span className="text-red-400 mt-0.5">-</span>
+                <span>{flag}</span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+
       {pliegoInfo && pliegoInfo.info_faltante && pliegoInfo.info_faltante.length > 0 && (
         <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 text-sm">
           <div className="flex items-start gap-2">
@@ -995,6 +1160,34 @@ export default function OfertaEditor({ licitacion, onSaved }: Props) {
               )}
             </div>
           )}
+
+          {/* Pliego attachment status */}
+          <div className="flex items-center gap-3 text-sm">
+            {pliegoExtracting ? (
+              <div className="flex items-center gap-1.5 text-gray-500 bg-gray-50 border border-gray-200 rounded-lg px-3 py-1.5">
+                <span className="w-3 h-3 border-2 border-gray-300 border-t-gray-600 rounded-full animate-spin" />
+                <span>Extrayendo pliego…</span>
+              </div>
+            ) : pliegoInfo && pliegoInfo.items && pliegoInfo.items.length > 0 ? (
+              <div className="flex items-center gap-1.5 text-emerald-700 bg-emerald-50 border border-emerald-200 rounded-lg px-3 py-1.5">
+                <svg className="w-4 h-4" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" /></svg>
+                <span>{pliegoInfo.ai_v2 ? 'Pliego analizado con AI 0.2' : 'Pliego analizado'} <span className="text-emerald-500 mx-1">·</span> {pliegoInfo.items.length} ítems detectados</span>
+                {hasLocalPliego && (
+                  <span className="text-[10px] bg-emerald-200 text-emerald-800 px-1.5 py-0.5 rounded-full font-semibold ml-1">COPIA LOCAL</span>
+                )}
+                {pliegoInfo.ai_v2 && (
+                  <span className="text-[10px] bg-indigo-100 text-indigo-700 px-1.5 py-0.5 rounded-full font-semibold ml-1">0.2</span>
+                )}
+              </div>
+            ) : hasLocalPliego ? (
+              <div className="flex items-center gap-1.5 text-blue-700 bg-blue-50 border border-blue-200 rounded-lg px-3 py-1.5">
+                <svg className="w-4 h-4" viewBox="0 0 20 20" fill="currentColor"><path d="M9 2a2 2 0 00-2 2v8a2 2 0 002 2h6a2 2 0 002-2V6.414A2 2 0 0016.172 5.97l-2.828-2.828A2 2 0 0012.172 2H9z" /><path fillRule="evenodd" d="M4 5a2 2 0 00-2 2v10a2 2 0 002 2h8a2 2 0 002-2v-1H6a2 2 0 01-2-2V5z" clipRule="evenodd" /></svg>
+                <span>Pliego disponible localmente</span>
+                {pliegoInfo && <span className="text-blue-400 mx-1">·</span>}
+                {pliegoInfo && <span className="text-blue-600">{pliegoInfo.items?.length || 0} ítems</span>}
+              </div>
+            ) : null}
+          </div>
 
           <div className="flex items-center justify-between gap-2 flex-wrap">
             <h3 className="font-semibold text-gray-800">Items de la Oferta</h3>

@@ -16,6 +16,7 @@ from urllib.parse import urljoin
 from bs4 import BeautifulSoup, Tag
 
 from scrapers.base_scraper import BaseScraper
+from models.licitacion import LicitacionCreate
 
 logger = logging.getLogger("pjn_scraper")
 
@@ -37,7 +38,7 @@ class PJNScraper(BaseScraper):
     source_type = "website"
     max_items = 100
 
-    async def run(self) -> List[Dict[str, Any]]:
+    async def run(self) -> List[LicitacionCreate]:
         await self.setup()
         try:
             items = []
@@ -149,25 +150,52 @@ class PJNScraper(BaseScraper):
 
         return None
 
-    def _build_item(self, row: Dict[str, Any]) -> Dict[str, Any]:
+    async def extract_licitacion_data(self, html: str, url: str) -> Optional[LicitacionCreate]:
+        """BaseScraper compatibility: PJN is listing-first, not detail-first."""
+
+        rows = self._parse_listing(html)
+        if len(rows) == 1:
+            return self._build_item(rows[0])
+        return None
+
+    async def extract_links(self, html: str) -> List[str]:
+        """Extract detail links from a PJN listing page."""
+
+        return [
+            row["detail_url"]
+            for row in self._parse_listing(html)
+            if row.get("detail_url")
+        ]
+
+    async def get_next_page_url(self, html: str, current_url: str) -> Optional[str]:
+        """PJN pagination is handled explicitly in run()."""
+
+        return None
+
+    def _build_item(self, row: Dict[str, Any]) -> LicitacionCreate:
         """Convert a parsed row into a licitacion item dict."""
         title = row["nombre"]
         if row.get("numero"):
             title = f"{row['numero']} — {title}"
 
-        return {
-            "title": title,
-            "description": row.get("nombre", ""),
-            "organization": ORGANIZATION,
-            "source_url": row.get("detail_url") or f"{BASE_URL}{LISTING_PATH}",
-            "canonical_url": row.get("detail_url"),
-            "opening_date": row.get("opening_date"),
-            "fuente": self.friendly_name,
-            "scraper_type": self.source_name,
-            "tags": ["LIC_AR"],
-            "metadata": {
+        numero = str(row.get("numero") or "").strip()
+        safe_numero = re.sub(r"[^a-zA-Z0-9]+", "-", numero).strip("-").lower() or "sin-numero"
+        return LicitacionCreate(
+            id_licitacion=f"pjn-{safe_numero}",
+            title=title,
+            description=row.get("nombre", ""),
+            organization=ORGANIZATION,
+            source_url=row.get("detail_url") or f"{BASE_URL}{LISTING_PATH}",
+            canonical_url=row.get("detail_url"),
+            opening_date=row.get("opening_date"),
+            fuente=self.friendly_name,
+            jurisdiccion="Argentina",
+            tipo_procedimiento=row.get("tipo_procedimiento") or "Contratacion",
+            licitacion_number=numero or None,
+            tags=["LIC_AR"],
+            metadata={
                 "pj_n_numero": row.get("numero"),
                 "pj_n_tipo": row.get("tipo_procedimiento"),
                 "pj_n_estado": row.get("estado"),
             },
-        }
+        )

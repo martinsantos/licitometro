@@ -1,4 +1,4 @@
-const BASE_URL = process.env.REACT_APP_API_URL || '';
+const BASE_URL = process.env.REACT_APP_API_URL || process.env.REACT_APP_BACKEND_URL || '';
 
 export class ApiError extends Error {
   constructor(public status: number, public body: string) {

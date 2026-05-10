@@ -10,6 +10,8 @@ import StorageQuotaPanel from '../components/StorageQuotaPanel';
 import AdminARPanel from '../components/admin/AdminARPanel';
 import AdminImportSources from '../components/AdminImportSources';
 import AdminSistemaPanel from '../components/admin/AdminSistemaPanel';
+import CanonicalTendersPanel from '../components/admin/CanonicalTendersPanel';
+import ReadinessDashboardPanel from '../components/admin/ReadinessDashboardPanel';
 
 const API_URL = '';
 
@@ -24,6 +26,8 @@ const TABS = [
   { key: 'licitaciones', label: 'Licitaciones' },
   { key: 'licitaciones-ar', label: 'Lic. AR' },
   { key: 'sistema', label: 'Sistema' },
+  { key: 'canonical', label: 'Canonical 0.2' },
+  { key: 'readiness', label: 'Readiness 0.2' },
 ];
 
 const AdminPage = () => {
@@ -153,6 +157,14 @@ const AdminPage = () => {
 
           {activeTab === 'sistema' && (
             <AdminSistemaPanel />
+          )}
+
+          {activeTab === 'canonical' && (
+            <CanonicalTendersPanel />
+          )}
+
+          {activeTab === 'readiness' && (
+            <ReadinessDashboardPanel />
           )}
         </div>
       </div>

@@ -39,15 +39,12 @@ class TestPJNScraperParsing:
     """Test PJN scraper HTML parsing without network calls."""
 
     def setup_method(self):
-        # Bypass ABC check: PJNScraper uses run() not abstract methods
-        PJNScraper.__abstractmethods__ = frozenset()
         config = ScraperConfig(
             name="magistratura_pjn",
             url="https://srpcm.pjn.gov.ar/contrataciones",
             selectors={"scraper_type": "pjn"},
         )
-        self.scraper = PJNScraper.__new__(PJNScraper)
-        self.scraper.config = config
+        self.scraper = PJNScraper(config)
 
     def test_parse_listing(self):
         """Parse listing HTML and extract rows."""
@@ -67,23 +64,26 @@ class TestPJNScraperParsing:
         rows = self.scraper._parse_listing(MOCK_LISTING_HTML)
         item = self.scraper._build_item(rows[0])
 
-        assert item["organization"] == ORGANIZATION
-        assert item["fuente"] == "Magistratura PJN"
-        assert item["tags"] == ["LIC_AR"]
-        assert "282/2026" in item["title"]
-        assert "Tanques" in item["title"]
-        assert item["source_url"] == "https://srpcm.pjn.gov.ar/contrataciones/282"
-        assert item["opening_date"] is not None
-        assert item["metadata"]["pj_n_numero"] == "282/2026"
-        assert item["metadata"]["pj_n_tipo"] == "Tramite Simplificado"
-        assert item["metadata"]["pj_n_estado"] == "Publicada"
+        assert item.id_licitacion == "pjn-282-2026"
+        assert item.organization == ORGANIZATION
+        assert item.fuente == "Magistratura PJN"
+        assert item.jurisdiccion == "Argentina"
+        assert item.tipo_procedimiento == "Tramite Simplificado"
+        assert item.tags == ["LIC_AR"]
+        assert "282/2026" in item.title
+        assert "Tanques" in item.title
+        assert str(item.source_url) == "https://srpcm.pjn.gov.ar/contrataciones/282"
+        assert item.opening_date is not None
+        assert item.metadata["pj_n_numero"] == "282/2026"
+        assert item.metadata["pj_n_tipo"] == "Tramite Simplificado"
+        assert item.metadata["pj_n_estado"] == "Publicada"
 
     def test_build_item_no_detail_url(self):
         """Fallback to listing URL when no detail link."""
         row = {"numero": "123/2026", "nombre": "Test Item", "detail_url": None,
                "opening_date": None, "tipo_procedimiento": "Directa", "estado": "Publicada"}
         item = self.scraper._build_item(row)
-        assert item["source_url"] == f"{BASE_URL}/contrataciones"
+        assert str(item.source_url) == f"{BASE_URL}/contrataciones"
 
     def test_parse_date_spanish(self):
         """Parse Spanish long date format."""

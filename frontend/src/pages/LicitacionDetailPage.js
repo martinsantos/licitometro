@@ -1067,6 +1067,7 @@ const LicitacionDetailPage = ({ userRole }) => {
                       {licitacion.pliegos_bases.map((pliego, idx) => {
                         const isDead = !!licitacion.metadata?.link_dead_at && pliego.fuente === 'comprar_ar';
                         const isComprar = pliego.fuente === 'comprar_ar';
+                        const hasLocalPdf = !!licitacion.metadata?.pliego_local_url;
                         const label = pliego.titulo || pliego.documento || pliego.url?.split('/').pop() || 'Pliego';
                         return (
                           <div key={idx} className={`rounded-xl p-4 border ${isDead ? 'bg-gray-50 border-gray-200' : 'bg-blue-50 border-blue-100'}`}>
@@ -1079,12 +1080,12 @@ const LicitacionDetailPage = ({ userRole }) => {
                               )}
                               {isDead && (
                                 <span className="text-xs px-1.5 py-0.5 rounded bg-amber-100 text-amber-700 font-medium">
-                                  ⚠ expirado
+                                  expirado
                                 </span>
                               )}
                               {isComprar && !isDead && (
                                 <span className="text-xs text-blue-400" title="Los enlaces de COMPR.AR pueden expirar a las 24-48hs">
-                                  ⏱ caduca
+                                  caduca
                                 </span>
                               )}
                             </div>
@@ -1097,7 +1098,16 @@ const LicitacionDetailPage = ({ userRole }) => {
                                 Ver {pliego.tipo === 'HTML' ? 'pliego en línea' : pliego.tipo === 'ZIP' ? 'descargar ZIP' : 'documento'}
                               </a>
                             )}
-                            {isDead && (
+                            {isDead && hasLocalPdf && (
+                              <a href={licitacion.metadata.pliego_local_url} target="_blank" rel="noopener noreferrer"
+                                 className="inline-flex items-center gap-1 mt-2 text-sm text-emerald-600 hover:text-emerald-800 font-medium">
+                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
+                                </svg>
+                                Ver copia local (PDF permanente)
+                              </a>
+                            )}
+                            {isDead && !hasLocalPdf && (
                               <p className="mt-1 text-xs text-gray-400">Enlace no disponible — se renovará automáticamente</p>
                             )}
                           </div>
@@ -1397,9 +1407,13 @@ const LicitacionDetailPage = ({ userRole }) => {
                         href={comprarUrl}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="flex items-center justify-center gap-3 p-4 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white rounded-xl transition-all shadow-lg shadow-blue-200 hover:shadow-xl hover:shadow-blue-300 font-bold"
+                        className={`flex items-center justify-center gap-3 p-4 rounded-xl transition-all shadow-lg font-bold ${
+                          licitacion.metadata?.pliego_local_url && !comprarUrl.includes('comprar.')
+                            ? 'bg-gradient-to-r from-emerald-600 to-green-600 hover:from-emerald-700 hover:to-green-700 shadow-emerald-200 hover:shadow-emerald-300'
+                            : 'bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 shadow-blue-200 hover:shadow-blue-300'
+                        }`}
                       >
-                        <span>Abrir en COMPR.AR</span>
+                        <span>{licitacion.metadata?.pliego_local_url && !comprarUrl.includes('comprar.') ? 'Ver PDF local (copia persistente)' : 'Abrir en COMPR.AR'}</span>
                         <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
                         </svg>

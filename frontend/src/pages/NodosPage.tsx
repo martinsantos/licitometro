@@ -4,7 +4,7 @@ import NodoCard from '../components/nodos/NodoCard';
 import NodoForm from '../components/nodos/NodoForm';
 import type { Nodo } from '../types/licitacion';
 
-const API_URL = process.env.REACT_APP_API_URL || '';
+const API_URL = process.env.REACT_APP_API_URL || process.env.REACT_APP_BACKEND_URL || '';
 
 const NodosPage: React.FC = () => {
   const { nodos, loading, refetch } = useNodos();

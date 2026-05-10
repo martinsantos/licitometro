@@ -1,6 +1,7 @@
 """
 Authentication service - user accounts with role-based JWT tokens.
 """
+from __future__ import annotations
 
 import os
 import uuid

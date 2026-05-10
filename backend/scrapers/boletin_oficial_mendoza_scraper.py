@@ -15,6 +15,7 @@ from bs4 import BeautifulSoup
 from models.licitacion import LicitacionCreate
 from models.scraper_config import ScraperConfig
 from scrapers.base_scraper import BaseScraper
+from scrapers.contracts import EvidenceKind, ScrapeResult, SourceEvidence
 from utils.dates import last_business_days_set, parse_date_guess
 
 logger = logging.getLogger("scraper.boletin_oficial_mendoza")
@@ -783,7 +784,14 @@ class BoletinOficialMendozaScraper(BaseScraper):
 
         try:
             # ResilientHttpClient handles proxy routing, retry, 522 backoff, SSL automatically
-            html = await self.http.post(advance_url, data=payload)
+            if hasattr(self, "http") and self.http:
+                html = await self.http.post(advance_url, data=payload)
+            elif self.session:
+                async with self.session.post(advance_url, data=payload) as response:
+                    html = await response.text() if response.status == 200 else None
+            else:
+                logger.error("Advance search failed: HTTP client not initialized")
+                return None
             if not html:
                 logger.error(f"Advance search failed for keyword={keyword}")
             return html
@@ -1112,3 +1120,52 @@ class BoletinOficialMendozaScraper(BaseScraper):
             return unique_lics
         finally:
             await self.cleanup()
+
+    async def run_with_evidence(self) -> List[ScrapeResult]:
+        """Run scraper and return Licitometro 0.2 evidence-aware results."""
+
+        licitaciones = await self.run()
+        results: List[ScrapeResult] = []
+        for lic in licitaciones:
+            evidence_by_url: Dict[str, SourceEvidence] = {}
+
+            def add_evidence(kind: EvidenceKind, url: Optional[str], metadata: Optional[Dict[str, Any]] = None):
+                if not url:
+                    return
+                clean_url = str(url)
+                if clean_url in evidence_by_url:
+                    return
+                evidence_by_url[clean_url] = SourceEvidence(
+                    kind=kind,
+                    source_url=clean_url,
+                    metadata=metadata or {},
+                )
+
+            source_url = str(lic.source_url) if lic.source_url else None
+            source_kind = EvidenceKind.PDF if source_url and source_url.lower().split("?")[0].endswith(".pdf") else EvidenceKind.HTML
+            add_evidence(source_kind, source_url, {"role": "source_url"})
+
+            if isinstance(lic.source_urls, dict):
+                for role, source_url in lic.source_urls.items():
+                    kind = EvidenceKind.PDF if str(source_url).lower().split("?")[0].endswith(".pdf") else EvidenceKind.HTML
+                    add_evidence(kind, source_url, {"role": role or "source_urls"})
+
+            for attached in lic.attached_files or []:
+                if not isinstance(attached, dict):
+                    continue
+                url = attached.get("url")
+                if not url:
+                    continue
+                lowered = str(url).lower().split("?")[0]
+                kind = EvidenceKind.PDF if lowered.endswith(".pdf") else EvidenceKind.TEXT
+                add_evidence(kind, url, {"role": "attached_file", "name": attached.get("name")})
+
+            confidence = 0.86 if any(ev.kind == EvidenceKind.PDF for ev in evidence_by_url.values()) else 0.7
+            results.append(ScrapeResult(
+                item=lic,
+                source_id="boletin_oficial_mendoza",
+                evidence=list(evidence_by_url.values()),
+                extraction_confidence=confidence,
+                extraction_version="boletin_mendoza_v1_evidence",
+            ))
+        return results
