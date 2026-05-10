@@ -89,6 +89,7 @@ class EnrichmentCronService:
             "$or": [
                 {"fuente": {"$regex": "ComprasApps|comprasapps", "$options": "i"}},
                 {"source_url": {"$in": [None, ""]}},
+                {"url_quality": "list_only"},
             ],
         }
         cursor = self.collection.find(query).limit(MAX_TITLEONLY_BATCH)
@@ -156,6 +157,7 @@ class EnrichmentCronService:
         query = {
             "enrichment_level": {"$in": [None, 1]},
             "source_url": {"$nin": [None, ""]},
+            "url_quality": {"$ne": "list_only"},
             "fuente": {"$not": {"$regex": "ComprasApps|comprasapps", "$options": "i"}},
         }
         cursor = self.collection.find(query).limit(MAX_HTTP_BATCH)
@@ -246,6 +248,8 @@ class EnrichmentCronService:
         query = {
             "metadata.comprar_pliego_url": {"$regex": "VistaPreviaPliegoCiudadano"},
             "metadata.pliego_local_url": {"$in": [None, ""]},
+            # Solo guardamos pliegos para items con interés activo del usuario
+            "enrichment_level": {"$gte": 2},
         }
         cursor = self.collection.find(query).limit(MAX_BATCH)
         items = await cursor.to_list(length=MAX_BATCH)

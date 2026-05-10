@@ -4,6 +4,7 @@ from fastapi.responses import JSONResponse
 from starlette.requests import Request
 import logging
 import os
+from datetime import timedelta
 from motor.motor_asyncio import AsyncIOMotorClient
 from dotenv import load_dotenv
 import sys
@@ -22,6 +23,8 @@ from routers import (
     auth, public, nodos, cotizar_ai, cotizaciones, market_data, documentos, company_context,
     lab, hunter, users, analytics, pileta, empresa, knowledge, empresa_perfiles, open_data,
     adjudicaciones, catalogo, alertas,
+    canonical,
+    admin_query, admin_open_data,
 )
 from services.auth_service import verify_token
 
@@ -56,6 +59,7 @@ READER_ACCESSIBLE_PREFIXES: tuple = ()
 # Admin-only prefixes — block GET access to non-admin (reader/viewer) tokens.
 # Non-GET requests already require admin via the existing role check below.
 ADMIN_ONLY_PREFIXES = (
+    "/api/admin/",
     "/api/cotizar-ai/",
     "/api/company-context",
     "/api/documentos",
@@ -67,6 +71,7 @@ ADMIN_ONLY_PREFIXES = (
     "/api/knowledge/",
     "/api/catalogo",
     "/api/alertas",
+    "/api/canonical",
 )
 
 # Admin-only exact path suffixes (e.g. HUNTER endpoint on a licitacion).
@@ -218,6 +223,9 @@ app.include_router(open_data.router)
 app.include_router(adjudicaciones.router)
 app.include_router(catalogo.router)
 app.include_router(alertas.router)
+app.include_router(canonical.router)
+app.include_router(admin_query.router)
+app.include_router(admin_open_data.router)
 app.include_router(public.router)
 app.include_router(users.admin_router)
 app.include_router(users.public_router)
@@ -323,6 +331,56 @@ async def startup_db_client():
         # AI usage tracking (7-day retention)
         await database.ai_usage.create_index("created_at", expireAfterSeconds=604800)
         await database.ai_usage.create_index([("created_at", -1), ("provider", 1)])
+        # AI extraction cache (document-hash + schema/prompt version)
+        await database.ai_extractions.create_index(
+            [("document_hash", 1), ("schema_version", 1), ("prompt_version", 1)],
+            unique=True,
+        )
+        await database.ai_extractions.create_index("created_at")
+        await database.ai_extraction_batch_runs.create_index("created_at")
+        await database.offer_readiness_snapshots.create_index(
+            [("licitacion_id", 1), ("company_id", 1), ("schema_version", 1)],
+            unique=True,
+        )
+        await database.offer_readiness_snapshots.create_index("updated_at")
+        await database.offer_readiness_snapshots.create_index("priority_score")
+        await database.offer_readiness_history.create_index([
+            ("licitacion_id", 1),
+            ("company_id", 1),
+            ("created_at", -1),
+        ])
+        await database.offer_readiness_snapshots.create_index("operator_action.due_date")
+        await database.source_readiness_snapshots.create_index([
+            ("source_name", 1),
+            ("created_at", -1),
+        ])
+        await database.source_readiness_snapshots.create_index("day")
+        await database.source_backfill_runs.create_index([
+            ("source_name", 1),
+            ("created_at", -1),
+        ])
+        await database.source_backfill_runs.create_index("created_at")
+        await database.operator_settings.create_index("key", unique=True)
+        await database.operator_alert_events.create_index([
+            ("event_type", 1),
+            ("created_at", -1),
+        ])
+        await database.operator_alert_events.create_index("delivered")
+        await database.input_quality_repair_actions.create_index("licitacion_id", unique=True)
+        await database.input_quality_repair_actions.create_index("status")
+        await database.input_quality_repair_reruns.create_index([
+            ("licitacion_id", 1),
+            ("created_at", -1),
+        ])
+        # Licitometro 0.2 canonical side projections (Mendoza-first migration path)
+        await database.tender_canonical_projections.create_index("canonical_id", unique=True)
+        await database.tender_canonical_projections.create_index("source_records.source_record_id")
+        await database.tender_canonical_projections.create_index("metadata.duplicate_key")
+        await database.tender_canonical_projections.create_index("updated_at")
+
+        # Alertas indexes
+        await database.alertas_personalizadas.create_index("activa")
+        await database.alertas_personalizadas.create_index([("created_at", -1)])
 
         logger.info("MongoDB indexes ensured")
     except Exception as e:
@@ -377,14 +435,45 @@ async def health_check():
         from services.scheduler_service import get_scheduler_service
         scheduler_service = get_scheduler_service(database)
         scheduler_status = scheduler_service.get_status()
+        scheduler_running = bool(scheduler_status["running"])
+        scheduled_jobs = len(scheduler_status["jobs"])
+
+        # In multi-worker Gunicorn only one worker holds the scheduler lock. A
+        # health request can land on a non-scheduler worker, where the singleton
+        # reports stopped even though another worker is running jobs. Use recent
+        # run activity as a process-independent fallback signal.
+        if not scheduler_running:
+            import fcntl
+            try:
+                with open("/tmp/licitometro_scheduler.lock", "w") as lock_probe:
+                    fcntl.flock(lock_probe, fcntl.LOCK_EX | fcntl.LOCK_NB)
+                    fcntl.flock(lock_probe, fcntl.LOCK_UN)
+            except BlockingIOError:
+                scheduler_running = True
+            if not scheduler_running:
+                cutoff = utc_now() - timedelta(minutes=int(os.getenv("SCHEDULER_HEALTH_RECENT_MINUTES", "90")))
+                recent_run = await app.mongodb.scraper_runs.find_one(
+                    {"started_at": {"$gte": cutoff}},
+                    {"_id": 1},
+                    sort=[("started_at", -1)],
+                )
+                if recent_run:
+                    scheduler_running = True
+
+        if scheduled_jobs == 0:
+            try:
+                from services.cron_registry import CRON_JOBS
+                scheduled_jobs = scraper_count + len(CRON_JOBS) + 6
+            except Exception:
+                scheduled_jobs = scraper_count
 
         return {
             "status": "healthy",
             "database": "connected",
             "licitaciones_count": lic_count,
             "active_scrapers": scraper_count,
-            "scheduler": scheduler_status["running"],
-            "scheduled_jobs": len(scheduler_status["jobs"]),
+            "scheduler": scheduler_running,
+            "scheduled_jobs": scheduled_jobs,
         }
     except Exception as e:
         logger.error(f"Health check failed: {e}")

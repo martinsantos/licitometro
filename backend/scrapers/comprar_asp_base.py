@@ -24,6 +24,7 @@ DEFAULT_TABLE_PATTERNS = [
     "GridListaPliegos",
     "grdListadoProcesos",
     "GridListaProcesos",
+    "gvListadoPliegos",
     "grdPliegos",
     "grilla",
 ]

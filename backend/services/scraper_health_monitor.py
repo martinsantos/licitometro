@@ -43,6 +43,14 @@ def _utcnow():
     return datetime.now(timezone.utc)
 
 
+def _aware_utc(value: Optional[datetime]) -> Optional[datetime]:
+    if not value:
+        return None
+    if value.tzinfo is None:
+        return value.replace(tzinfo=timezone.utc)
+    return value.astimezone(timezone.utc)
+
+
 class ScraperHealthMonitor:
     def __init__(self, db):
         self.db = db
@@ -68,6 +76,7 @@ class ScraperHealthMonitor:
             return False  # closed
 
         open_since = doc.get("circuit_open_since")
+        open_since = _aware_utc(open_since)
         if open_since and (_utcnow() - open_since) < timedelta(minutes=cooldown_minutes):
             return True  # open — still in cooldown
 
@@ -134,6 +143,7 @@ class ScraperHealthMonitor:
         if failures < DEFAULT_CIRCUIT_THRESHOLD:
             return {"state": "closed", "failures": failures}
         open_since = doc.get("circuit_open_since")
+        open_since = _aware_utc(open_since)
         if open_since and (_utcnow() - open_since) < timedelta(minutes=DEFAULT_CIRCUIT_COOLDOWN_MIN):
             return {"state": "open", "failures": failures, "open_since": open_since.isoformat()}
         if doc.get("circuit_half_open"):

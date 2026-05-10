@@ -1,27 +1,48 @@
-from fastapi import APIRouter, Query, Request
+from fastapi import APIRouter, HTTPException, Query, Request
 from datetime import datetime, timezone, timedelta
 
 router = APIRouter(prefix="/api/open-data", tags=["open-data"])
 
 
+def _safe_text(value, default: str = "") -> str:
+    """Return a bounded string-friendly value for partially-normalized source docs."""
+    if value is None:
+        return default
+    if isinstance(value, str):
+        return value
+    return str(value)
+
+
+def _parse_date_param(value: str, param_name: str) -> datetime:
+    try:
+        return datetime.fromisoformat(value.replace("Z", "+00:00"))
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=f"{param_name} debe ser ISO-8601") from exc
+
+
 def _to_ocds(doc: dict) -> dict:
     pub = doc.get("publication_date")
     opening = doc.get("opening_date")
+    description = _safe_text(doc.get("objeto") or doc.get("description"))[:500]
+    title = _safe_text(doc.get("title") or doc.get("objeto") or doc.get("id_licitacion"))
+    organization = _safe_text(doc.get("organization"))
+    status = _safe_text(doc.get("estado"), "active") or "active"
+    source = _safe_text(doc.get("fuente"))
     return {
         "ocid": f"ocds-licitometro-{doc.get('proceso_id') or str(doc.get('_id', ''))}",
         "id": str(doc.get("_id", "")),
         "date": pub.isoformat() if isinstance(pub, datetime) else pub,
         "language": "es",
         "initiationType": "tender",
-        "parties": [{"name": doc.get("organization", ""), "roles": ["buyer"]}],
+        "parties": [{"name": organization, "roles": ["buyer"]}],
         "tender": {
-            "title": doc.get("title", ""),
-            "description": (doc.get("objeto") or doc.get("description", ""))[:500],
-            "status": doc.get("estado", "active"),
+            "title": title,
+            "description": description,
+            "status": status,
             "value": {"amount": doc.get("budget"), "currency": "ARS"} if doc.get("budget") else None,
             "tenderPeriod": {"endDate": opening.isoformat() if isinstance(opening, datetime) else opening},
         },
-        "source": doc.get("fuente", ""),
+        "source": source,
         "url": doc.get("canonical_url") or doc.get("url"),
     }
 
@@ -38,9 +59,9 @@ async def ocds_licitaciones(
     db = request.app.mongodb
     query: dict = {}
     if fecha_desde:
-        query.setdefault("publication_date", {})["$gte"] = datetime.fromisoformat(fecha_desde)
+        query.setdefault("publication_date", {})["$gte"] = _parse_date_param(fecha_desde, "fecha_desde")
     if fecha_hasta:
-        query.setdefault("publication_date", {})["$lte"] = datetime.fromisoformat(fecha_hasta)
+        query.setdefault("publication_date", {})["$lte"] = _parse_date_param(fecha_hasta, "fecha_hasta")
     if fuente:
         query["fuente"] = fuente
     skip = (page - 1) * limit

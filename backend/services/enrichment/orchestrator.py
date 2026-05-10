@@ -44,6 +44,12 @@ class GenericEnrichmentService:
         source_url = str(lic_doc.get("source_url", "") or "")
         source_urls = lic_doc.get("source_urls") or {}
 
+        # List-only URLs are portal/search pages captured as provenance, not detail pages.
+        # Fetching them during enrichment re-processes unrelated list content.
+        if lic_doc.get("url_quality") == "list_only":
+            logger.debug(f"List-only URL detected, title-only enrichment: {source_url[:80]}")
+            return enrich_title_only(lic_doc)
+
         # No URL at all -- title-only enrichment
         if not source_url and not source_urls:
             return enrich_title_only(lic_doc)

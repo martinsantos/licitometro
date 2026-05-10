@@ -347,11 +347,21 @@ class SchedulerService:
             try:
                 async with self._scraper_semaphore:
                     log(f"Semaphore acquired for {scraper_name} (timeout={timeout_seconds}s)")
-                    items = await asyncio.wait_for(scraper.run(), timeout=timeout_seconds)
+                    scraper_runner = getattr(scraper, "run_with_evidence", scraper.run)
+                    raw_items = await asyncio.wait_for(scraper_runner(), timeout=timeout_seconds)
             except asyncio.TimeoutError:
                 raise TimeoutError(f"Scraper timed out after {timeout_seconds}s")
             
             duration = (utc_now() - start_time).total_seconds()
+
+            source_id = scraper_name.lower().replace(" ", "_")
+            from scrapers.contracts import normalize_scraper_output, summarize_item_evidence
+            items, _scrape_results, source_evidence = normalize_scraper_output(raw_items, source_id=source_id)
+            scrape_results_by_id = {
+                result.item.id_licitacion: result
+                for result in _scrape_results
+                if result.item.id_licitacion
+            }
             
             # Calculate metrics
             items_found = len(items)
@@ -362,6 +372,8 @@ class SchedulerService:
             duplicates_skipped = 0
             urls_with_pliego = 0
             record_errors: List[Dict] = []
+            from services.source_quality_service import summarize_items_quality
+            source_quality = summarize_items_quality(items)
 
             # Initialize dedup service for content-hash checking
             dedup_svc = DeduplicationService(self.db)
@@ -452,6 +464,11 @@ class SchedulerService:
 
                         # Prepare item data
                         item_data = item.model_dump()
+                        evidence_result = scrape_results_by_id.get(item.id_licitacion)
+                        if evidence_result:
+                            metadata = dict(item_data.get("metadata") or {})
+                            metadata["source_evidence"] = summarize_item_evidence(evidence_result)
+                            item_data["metadata"] = metadata
                         for url_field in ("source_url", "canonical_url"):
                             if item_data.get(url_field) is not None:
                                 item_data[url_field] = str(item_data[url_field])
@@ -586,8 +603,21 @@ class SchedulerService:
                     except Exception as enrich_err:
                         log(f"Enrichment bulk write error: {enrich_err}", "warning")
 
+                # ── Licitometro 0.2 canonical side projections (Mendoza first) ──
+                if batch_ids and not is_ar_scope:
+                    try:
+                        from services.canonical_projection_service import upsert_many_canonical_projections
+                        projection_docs = await licitaciones_collection.find(
+                            {"id_licitacion": {"$in": batch_ids}}
+                        ).to_list(length=len(batch_ids))
+                        projection_result = await upsert_many_canonical_projections(self.db, projection_docs)
+                        if projection_result.get("failed"):
+                            log(f"Canonical projection partial failure: {projection_result}", "warning")
+                    except Exception as projection_err:
+                        log(f"Canonical projection failed: {projection_err}", "warning")
+
                 # ── HUNTER cross-source enrichment for new items ──
-                if items_saved > 0 and enrichment_updates:
+                if items_saved > 0 and enrichment_updates and not is_ar_scope:
                     try:
                         from services.cross_source_service import CrossSourceService
                         cross_svc = CrossSourceService(self.db)
@@ -620,7 +650,18 @@ class SchedulerService:
                 status = "partial" if items_saved > 0 else "failed"
 
             # Detect silent failure: 0 items found with no errors
-            # A scraper that used to return items but returns 0 is suspicious
+            # A critical source can opt into a hard minimum; otherwise only
+            # sources with previous volume are marked suspicious.
+            if status == "success" and items_found == 0:
+                selectors = getattr(config, "selectors", None) or {}
+                expected_min_items = int(selectors.get("expected_min_items") or 0)
+                if expected_min_items > 0:
+                    status = "empty_suspicious"
+                    log(
+                        f"Suspicious: 0 items found but config expects at least {expected_min_items}",
+                        "warning",
+                    )
+
             if status == "success" and items_found == 0:
                 expected_doc = await configs_collection.find_one(
                     {"name": scraper_name}, {"last_items_found": 1}
@@ -646,7 +687,16 @@ class SchedulerService:
                 logs=logs,
                 record_errors=record_errors,
                 duplicates_skipped=duplicates_skipped,
-                metadata={"items_unchanged": items_unchanged},
+                metadata={
+                    "items_unchanged": items_unchanged,
+                    "source_quality": source_quality,
+                    "source_evidence": source_evidence,
+                    "licitometro_0_2": {
+                        "mendoza_first": getattr(config, "scope", None) != "ar_nacional",
+                        "quality_contract": "legacy_item_summary",
+                        "evidence_contract": "legacy_wrapped_scrape_result",
+                    },
+                },
             )
 
             # Use default mode (Python) — preserves datetime as BSON Date, not ISO string

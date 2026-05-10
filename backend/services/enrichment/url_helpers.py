@@ -12,13 +12,16 @@ _UNFETCHABLE_PATTERNS = [
     "webapps.godoycruz.gob.ar/consultacompras/",        # GeneXus servlet (Godoy Cruz)
     "ComprasElectronicas.aspx?qs=",                      # COMPR.AR session-dependent
     "/Compras.aspx?qs=",                                 # COMPR.AR list page
+    "comprar.gob.ar/Default.aspx",                       # COMPR.AR national public list
+    "buenosairescompras.gob.ar/BuscarAvanzado.aspx",     # BAC rendered search list
     "apex.lasherasdigital.gob.ar",                       # Oracle APEX (Las Heras)
 ]
 
 
 def is_unfetchable_url(url: str) -> bool:
     """Detect URLs that point to list pages or session-dependent servlets."""
-    return any(pattern in url for pattern in _UNFETCHABLE_PATTERNS)
+    target = (url or "").lower()
+    return any(pattern.lower() in target for pattern in _UNFETCHABLE_PATTERNS)
 
 
 def find_best_alt_url(source_urls: dict) -> Optional[str]:

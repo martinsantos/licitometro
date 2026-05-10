@@ -20,6 +20,10 @@ class TestUrlHelpers:
     def test_unfetchable_compraselectronicas(self):
         assert is_unfetchable_url("https://comprar.mendoza.gov.ar/ComprasElectronicas.aspx?qs=abc") is True
 
+    def test_unfetchable_national_list_pages(self):
+        assert is_unfetchable_url("https://comprar.gob.ar/Default.aspx") is True
+        assert is_unfetchable_url("https://www.buenosairescompras.gob.ar/BuscarAvanzado.aspx") is True
+
     def test_fetchable_normal_url(self):
         assert is_unfetchable_url("https://maipu.gob.ar/licitaciones/2024/01") is False
 
@@ -70,3 +74,21 @@ class TestTitleOnlyEnrichment:
         lic_doc = {"title": "Test", "description": "", "objeto": "Already set", "category": "IT"}
         result = enrich_title_only(lic_doc)
         assert result == {}
+
+
+class TestGenericEnrichmentRouting:
+    @pytest.mark.asyncio
+    async def test_list_only_url_quality_uses_title_only_without_fetch(self):
+        service = GenericEnrichmentService()
+        service.http.fetch = AsyncMock(side_effect=AssertionError("HTTP fetch should not run"))
+        lic_doc = {
+            "title": "Adquisición de insumos médicos",
+            "description": "",
+            "source_url": "https://comprar.gob.ar/Default.aspx",
+            "url_quality": "list_only",
+        }
+
+        result = await service.enrich(lic_doc)
+
+        service.http.fetch.assert_not_awaited()
+        assert isinstance(result, dict)

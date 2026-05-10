@@ -70,6 +70,26 @@ class ComprarNacionalScraper(ComprarASPBaseScraper):
                 return t
         return None
 
+    def _summarize_empty_listing(self, html: str) -> str:
+        """Return a compact diagnostic when a COMPR.AR-like listing has no grid."""
+
+        soup = BeautifulSoup(html or "", "html.parser")
+        title = soup.find("title")
+        title_text = title.get_text(" ", strip=True) if title else "sin title"
+        table_count = len(soup.find_all("table"))
+        links = [
+            a.get("href", "")
+            for a in soup.find_all("a", href=True)
+            if any(token in a.get("href", "") for token in ("ListarApertura", "BuscarAvanzado", "Compras.aspx"))
+        ][:5]
+        marker = "default/home"
+        text = soup.get_text(" ", strip=True).lower()
+        if "pantallaerror" in text or "error" in title_text.lower():
+            marker = "error"
+        elif "búsqueda avanzada" in text or "busqueda avanzada" in text:
+            marker = "search/home"
+        return f"title={title_text!r}, marker={marker}, tables={table_count}, candidate_links={links}"
+
     # ------------------------------------------------------------------
     # Pliego URL extraction
     # ------------------------------------------------------------------
@@ -160,11 +180,127 @@ class ComprarNacionalScraper(ComprarASPBaseScraper):
     # ------------------------------------------------------------------
 
     async def run(self) -> List[LicitacionCreate]:
+        if (self.config.selectors or {}).get("use_selenium"):
+            return await asyncio.to_thread(self._run_selenium_home)
         await self.setup()
         try:
             return await self._scrape_comprar()
         finally:
             await self.cleanup()
+
+    def _run_selenium_home(self) -> List[LicitacionCreate]:
+        """Scrape COMPR.AR Nacional home grid with a real browser.
+
+        The direct ``Compras.aspx`` endpoint returns PantallaError from the VPS,
+        while ``Default.aspx`` renders the public "apertura próxima" grid.
+        """
+        from selenium import webdriver
+        from selenium.webdriver.chrome.options import Options
+        from selenium.webdriver.chrome.service import Service
+        import os
+        import time
+
+        options = Options()
+        for arg in [
+            "--headless=new",
+            "--no-sandbox",
+            "--disable-dev-shm-usage",
+            "--disable-gpu",
+            "--window-size=1920,1080",
+            "--disable-blink-features=AutomationControlled",
+            "--lang=es-AR",
+        ]:
+            options.add_argument(arg)
+        if os.path.isfile("/usr/bin/chromium"):
+            options.binary_location = "/usr/bin/chromium"
+        service = Service("/usr/bin/chromedriver") if os.path.isfile("/usr/bin/chromedriver") else Service()
+        driver = webdriver.Chrome(service=service, options=options)
+        try:
+            driver.execute_cdp_cmd("Page.addScriptToEvaluateOnNewDocument", {
+                "source": "Object.defineProperty(navigator, 'webdriver', {get: () => undefined});"
+            })
+            driver.get(f"{self.compra_base_url}/Default.aspx")
+            time.sleep(5)
+            rows = self.extract_rows_from_list(driver.page_source, min_cols=4)
+            logger.info("COMPR.AR Selenium home extracted %s rows", len(rows))
+            return self._build_items_from_rows(rows, f"{self.compra_base_url}/Default.aspx")
+        except Exception as exc:
+            logger.error("COMPR.AR Selenium home failed: %s", exc)
+            return []
+        finally:
+            try:
+                driver.quit()
+            except Exception:
+                pass
+
+    def _build_items_from_rows(self, rows: List[Dict[str, Any]], list_url: str) -> List[LicitacionCreate]:
+        max_items = self.config.max_items or 100
+        licitaciones: List[LicitacionCreate] = []
+        seen_ids = set()
+
+        for entry in rows[:max_items]:
+            numero = entry.get("numero")
+            if not numero:
+                continue
+            title = entry.get("title") or "Proceso de compra"
+            tipo = entry.get("tipo") or "Proceso de compra"
+            apertura = entry.get("apertura")
+            servicio_admin = entry.get("servicio_admin") or entry.get("unidad")
+            opening_date_parsed = parse_date_guess(apertura) if apertura else None
+            publication_date = self._resolve_publication_date(
+                parsed_date=None,
+                title=title,
+                description=title,
+                opening_date=opening_date_parsed,
+                attached_files=[],
+            )
+            opening_date = self._resolve_opening_date(
+                parsed_date=opening_date_parsed,
+                title=title,
+                description=title,
+                publication_date=publication_date,
+                attached_files=[],
+            )
+            estado = self._compute_estado(publication_date, opening_date, fecha_prorroga=None)
+            id_licitacion = f"comprar-nac-{numero}"
+            if id_licitacion in seen_ids:
+                continue
+            content_hash = hashlib.md5(
+                f"{title.lower().strip()}|{servicio_admin or ''}|{opening_date.strftime('%Y%m%d') if opening_date else 'unknown'}".encode()
+            ).hexdigest()
+            licitaciones.append(LicitacionCreate(
+                title=title,
+                organization=servicio_admin or "Gobierno Nacional",
+                publication_date=publication_date,
+                opening_date=opening_date,
+                licitacion_number=numero,
+                description=" | ".join([v for v in [
+                    numero, title, tipo, apertura, servicio_admin
+                ] if v]),
+                source_url=list_url,
+                url_quality="list_only",
+                content_hash=content_hash,
+                status="active",
+                location="Argentina",
+                attached_files=[],
+                id_licitacion=id_licitacion,
+                jurisdiccion="Nacional",
+                tipo_procedimiento=tipo,
+                tipo_acceso="COMPR.AR",
+                fecha_scraping=utc_now(),
+                fuente=self.config.name or "COMPR.AR Nacional",
+                estado=estado,
+                tags=["LIC_AR"],
+                metadata={
+                    "comprar_list_url": list_url,
+                    "comprar_target": entry.get("target"),
+                    "comprar_apertura_raw": apertura,
+                    "comprar_extraction": "selenium_home_grid",
+                },
+            ))
+            seen_ids.add(id_licitacion)
+
+        return licitaciones
 
     async def _scrape_comprar(self) -> List[LicitacionCreate]:
         """Scrape comprar.gob.ar via ASP.NET postback with circuit breaker."""
@@ -173,7 +309,7 @@ class ComprarNacionalScraper(ComprarASPBaseScraper):
         max_pages = int(self.config.selectors.get("max_pages", 10))
 
         list_url = str(self.config.url)
-        if "BuscarAvanzado" in list_url:
+        if self.compra_base_url == COMPRAR_BASE and "BuscarAvanzado" in list_url:
             list_url = f"{self.compra_base_url}/Compras.aspx"
 
         logger.info(f"Starting ComprarNacionalScraper with URL: {list_url}")
@@ -181,7 +317,7 @@ class ComprarNacionalScraper(ComprarASPBaseScraper):
         # Phase 1: Initial fetch via ResilientHttpClient (circuit breaker + IPv6)
         list_html = await self.http.fetch(list_url)
         if not list_html:
-            logger.error("comprar.gob.ar inaccessible — circuit breaker may be open, skipping run")
+            logger.error("%s inaccessible — circuit breaker may be open, skipping run", self.compra_base_url)
             return []
 
         if len(list_html) < 500 or "Error" in list_html[:200]:
@@ -190,7 +326,11 @@ class ComprarNacionalScraper(ComprarASPBaseScraper):
 
         rows = self.extract_rows_from_list(list_html, min_cols=4)
         if not rows:
-            logger.warning("No rows found on comprar.gob.ar list page — structure may have changed")
+            logger.warning(
+                "No rows found on %s list page — %s",
+                self.compra_base_url,
+                self._summarize_empty_listing(list_html),
+            )
             return []
 
         self.stats['pages_fetched'] += 1
@@ -268,7 +408,6 @@ class ComprarNacionalScraper(ComprarASPBaseScraper):
 
         # Phase 5: Build LicitacionCreate objects
         seen_ids = set()
-
         for entry_idx, entry in enumerate(row_entries):
             numero = entry.get("numero")
             title = entry.get("title") or "Proceso de compra"
