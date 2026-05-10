@@ -1,0 +1,28 @@
+{
+  "name": "licitometro",
+  "version": "1.0.0",
+  "description": "[![CI Checks](https://github.com/martinsantos/licitometro/actions/workflows/ci.yml/badge.svg)](https://github.com/martinsantos/licitometro/actions/workflows/ci.yml) [![Main Guard](https://github.com/martinsantos/licitometro/actions/workflows/main-guard.yml/badge.svg)](https://github.com/martinsantos/licitometro/actions/workflows/main-guard.yml) [![Production Deployment](https://github.com/martinsantos/licitometro/actions/workflows/production.yml/badge.svg)](https://github.com/martinsantos/licitometro/actions/workflows/production.yml)",
+  "main": "index.js",
+  "directories": {
+    "doc": "docs",
+    "test": "tests"
+  },
+  "scripts": {
+    "test": "bash scripts/check-local.sh",
+    "test:backend": "python3 -m pytest -q",
+    "test:frontend": "npm --prefix frontend test -- --watchAll=false --passWithNoTests",
+    "build:frontend": "npm --prefix frontend run build",
+    "check:backend-syntax": "find backend/scrapers backend/services backend/routers backend/utils backend/models backend/db -name '*.py' -exec env PYTHONPYCACHEPREFIX=/private/tmp/licitometro-pycache python3 -m py_compile {} +"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/martinsantos/licitometro.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/martinsantos/licitometro/issues"
+  },
+  "homepage": "https://github.com/martinsantos/licitometro#readme"
+}

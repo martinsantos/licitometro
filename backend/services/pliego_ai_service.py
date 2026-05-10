@@ -162,7 +162,13 @@ class PliegoAIService:
             try:
                 age = utc_now() - cached_at
                 if age < timedelta(days=RESUMEN_TTL_DAYS):
-                    return {"ok": True, "resumen": cached, "cached": True, "provider": meta.get("ia_resumen_provider", "unknown")}
+                    return {
+                        "ok": True,
+                        "resumen": cached,
+                        "cached": True,
+                        "provider": meta.get("ia_resumen_provider", "unknown"),
+                        "grounding": meta.get("ia_resumen_grounding", {}),
+                    }
             except Exception:
                 pass
 
@@ -184,6 +190,7 @@ class PliegoAIService:
             return {"ok": False, "error": "llm_unparseable", "raw": content[:500]}
 
         provider = "groq" if self.llm._get_client() else "cerebras"
+        grounding = self._ground_ai_output(parsed, pliego["text"], lic)
         await self.db.licitaciones.update_one(
             {"_id": oid},
             {
@@ -192,10 +199,18 @@ class PliegoAIService:
                     "metadata.ia_resumen_at": utc_now(),
                     "metadata.ia_resumen_provider": provider,
                     "metadata.ia_resumen_source": pliego["source"],
+                    "metadata.ia_resumen_grounding": grounding,
                 }
             },
         )
-        return {"ok": True, "resumen": parsed, "cached": False, "provider": provider, "source": pliego["source"]}
+        return {
+            "ok": True,
+            "resumen": parsed,
+            "cached": False,
+            "provider": provider,
+            "source": pliego["source"],
+            "grounding": grounding,
+        }
 
     async def extract_v2(self, licitacion_id: str, force_refresh: bool = False) -> Dict[str, Any]:
         """Licitometro 0.2 schema-first pliego extraction.
@@ -217,7 +232,8 @@ class PliegoAIService:
         if not force_refresh:
             cached = await pipeline.get_cached(pliego["text"])
             if cached:
-                await self._persist_extraction_v2(lic, cached, cached=True)
+                grounding = self._ground_ai_output(cached.result.model_dump(), pliego["text"], lic)
+                await self._persist_extraction_v2(lic, cached, cached=True, grounding=grounding)
                 return {
                     "ok": True,
                     "cached": True,
@@ -228,6 +244,7 @@ class PliegoAIService:
                     "provider": cached.provider,
                     "model": cached.model,
                     "result": cached.result.model_dump(),
+                    "grounding": grounding,
                 }
 
         raw = await self.llm.extract_pliego_info(pliego["text"])
@@ -253,7 +270,8 @@ class PliegoAIService:
                 "metadata.ai_extraction_v2_schema": record.schema_version,
             }},
         )
-        await self._persist_extraction_v2(lic, record, cached=False)
+        grounding = self._ground_ai_output(record.result.model_dump(), pliego["text"], lic)
+        await self._persist_extraction_v2(lic, record, cached=False, grounding=grounding)
 
         return {
             "ok": True,
@@ -265,9 +283,16 @@ class PliegoAIService:
             "provider": provider,
             "model": model,
             "result": record.result.model_dump(),
+            "grounding": grounding,
         }
 
-    async def _persist_extraction_v2(self, lic: Dict[str, Any], record, cached: bool) -> None:
+    async def _persist_extraction_v2(
+        self,
+        lic: Dict[str, Any],
+        record,
+        cached: bool,
+        grounding: Optional[Dict[str, Any]] = None,
+    ) -> None:
         """Persist a compact v2 snapshot on the licitacion for downstream flows."""
 
         from services.ai_extraction_pipeline import requirements_from_extraction
@@ -285,10 +310,35 @@ class PliegoAIService:
                 "metadata.ai_extraction_v2_model": record.model,
                 "metadata.ai_extraction_v2_cached": cached,
                 "metadata.ai_extraction_v2_result": result_doc,
+                "metadata.ai_extraction_v2_grounding": grounding or {},
                 "requisitos": requisitos,
                 "updated_at": utc_now(),
             }},
         )
+
+    def _ground_ai_output(
+        self,
+        payload: Any,
+        pliego_text: str,
+        lic: Dict[str, Any],
+    ) -> Dict[str, Any]:
+        try:
+            from services.ai_grounding_service import get_ai_grounding_service
+
+            return get_ai_grounding_service().ground_response(
+                payload,
+                source_text=pliego_text,
+                licitacion=lic,
+            )
+        except Exception as exc:
+            logger.debug(f"AI grounding skipped: {exc}")
+            return {
+                "confidence": 0.0,
+                "verified_fields": [],
+                "unsupported_claims": [],
+                "warnings": ["grounding_failed"],
+                "evidence_refs": [],
+            }
 
     # ── Chat Q&A ──────────────────────────────────────────────────────
 
@@ -340,6 +390,7 @@ class PliegoAIService:
             return {"ok": False, "error": "llm_unavailable"}
 
         provider = "groq" if self.llm._get_client() else "cerebras"
+        grounding = self._ground_ai_output(content, pliego["text"], lic)
         return {
             "ok": True,
             "respuesta": content,
@@ -347,6 +398,7 @@ class PliegoAIService:
             "source": pliego["source"],
             "used_today": used_today + 1,
             "limit": CHAT_RATE_LIMIT_DAILY,
+            "grounding": grounding,
         }
 
     async def _count_chat_today(self, user_email: Optional[str]) -> int:

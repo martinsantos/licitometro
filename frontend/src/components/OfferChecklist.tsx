@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import axios from 'axios';
+import { api } from '../services/api';
 
 interface ChecklistItem {
   section_name: string;
@@ -48,7 +48,7 @@ const TEMPLATE_TYPE_LABELS: Record<string, { label: string; icon: string; color:
 };
 
 const OfferChecklist: React.FC<OfferChecklistProps> = ({ licitacionId, apiUrl }) => {
-  const API = `${apiUrl}/api`;
+  void apiUrl;
 
   const [application, setApplication] = useState<OfferApplication | null>(null);
   const [templates, setTemplates] = useState<OfferTemplate[]>([]);
@@ -59,9 +59,9 @@ const OfferChecklist: React.FC<OfferChecklistProps> = ({ licitacionId, apiUrl })
 
   const loadApplication = useCallback(async () => {
     try {
-      const res = await axios.get(`${API}/offer-templates/applications/${licitacionId}`);
-      if (res.data) {
-        setApplication(res.data);
+      const res = await api.get<OfferApplication | null>(`/api/offer-templates/applications/${licitacionId}`);
+      if (res) {
+        setApplication(res);
       } else {
         setApplication(null);
       }
@@ -69,16 +69,16 @@ const OfferChecklist: React.FC<OfferChecklistProps> = ({ licitacionId, apiUrl })
       // 404 or null means no application
       setApplication(null);
     }
-  }, [API, licitacionId]);
+  }, [licitacionId]);
 
   const loadTemplates = useCallback(async () => {
     try {
-      const res = await axios.get(`${API}/offer-templates/`);
-      setTemplates(res.data);
+      const res = await api.get<OfferTemplate[]>('/api/offer-templates/');
+      setTemplates(res);
     } catch (err) {
       console.error('Error loading templates:', err);
     }
-  }, [API]);
+  }, []);
 
   useEffect(() => {
     const init = async () => {
@@ -94,10 +94,10 @@ const OfferChecklist: React.FC<OfferChecklistProps> = ({ licitacionId, apiUrl })
     setApplying(true);
     setError(null);
     try {
-      const res = await axios.post(`${API}/offer-templates/${templateId}/apply/${licitacionId}`);
-      setApplication(res.data);
+      const res = await api.post<OfferApplication>(`/api/offer-templates/${templateId}/apply/${licitacionId}`);
+      setApplication(res);
     } catch (err: any) {
-      const msg = err.response?.data?.detail || 'Error al aplicar plantilla';
+      const msg = err?.message || 'Error al aplicar plantilla';
       setError(msg);
     } finally {
       setApplying(false);
@@ -127,10 +127,10 @@ const OfferChecklist: React.FC<OfferChecklistProps> = ({ licitacionId, apiUrl })
     // Persist
     setSaving(true);
     try {
-      const res = await axios.put(`${API}/offer-templates/applications/${application.id}/checklist`, {
+      const res = await api.put<OfferApplication>(`/api/offer-templates/applications/${application.id}/checklist`, {
         checklist: updatedChecklist,
       });
-      setApplication(res.data);
+      setApplication(res);
     } catch (err) {
       console.error('Error saving checklist:', err);
       // Revert
@@ -162,10 +162,10 @@ const OfferChecklist: React.FC<OfferChecklistProps> = ({ licitacionId, apiUrl })
 
     setSaving(true);
     try {
-      const res = await axios.put(`${API}/offer-templates/applications/${application.id}/checklist`, {
+      const res = await api.put<OfferApplication>(`/api/offer-templates/applications/${application.id}/checklist`, {
         checklist: updatedChecklist,
       });
-      setApplication(res.data);
+      setApplication(res);
     } catch (err) {
       console.error('Error completing section:', err);
       await loadApplication();

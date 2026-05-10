@@ -8,6 +8,7 @@ import HunterPanel from '../hunter/HunterPanel';
 import NotaCotizacion from './NotaCotizacion';
 import OfertaSections, { PliegoDoc } from './OfertaSections';
 import { OfferSection } from '../../hooks/useCotizarAPI';
+import AIGroundingBadge from '../AIGroundingBadge';
 
 interface Licitacion {
   id: string;
@@ -936,6 +937,7 @@ export default function OfertaEditor({ licitacion, onSaved }: Props) {
               <span className="px-2 py-0.5 bg-white border border-indigo-100 rounded-full text-indigo-700">{pliegoInfo.items?.length || 0} items</span>
               <span className="px-2 py-0.5 bg-white border border-indigo-100 rounded-full text-indigo-700">{pliegoInfo.documentacion_requerida?.length || 0} docs</span>
               <span className="px-2 py-0.5 bg-white border border-indigo-100 rounded-full text-indigo-700">{pliegoInfo.requisitos_tecnicos?.length || 0} req.</span>
+              <AIGroundingBadge grounding={pliegoInfo.grounding} compact />
             </div>
           </div>
         </div>
@@ -2240,6 +2242,9 @@ export default function OfertaEditor({ licitacion, onSaved }: Props) {
                 </div>
                 <p className="font-semibold text-gray-800">{analysis.veredicto}</p>
                 <p className="text-sm text-gray-600 mt-1">{analysis.resumen}</p>
+                <div className="mt-3">
+                  <AIGroundingBadge grounding={analysis.grounding} compact />
+                </div>
               </div>
 
               <div className="grid grid-cols-2 gap-3">

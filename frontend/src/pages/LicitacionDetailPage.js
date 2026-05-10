@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useParams, Link } from 'react-router-dom';
-import axios from 'axios';
+import { api } from '../services/api';
 import WorkflowStepper from '../components/WorkflowStepper';
 import WorkflowBadge from '../components/WorkflowBadge';
 import OfferChecklist from '../components/OfferChecklist';
@@ -11,18 +11,17 @@ import HunterPanel from '../components/hunter/HunterPanel';
 import PliegoChatPanel from '../components/licitaciones/PliegoChatPanel';
 import { RequisitosChecklist } from '../components/licitaciones/RequisitosChecklist';
 import ScoreAfinidad from '../components/licitaciones/ScoreAfinidad';
+import DecisionReadinessPanel from '../components/licitaciones/DecisionReadinessPanel';
 import { useFavorites } from '../contexts/FavoritesContext';
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL || '';
-const API = `${BACKEND_URL}/api`;
 
 function CompetenciaPanel({ licitacionId }) {
   const [data, setData] = React.useState(null);
   const [loading, setLoading] = React.useState(true);
 
   React.useEffect(() => {
-    fetch(`${API}/adjudicaciones/competencia/${licitacionId}`, { credentials: 'include' })
-      .then(r => r.json())
+    api.get(`/api/adjudicaciones/competencia/${licitacionId}`)
       .then(d => { setData(d); setLoading(false); })
       .catch(() => setLoading(false));
   }, [licitacionId]);
@@ -89,8 +88,8 @@ function SimilaresTab({ licitacionId }) {
   const [error, setError] = React.useState(null);
 
   React.useEffect(() => {
-    axios.get(`${API}/licitaciones/similar/${licitacionId}`, { withCredentials: true })
-      .then(r => { setItems(r.data || []); setLoading(false); })
+    api.get(`/api/licitaciones/similar/${licitacionId}`)
+      .then(d => { setItems(d || []); setLoading(false); })
       .catch(() => { setError('No hay embeddings disponibles para esta licitación todavía.'); setLoading(false); });
   }, [licitacionId]);
 
@@ -162,10 +161,10 @@ const LicitacionDetailPage = ({ userRole }) => {
   useEffect(() => {
     const fetchLicitacion = async () => {
       try {
-        const response = await axios.get(`${API}/licitaciones/${id}`);
-        setLicitacion(response.data);
-        setIsPublic(response.data.is_public || false);
-        setPublicSlug(response.data.public_slug || null);
+        const data = await api.get(`/api/licitaciones/${id}`);
+        setLicitacion(data);
+        setIsPublic(data.is_public || false);
+        setPublicSlug(data.public_slug || null);
         setLoading(false);
       } catch (error) {
         console.error('Error fetching licitacion:', error);
@@ -195,14 +194,14 @@ const LicitacionDetailPage = ({ userRole }) => {
     setEnrichMessage(null);
 
     try {
-      const response = await axios.post(`${API}/licitaciones/${id}/enrich?level=${level}`);
-      if (response.data.success) {
-        setEnrichMessage({ type: 'success', text: response.data.message });
+      const response = await api.post(`/api/licitaciones/${id}/enrich?level=${level}`);
+      if (response.success) {
+        setEnrichMessage({ type: 'success', text: response.message });
         // Reload licitacion data
-        const updatedResponse = await axios.get(`${API}/licitaciones/${id}`);
-        setLicitacion(updatedResponse.data);
+        const updated = await api.get(`/api/licitaciones/${id}`);
+        setLicitacion(updated);
       } else {
-        setEnrichMessage({ type: 'info', text: response.data.message });
+        setEnrichMessage({ type: 'info', text: response.message });
       }
     } catch (err) {
       console.error('Error enriching:', err);
@@ -222,9 +221,9 @@ const LicitacionDetailPage = ({ userRole }) => {
     setAiResumenLoading(true);
     setAiResumenError(null);
     try {
-      await axios.post(`${API}/cotizar-ai/pliego/${id}/resumen`, { force_refresh: forceRefresh }, { withCredentials: true });
-      const updatedResponse = await axios.get(`${API}/licitaciones/${id}`);
-      setLicitacion(updatedResponse.data);
+      await api.post(`/api/cotizar-ai/pliego/${id}/resumen`, { force_refresh: forceRefresh });
+      const updated = await api.get(`/api/licitaciones/${id}`);
+      setLicitacion(updated);
     } catch (err) {
       setAiResumenError(err.response?.data?.detail || 'Error al generar resumen IA');
     } finally {
@@ -235,8 +234,8 @@ const LicitacionDetailPage = ({ userRole }) => {
   const handleWorkflowChange = async (newState) => {
     // Reload licitacion to get updated workflow state
     try {
-      const response = await axios.get(`${API}/licitaciones/${id}`);
-      setLicitacion(response.data);
+      const data = await api.get(`/api/licitaciones/${id}`);
+      setLicitacion(data);
     } catch (err) {
       console.error('Error reloading after workflow change:', err);
     }
@@ -631,6 +630,10 @@ const LicitacionDetailPage = ({ userRole }) => {
                 )}
               </div>
             </div>
+          </div>
+
+          <div className="p-4 sm:p-6 bg-white/80 border-b border-gray-100">
+            <DecisionReadinessPanel licitacion={licitacion} />
           </div>
 
           {/* Score Afinidad (admin only) */}
@@ -1473,9 +1476,9 @@ const LicitacionDetailPage = ({ userRole }) => {
                         onClick={async () => {
                           setTogglingPublic(true);
                           try {
-                            const res = await axios.post(`${API}/licitaciones/${id}/toggle-public`);
-                            setIsPublic(res.data.is_public);
-                            setPublicSlug(res.data.public_slug);
+                            const res = await api.post(`/api/licitaciones/${id}/toggle-public`);
+                            setIsPublic(res.is_public);
+                            setPublicSlug(res.public_slug);
                           } catch (err) {
                             console.error('Error toggling public:', err);
                           } finally {
@@ -1561,8 +1564,8 @@ const LicitacionDetailPage = ({ userRole }) => {
         onClose={() => setHunterOpen(false)}
         onMerge={() => {
           // Reload licitacion data after merge
-          axios.get(`${API}/licitaciones/${id}`, { withCredentials: true })
-            .then(res => setLicitacion(res.data))
+          api.get(`/api/licitaciones/${id}`)
+            .then(res => setLicitacion(res))
             .catch(() => {});
         }}
       />

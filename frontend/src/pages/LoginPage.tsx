@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import axios from "axios";
+import { ApiError, api } from "../services/api";
 
 interface LoginPageProps {
   onLogin: (role: string, email: string) => void;
@@ -17,10 +17,10 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLogin }) => {
     setLoading(true);
 
     try {
-      const res = await axios.post("/api/auth/login", { email, password }, { withCredentials: true });
-      onLogin(res.data.role, res.data.email);
-    } catch (err: any) {
-      setError(err.response?.data?.detail || "Error de autenticación");
+      const res = await api.post<{ role: string; email: string }>("/api/auth/login", { email, password });
+      onLogin(res.role, res.email);
+    } catch (err) {
+      setError(err instanceof ApiError ? err.body : "Error de autenticación");
     } finally {
       setLoading(false);
     }

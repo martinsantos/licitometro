@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useEffect, useState, useCallback, useRef } from 'react';
-import axios from 'axios';
+import { api } from '../services/api';
+type FavoriteApiItem = string | { licitacion_id?: string; created_at?: string };
 
 interface FavoritesContextValue {
   favoriteIds: Set<string>;
@@ -37,8 +38,7 @@ export function FavoritesProvider({ children }: { children: React.ReactNode }) {
 
   const refresh = useCallback(async () => {
     try {
-      const resp = await axios.get('/api/licitaciones/favorites?detail=true', { withCredentials: true });
-      const data = resp.data || [];
+      const data = await api.get<FavoriteApiItem[]>('/api/licitaciones/favorites', new URLSearchParams({ detail: 'true' })) || [];
       const ids = new Set<string>();
       const dates: Record<string, string> = {};
       for (const item of data) {
@@ -55,7 +55,7 @@ export function FavoritesProvider({ children }: { children: React.ReactNode }) {
         const localOnly = readLocalIds().filter(id => !ids.has(id));
         if (localOnly.length > 0) {
           await Promise.all(localOnly.map(id =>
-            axios.post(`/api/licitaciones/favorites/${id}`, {}, { withCredentials: true })
+            api.post(`/api/licitaciones/favorites/${id}`, {})
               .then(() => {
                 ids.add(id);
                 dates[id] = new Date().toISOString();
@@ -86,7 +86,7 @@ export function FavoritesProvider({ children }: { children: React.ReactNode }) {
     setFavoriteDates(nextDates);
     writeLocalCache(nextIds, nextDates);
     try {
-      await axios.post(`/api/licitaciones/favorites/${id}`, {}, { withCredentials: true });
+      await api.post(`/api/licitaciones/favorites/${id}`, {});
     } catch {
       // Roll back on failure
       const rbIds = new Set(nextIds); rbIds.delete(id);
@@ -106,7 +106,7 @@ export function FavoritesProvider({ children }: { children: React.ReactNode }) {
     setFavoriteDates(nextDates);
     writeLocalCache(nextIds, nextDates);
     try {
-      await axios.delete(`/api/licitaciones/favorites/${id}`, { withCredentials: true });
+      await api.delete(`/api/licitaciones/favorites/${id}`);
     } catch {
       const rbIds = new Set(nextIds); rbIds.add(id);
       const rbDates = { ...nextDates, [id]: prevDate || new Date().toISOString() };
@@ -130,7 +130,7 @@ export function FavoritesProvider({ children }: { children: React.ReactNode }) {
     setFavoriteDates({});
     writeLocalCache(new Set(), {});
     await Promise.all(ids.map(id =>
-      axios.delete(`/api/licitaciones/favorites/${id}`, { withCredentials: true }).catch(() => {})
+      api.delete(`/api/licitaciones/favorites/${id}`).catch(() => {})
     ));
   }, [favoriteIds]);
 

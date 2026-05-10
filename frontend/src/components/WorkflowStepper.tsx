@@ -1,9 +1,6 @@
 import React, { useState } from 'react';
-import axios from 'axios';
+import { ApiError, api } from '../services/api';
 import { WORKFLOW_CONFIG } from './WorkflowBadge';
-
-const BACKEND_URL = process.env.REACT_APP_BACKEND_URL || '';
-const API = `${BACKEND_URL}/api`;
 
 const WORKFLOW_STEPS = ['descubierta', 'evaluando', 'preparando', 'presentada'];
 
@@ -46,15 +43,15 @@ const WorkflowStepper: React.FC<WorkflowStepperProps> = ({
     setTransitioning(true);
     setError(null);
     try {
-      await axios.post(`${API}/workflow/${licId}/transition`, {
+      await api.post(`/api/workflow/${licId}/transition`, {
         new_state: targetState,
         notes: notes,
       });
       setShowConfirm(null);
       setNotes('');
       if (onStateChange) onStateChange(targetState);
-    } catch (err: any) {
-      const msg = err.response?.data?.detail || 'Error al cambiar estado';
+    } catch (err) {
+      const msg = err instanceof ApiError ? err.body : 'Error al cambiar estado';
       setError(msg);
     } finally {
       setTransitioning(false);

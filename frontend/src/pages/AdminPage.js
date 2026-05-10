@@ -12,6 +12,8 @@ import AdminImportSources from '../components/AdminImportSources';
 import AdminSistemaPanel from '../components/admin/AdminSistemaPanel';
 import CanonicalTendersPanel from '../components/admin/CanonicalTendersPanel';
 import ReadinessDashboardPanel from '../components/admin/ReadinessDashboardPanel';
+import AdminCockpit from '../components/admin/AdminCockpit';
+import AdminOpenArgPanel from '../components/admin/AdminOpenArgPanel';
 
 const API_URL = '';
 
@@ -25,6 +27,7 @@ const TABS = [
   { key: 'scrapers', label: 'Scrapers' },
   { key: 'licitaciones', label: 'Licitaciones' },
   { key: 'licitaciones-ar', label: 'Lic. AR' },
+  { key: 'openarg', label: 'OpenArg' },
   { key: 'sistema', label: 'Sistema' },
   { key: 'canonical', label: 'Canonical 0.2' },
   { key: 'readiness', label: 'Readiness 0.2' },
@@ -34,10 +37,10 @@ const AdminPage = () => {
   const [activeTab, setActiveTab] = useState('monitor');
 
   return (
-    <div className="container mx-auto px-4 py-4 sm:py-6 lg:py-8">
+    <div className="admin-workspace mx-auto w-full max-w-[1600px] px-3 py-4 sm:px-4 sm:py-6 lg:px-6 lg:py-8">
       <h1 className="text-xl sm:text-2xl lg:text-3xl font-bold mb-4 sm:mb-6">Panel de Administración</h1>
 
-      <div className="bg-white rounded-lg shadow-md overflow-hidden">
+      <div className="admin-surface bg-white shadow-md">
         <div className="border-b border-gray-200">
           <nav className="-mb-px flex overflow-x-auto scrollbar-hide">
             {TABS.map((tab) => (
@@ -56,7 +59,9 @@ const AdminPage = () => {
           </nav>
         </div>
 
-        <div className="p-3 sm:p-4 lg:p-6">
+        <div className="admin-panel p-3 sm:p-4 lg:p-6">
+          <AdminCockpit activeTab={activeTab} onSelectTab={setActiveTab} />
+
           {activeTab === 'monitor' && (
             <div>
               <div className="flex justify-between items-center mb-6">
@@ -157,6 +162,10 @@ const AdminPage = () => {
 
           {activeTab === 'sistema' && (
             <AdminSistemaPanel />
+          )}
+
+          {activeTab === 'openarg' && (
+            <AdminOpenArgPanel />
           )}
 
           {activeTab === 'canonical' && (

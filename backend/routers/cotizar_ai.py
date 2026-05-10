@@ -30,6 +30,26 @@ from db import get_db
 from config.company import DEFAULT_COMPANY_ID
 
 
+def _ground_ai_payload(payload: Any, source_text: str, lic: Dict[str, Any] = None) -> Dict[str, Any]:
+    try:
+        from services.ai_grounding_service import get_ai_grounding_service
+
+        return get_ai_grounding_service().ground_response(
+            payload,
+            source_text=source_text,
+            licitacion=lic or {},
+        )
+    except Exception as e:
+        logger.debug(f"AI grounding skipped: {e}")
+        return {
+            "confidence": 0.0,
+            "verified_fields": [],
+            "unsupported_claims": [],
+            "warnings": ["grounding_failed"],
+            "evidence_refs": [],
+        }
+
+
 async def _get_company_context_str(db, organization: str = "", tipo_procedimiento: str = "") -> str:
     """Build company context string for AI prompts from company_profiles + company_contexts."""
     parts = []
@@ -297,7 +317,8 @@ Responde SOLO JSON valido (sin markdown):
             return {"error": "AI no disponible"}
         result = groq._extract_json(content, expect_array=True)
         if result and isinstance(result, list):
-            return {"items": result, "method": "ai_adjusted"}
+            grounding = _ground_ai_payload(result, f"{items_desc}\n\n{prompt}")
+            return {"items": result, "method": "ai_adjusted", "grounding": grounding}
         return {"error": "AI no pudo ajustar precios", "raw": content[:300]}
 
     elif action == "prorate_monthly":
@@ -379,6 +400,8 @@ Presupuesto: ${lic.get('budget', 'N/A')}"""
 
     groq = get_groq_enrichment_service(db)
     result = await groq.suggest_propuesta(context)
+    if isinstance(result, dict):
+        result.setdefault("grounding", _ground_ai_payload(result, context, lic))
     return result
 
 
@@ -552,7 +575,10 @@ Empresa: {body.get('empresa_nombre', 'N/A')}"""
         context += f"\n\n{company_ctx}"
 
     groq = get_groq_enrichment_service(db)
-    return await groq.analyze_bid(context)
+    result = await groq.analyze_bid(context)
+    if isinstance(result, dict):
+        result.setdefault("grounding", _ground_ai_payload(result, context, lic))
+    return result
 
 
 def _fmt_ars(n: float) -> str:
@@ -863,7 +889,11 @@ async def generate_section(body: Dict[str, Any], request: Request):
     context = "\n".join(parts)
     groq = get_groq_enrichment_service(db)
     content = await groq.generate_offer_section(section_slug, context)
-    return {"content": content, "section_slug": section_slug}
+    return {
+        "content": content,
+        "section_slug": section_slug,
+        "grounding": _ground_ai_payload(content, context, lic),
+    }
 
 
 @router.get("/offer-template-default")
@@ -1266,6 +1296,7 @@ Responde SOLO con JSON valido:
         return {"gaps": [], "completeness": 0, "error": "IA no disponible (Groq + Cerebras agotados)"}
     result = groq._extract_json(content)
     if result and isinstance(result, dict):
+        result.setdefault("grounding", _ground_ai_payload(result, pliego_text, {}))
         return result
     return {"gaps": [], "completeness": 0, "raw": content[:500]}
 
@@ -1941,7 +1972,7 @@ class PliegoChatBody(dict):
 
 
 @router.post("/pliego-chat/{licitacion_id}")
-async def pliego_chat(licitacion_id: str, body: Dict[str, Any], request: Request):
+async def pliego_chat_legacy(licitacion_id: str, body: Dict[str, Any], request: Request):
     """Answer a free-form question about a pliego using AI."""
     message = (body.get("message") or "").strip()
     if not message:
@@ -1960,4 +1991,8 @@ async def pliego_chat(licitacion_id: str, body: Dict[str, Any], request: Request
 
     groq = get_groq_enrichment_service(db)
     response = await groq.pliego_chat(text, message)
-    return {"response": response}
+    try:
+        lic = await db.licitaciones.find_one({"_id": ObjectId(licitacion_id)})
+    except Exception:
+        lic = None
+    return {"response": response, "grounding": _ground_ai_payload(response, text, lic or {})}

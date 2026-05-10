@@ -1,10 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import axios from 'axios';
+import { api } from '../services/api';
 import { useFavorites } from '../contexts/FavoritesContext';
-
-const BACKEND_URL = process.env.REACT_APP_BACKEND_URL || '';
-const API = `${BACKEND_URL}/api`;
 
 const StatsPage = () => {
   const { favoriteIds, removeFavorite } = useFavorites();
@@ -23,11 +20,10 @@ const StatsPage = () => {
         let page = 1;
         let totalItems = 0;
         while (true) {
-          const res = await axios.get(`${API}/licitaciones/`, {
-            params: { page, size: 100 }
-          });
-          const items = res.data.items || [];
-          totalItems = res.data.paginacion?.total_items || 0;
+          const params = new URLSearchParams({ page: String(page), size: '100' });
+          const res = await api.get('/api/licitaciones/', params);
+          const items = res.items || [];
+          totalItems = res.paginacion?.total_items || 0;
           allLicitaciones = allLicitaciones.concat(items);
           if (allLicitaciones.length >= totalItems || items.length === 0) break;
           page++;
@@ -76,8 +72,7 @@ const StatsPage = () => {
         setLoading(false);
       } catch (err) {
         console.error('Error fetching stats:', err);
-        const detail = err.response?.data?.detail;
-        const msg = typeof detail === 'string' ? detail : err.message || 'Error al cargar estadísticas';
+        const msg = err?.message || 'Error al cargar estadísticas';
         setError(msg);
         setLoading(false);
       }

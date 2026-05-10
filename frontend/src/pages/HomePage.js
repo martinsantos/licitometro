@@ -1,9 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import axios from 'axios';
-
-const BACKEND_URL = process.env.REACT_APP_BACKEND_URL || '';
-const API = `${BACKEND_URL}/api`;
+import { api } from '../services/api';
 
 const HomePage = () => {
   const [stats, setStats] = useState({
@@ -17,13 +14,13 @@ const HomePage = () => {
     const fetchStats = async () => {
       try {
         const [activeResponse, totalResponse] = await Promise.all([
-          axios.get(`${API}/licitaciones/count?status=active`),
-          axios.get(`${API}/licitaciones/count`),
+          api.get('/api/licitaciones/count', new URLSearchParams({ status: 'active' })),
+          api.get('/api/licitaciones/count'),
         ]);
         
         setStats({
-          activeLicitaciones: activeResponse.data.count,
-          total: totalResponse.data.count,
+          activeLicitaciones: activeResponse.count,
+          total: totalResponse.count,
           loading: false,
           error: null
         });

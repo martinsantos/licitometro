@@ -1,7 +1,6 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import type { Nodo } from '../types/licitacion';
-
-const API_URL = process.env.REACT_APP_API_URL || process.env.REACT_APP_BACKEND_URL || '';
+import { api } from '../services/api';
 
 export function useNodos() {
   const [nodos, setNodos] = useState<Nodo[]>([]);
@@ -10,11 +9,9 @@ export function useNodos() {
   const fetchNodos = useCallback(async () => {
     setLoading(true);
     try {
-      const resp = await fetch(`${API_URL}/api/nodos/?active_only=true`, { credentials: 'include' });
-      if (resp.ok) {
-        const data = await resp.json();
-        setNodos(data);
-      }
+      const params = new URLSearchParams({ active_only: 'true' });
+      const data = await api.get<Nodo[]>('/api/nodos/', params);
+      setNodos(data);
     } catch { /* ignore */ }
     setLoading(false);
   }, []);

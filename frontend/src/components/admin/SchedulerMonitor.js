@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import axios from 'axios';
+import { api } from '../../services/api';
 
 const SchedulerMonitor = () => {
   const [status, setStatus] = useState(null);
@@ -14,17 +14,17 @@ const SchedulerMonitor = () => {
     try {
       setLoading(true);
       const [statusRes, runsRes, statsRes] = await Promise.all([
-        axios.get('/api/scheduler/status'),
-        axios.get('/api/scheduler/runs?limit=20'),
-        axios.get('/api/scheduler/stats')
+        api.get('/api/scheduler/status'),
+        api.get('/api/scheduler/runs', new URLSearchParams({ limit: '20' })),
+        api.get('/api/scheduler/stats')
       ]);
       
-      setStatus(statusRes.data);
-      setRuns(runsRes.data);
-      setStats(statsRes.data);
+      setStatus(statusRes);
+      setRuns(runsRes);
+      setStats(statsRes);
       setError(null);
     } catch (err) {
-      setError('Error al cargar datos del scheduler: ' + (err.response?.data?.detail || err.message));
+      setError('Error al cargar datos del scheduler: ' + (err?.message || 'error'));
     } finally {
       setLoading(false);
     }
@@ -39,7 +39,7 @@ const SchedulerMonitor = () => {
 
   const handleStartScheduler = async () => {
     try {
-      await axios.post('/api/scheduler/start');
+      await api.post('/api/scheduler/start');
       fetchData();
     } catch (err) {
       alert('Error al iniciar scheduler: ' + err.message);
@@ -48,7 +48,7 @@ const SchedulerMonitor = () => {
 
   const handleStopScheduler = async () => {
     try {
-      await axios.post('/api/scheduler/stop');
+      await api.post('/api/scheduler/stop');
       fetchData();
     } catch (err) {
       alert('Error al detener scheduler: ' + err.message);
@@ -59,7 +59,7 @@ const SchedulerMonitor = () => {
     if (!window.confirm(`¿Ejecutar scraper "${scraperName}" ahora?`)) return;
     
     try {
-      await axios.post(`/api/scheduler/trigger/${encodeURIComponent(scraperName)}`);
+      await api.post(`/api/scheduler/trigger/${encodeURIComponent(scraperName)}`);
       alert('Scraper iniciado. Espere unos minutos y refresque.');
     } catch (err) {
       alert('Error: ' + err.message);
@@ -68,8 +68,8 @@ const SchedulerMonitor = () => {
 
   const viewRunLogs = async (runId) => {
     try {
-      const res = await axios.get(`/api/scheduler/runs/${runId}/logs`);
-      setRunLogs(res.data);
+      const res = await api.get(`/api/scheduler/runs/${runId}/logs`);
+      setRunLogs(res);
       setSelectedRun(runId);
     } catch (err) {
       alert('Error al cargar logs: ' + err.message);

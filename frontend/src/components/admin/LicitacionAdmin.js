@@ -1,9 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import axios from 'axios';
-
-const BACKEND_URL = process.env.REACT_APP_BACKEND_URL || '';
-const API = `${BACKEND_URL}/api`;
+import { api } from '../../services/api';
 
 const WORKFLOW_COLORS = {
   descubierta: 'bg-gray-100 text-gray-700',
@@ -29,18 +26,14 @@ const LicitacionAdmin = () => {
     try {
       let response;
       if (searchQuery.trim()) {
-        response = await axios.get(`${API}/licitaciones/search`, {
-          params: { q: searchQuery, page, size: pageSize }
-        });
+        response = await api.get('/api/licitaciones/search', new URLSearchParams({ q: searchQuery, page: String(page), size: String(pageSize) }));
         setSearchActive(true);
       } else {
-        response = await axios.get(`${API}/licitaciones/`, {
-          params: { page, size: pageSize }
-        });
+        response = await api.get('/api/licitaciones/', new URLSearchParams({ page: String(page), size: String(pageSize) }));
         setSearchActive(false);
       }
 
-      const data = response.data;
+      const data = response;
       setLicitaciones(Array.isArray(data) ? data : (data.items || []));
       setTotalItems(data.paginacion?.total_items || data.items?.length || 0);
     } catch (err) {
@@ -56,10 +49,10 @@ const LicitacionAdmin = () => {
     if (!window.confirm(`¿Eliminar "${title}"?`)) return;
 
     try {
-      await axios.delete(`${API}/licitaciones/${id}`);
+      await api.delete(`/api/licitaciones/${id}`);
       fetchLicitaciones();
     } catch (err) {
-      alert(`Error: ${err.response?.data?.detail || err.message}`);
+      alert(`Error: ${err?.message || 'error'}`);
     }
   };
 

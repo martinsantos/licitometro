@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useState } from 'react';
-import axios from 'axios';
+import { ApiError, api } from '../../services/api';
 
 type ReadinessItem = {
   id: string;
@@ -125,12 +125,15 @@ export default function ReadinessDashboardPanel() {
       if (criticalOnly) params.set('critical_only', 'true');
       if (resolutionFilter) params.set('resolved', resolutionFilter);
       if (overdueOnly) params.set('overdue', 'true');
-      const res = await axios.get(`/api/canonical/readiness?${params.toString()}`, { withCredentials: true });
-      setItems(res.data.items || []);
-      setSummary(res.data.summary || {});
+      const res = await api.get<{ items?: ReadinessItem[]; summary?: Record<string, SummaryBucket> }>(
+        '/api/canonical/readiness',
+        params,
+      );
+      setItems(res.items || []);
+      setSummary(res.summary || {});
       setError(null);
-    } catch (err: any) {
-      setError(err.response?.data?.detail || err.message || 'Error al cargar readiness');
+    } catch (err) {
+      setError(err instanceof ApiError ? err.body : 'Error al cargar readiness');
     } finally {
       setLoading(false);
     }
@@ -150,8 +153,11 @@ export default function ReadinessDashboardPanel() {
       const params = new URLSearchParams();
       params.set('limit', '10');
       params.set('company_id', item.company_id);
-      const res = await axios.get(`/api/canonical/readiness/${item.licitacion_id}/history?${params.toString()}`, { withCredentials: true });
-      setHistoryItems(res.data.items || []);
+      const res = await api.get<{ items?: HistoryEvent[] }>(
+        `/api/canonical/readiness/${item.licitacion_id}/history`,
+        params,
+      );
+      setHistoryItems(res.items || []);
     } catch {
       setHistoryItems([]);
     } finally {
@@ -173,14 +179,14 @@ export default function ReadinessDashboardPanel() {
   const refreshItem = async (item: ReadinessItem) => {
     setRefreshingId(item.licitacion_id);
     try {
-      await axios.post(`/api/canonical/readiness/${item.licitacion_id}/refresh`, {}, { withCredentials: true });
+      await api.post(`/api/canonical/readiness/${item.licitacion_id}/refresh`, {});
       await load();
       if (historyTarget === item.licitacion_id) {
         setHistoryTarget(null);
         setHistoryItems([]);
       }
-    } catch (err: any) {
-      setError(err.response?.data?.detail || err.message || 'Error al refrescar readiness');
+    } catch (err) {
+      setError(err instanceof ApiError ? err.body : 'Error al refrescar readiness');
     } finally {
       setRefreshingId(null);
     }
@@ -214,22 +220,22 @@ export default function ReadinessDashboardPanel() {
     try {
       const params = new URLSearchParams();
       params.set('company_id', item.company_id);
-      await axios.put(`/api/canonical/readiness/${item.licitacion_id}/action?${params.toString()}`, actionDraft, { withCredentials: true });
+      await api.put(`/api/canonical/readiness/${item.licitacion_id}/action?${params.toString()}`, actionDraft);
       setActionTarget(null);
       await load();
-    } catch (err: any) {
-      setError(err.response?.data?.detail || err.message || 'Error al guardar accion');
+    } catch (err) {
+      setError(err instanceof ApiError ? err.body : 'Error al guardar accion');
     }
   };
 
   return (
-    <div className="space-y-4">
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-        <div>
+    <div className="admin-panel space-y-4">
+      <div className="admin-toolbar">
+        <div className="min-w-0">
           <h2 className="font-semibold text-gray-800">Readiness de Ofertas 0.2</h2>
           <p className="text-xs text-gray-500 mt-0.5">Snapshots persistidos de preparación por licitación y empresa.</p>
         </div>
-        <div className="flex flex-wrap gap-2">
+        <div className="admin-toolbar-actions">
           <select
             value={status}
             onChange={(e) => setStatus(e.target.value)}
@@ -306,14 +312,14 @@ export default function ReadinessDashboardPanel() {
 
       {error && <div className="p-3 bg-red-50 text-red-600 text-sm rounded-lg">{error}</div>}
 
-      <div className="grid grid-cols-2 lg:grid-cols-5 gap-2">
+      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-5 gap-2">
         {Object.entries(STATUS_LABEL).map(([key, label]) => {
           const bucket = summary[key] || { count: 0, missing_documents: 0, red_flags: 0 };
           return (
             <button
               key={key}
               onClick={() => setStatus(status === key ? '' : key)}
-              className={`text-left border rounded-lg px-3 py-2 ${STATUS_CLASS[key]} ${status === key ? 'ring-2 ring-offset-1 ring-blue-300' : ''}`}
+              className={`admin-card text-left border rounded-lg px-3 py-2 ${STATUS_CLASS[key]} ${status === key ? 'ring-2 ring-offset-1 ring-blue-300' : ''}`}
             >
               <div className="text-[11px] uppercase tracking-wide font-semibold">{label}</div>
               <div className="text-xl font-bold">{bucket.count}</div>
@@ -324,7 +330,7 @@ export default function ReadinessDashboardPanel() {
       </div>
 
       {Object.keys(ownerSummary).length > 0 && (
-        <div className="border border-gray-100 rounded-lg p-3">
+        <div className="admin-card border border-gray-100 rounded-lg p-3">
           <h3 className="text-sm font-semibold text-gray-800 mb-2">Carga por responsable</h3>
           <div className="flex flex-wrap gap-2">
             {Object.entries(ownerSummary)
@@ -339,8 +345,8 @@ export default function ReadinessDashboardPanel() {
         </div>
       )}
 
-      <div className="overflow-x-auto border border-gray-100 rounded-lg">
-        <table className="min-w-full text-sm">
+      <div className="admin-scroll-table border border-gray-100 rounded-lg">
+        <table className="w-full text-sm">
           <thead className="bg-gray-50 text-xs text-gray-500 uppercase">
             <tr>
               <th className="px-3 py-2 text-left">Oportunidad</th>
@@ -354,8 +360,8 @@ export default function ReadinessDashboardPanel() {
             {items.map((item) => (
               <tr key={item.id} className="border-t border-gray-100 align-top">
                 <td className="px-3 py-3">
-                  <div className="font-medium text-gray-800">{item.licitacion?.title || item.licitacion_id}</div>
-                  <div className="text-xs text-gray-500">{item.licitacion?.organization || 'Sin organismo'} · {item.company_id}</div>
+                  <div className="font-medium text-gray-800 admin-break-anywhere">{item.licitacion?.title || item.licitacion_id}</div>
+                  <div className="text-xs text-gray-500 admin-break-anywhere">{item.licitacion?.organization || 'Sin organismo'} · {item.company_id}</div>
                   <button
                     onClick={() => loadHistory(item)}
                     className="mt-1 text-xs font-semibold text-blue-700 hover:text-blue-900"
@@ -376,7 +382,7 @@ export default function ReadinessDashboardPanel() {
                     Accion
                   </button>
                   {item.operator_action?.next_action && (
-                    <div className={`mt-1 text-xs ${isOverdue(item.operator_action.due_date) && !item.operator_action.resolved ? 'text-rose-700 font-semibold' : 'text-gray-600'}`}>
+                    <div className={`mt-1 text-xs admin-break-anywhere ${isOverdue(item.operator_action.due_date) && !item.operator_action.resolved ? 'text-rose-700 font-semibold' : 'text-gray-600'}`}>
                       {item.operator_action.resolved ? 'Resuelto' : item.operator_action.next_action}
                       {item.operator_action.owner && <span> · {item.operator_action.owner}</span>}
                       {item.operator_action.due_date && (
@@ -386,7 +392,7 @@ export default function ReadinessDashboardPanel() {
                     </div>
                   )}
                   {actionTarget === `${item.licitacion_id}:${item.company_id}` && (
-                    <div className="mt-2 grid grid-cols-1 md:grid-cols-2 gap-2 rounded-lg border border-gray-100 bg-white p-2">
+                    <div className="admin-card mt-2 grid grid-cols-1 md:grid-cols-2 gap-2 rounded-lg border border-gray-100 bg-white p-2">
                       <input
                         value={String(actionDraft.owner || '')}
                         onChange={(e) => setActionDraft(prev => ({ ...prev, owner: e.target.value }))}
@@ -428,7 +434,7 @@ export default function ReadinessDashboardPanel() {
                     </div>
                   )}
                   {historyTarget === item.licitacion_id && (
-                    <div className="mt-2 rounded-lg border border-gray-100 bg-gray-50 p-2">
+                    <div className="admin-card mt-2 rounded-lg border border-gray-100 bg-gray-50 p-2">
                       {loadingHistory && <div className="text-xs text-gray-500">Cargando historial...</div>}
                       {!loadingHistory && historyItems.length === 0 && (
                         <div className="text-xs text-gray-500">Sin cambios registrados.</div>
@@ -458,13 +464,13 @@ export default function ReadinessDashboardPanel() {
                   <div className="text-xs text-gray-500">afinidad {item.score}% · {item.nivel}</div>
                 </td>
                 <td className="px-3 py-3">
-                  <div className="flex flex-wrap gap-1 mb-1">
+                  <div className="admin-chip-row mb-1">
                     <span className="px-1.5 py-0.5 rounded bg-rose-50 text-rose-700 text-xs">{item.counts?.missing_documents || 0} faltantes</span>
                     <span className="px-1.5 py-0.5 rounded bg-emerald-50 text-emerald-700 text-xs">{item.counts?.document_matches || 0} docs ok</span>
                     <span className="px-1.5 py-0.5 rounded bg-amber-50 text-amber-700 text-xs">{item.counts?.red_flags || 0} riesgos</span>
                   </div>
                   {(item.ai_v2?.missing_documents || []).slice(0, 3).map((doc, i) => (
-                    <div key={i} className="text-xs text-rose-700 truncate max-w-md">{doc}</div>
+                    <div key={i} className="text-xs text-rose-700 admin-break-anywhere max-w-md">{doc}</div>
                   ))}
                 </td>
                 <td className="px-3 py-3 text-gray-600">

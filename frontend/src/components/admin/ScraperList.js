@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import axios from 'axios';
+import { ApiError, api } from '../../services/api';
 
 const ScraperList = () => {
   const [scrapers, setScrapers] = useState([]);
@@ -11,8 +11,8 @@ const ScraperList = () => {
   const fetchScrapers = async () => {
     setLoading(true);
     try {
-    const response = await axios.get('/api/scraper-configs/');
-      setScrapers(response.data);
+      const response = await api.get('/api/scraper-configs/');
+      setScrapers(response);
       setLoading(false);
     } catch (error) {
       console.error('Error fetching scrapers:', error);
@@ -33,7 +33,7 @@ const ScraperList = () => {
       });
       
       // Use the correct scheduler endpoint
-      await axios.post(`/api/scheduler/trigger/${encodeURIComponent(scraperName)}`);
+      await api.post(`/api/scheduler/trigger/${encodeURIComponent(scraperName)}`);
       
       // We don't need to wait for the scraper to finish since it runs in the background
       // Just show a success message
@@ -42,10 +42,8 @@ const ScraperList = () => {
       console.error(`Error running scraper ${scraperName}:`, error);
       // Better error handling
       let errorMsg = 'Error desconocido';
-      if (error.response?.data?.detail) {
-        errorMsg = error.response.data.detail;
-      } else if (error.response?.data?.message) {
-        errorMsg = error.response.data.message;
+      if (error instanceof ApiError) {
+        errorMsg = error.body;
       } else if (error.message) {
         errorMsg = error.message;
       }

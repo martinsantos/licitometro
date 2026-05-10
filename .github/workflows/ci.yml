@@ -15,7 +15,7 @@ jobs:
   lint-and-build:
     name: Lint & Build Check
     runs-on: ubuntu-latest
-    timeout-minutes: 8
+    timeout-minutes: 15
 
     steps:
       - name: Checkout code
@@ -32,19 +32,28 @@ jobs:
         working-directory: frontend
         run: npm ci
 
-      - name: Lint frontend (if script exists)
+      - name: Install Playwright browser
         working-directory: frontend
-        run: |
-          if grep -q '"lint"' package.json; then
-            npm run lint
-          else
-            echo "No lint script found, skipping..."
-          fi
-        continue-on-error: false
+        run: npx playwright install --with-deps chromium
+
+      - name: Lint frontend
+        working-directory: frontend
+        run: npm run lint
+
+      - name: Run frontend tests
+        working-directory: frontend
+        run: npm test -- --watchAll=false --passWithNoTests
 
       - name: Build frontend
         working-directory: frontend
         run: npm run build
+        env:
+          CI: true
+          REACT_APP_BACKEND_URL: ""
+
+      - name: Run E2E smoke tests
+        working-directory: frontend
+        run: npm run e2e:smoke:ci
         env:
           CI: true
           REACT_APP_BACKEND_URL: ""
@@ -75,10 +84,14 @@ jobs:
           find scrapers services routers utils models db -name "*.py" | xargs python -m py_compile
           echo "Python syntax check passed (server + all modules)"
 
+      - name: Lint backend (flake8)
+        working-directory: backend
+        run: flake8 .
+
   test-backend:
     name: Backend Unit Tests
     runs-on: ubuntu-latest
-    timeout-minutes: 8
+    timeout-minutes: 12
 
     steps:
       - name: Checkout code
@@ -90,10 +103,9 @@ jobs:
           python-version: '3.11'
 
       - name: Install test dependencies
-        run: pip install pytest pydantic
+        run: pip install -r backend/requirements-dev.txt
 
       - name: Run backend unit tests
-        working-directory: backend
-        run: pytest tests/ -v
+        run: pytest tests backend/tests -v
         env:
           PYTHONPATH: ${{ github.workspace }}/backend

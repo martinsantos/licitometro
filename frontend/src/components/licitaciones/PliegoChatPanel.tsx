@@ -1,4 +1,5 @@
 import React, { useRef, useState } from 'react';
+import AIGroundingBadge, { AIGrounding } from '../AIGroundingBadge';
 
 interface AIResumen {
   documentacion_requerida?: string[];
@@ -23,6 +24,7 @@ interface AIExtractionV2 {
 interface Message {
   role: 'user' | 'assistant';
   content: string;
+  grounding?: AIGrounding;
 }
 
 interface Props {
@@ -43,11 +45,12 @@ export default function PliegoChatPanel({ licitacionId }: Props) {
   const [summaryLoading, setSummaryLoading] = useState(false);
   const [summaryError, setSummaryError] = useState<string | null>(null);
   const [summaryCached, setSummaryCached] = useState(false);
+  const [summaryGrounding, setSummaryGrounding] = useState<AIGrounding | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState('');
   const [chatLoading, setChatLoading] = useState(false);
   const [extractV2, setExtractV2] = useState<AIExtractionV2 | null>(null);
-  const [extractV2Meta, setExtractV2Meta] = useState<{ cached?: boolean; schema_version?: string; provider?: string } | null>(null);
+  const [extractV2Meta, setExtractV2Meta] = useState<{ cached?: boolean; schema_version?: string; provider?: string; grounding?: AIGrounding } | null>(null);
   const [extractV2Loading, setExtractV2Loading] = useState(false);
   const [extractV2Error, setExtractV2Error] = useState<string | null>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
@@ -68,6 +71,7 @@ export default function PliegoChatPanel({ licitacionId }: Props) {
       } else {
         setSummary(data.resumen);
         setSummaryCached(data.cached);
+        setSummaryGrounding(data.grounding || null);
       }
     } catch {
       setSummaryError('Error de conexion');
@@ -91,7 +95,7 @@ export default function PliegoChatPanel({ licitacionId }: Props) {
         setExtractV2Error(data.detail || data.error || 'Error en extraccion 0.2');
       } else {
         setExtractV2(data.result);
-        setExtractV2Meta({ cached: data.cached, schema_version: data.schema_version, provider: data.provider });
+        setExtractV2Meta({ cached: data.cached, schema_version: data.schema_version, provider: data.provider, grounding: data.grounding });
       }
     } catch {
       setExtractV2Error('Error de conexion');
@@ -122,7 +126,7 @@ export default function PliegoChatPanel({ licitacionId }: Props) {
       if (!res.ok || !data.ok) {
         setMessages([...newMessages, { role: 'assistant', content: data.detail || data.error || 'Error al consultar.' }]);
       } else {
-        setMessages([...newMessages, { role: 'assistant', content: data.respuesta }]);
+        setMessages([...newMessages, { role: 'assistant', content: data.respuesta, grounding: data.grounding }]);
       }
     } catch {
       setMessages([...newMessages, { role: 'assistant', content: 'Error de conexion.' }]);
@@ -238,6 +242,7 @@ export default function PliegoChatPanel({ licitacionId }: Props) {
                     <p className="text-gray-700">{summary.observaciones}</p>
                   </div>
                 )}
+                <AIGroundingBadge grounding={summaryGrounding} />
                 <button
                   onClick={loadSummary}
                   className="text-xs text-purple-500 hover:text-purple-700 underline"
@@ -283,6 +288,7 @@ export default function PliegoChatPanel({ licitacionId }: Props) {
                   {extractV2Meta?.provider && <span className="px-2 py-0.5 bg-gray-100 rounded-full">{extractV2Meta.provider}</span>}
                   {extractV2Meta?.cached && <span className="px-2 py-0.5 bg-emerald-50 text-emerald-700 rounded-full">cacheado</span>}
                 </div>
+                <AIGroundingBadge grounding={extractV2Meta?.grounding} />
 
                 {extractV2.items && extractV2.items.length > 0 && (
                   <div>
@@ -382,6 +388,11 @@ export default function PliegoChatPanel({ licitacionId }: Props) {
                     }`}
                   >
                     {m.content}
+                    {m.role === 'assistant' && m.grounding && (
+                      <div className="mt-2">
+                        <AIGroundingBadge grounding={m.grounding} compact />
+                      </div>
+                    )}
                   </div>
                 </div>
               ))}

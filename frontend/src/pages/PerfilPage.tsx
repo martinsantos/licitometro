@@ -1,10 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import axios from 'axios';
+import { api as httpApi } from '../services/api';
 import { useCotizarAPI, MongoCotizacion } from '../hooks/useCotizarAPI';
 import { useFavorites } from '../contexts/FavoritesContext';
-
-const BACKEND_URL = process.env.REACT_APP_BACKEND_URL || '';
 
 interface SavedLicitacion {
   id: string;
@@ -62,8 +60,7 @@ export default function PerfilPage() {
 
     Promise.all(
       saved.slice(0, 20).map(id =>
-        axios.get(`${BACKEND_URL}/api/licitaciones/${id}`, { withCredentials: true })
-          .then(r => r.data as SavedLicitacion)
+        httpApi.get<SavedLicitacion>(`/api/licitaciones/${id}`)
           .catch(() => null)
       )
     ).then(results => {
@@ -82,8 +79,8 @@ export default function PerfilPage() {
 
   // Load nodos
   useEffect(() => {
-    axios.get(`${BACKEND_URL}/api/nodos/`, { withCredentials: true })
-      .then(r => setNodos((r.data || []).filter((n: NodoSummary) => n.matched_count > 0)))
+    httpApi.get<NodoSummary[]>('/api/nodos/')
+      .then(data => setNodos((data || []).filter((n: NodoSummary) => n.matched_count > 0)))
       .catch(() => setNodos([]))
       .finally(() => setLoadingNodos(false));
   }, []);

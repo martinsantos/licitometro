@@ -1,13 +1,18 @@
 import pytest
-from httpx import AsyncClient
+import os
+from httpx import ASGITransport, AsyncClient
 from uuid import uuid4
 from datetime import datetime, timezone, timedelta
+
+os.environ.setdefault("DISABLE_AUTH", "true")
+os.environ.setdefault("ENV", "test")
 
 # Import the FastAPI app instance
 # This assumes your FastAPI app instance is named 'app' in 'server.py'
 # Adjust the import path if your project structure is different.
 from backend.server import app
 from backend.models.licitacion import LicitacionCreate, Licitacion
+from dependencies import get_licitacion_repository
 
 
 # Fixture for the LicitacionRepository (if needed for direct mocking, though most tests will go through API)
@@ -55,30 +60,27 @@ sample_licitacion_data_3 = {
 
 @pytest.fixture(scope="function")
 async def client():
-    async with AsyncClient(app=app, base_url="http://test") as ac:
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://test") as ac:
         yield ac
 
 @pytest.fixture(scope="function", autouse=True)
 async def clear_licitaciones_collection(client: AsyncClient):
-    # This is a simple way to clear data.
-    # For a real test suite, you might want a more robust solution
-    # like a test database or transactions if your DB supports it.
-    # For now, we assume there's no direct "delete all" endpoint for licitaciones,
-    # so tests should be mindful of data they create.
-    # If there were a repository method to clear, we could override dependency and call it.
-    # For MongoDB, one might drop the collection before/after tests.
-    # This fixture currently does nothing to clear, relying on tests to manage their data or a separate cleanup script.
-    # To properly clean:
-    # 1. Get the LicitacionRepository
-    # 2. Call a method like `await repo.collection.delete_many({})`
-    # This requires setting up the repository dependency correctly for tests.
-    pass
+    repo = await get_licitacion_repository()
+    await repo.collection.delete_many({"fuente": {"$in": ["Fuente Test A", "Fuente Test B"]}})
+    yield
+    await repo.collection.delete_many({"fuente": {"$in": ["Fuente Test A", "Fuente Test B"]}})
 
 
 async def create_test_licitacion(client: AsyncClient, data: dict) -> dict:
     response = await client.post("/api/licitaciones/", json=data)
     assert response.status_code == 200
     return response.json()
+
+def list_items(payload: dict) -> list:
+    assert isinstance(payload, dict)
+    assert "items" in payload
+    return payload["items"]
 
 @pytest.mark.asyncio
 async def test_create_and_get_licitacion(client: AsyncClient):
@@ -101,7 +103,7 @@ async def test_get_licitaciones_no_filter(client: AsyncClient):
 
     response = await client.get("/api/licitaciones/")
     assert response.status_code == 200
-    licitaciones = response.json()
+    licitaciones = list_items(response.json())
     # Assuming the DB is cleaned or this is the first test run for these items
     assert len(licitaciones) >= 2
     titles = [lic["title"] for lic in licitaciones]
@@ -117,7 +119,7 @@ async def test_get_licitaciones_with_fuente_filter(client: AsyncClient):
     # Filter by Fuente Test A
     response_a = await client.get(f"/api/licitaciones/?fuente=Fuente Test A")
     assert response_a.status_code == 200
-    licitaciones_a = response_a.json()
+    licitaciones_a = list_items(response_a.json())
 
     # Check that only licitaciones from "Fuente Test A" are returned
     assert len(licitaciones_a) >= 2 # Could be more if DB not clean
@@ -133,7 +135,7 @@ async def test_get_licitaciones_with_fuente_filter(client: AsyncClient):
     # Filter by Fuente Test B
     response_b = await client.get(f"/api/licitaciones/?fuente=Fuente Test B")
     assert response_b.status_code == 200
-    licitaciones_b = response_b.json()
+    licitaciones_b = list_items(response_b.json())
 
     assert len(licitaciones_b) >= 1
     for lic in licitaciones_b:
@@ -151,7 +153,7 @@ async def test_get_licitaciones_with_multiple_filters(client: AsyncClient):
     # Filter by Fuente Test A and status active
     response = await client.get(f"/api/licitaciones/?fuente=Fuente Test A&status=active")
     assert response.status_code == 200
-    licitaciones = response.json()
+    licitaciones = list_items(response.json())
 
     assert len(licitaciones) >= 1
     for lic in licitaciones:
@@ -245,5 +247,3 @@ async def test_get_distinct_invalid_field(client: AsyncClient):
 # For more precise tests, proper isolation (e.g., cleaning the DB) is crucial.
 # The current tests assume that `id_licitacion` is unique and new values are used for each test item
 # to avoid conflicts if the DB is not cleaned.
-# Adding `from datetime import timedelta` for sample_licitacion_data_3
-from datetime import timedelta

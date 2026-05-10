@@ -1,9 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
-import axios from 'axios';
-
-const BACKEND_URL = process.env.REACT_APP_BACKEND_URL || '';
-const API = `${BACKEND_URL}/api`;
+import { ApiError, api } from '../services/api';
 
 const defaultSelectors = {
   title: "h1.titulo",
@@ -49,8 +46,8 @@ const ScraperFormPage = () => {
     if (isEditMode) {
       const fetchScraperConfig = async () => {
         try {
-          const response = await axios.get(`${API}/scraper-configs/${id}`);
-          setFormData(response.data);
+          const response = await api.get(`/api/scraper-configs/${id}`);
+          setFormData(response);
           setLoading(false);
         } catch (error) {
           console.error('Error fetching scraper config:', error);
@@ -96,15 +93,15 @@ const ScraperFormPage = () => {
     
     try {
       if (isEditMode) {
-        await axios.put(`${API}/scraper-configs/${id}`, formData);
+        await api.put(`/api/scraper-configs/${id}`, formData);
       } else {
-        await axios.post(`${API}/scraper-configs/`, formData);
+        await api.post('/api/scraper-configs/', formData);
       }
       
       navigate('/admin');
     } catch (error) {
       console.error('Error saving scraper config:', error);
-      setError(`Error al guardar: ${error.response?.data?.detail || error.message}`);
+      setError(`Error al guardar: ${error instanceof ApiError ? error.body : error.message}`);
       setSaving(false);
     }
   };

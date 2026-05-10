@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import axios from 'axios';
+import { api } from '../services/api';
 
 interface CollectionStats {
   name: string;
@@ -69,11 +69,11 @@ const StorageQuotaPanel = () => {
   const fetchData = useCallback(async () => {
     try {
       setLoading(true);
-      const res = await axios.get('/api/licitaciones/stats/storage');
-      setData(res.data);
+      const res = await api.get<StorageData>('/api/licitaciones/stats/storage');
+      setData(res);
       setError(null);
     } catch (err: any) {
-      setError('Error al cargar datos de almacenamiento: ' + (err.response?.data?.detail || err.message));
+      setError('Error al cargar datos de almacenamiento: ' + (err?.message || 'error'));
     } finally {
       setLoading(false);
     }

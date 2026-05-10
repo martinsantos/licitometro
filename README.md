@@ -197,6 +197,17 @@
 
 ## 🚀 Desarrollo
 
+### Checks locales
+
+Antes de abrir un PR o deployar, correr desde la raíz:
+
+```bash
+make test
+```
+
+Ese comando ejecuta sintaxis del backend, tests Python (`tests` y `backend/tests`), tests frontend y build de producción del frontend.
+Para diagnóstico de producción/VPS usar `scripts/diagnostico_integral.sh`.
+
 ### Quick Start
 
 ```bash

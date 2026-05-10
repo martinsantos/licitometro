@@ -1,7 +1,7 @@
 import React, { useState, useEffect, lazy, Suspense } from "react";
 import "./App.css";
 import { BrowserRouter, Routes, Route, Navigate, useLocation } from "react-router-dom";
-import axios from "axios";
+import { api } from "./services/api";
 
 // Components (always loaded — part of shell)
 import Header from "./components/Header";
@@ -43,17 +43,15 @@ const PageLoader = () => (
   </div>
 );
 
-// Set up global backend URL
-const BACKEND_URL = process.env.REACT_APP_BACKEND_URL || '';
-axios.defaults.baseURL = BACKEND_URL;
-axios.defaults.withCredentials = true;
+// Shared API base URL for pages still expecting apiUrl prop
+const BACKEND_URL = api.baseUrl || '';
 
 // Authenticated app shell with Header/Footer
 const AuthenticatedApp = ({ userRole }) => (
   <FavoritesProvider>
   <div className="App flex flex-col min-h-screen">
     <Header userRole={userRole} />
-    <main className="flex-grow">
+    <main className="flex-grow min-w-0 max-w-full">
       <Suspense fallback={<PageLoader />}>
         <Routes>
           <Route path="/" element={<HomePage />} />
@@ -137,7 +135,7 @@ function App() {
     const token = params.get("token");
     if (token) {
       try {
-        await axios.post("/api/auth/token-login", { token });
+        await api.post("/api/auth/token-login", { token });
         // Clean token from URL without reloading
         params.delete("token");
         const cleanUrl = params.toString()
@@ -153,8 +151,8 @@ function App() {
 
   const checkAuth = async () => {
     try {
-      const res = await axios.get("/api/auth/check");
-      setAuthState({ role: res.data.role, email: res.data.email });
+      const res = await api.get("/api/auth/check");
+      setAuthState({ role: res.role, email: res.email });
     } catch {
       setAuthState(false);
     }

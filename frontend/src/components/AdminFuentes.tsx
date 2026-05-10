@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import axios from 'axios';
+import { ApiError, api } from '../services/api';
 
 interface ScraperConfig {
   id: string;
@@ -286,6 +286,7 @@ function pct(value?: number): string {
 }
 
 const AdminFuentes = ({ apiUrl }: { apiUrl: string }) => {
+  void apiUrl;
   const [configs, setConfigs] = useState<ScraperConfig[]>([]);
   const [health, setHealth] = useState<Record<string, SourceHealth>>({});
   const [qualityTrends, setQualityTrends] = useState<Record<string, QualityTrendPoint[]>>({});
@@ -320,40 +321,40 @@ const AdminFuentes = ({ apiUrl }: { apiUrl: string }) => {
     try {
       setLoading(true);
       const [configsRes, healthRes, trendsRes, readinessTrendsRes, readinessHistoryRes, backfillRunsRes, leaderboardRes, diagnosticsRes, inputQualityRes, retryAnalyticsRes, retryAlertSettingsRes, operatorAlertsRes] = await Promise.all([
-        axios.get('/api/scraper-configs/?exclude_scope=ar_nacional'),
-        axios.get('/api/scheduler/source-health').catch(() => ({ data: { sources: [] } })),
-        axios.get('/api/scheduler/source-quality-trends?limit=5').catch(() => ({ data: { sources: {} } })),
-        axios.get('/api/scheduler/source-readiness-trends?limit=5').catch(() => ({ data: { sources: {} } })),
-        axios.get('/api/scheduler/source-readiness-history?limit=30').catch(() => ({ data: { sources: {} } })),
-        axios.get('/api/scheduler/source-readiness-backfill-runs?limit=5').catch(() => ({ data: { items: [] } })),
-        axios.get('/api/scheduler/source-remediation-leaderboard?min_ai_coverage=0.85&limit_per_source=5').catch(() => ({ data: { items: [] } })),
-        axios.get('/api/scheduler/source-backfill-failure-diagnostics?limit=50').catch(() => ({ data: null })),
-        axios.get('/api/scheduler/input-quality-repair-queue?status=open&limit=20').catch(() => ({ data: { items: [] } })),
-        axios.get('/api/scheduler/source-backfill-retry-analytics?limit=50').catch(() => ({ data: null })),
-        axios.get('/api/scheduler/source-backfill-retry-alert-settings').catch(() => ({ data: null })),
-        axios.get('/api/scheduler/operator-alert-events?event_type=ai_backfill_retry_digest&limit=5').catch(() => ({ data: { items: [] } })),
+        api.get<ScraperConfig[]>('/api/scraper-configs/', new URLSearchParams({ exclude_scope: 'ar_nacional' })),
+        api.get<{ sources?: SourceHealth[] }>('/api/scheduler/source-health').catch(() => ({ sources: [] })),
+        api.get<{ sources?: Record<string, QualityTrendPoint[]> }>('/api/scheduler/source-quality-trends', new URLSearchParams({ limit: '5' })).catch(() => ({ sources: {} })),
+        api.get<{ sources?: Record<string, ReadinessTrendPoint[]> }>('/api/scheduler/source-readiness-trends', new URLSearchParams({ limit: '5' })).catch(() => ({ sources: {} })),
+        api.get<{ sources?: Record<string, SourceReadinessHistoryPoint[]> }>('/api/scheduler/source-readiness-history', new URLSearchParams({ limit: '30' })).catch(() => ({ sources: {} })),
+        api.get<{ items?: BackfillRun[] }>('/api/scheduler/source-readiness-backfill-runs', new URLSearchParams({ limit: '5' })).catch(() => ({ items: [] })),
+        api.get<{ items?: SourceRemediationItem[] }>('/api/scheduler/source-remediation-leaderboard', new URLSearchParams({ min_ai_coverage: '0.85', limit_per_source: '5' })).catch(() => ({ items: [] })),
+        api.get<BackfillFailureDiagnostics | null>('/api/scheduler/source-backfill-failure-diagnostics', new URLSearchParams({ limit: '50' })).catch(() => null),
+        api.get<{ items?: InputQualityRepairItem[]; by_source?: InputQualitySourceSummary[] }>('/api/scheduler/input-quality-repair-queue', new URLSearchParams({ status: 'open', limit: '20' })).catch(() => ({ items: [], by_source: [] })),
+        api.get<RetryAnalytics | null>('/api/scheduler/source-backfill-retry-analytics', new URLSearchParams({ limit: '50' })).catch(() => null),
+        api.get<RetryAlertSettings | null>('/api/scheduler/source-backfill-retry-alert-settings').catch(() => null),
+        api.get<{ items?: OperatorAlertEvent[] }>('/api/scheduler/operator-alert-events', new URLSearchParams({ event_type: 'ai_backfill_retry_digest', limit: '5' })).catch(() => ({ items: [] })),
       ]);
-      setConfigs(configsRes.data);
+      setConfigs(configsRes);
 
       const healthMap: Record<string, SourceHealth> = {};
-      for (const s of healthRes.data.sources) {
+      for (const s of healthRes.sources || []) {
         healthMap[s.name] = s;
       }
       setHealth(healthMap);
-      setQualityTrends(trendsRes.data.sources || {});
-      setReadinessTrends(readinessTrendsRes.data.sources || {});
-      setReadinessHistory(readinessHistoryRes.data.sources || {});
-      setBackfillRuns(backfillRunsRes.data.items || []);
-      setRemediationLeaderboard(leaderboardRes.data.items || []);
-      setFailureDiagnostics(diagnosticsRes.data || null);
-      setInputQualityQueue(inputQualityRes.data.items || []);
-      setInputQualitySources(inputQualityRes.data.by_source || []);
-      setRetryAnalytics(retryAnalyticsRes.data || null);
-      setRetryAlertSettings(retryAlertSettingsRes.data || null);
-      setOperatorAlerts(operatorAlertsRes.data.items || []);
+      setQualityTrends(trendsRes.sources || {});
+      setReadinessTrends(readinessTrendsRes.sources || {});
+      setReadinessHistory(readinessHistoryRes.sources || {});
+      setBackfillRuns(backfillRunsRes.items || []);
+      setRemediationLeaderboard(leaderboardRes.items || []);
+      setFailureDiagnostics(diagnosticsRes || null);
+      setInputQualityQueue(inputQualityRes.items || []);
+      setInputQualitySources(inputQualityRes.by_source || []);
+      setRetryAnalytics(retryAnalyticsRes || null);
+      setRetryAlertSettings(retryAlertSettingsRes || null);
+      setOperatorAlerts(operatorAlertsRes.items || []);
       setError(null);
-    } catch (err: any) {
-      setError('Error al cargar fuentes: ' + (err.response?.data?.detail || err.message));
+    } catch (err) {
+      setError('Error al cargar fuentes: ' + (err instanceof ApiError ? err.body : 'error'));
     } finally {
       setLoading(false);
     }
@@ -365,10 +366,10 @@ const AdminFuentes = ({ apiUrl }: { apiUrl: string }) => {
 
   const handleToggle = async (configId: string) => {
     try {
-      await axios.post(`/api/scraper-configs/${configId}/toggle`);
+      await api.post(`/api/scraper-configs/${configId}/toggle`);
       fetchData();
-    } catch (err: any) {
-      setError('Error al cambiar estado: ' + (err.response?.data?.detail || err.message));
+    } catch (err) {
+      setError('Error al cambiar estado: ' + (err instanceof ApiError ? err.body : 'error'));
     }
   };
 
@@ -386,7 +387,7 @@ const AdminFuentes = ({ apiUrl }: { apiUrl: string }) => {
   const handleSaveEdit = async () => {
     if (!editingId) return;
     try {
-      const updateData: Record<string, any> = {};
+      const updateData: Record<string, unknown> = {};
       const original = configs.find(c => c.id === editingId);
       if (!original) return;
 
@@ -401,22 +402,22 @@ const AdminFuentes = ({ apiUrl }: { apiUrl: string }) => {
         return;
       }
 
-      await axios.put(`/api/scraper-configs/${editingId}`, updateData);
+      await api.put(`/api/scraper-configs/${editingId}`, updateData);
       setEditingId(null);
       fetchData();
-    } catch (err: any) {
-      setError('Error al guardar: ' + (err.response?.data?.detail || err.message));
+    } catch (err) {
+      setError('Error al guardar: ' + (err instanceof ApiError ? err.body : 'error'));
     }
   };
 
   const handleDelete = async (configId: string) => {
     try {
       setDeletingId(configId);
-      await axios.delete(`/api/scraper-configs/${configId}`);
+      await api.delete(`/api/scraper-configs/${configId}`);
       setConfirmDelete(null);
       fetchData();
-    } catch (err: any) {
-      setError('Error al eliminar: ' + (err.response?.data?.detail || err.message));
+    } catch (err) {
+      setError('Error al eliminar: ' + (err instanceof ApiError ? err.body : 'error'));
     } finally {
       setDeletingId(null);
     }
@@ -425,10 +426,10 @@ const AdminFuentes = ({ apiUrl }: { apiUrl: string }) => {
   const handleTriggerNow = async (scraperName: string) => {
     try {
       setTriggeringName(scraperName);
-      await axios.post(`/api/scheduler/trigger/${scraperName}`);
+      await api.post(`/api/scheduler/trigger/${scraperName}`);
       setTimeout(fetchData, 3000);
-    } catch (err: any) {
-      setError('Error al ejecutar: ' + (err.response?.data?.detail || err.message));
+    } catch (err) {
+      setError('Error al ejecutar: ' + (err instanceof ApiError ? err.body : 'error'));
     } finally {
       setTimeout(() => setTriggeringName(null), 3000);
     }
@@ -439,18 +440,19 @@ const AdminFuentes = ({ apiUrl }: { apiUrl: string }) => {
     try {
       setBackfillRunning(runKey);
       setBackfillResult(null);
-      const res = await axios.post('/api/scheduler/source-readiness-backfill', null, {
-        params: {
-          source_name: sourceName,
-          min_ai_coverage: 0.85,
-          limit_per_source: sourceName ? 5 : 3,
-          max_total: sourceName ? 5 : 10,
-        },
-      });
-      setBackfillResult(res.data);
+      const res = await api.post<BackfillResult>(
+        `/api/scheduler/source-readiness-backfill?${new URLSearchParams({
+          source_name: sourceName || '',
+          min_ai_coverage: '0.85',
+          limit_per_source: String(sourceName ? 5 : 3),
+          max_total: String(sourceName ? 5 : 10),
+        }).toString()}`,
+        null,
+      );
+      setBackfillResult(res);
       fetchData();
-    } catch (err: any) {
-      setError('Error en backfill AI 0.2: ' + (err.response?.data?.detail || err.message));
+    } catch (err) {
+      setError('Error en backfill AI 0.2: ' + (err instanceof ApiError ? err.body : 'error'));
     } finally {
       setBackfillRunning(null);
     }
@@ -459,15 +461,13 @@ const AdminFuentes = ({ apiUrl }: { apiUrl: string }) => {
   const handlePreviewBackfill = async () => {
     try {
       setLoadingCandidates(true);
-      const res = await axios.get('/api/scheduler/source-readiness-backfill-candidates', {
-        params: {
-          min_ai_coverage: 0.85,
-          limit_per_source: 5,
-        },
-      });
-      setBackfillCandidates(res.data);
-    } catch (err: any) {
-      setError('Error al cargar candidatas AI 0.2: ' + (err.response?.data?.detail || err.message));
+      const res = await api.get<BackfillCandidates>(
+        '/api/scheduler/source-readiness-backfill-candidates',
+        new URLSearchParams({ min_ai_coverage: '0.85', limit_per_source: '5' }),
+      );
+      setBackfillCandidates(res);
+    } catch (err) {
+      setError('Error al cargar candidatas AI 0.2: ' + (err instanceof ApiError ? err.body : 'error'));
     } finally {
       setLoadingCandidates(false);
     }
@@ -480,16 +480,14 @@ const AdminFuentes = ({ apiUrl }: { apiUrl: string }) => {
     try {
       setSavingBackfillSettings(config.name);
       const current = config.ai_backfill || {};
-      await axios.put('/api/scheduler/source-readiness-backfill-settings', {
+      await api.put(`/api/scheduler/source-readiness-backfill-settings?${new URLSearchParams({ source_name: config.name }).toString()}`, {
         min_ai_coverage: patch.min_ai_coverage ?? current.min_ai_coverage ?? 0.85,
         limit_per_source: patch.limit_per_source ?? current.limit_per_source ?? 3,
         disabled: patch.disabled ?? current.disabled ?? false,
-      }, {
-        params: { source_name: config.name },
       });
       fetchData();
-    } catch (err: any) {
-      setError('Error al guardar umbral AI 0.2: ' + (err.response?.data?.detail || err.message));
+    } catch (err) {
+      setError('Error al guardar umbral AI 0.2: ' + (err instanceof ApiError ? err.body : 'error'));
     } finally {
       setSavingBackfillSettings(null);
     }
@@ -498,13 +496,14 @@ const AdminFuentes = ({ apiUrl }: { apiUrl: string }) => {
   const handleRetryFailures = async () => {
     try {
       setRetryingFailures(true);
-      const res = await axios.post('/api/scheduler/source-backfill-retry-failures', null, {
-        params: { limit: 10, retry_window_hours: 6 },
-      });
-      setBackfillResult(res.data);
+      const res = await api.post<BackfillResult>(
+        '/api/scheduler/source-backfill-retry-failures?limit=10&retry_window_hours=6',
+        null,
+      );
+      setBackfillResult(res);
       fetchData();
-    } catch (err: any) {
-      setError('Error al reintentar fallas AI 0.2: ' + (err.response?.data?.detail || err.message));
+    } catch (err) {
+      setError('Error al reintentar fallas AI 0.2: ' + (err instanceof ApiError ? err.body : 'error'));
     } finally {
       setRetryingFailures(false);
     }
@@ -518,14 +517,14 @@ const AdminFuentes = ({ apiUrl }: { apiUrl: string }) => {
     };
     try {
       setSavingRetryAlertSettings(true);
-      const res = await axios.put('/api/scheduler/source-backfill-retry-alert-settings', {
+      const res = await api.put<RetryAlertSettings>('/api/scheduler/source-backfill-retry-alert-settings', {
         min_success_rate: patch.min_success_rate ?? current.min_success_rate,
         max_rate_limit_share: patch.max_rate_limit_share ?? current.max_rate_limit_share,
         disabled: patch.disabled ?? current.disabled,
       });
-      setRetryAlertSettings(res.data);
-    } catch (err: any) {
-      setError('Error al guardar alertas de retry AI 0.2: ' + (err.response?.data?.detail || err.message));
+      setRetryAlertSettings(res);
+    } catch (err) {
+      setError('Error al guardar alertas de retry AI 0.2: ' + (err instanceof ApiError ? err.body : 'error'));
     } finally {
       setSavingRetryAlertSettings(false);
     }
@@ -534,14 +533,14 @@ const AdminFuentes = ({ apiUrl }: { apiUrl: string }) => {
   const handleInputQualityAction = async (item: InputQualityRepairItem, status: string) => {
     try {
       setSavingInputQualityId(item.id);
-      await axios.put(`/api/scheduler/input-quality-repair-queue/${item.id}`, {
+      await api.put(`/api/scheduler/input-quality-repair-queue/${item.id}`, {
         status,
         owner: item.owner || '',
         notes: item.notes || '',
       });
       fetchData();
-    } catch (err: any) {
-      setError('Error al actualizar reparacion input_quality: ' + (err.response?.data?.detail || err.message));
+    } catch (err) {
+      setError('Error al actualizar reparacion input_quality: ' + (err instanceof ApiError ? err.body : 'error'));
     } finally {
       setSavingInputQualityId(null);
     }
@@ -550,13 +549,14 @@ const AdminFuentes = ({ apiUrl }: { apiUrl: string }) => {
   const handleInputQualityRerun = async (item: InputQualityRepairItem) => {
     try {
       setRerunningInputQualityId(item.id);
-      const res = await axios.post(`/api/scheduler/input-quality-repair-queue/${item.id}/rerun`, null, {
-        params: { force_refresh: true },
-      });
-      setBackfillResult(res.data);
+      const res = await api.post<BackfillResult>(
+        `/api/scheduler/input-quality-repair-queue/${item.id}/rerun?force_refresh=true`,
+        null,
+      );
+      setBackfillResult(res);
       fetchData();
-    } catch (err: any) {
-      setError('Error al relanzar AI 0.2: ' + (err.response?.data?.detail || err.message));
+    } catch (err) {
+      setError('Error al relanzar AI 0.2: ' + (err instanceof ApiError ? err.body : 'error'));
     } finally {
       setRerunningInputQualityId(null);
     }
@@ -589,7 +589,7 @@ const AdminFuentes = ({ apiUrl }: { apiUrl: string }) => {
   }
 
   return (
-    <div>
+    <div className="admin-panel">
       {error && (
         <div className="bg-red-50 border-l-4 border-red-400 p-3 mb-4 text-sm text-red-700 flex justify-between items-center">
           <span>{error}</span>
@@ -597,9 +597,9 @@ const AdminFuentes = ({ apiUrl }: { apiUrl: string }) => {
         </div>
       )}
 
-      <div className="flex justify-between items-center mb-4">
+      <div className="admin-toolbar mb-4">
         <p className="text-sm text-gray-500">{configs.length} fuentes Mendoza configuradas</p>
-        <div className="flex gap-2">
+        <div className="admin-toolbar-actions">
           <button
             onClick={() => { window.location.href = '/api/scheduler/source-readiness-export.csv'; }}
             className="bg-white border border-gray-200 text-gray-700 px-3 py-1.5 rounded text-sm hover:bg-gray-50"
@@ -636,8 +636,8 @@ const AdminFuentes = ({ apiUrl }: { apiUrl: string }) => {
       </div>
 
       {backfillResult && (
-        <div className="mb-4 rounded-lg border border-indigo-100 bg-indigo-50 px-3 py-2 text-xs text-indigo-900">
-          <div className="flex flex-wrap items-center gap-2">
+        <div className="admin-card mb-4 rounded-lg border border-indigo-100 bg-indigo-50 px-3 py-2 text-xs text-indigo-900">
+          <div className="admin-chip-row items-center">
             <span className="font-semibold">Backfill AI 0.2</span>
             <span>{backfillResult.message || `${backfillResult.processed} procesadas`}</span>
             {backfillResult.batch && (
@@ -653,8 +653,8 @@ const AdminFuentes = ({ apiUrl }: { apiUrl: string }) => {
       )}
 
       {backfillCandidates && (
-        <div className="mb-4 rounded-lg border border-gray-200 bg-white px-3 py-2">
-          <div className="mb-2 flex items-center justify-between gap-2">
+        <div className="admin-card mb-4 rounded-lg border border-gray-200 bg-white px-3 py-2">
+          <div className="admin-toolbar mb-2 gap-2">
             <div className="text-sm font-semibold text-gray-700">
               Candidatas AI 0.2 · {backfillCandidates.total_candidates}
             </div>
@@ -670,8 +670,8 @@ const AdminFuentes = ({ apiUrl }: { apiUrl: string }) => {
               <div className="text-xs text-gray-500">Sin candidatas bajo el umbral actual.</div>
             ) : (
               backfillCandidates.sources.slice(0, 6).map((source) => (
-                <div key={source.name} className="rounded border border-gray-100 bg-gray-50 px-2 py-2">
-                  <div className="flex flex-wrap items-center gap-2 text-xs">
+                <div key={source.name} className="admin-card rounded border border-gray-100 bg-gray-50 px-2 py-2">
+                  <div className="admin-chip-row items-center text-xs">
                     <span className="font-medium text-gray-700">{source.name}</span>
                     <span className="text-indigo-700">AI {pct(source.ai_coverage)}</span>
                     <span className="text-gray-500">umbral {pct(source.min_ai_coverage)}</span>
@@ -680,7 +680,7 @@ const AdminFuentes = ({ apiUrl }: { apiUrl: string }) => {
                   </div>
                   <div className="mt-1 space-y-1">
                     {source.candidates.slice(0, 3).map((candidate) => (
-                      <div key={candidate.id} className="truncate text-[11px] text-gray-500" title={candidate.title || candidate.id}>
+                      <div key={candidate.id} className="admin-break-anywhere text-[11px] text-gray-500" title={candidate.title || candidate.id}>
                         P{candidate.remediation_score ?? '-'} · {candidate.id_licitacion || candidate.id} · {candidate.title || 'sin titulo'}
                       </div>
                     ))}
@@ -693,9 +693,9 @@ const AdminFuentes = ({ apiUrl }: { apiUrl: string }) => {
       )}
 
       {backfillRuns.length > 0 && (
-        <div className="mb-4 rounded-lg border border-gray-100 bg-gray-50 px-3 py-2">
+        <div className="admin-card mb-4 rounded-lg border border-gray-100 bg-gray-50 px-3 py-2">
           <div className="mb-2 text-sm font-semibold text-gray-700">Historial backfill AI 0.2</div>
-          <div className="flex flex-wrap gap-2">
+          <div className="admin-chip-row">
             {backfillRuns.map((run) => (
               <div key={run.id} className="rounded border border-gray-100 bg-white px-2 py-1 text-[11px] text-gray-600">
                 <span className="font-medium text-gray-700">{run.source_name || 'todas'}</span>
@@ -714,8 +714,8 @@ const AdminFuentes = ({ apiUrl }: { apiUrl: string }) => {
       )}
 
       {remediationLeaderboard.length > 0 && (
-        <div className="mb-4 rounded-lg border border-indigo-100 bg-indigo-50 px-3 py-2">
-          <div className="mb-2 flex items-center justify-between">
+        <div className="admin-card mb-4 rounded-lg border border-indigo-100 bg-indigo-50 px-3 py-2">
+          <div className="admin-toolbar mb-2">
             <div className="text-sm font-semibold text-indigo-900">Ranking remediacion AI 0.2</div>
             <button
               onClick={() => { window.location.href = '/api/scheduler/source-remediation-leaderboard.csv?min_ai_coverage=0.85&limit_per_source=5'; }}
@@ -726,9 +726,9 @@ const AdminFuentes = ({ apiUrl }: { apiUrl: string }) => {
           </div>
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-2">
             {remediationLeaderboard.slice(0, 6).map((item) => (
-              <div key={item.source_name} className="rounded border border-indigo-100 bg-white px-2 py-2 text-xs">
-                <div className="flex items-center justify-between gap-2">
-                  <span className="font-medium text-gray-700 truncate" title={item.source_name}>{item.source_name}</span>
+              <div key={item.source_name} className="admin-card rounded border border-indigo-100 bg-white px-2 py-2 text-xs">
+                <div className="admin-toolbar gap-2">
+                  <span className="font-medium text-gray-700 admin-break-anywhere" title={item.source_name}>{item.source_name}</span>
                   <span className="rounded bg-indigo-100 px-1.5 py-0.5 font-semibold text-indigo-700">P{item.remediation_score}</span>
                 </div>
                 <div className="mt-1 flex flex-wrap gap-x-2 gap-y-1 text-[11px] text-gray-500">
@@ -747,10 +747,10 @@ const AdminFuentes = ({ apiUrl }: { apiUrl: string }) => {
       )}
 
       {failureDiagnostics && Object.values(failureDiagnostics.categories || {}).some((count) => count > 0) && (
-        <div className="mb-4 rounded-lg border border-red-100 bg-red-50 px-3 py-2">
-          <div className="mb-2 flex items-center justify-between">
+        <div className="admin-card mb-4 rounded-lg border border-red-100 bg-red-50 px-3 py-2">
+          <div className="admin-toolbar mb-2">
             <div className="text-sm font-semibold text-red-900">Diagnostico fallas AI 0.2</div>
-            <div className="flex items-center gap-2">
+            <div className="admin-toolbar-actions">
               <span className="text-xs text-red-700">{failureDiagnostics.runs_evaluated} corridas</span>
               <button
                 onClick={handleRetryFailures}
@@ -761,7 +761,7 @@ const AdminFuentes = ({ apiUrl }: { apiUrl: string }) => {
               </button>
             </div>
           </div>
-          <div className="flex flex-wrap gap-2 text-xs">
+          <div className="admin-chip-row text-xs">
             {Object.entries(failureDiagnostics.categories).map(([category, count]) => (
               <span
                 key={category}
@@ -772,7 +772,7 @@ const AdminFuentes = ({ apiUrl }: { apiUrl: string }) => {
               </span>
             ))}
           </div>
-          <div className="mt-2 flex flex-wrap gap-2 text-[11px] text-gray-600">
+          <div className="admin-chip-row mt-2 text-[11px] text-gray-600">
             {failureDiagnostics.sources.slice(0, 4).map((source) => (
               <span key={source.source_name} className="rounded bg-white border border-red-100 px-2 py-1">
                 {source.source_name}: {source.failed}
@@ -783,8 +783,8 @@ const AdminFuentes = ({ apiUrl }: { apiUrl: string }) => {
       )}
 
       {inputQualityQueue.length > 0 && (
-        <div className="mb-4 rounded-lg border border-amber-100 bg-amber-50 px-3 py-2">
-          <div className="mb-2 flex items-center justify-between">
+        <div className="admin-card mb-4 rounded-lg border border-amber-100 bg-amber-50 px-3 py-2">
+          <div className="admin-toolbar mb-2">
             <div className="text-sm font-semibold text-amber-900">Reparacion input_quality</div>
             <button
               onClick={() => { window.location.href = '/api/scheduler/input-quality-repair-queue.csv?status=open&limit=200'; }}
@@ -795,7 +795,7 @@ const AdminFuentes = ({ apiUrl }: { apiUrl: string }) => {
           </div>
           <div className="space-y-2">
             {inputQualitySources.length > 0 && (
-              <div className="flex flex-wrap gap-2 text-[11px] text-amber-800">
+              <div className="admin-chip-row text-[11px] text-amber-800">
                 {inputQualitySources.slice(0, 4).map((source) => (
                   <span key={source.source_name} className="rounded bg-white border border-amber-100 px-2 py-1">
                     {source.source_name}: {source.open_items} abiertas · max {source.max_age_hours}h
@@ -804,19 +804,19 @@ const AdminFuentes = ({ apiUrl }: { apiUrl: string }) => {
               </div>
             )}
             {inputQualityQueue.slice(0, 5).map((item) => (
-              <div key={item.id} className="rounded border border-amber-100 bg-white px-2 py-2 text-xs">
-                <div className="flex flex-wrap items-center justify-between gap-2">
+              <div key={item.id} className="admin-card rounded border border-amber-100 bg-white px-2 py-2 text-xs">
+                <div className="admin-toolbar gap-2">
                   <div className="min-w-0 flex-1">
-                    <div className="truncate font-medium text-gray-700" title={item.title || item.id}>
+                    <div className="admin-break-anywhere font-medium text-gray-700" title={item.title || item.id}>
                       {item.source_name} · {item.id_licitacion || item.id} · {item.title || 'sin titulo'}
                     </div>
-                    <div className="mt-0.5 truncate text-[11px] text-gray-500" title={item.error}>
+                    <div className="admin-break-anywhere mt-0.5 text-[11px] text-gray-500" title={item.error}>
                       {item.occurrences} ocurr. · {item.age_hours || 0}h
                       {(item.rerun_count || 0) > 0 && ` · reruns ${item.rerun_count} (${item.last_rerun_status || '-'})`}
                       {' · '}{item.error || 'sin detalle'}
                     </div>
                   </div>
-                  <div className="flex flex-wrap gap-1">
+                  <div className="admin-chip-row gap-1">
                     <button
                       onClick={() => handleInputQualityAction(item, 'in_progress')}
                       disabled={savingInputQualityId === item.id}
@@ -854,10 +854,10 @@ const AdminFuentes = ({ apiUrl }: { apiUrl: string }) => {
       )}
 
       {retryAnalytics && retryAnalytics.totals.runs > 0 && (
-        <div className="mb-4 rounded-lg border border-emerald-100 bg-emerald-50 px-3 py-2">
-          <div className="mb-2 flex items-center justify-between">
+        <div className="admin-card mb-4 rounded-lg border border-emerald-100 bg-emerald-50 px-3 py-2">
+          <div className="admin-toolbar mb-2">
             <div className="text-sm font-semibold text-emerald-900">Resultado retries AI 0.2</div>
-            <div className="flex items-center gap-2">
+            <div className="admin-toolbar-actions">
               <span className="text-xs text-emerald-700">
                 {retryAnalytics.totals.succeeded}/{retryAnalytics.totals.processed} OK · {pct(retryAnalytics.totals.success_rate ?? undefined)}
               </span>
@@ -869,7 +869,7 @@ const AdminFuentes = ({ apiUrl }: { apiUrl: string }) => {
               </button>
             </div>
           </div>
-          <div className="flex flex-wrap gap-2 text-xs">
+          <div className="admin-chip-row text-xs">
             {retryAnalytics.by_category.slice(0, 4).map((item) => (
               <span key={item.category} className="rounded bg-white border border-emerald-100 px-2 py-1 text-emerald-700">
                 {item.category}: {item.succeeded}/{item.processed} · {pct(item.success_rate ?? undefined)}
@@ -877,7 +877,7 @@ const AdminFuentes = ({ apiUrl }: { apiUrl: string }) => {
             ))}
           </div>
           {retryAlertSettings && (
-            <div className="mt-2 flex flex-wrap items-center gap-2 text-xs text-emerald-800">
+            <div className="admin-chip-row mt-2 items-center text-xs text-emerald-800">
               <span>Alerta retry</span>
               <span>min exito {pct(retryAlertSettings.min_success_rate)}</span>
               <span>max rate-limit {pct(retryAlertSettings.max_rate_limit_share)}</span>
@@ -905,7 +905,7 @@ const AdminFuentes = ({ apiUrl }: { apiUrl: string }) => {
             </div>
           )}
           {operatorAlerts.length > 0 && (
-            <div className="mt-2 flex flex-wrap gap-2 text-[11px] text-emerald-800">
+            <div className="admin-chip-row mt-2 text-[11px] text-emerald-800">
               <button
                 onClick={() => { window.location.href = '/api/scheduler/operator-alert-events.csv?event_type=ai_backfill_retry_digest&limit=100'; }}
                 className="rounded bg-white border border-emerald-100 px-2 py-1 hover:bg-emerald-50"
@@ -923,8 +923,8 @@ const AdminFuentes = ({ apiUrl }: { apiUrl: string }) => {
       )}
 
       {Object.keys(qualityTrends).length > 0 && (
-        <div className="mb-4 border border-gray-100 rounded-lg p-3">
-          <div className="flex items-center justify-between mb-2">
+        <div className="admin-card mb-4 border border-gray-100 rounded-lg p-3">
+          <div className="admin-toolbar mb-2">
             <h4 className="text-sm font-semibold text-gray-700">Tendencias calidad 0.2</h4>
             <span className="text-xs text-gray-400">ultimas corridas con metadatos</span>
           </div>
@@ -936,9 +936,9 @@ const AdminFuentes = ({ apiUrl }: { apiUrl: string }) => {
                 ? latest.score - previous.score
                 : null;
               return (
-                <div key={name} className="border border-gray-100 rounded-lg px-3 py-2">
-                  <div className="flex items-center justify-between gap-2">
-                    <span className="text-xs font-medium text-gray-700 truncate" title={name}>{name}</span>
+                <div key={name} className="admin-card border border-gray-100 rounded-lg px-3 py-2">
+                  <div className="admin-toolbar gap-2">
+                    <span className="text-xs font-medium text-gray-700 admin-break-anywhere" title={name}>{name}</span>
                     <div className="flex items-center gap-1">
                       <span className={`px-2 py-0.5 rounded-full text-xs font-bold ${qualityColor(latest?.score)}`}>
                         {latest?.score ?? '-'}/100
@@ -984,7 +984,7 @@ const AdminFuentes = ({ apiUrl }: { apiUrl: string }) => {
             return (
               <div
                 key={config.id}
-                className={`border rounded-lg p-4 ${config.active ? 'border-gray-200' : 'border-gray-100 bg-gray-50 opacity-75'}`}
+                className={`admin-card border rounded-lg p-3 sm:p-4 ${config.active ? 'border-gray-200' : 'border-gray-100 bg-gray-50 opacity-75'}`}
               >
                 {/* Edit mode */}
                 {isEditing ? (
@@ -1054,7 +1054,7 @@ const AdminFuentes = ({ apiUrl }: { apiUrl: string }) => {
                         Activa
                       </label>
                     </div>
-                    <div className="flex gap-2 pt-1">
+                    <div className="admin-toolbar-actions justify-start pt-1">
                       <button
                         onClick={handleSaveEdit}
                         className="bg-blue-800 text-white px-4 py-1.5 rounded text-sm hover:bg-blue-700"
@@ -1072,13 +1072,13 @@ const AdminFuentes = ({ apiUrl }: { apiUrl: string }) => {
                 ) : (
                   <>
                     {/* Header row */}
-                    <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 mb-2">
-                      <div className="flex items-center gap-3">
+                    <div className="admin-toolbar gap-2 mb-2">
+                      <div className="flex items-center gap-3 min-w-0">
                         <span className={`w-3 h-3 rounded-full flex-shrink-0 ${config.active ? 'bg-green-500' : 'bg-gray-400'}`}></span>
-                        <h4 className="font-medium text-sm sm:text-base">{config.name}</h4>
+                        <h4 className="font-medium text-sm sm:text-base admin-break-anywhere">{config.name}</h4>
                         <span className="text-xs text-gray-400">{config.source_type}</span>
                       </div>
-                      <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
+                      <div className="admin-toolbar-actions gap-1.5 sm:gap-2">
                         <button
                           onClick={() => handleTriggerNow(config.name)}
                           disabled={triggeringName === config.name}
@@ -1138,12 +1138,12 @@ const AdminFuentes = ({ apiUrl }: { apiUrl: string }) => {
                     </div>
 
                     {/* Details row */}
-                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 text-sm">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3 text-sm">
                       <div>
                         <span className="text-gray-500 text-xs">Schedule</span>
                         <div className="mt-0.5">
                           <span className="text-xs font-medium">{describeCron(config.schedule)}</span>
-                          <code className="text-[10px] bg-gray-100 px-1 py-0.5 rounded ml-1 text-gray-400">{config.schedule}</code>
+                          <code className="admin-break-anywhere text-[10px] bg-gray-100 px-1 py-0.5 rounded ml-1 text-gray-400">{config.schedule}</code>
                         </div>
                       </div>
 
@@ -1190,8 +1190,8 @@ const AdminFuentes = ({ apiUrl }: { apiUrl: string }) => {
                       </div>
                     </div>
 
-                    <div className="mt-2 rounded-lg border border-gray-100 bg-white px-3 py-2">
-                      <div className="flex flex-wrap items-center gap-2 text-xs">
+                    <div className="admin-card mt-2 rounded-lg border border-gray-100 bg-white px-3 py-2">
+                      <div className="admin-chip-row items-center text-xs">
                         <span className="font-medium text-gray-600">Backfill AI</span>
                         <span className={config.ai_backfill?.disabled ? 'text-red-600' : 'text-indigo-700'}>
                           {config.ai_backfill?.disabled ? 'pausado' : `umbral ${pct(config.ai_backfill?.min_ai_coverage ?? 0.85)}`}
@@ -1223,7 +1223,7 @@ const AdminFuentes = ({ apiUrl }: { apiUrl: string }) => {
 
                     {h?.source_quality && (
                       <div className="mt-3 rounded-lg border border-gray-100 bg-gray-50 px-3 py-2">
-                        <div className="flex flex-wrap items-center gap-2 text-xs">
+                        <div className="admin-chip-row items-center text-xs">
                           <span className="font-medium text-gray-500">Calidad 0.2</span>
                           <span className={`px-2 py-0.5 rounded-full font-bold ${qualityColor(h.source_quality.score)}`}>
                             {h.source_quality.score}/100
@@ -1248,7 +1248,7 @@ const AdminFuentes = ({ apiUrl }: { apiUrl: string }) => {
 
                     {h?.source_evidence && (
                       <div className="mt-2 rounded-lg border border-sky-100 bg-sky-50 px-3 py-2">
-                        <div className="flex flex-wrap items-center gap-2 text-xs">
+                        <div className="admin-chip-row items-center text-xs">
                           <span className="font-medium text-sky-700">Evidencia 0.2</span>
                           {h.source_evidence.contract === 'native_scrape_result' && (
                             <span className="px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-700 font-semibold">nativa</span>
@@ -1273,7 +1273,7 @@ const AdminFuentes = ({ apiUrl }: { apiUrl: string }) => {
 
                     {h?.readiness && (
                       <div className="mt-2 rounded-lg border border-indigo-100 bg-indigo-50 px-3 py-2">
-                        <div className="flex flex-wrap items-center gap-2 text-xs">
+                        <div className="admin-chip-row items-center text-xs">
                           <span className="font-medium text-indigo-700">Readiness 0.2</span>
                           <span className="text-gray-600">
                             AI <strong className="text-gray-800">{pct(h.readiness.ai_coverage)}</strong>
@@ -1303,7 +1303,7 @@ const AdminFuentes = ({ apiUrl }: { apiUrl: string }) => {
 
                     {(readinessTrends[config.name] || []).length > 0 && (
                       <div className="mt-2 rounded-lg border border-indigo-100 bg-white px-3 py-2">
-                        <div className="flex flex-wrap items-center gap-2 text-xs">
+                        <div className="admin-chip-row items-center text-xs">
                           <span className="font-medium text-indigo-700">Tendencia readiness</span>
                           {(readinessTrends[config.name] || []).slice(0, 5).map((point, idx) => (
                             <span key={idx} className="rounded bg-indigo-50 px-1.5 py-0.5 text-indigo-700">
@@ -1317,7 +1317,7 @@ const AdminFuentes = ({ apiUrl }: { apiUrl: string }) => {
 
                     {(readinessHistory[config.name] || []).length > 0 && (
                       <div className="mt-2 rounded-lg border border-gray-100 bg-gray-50 px-3 py-2">
-                        <div className="flex flex-wrap items-center gap-2 text-xs">
+                        <div className="admin-chip-row items-center text-xs">
                           <span className="font-medium text-gray-700">Historial fuente</span>
                           {(readinessHistory[config.name] || []).slice(0, 4).map((point, idx) => (
                             <span key={idx} className="rounded bg-white border border-gray-100 px-1.5 py-0.5 text-gray-600">
@@ -1329,7 +1329,7 @@ const AdminFuentes = ({ apiUrl }: { apiUrl: string }) => {
                     )}
 
                     {/* URL */}
-                    <div className="mt-2 text-xs text-gray-400 truncate" title={String(config.url)}>
+                    <div className="mt-2 text-xs text-gray-400 admin-break-anywhere" title={String(config.url)}>
                       {String(config.url)}
                     </div>
                   </>

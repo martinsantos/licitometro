@@ -9,6 +9,9 @@ dist
 .vscode
 # testing
 /coverage
+.coverage
+frontend/test-results/
+frontend/playwright-report/
 dump.rdb
 chainlit.md
 .chainlit
@@ -22,6 +25,8 @@ chainlit.md
 # misc
 .DS_Store
 *.pem
+*.swp
+.claude/*.lock
 
 # debug
 npm-debug.log*
@@ -75,6 +80,3 @@ docker-compose.preview-*.yml
 docker-compose.caddy.yml
 # Playwright / manual capture tooling
 node_modules/
-package.json
-package-lock.json
-yarn.lock

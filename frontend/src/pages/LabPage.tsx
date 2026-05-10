@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import axios from 'axios';
+import { ApiError, api } from '../services/api';
 
 type Tab = 'quick' | 'compare' | 'extract' | 'pdf';
 type DataTab = 'markdown' | 'html' | 'links';
@@ -11,11 +11,71 @@ interface ScraperConfig {
   active: boolean;
 }
 
+interface ScraperConfigsResponse {
+  items?: ScraperConfig[];
+}
+
 interface ActionPreset {
   label: string;
   url: string;
-  actions: any[];
+  actions: Array<Record<string, unknown>>;
 }
+
+interface LabResult {
+  success: boolean;
+  error?: string;
+  timing_ms: number;
+  data?: any;
+  summary?: any;
+  [key: string]: any;
+}
+
+interface ScraperCompareItem {
+  title?: string;
+  organization?: string;
+  budget?: number | string;
+  publication_date?: string;
+  estado?: string;
+  objeto?: string;
+}
+
+interface ExtractLicitacionItem {
+  titulo?: string;
+  numero?: string;
+  organismo?: string;
+  presupuesto?: string;
+  fecha_apertura?: string;
+  estado?: string;
+}
+
+interface PdfTextSample {
+  type?: string;
+  page?: number;
+  text?: string;
+}
+
+interface PdfTableSample {
+  page?: number;
+  preview?: string;
+}
+
+interface FirecrawlSummary {
+  markdown_length?: number;
+  link_count?: number;
+  page_title?: string;
+}
+
+interface FirecrawlData {
+  markdown?: string;
+  html?: string;
+  links?: string[];
+}
+
+const getErrorMessage = (err: unknown, fallback: string) => {
+  if (err instanceof ApiError) return err.body || fallback;
+  if (err instanceof Error) return err.message || fallback;
+  return fallback;
+};
 
 const ACTION_PRESETS: ActionPreset[] = [
   {
@@ -74,7 +134,7 @@ const LabPage: React.FC = () => {
   const [quickUrl, setQuickUrl] = useState('');
   const [quickActions, setQuickActions] = useState('');
   const [quickLoading, setQuickLoading] = useState(false);
-  const [quickResult, setQuickResult] = useState<any>(null);
+  const [quickResult, setQuickResult] = useState<LabResult | null>(null);
   const [dataTab, setDataTab] = useState<DataTab>('markdown');
   const [showActions, setShowActions] = useState(false);
 
@@ -83,21 +143,21 @@ const LabPage: React.FC = () => {
   const [selectedConfig, setSelectedConfig] = useState('');
   const [maxItems, setMaxItems] = useState(5);
   const [compareLoading, setCompareLoading] = useState(false);
-  const [compareResult, setCompareResult] = useState<any>(null);
+  const [compareResult, setCompareResult] = useState<LabResult | null>(null);
 
   // Extract state
   const [extractUrl, setExtractUrl] = useState('');
   const [extractPrompt, setExtractPrompt] = useState('Extraer todas las licitaciones, compras y contrataciones publicas de esta pagina. Para cada una incluir: titulo/objeto, numero de proceso, organismo, presupuesto estimado, fecha de publicacion, fecha de apertura, tipo de procedimiento, estado y URL de detalle.');
   const [extractLoading, setExtractLoading] = useState(false);
-  const [extractResult, setExtractResult] = useState<any>(null);
+  const [extractResult, setExtractResult] = useState<LabResult | null>(null);
   const [showRawExtract, setShowRawExtract] = useState(false);
 
   // PDF (OpenDataLoader) state
   const [pdfUrl, setPdfUrl] = useState('');
   const [pdfLoading, setPdfLoading] = useState(false);
-  const [pdfResult, setPdfResult] = useState<any>(null);
+  const [pdfResult, setPdfResult] = useState<LabResult | null>(null);
   const [showRawPdf, setShowRawPdf] = useState(false);
-  const [pdfCompareResult, setPdfCompareResult] = useState<any>(null);
+  const [pdfCompareResult, setPdfCompareResult] = useState<LabResult | null>(null);
   const [pdfCompareLoading, setPdfCompareLoading] = useState(false);
 
   const PDF_PRESETS = [
@@ -111,10 +171,10 @@ const LabPage: React.FC = () => {
     setPdfLoading(true);
     setPdfResult(null);
     try {
-      const res = await axios.post('/api/lab/opendataloader-test', { url: pdfUrl, timeout: 180 });
-      setPdfResult(res.data);
-    } catch (err: any) {
-      setPdfResult({ success: false, error: err?.response?.data?.detail || err.message, timing_ms: 0 });
+      const res = await api.post<LabResult>('/api/lab/opendataloader-test', { url: pdfUrl, timeout: 180 });
+      setPdfResult(res);
+    } catch (err: unknown) {
+      setPdfResult({ success: false, error: getErrorMessage(err, 'Error parseando PDF'), timing_ms: 0 });
     }
     setPdfLoading(false);
   };
@@ -124,18 +184,21 @@ const LabPage: React.FC = () => {
     setPdfCompareLoading(true);
     setPdfCompareResult(null);
     try {
-      const res = await axios.post('/api/lab/pdf-compare', { url: pdfUrl, timeout: 180 });
-      setPdfCompareResult(res.data);
-    } catch (err: any) {
-      setPdfCompareResult({ success: false, error: err?.response?.data?.detail || err.message });
+      const res = await api.post<LabResult>('/api/lab/pdf-compare', { url: pdfUrl, timeout: 180 });
+      setPdfCompareResult(res);
+    } catch (err: unknown) {
+      setPdfCompareResult({ success: false, timing_ms: 0, error: getErrorMessage(err, 'Error comparando PDF') });
     }
     setPdfCompareLoading(false);
   };
 
   useEffect(() => {
-    axios.get('/api/scraper-configs/?active_only=true&limit=100')
+    api.get<ScraperConfig[] | ScraperConfigsResponse>(
+      '/api/scraper-configs/',
+      new URLSearchParams({ active_only: 'true', limit: '100' }),
+    )
       .then(res => {
-        const data = Array.isArray(res.data) ? res.data : res.data?.items || [];
+        const data = Array.isArray(res) ? res : res?.items ?? [];
         setConfigs(data);
       })
       .catch(() => {});
@@ -161,13 +224,13 @@ const LabPage: React.FC = () => {
       if (quickActions.trim()) {
         try { actions = JSON.parse(quickActions); } catch { /* ignore parse error */ }
       }
-      const res = await axios.post('/api/lab/firecrawl-test', {
+      const res = await api.post<LabResult>('/api/lab/firecrawl-test', {
         url: quickUrl,
         ...(actions ? { actions } : {}),
       });
-      setQuickResult(res.data);
-    } catch (err: any) {
-      setQuickResult({ success: false, error: err?.response?.data?.detail || err.message, timing_ms: 0 });
+      setQuickResult(res);
+    } catch (err: unknown) {
+      setQuickResult({ success: false, error: getErrorMessage(err, 'Error ejecutando quick test'), timing_ms: 0 });
     }
     setQuickLoading(false);
   };
@@ -177,10 +240,10 @@ const LabPage: React.FC = () => {
     setCompareLoading(true);
     setCompareResult(null);
     try {
-      const res = await axios.post('/api/lab/compare', { config_id: selectedConfig, max_items: maxItems });
-      setCompareResult(res.data);
-    } catch (err: any) {
-      setCompareResult({ error: err?.response?.data?.detail || err.message });
+      const res = await api.post<LabResult>('/api/lab/compare', { config_id: selectedConfig, max_items: maxItems });
+      setCompareResult(res);
+    } catch (err: unknown) {
+      setCompareResult({ success: false, timing_ms: 0, error: getErrorMessage(err, 'Error ejecutando comparación') });
     }
     setCompareLoading(false);
   };
@@ -190,14 +253,14 @@ const LabPage: React.FC = () => {
     setExtractLoading(true);
     setExtractResult(null);
     try {
-      const res = await axios.post('/api/lab/extract', {
+      const res = await api.post<LabResult>('/api/lab/extract', {
         urls: [extractUrl],
         prompt: extractPrompt,
         use_default_schema: true,
       });
-      setExtractResult(res.data);
-    } catch (err: any) {
-      setExtractResult({ success: false, error: err?.response?.data?.detail || err.message });
+      setExtractResult(res);
+    } catch (err: unknown) {
+      setExtractResult({ success: false, timing_ms: 0, error: getErrorMessage(err, 'Error en extracción') });
     }
     setExtractLoading(false);
   };
@@ -282,14 +345,14 @@ const LabPage: React.FC = () => {
             <div className="space-y-4">
               <div className="bg-white border border-gray-200 rounded-lg p-4">
                 <div className="flex items-center gap-3 flex-wrap">
-                  <StatusBadge success={quickResult.success} />
+                  <StatusBadge success={Boolean(quickResult.success)} />
                   {quickResult.timing_ms > 0 && <TimingBadge ms={quickResult.timing_ms} />}
                   {quickResult.summary && (
                     <>
-                      <span className="text-xs text-gray-500">Markdown: {quickResult.summary.markdown_length?.toLocaleString()} chars</span>
-                      <span className="text-xs text-gray-500">Links: {quickResult.summary.link_count}</span>
-                      {quickResult.summary.page_title && (
-                        <span className="text-xs text-gray-700 font-bold">{quickResult.summary.page_title}</span>
+                      <span className="text-xs text-gray-500">Markdown: {(quickResult.summary as FirecrawlSummary).markdown_length?.toLocaleString()} chars</span>
+                      <span className="text-xs text-gray-500">Links: {(quickResult.summary as FirecrawlSummary).link_count}</span>
+                      {(quickResult.summary as FirecrawlSummary).page_title && (
+                        <span className="text-xs text-gray-700 font-bold">{(quickResult.summary as FirecrawlSummary).page_title}</span>
                       )}
                     </>
                   )}
@@ -311,19 +374,19 @@ const LabPage: React.FC = () => {
                   <div className="bg-gray-900 rounded-lg p-4 max-h-[600px] overflow-y-auto">
                     {dataTab === 'links' ? (
                       <div className="space-y-1">
-                        {(quickResult.data.links || []).map((link: string, i: number) => (
+                        {(((quickResult.data as FirecrawlData | undefined)?.links) || []).map((link: string, i: number) => (
                           <div key={i} className="text-xs text-emerald-400 font-mono break-all">
                             <span className="text-gray-500 mr-2">{i + 1}.</span>
                             <a href={link} target="_blank" rel="noreferrer" className="hover:underline">{link}</a>
                           </div>
                         ))}
-                        {(!quickResult.data.links || quickResult.data.links.length === 0) && (
+                        {(!((quickResult.data as FirecrawlData | undefined)?.links) || ((quickResult.data as FirecrawlData | undefined)?.links || []).length === 0) && (
                           <p className="text-gray-500 text-sm">No links found</p>
                         )}
                       </div>
                     ) : (
                       <pre className="text-xs text-gray-300 font-mono whitespace-pre-wrap break-words">
-                        {quickResult.data[dataTab] || '(empty)'}
+                        {((quickResult.data as FirecrawlData | undefined)?.[dataTab]) || '(empty)'}
                       </pre>
                     )}
                   </div>
@@ -394,7 +457,7 @@ const LabPage: React.FC = () => {
                     <span className="font-bold text-blue-800 text-sm">Scraper Actual</span>
                     {compareResult.scraper && (
                       <>
-                        <StatusBadge success={compareResult.scraper.success} />
+                        <StatusBadge success={Boolean(compareResult.scraper.success)} />
                         <TimingBadge ms={compareResult.scraper.timing_ms} />
                       </>
                     )}
@@ -406,7 +469,7 @@ const LabPage: React.FC = () => {
                           <span className="font-bold text-gray-800">{compareResult.scraper.item_count}</span> items encontrados
                         </div>
                         <div className="space-y-2 max-h-[500px] overflow-y-auto">
-                          {compareResult.scraper.items?.map((item: any, i: number) => (
+                          {((compareResult.scraper.items as ScraperCompareItem[] | undefined) || []).map((item, i: number) => (
                             <div key={i} className="bg-gray-50 rounded p-3 text-xs">
                               <div className="font-bold text-gray-800 mb-1">{item.title}</div>
                               <div className="text-gray-500">{item.organization}</div>
@@ -434,7 +497,7 @@ const LabPage: React.FC = () => {
                     <span className="font-bold text-orange-800 text-sm">Firecrawl</span>
                     {compareResult.firecrawl && (
                       <>
-                        <StatusBadge success={compareResult.firecrawl.success} />
+                        <StatusBadge success={Boolean(compareResult.firecrawl.success)} />
                         <TimingBadge ms={compareResult.firecrawl.timing_ms} />
                       </>
                     )}
@@ -531,11 +594,11 @@ const LabPage: React.FC = () => {
             <div className="space-y-4">
               <div className="bg-white border border-gray-200 rounded-lg p-4">
                 <div className="flex items-center gap-3 flex-wrap">
-                  <StatusBadge success={extractResult.success} />
+                  <StatusBadge success={Boolean(extractResult.success)} />
                   {extractResult.timing_ms > 0 && <TimingBadge ms={extractResult.timing_ms} />}
-                  {extractResult.data?.licitaciones && (
+                  {(((extractResult.data?.licitaciones as ExtractLicitacionItem[] | undefined) || []).length > 0) && (
                     <span className="text-sm font-bold text-purple-700">
-                      {extractResult.data.licitaciones.length} licitaciones extraidas
+                      {((extractResult.data?.licitaciones as ExtractLicitacionItem[] | undefined) || []).length} licitaciones extraidas
                     </span>
                   )}
                 </div>
@@ -545,7 +608,7 @@ const LabPage: React.FC = () => {
               </div>
 
               {/* Results table */}
-              {extractResult.data?.licitaciones && extractResult.data.licitaciones.length > 0 && (
+              {(((extractResult.data?.licitaciones as ExtractLicitacionItem[] | undefined) || []).length > 0) && (
                 <div className="bg-white border border-gray-200 rounded-lg overflow-hidden">
                   <div className="overflow-x-auto">
                     <table className="w-full text-xs">
@@ -561,7 +624,7 @@ const LabPage: React.FC = () => {
                         </tr>
                       </thead>
                       <tbody>
-                        {extractResult.data.licitaciones.map((lic: any, i: number) => (
+                        {((extractResult.data?.licitaciones as ExtractLicitacionItem[] | undefined) || []).map((lic, i: number) => (
                           <tr key={i} className={i % 2 === 0 ? 'bg-white' : 'bg-gray-50'}>
                             <td className="px-3 py-2 text-gray-400">{i + 1}</td>
                             <td className="px-3 py-2 font-medium text-gray-800 max-w-xs truncate">{lic.titulo || '-'}</td>
@@ -727,7 +790,7 @@ const LabPage: React.FC = () => {
           {pdfResult && !pdfLoading && (
             <div className="bg-white border border-gray-200 rounded-lg p-4 space-y-4">
               <div className="flex items-center gap-3">
-                <StatusBadge success={pdfResult.success} />
+                <StatusBadge success={Boolean(pdfResult.success)} />
                 {pdfResult.timing_ms !== undefined && <TimingBadge ms={pdfResult.timing_ms} />}
                 {pdfResult.pdf_size_bytes && (
                   <span className="text-xs text-gray-500">
@@ -780,7 +843,7 @@ const LabPage: React.FC = () => {
                 <div>
                   <h4 className="text-xs font-bold text-gray-500 uppercase mb-2">Muestras de texto</h4>
                   <div className="space-y-2">
-                    {pdfResult.text_samples.map((s: any, i: number) => (
+                    {((pdfResult.text_samples as PdfTextSample[] | undefined) || []).map((s, i: number) => (
                       <div key={i} className="bg-gray-50 border border-gray-200 rounded p-2 text-xs">
                         <div className="flex gap-2 mb-1">
                           <span className="font-bold text-gray-600">{s.type}</span>
@@ -797,7 +860,7 @@ const LabPage: React.FC = () => {
                 <div>
                   <h4 className="text-xs font-bold text-gray-500 uppercase mb-2">Tablas encontradas</h4>
                   <div className="space-y-2">
-                    {pdfResult.tables.map((t: any, i: number) => (
+                    {((pdfResult.tables as PdfTableSample[] | undefined) || []).map((t, i: number) => (
                       <div key={i} className="bg-purple-50 border border-purple-200 rounded p-2 text-xs">
                         <div className="font-bold text-purple-700 mb-1">Tabla {i + 1} {t.page !== undefined && `(p.${t.page})`}</div>
                         {t.preview && <p className="text-purple-900 font-mono whitespace-pre-wrap">{t.preview}</p>}

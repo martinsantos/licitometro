@@ -1,12 +1,11 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useSearchParams, Link, useNavigate } from 'react-router-dom';
-import axios from 'axios';
 import MarketDataBanner from '../components/cotizar/MarketDataBanner';
 import OfertaEditor from '../components/cotizar/OfertaEditor';
+import CotizarProgressSummary from '../components/cotizar/CotizarProgressSummary';
 import { useCotizarAPI, MongoCotizacion } from '../hooks/useCotizarAPI';
 import { useFavorites } from '../contexts/FavoritesContext';
-
-const BACKEND_URL = process.env.REACT_APP_BACKEND_URL || '';
+import { api as httpApi } from '../services/api';
 
 interface Licitacion {
   id: string;
@@ -168,12 +167,7 @@ function MisCotizacionesTab({ onSelect }: { onSelect: (id: string) => void }) {
     if (!hitosModal) return;
     setSavingHitos(true);
     try {
-      await fetch(`${BACKEND_URL}/api/cotizaciones/${hitosModal.licId}/hitos`, {
-        method: 'PATCH',
-        credentials: 'include',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ hitos: hitosModal.hitos }),
-      });
+      await httpApi.patch(`/api/cotizaciones/${hitosModal.licId}/hitos`, { hitos: hitosModal.hitos });
       setAll(prev => prev.map(c => c.licitacion_id === hitosModal.licId ? { ...c, hitos: hitosModal.hitos } as any : c));
       setHitosModal(null);
     } catch { /* silent */ }
@@ -479,12 +473,10 @@ function LicitacionesActivasTab({
         estado: 'vigente',
       };
       if (query.trim()) params.q = query.trim();
-      const res = await axios.get(`${BACKEND_URL}/api/licitaciones/`, {
-        params,
-        withCredentials: true,
-      });
-      setItems(res.data.items || []);
-      setTotal(res.data.paginacion?.total_items || 0);
+      const qs = new URLSearchParams(Object.entries(params).map(([k, v]) => [k, String(v)]));
+      const data = await httpApi.get<{ items?: Licitacion[]; paginacion?: { total_items?: number } }>('/api/licitaciones/', qs);
+      setItems(data.items || []);
+      setTotal(data.paginacion?.total_items || 0);
     } catch {
       setItems([]);
     } finally {
@@ -595,9 +587,8 @@ function FavoritosTab({
 
     Promise.allSettled(
       saved.map(id =>
-        axios.get(`${BACKEND_URL}/api/licitaciones/${id}`, { withCredentials: true })
-          .then(r => {
-            const d = r.data;
+        httpApi.get<Licitacion>(`/api/licitaciones/${id}`)
+          .then(d => {
             return { ...d, id: d.id || id } as Licitacion;
           })
       )
@@ -730,8 +721,8 @@ function LicitacionCotizarView({
   const [error, setError] = useState('');
 
   useEffect(() => {
-    axios.get<Licitacion>(`${BACKEND_URL}/api/licitaciones/${licitacionId}`, { withCredentials: true })
-      .then(r => { setLicitacion(r.data); setLoading(false); })
+    httpApi.get<Licitacion>(`/api/licitaciones/${licitacionId}`)
+      .then(d => { setLicitacion(d); setLoading(false); })
       .catch(() => { setError('No se pudo cargar la licitación'); setLoading(false); });
   }, [licitacionId]);
 
@@ -776,7 +767,8 @@ function LicitacionCotizarView({
             {licitacion.objeto || licitacion.title}
           </p>
         </div>
-        <div className="p-6">
+        <div className="p-6 space-y-4">
+          <CotizarProgressSummary licitacion={licitacion} />
           <OfertaEditor licitacion={licitacion} />
         </div>
       </div>

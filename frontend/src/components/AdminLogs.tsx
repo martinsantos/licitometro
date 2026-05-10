@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import axios from 'axios';
+import { api } from '../services/api';
 
 interface ScraperRun {
   id: string;
@@ -43,19 +43,19 @@ const AdminLogs = () => {
       setLoading(true);
       const params: Record<string, string> = { limit: '50' };
       if (filterName) params.scraper_name = filterName;
-      const res = await axios.get('/api/scheduler/runs', { params });
-      let data: ScraperRun[] = res.data;
+      const res = await api.get<ScraperRun[]>('/api/scheduler/runs', new URLSearchParams(params));
+      let data: ScraperRun[] = res;
       if (filterStatus) {
         data = data.filter((r) => r.status === filterStatus);
       }
       setRuns(data);
 
       // Extract unique scraper names
-      const nameSet = new Set<string>(res.data.map((r: ScraperRun) => r.scraper_name));
+      const nameSet = new Set<string>(res.map((r: ScraperRun) => r.scraper_name));
       setScraperNames(Array.from(nameSet));
       setError(null);
     } catch (err: any) {
-      setError('Error al cargar runs: ' + (err.response?.data?.detail || err.message));
+      setError('Error al cargar runs: ' + (err?.message || 'error'));
     } finally {
       setLoading(false);
     }
@@ -71,14 +71,14 @@ const AdminLogs = () => {
       return;
     }
     try {
-      const res = await axios.get(`/api/scheduler/runs/${runId}/logs`);
+      const res = await api.get<{ logs: string[]; errors: string[]; warnings: string[] }>(`/api/scheduler/runs/${runId}/logs`);
       setRunLogs((prev) => ({
         ...prev,
-        [runId]: { logs: res.data.logs, errors: res.data.errors, warnings: res.data.warnings },
+        [runId]: { logs: res.logs, errors: res.errors, warnings: res.warnings },
       }));
       setExpandedRun(runId);
     } catch (err: any) {
-      setError('Error al cargar logs: ' + (err.response?.data?.detail || err.message));
+      setError('Error al cargar logs: ' + (err?.message || 'error'));
     }
   };
 

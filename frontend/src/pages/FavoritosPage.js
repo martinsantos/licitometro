@@ -1,12 +1,9 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import axios from 'axios';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { useFavorites } from '../contexts/FavoritesContext';
-
-const BACKEND_URL = process.env.REACT_APP_BACKEND_URL || '';
-const API = `${BACKEND_URL}/api`;
+import { api } from '../services/api';
 
 const FavoritosPage = () => {
   const navigate = useNavigate();
@@ -29,13 +26,13 @@ const FavoritosPage = () => {
     setLoading(true);
     const fetchAll = async () => {
       const results = await Promise.all(ids.map(id =>
-        axios.get(`${API}/licitaciones/${id}`, { withCredentials: true }).catch(() => null)
+        api.get(`/api/licitaciones/${id}`).catch(() => null)
       ));
       const valid = results
-        .filter(r => r && r.data)
+        .filter(r => r)
         .map(r => ({
-          ...r.data,
-          fecha_guardado: favoriteDates[r.data.id] || new Date().toISOString(),
+          ...r,
+          fecha_guardado: favoriteDates[r.id] || new Date().toISOString(),
         }));
       setFavoritos(valid);
       setLoading(false);

@@ -1,8 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import axios from 'axios';
-
-const BACKEND_URL = process.env.REACT_APP_BACKEND_URL || '';
-const API = `${BACKEND_URL}/api`;
+import { ApiError, api } from '../services/api';
 
 interface TemplateSection {
   name: string;
@@ -19,7 +16,7 @@ interface OfferTemplate {
   description?: string;
   sections: TemplateSection[];
   required_documents: string[];
-  budget_structure: Record<string, any>;
+  budget_structure: Record<string, unknown>;
   tags: string[];
   applicable_rubros: string[];
   usage_count: number;
@@ -68,10 +65,10 @@ const OfferTemplatesPage: React.FC = () => {
   const fetchTemplates = useCallback(async () => {
     try {
       setLoading(true);
-      const params: any = {};
-      if (filterType) params.template_type = filterType;
-      const res = await axios.get(`${API}/offer-templates/`, { params });
-      setTemplates(res.data);
+      const params = new URLSearchParams();
+      if (filterType) params.set('template_type', filterType);
+      const res = await api.get<OfferTemplate[]>('/api/offer-templates/', params);
+      setTemplates(res);
     } catch (err) {
       console.error('Error loading templates:', err);
       setError('Error al cargar plantillas');
@@ -139,15 +136,15 @@ const OfferTemplatesPage: React.FC = () => {
 
     try {
       if (editingId) {
-        await axios.put(`${API}/offer-templates/${editingId}`, payload);
+        await api.put(`/api/offer-templates/${editingId}`, payload);
       } else {
-        await axios.post(`${API}/offer-templates/`, payload);
+        await api.post('/api/offer-templates/', payload);
       }
       setShowForm(false);
       resetForm();
       fetchTemplates();
-    } catch (err: any) {
-      const msg = err.response?.data?.detail || 'Error al guardar';
+    } catch (err) {
+      const msg = err instanceof ApiError ? err.body : 'Error al guardar';
       setError(msg);
     } finally {
       setSaving(false);
@@ -156,7 +153,7 @@ const OfferTemplatesPage: React.FC = () => {
 
   const handleDelete = async (id: string) => {
     try {
-      await axios.delete(`${API}/offer-templates/${id}`);
+      await api.delete(`/api/offer-templates/${id}`);
       setDeleteConfirm(null);
       fetchTemplates();
     } catch (err) {
@@ -169,9 +166,9 @@ const OfferTemplatesPage: React.FC = () => {
     setFormSections([...formSections, { ...emptySection, order: formSections.length }]);
   };
 
-  const updateSection = (index: number, field: string, value: any) => {
+  const updateSection = <K extends keyof TemplateSection>(index: number, field: K, value: TemplateSection[K]) => {
     const updated = [...formSections];
-    (updated[index] as any)[field] = value;
+    updated[index][field] = value;
     setFormSections(updated);
   };
 

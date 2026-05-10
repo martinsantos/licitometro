@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import axios from 'axios';
+import { api } from '../../services/api';
 
 const API_BASE = '/api/licitaciones-ar';
 
@@ -33,10 +33,10 @@ const AdminARPanel = () => {
   const fetchSources = useCallback(async () => {
     try {
       setFetchError(null);
-      const res = await axios.get(`${API_BASE}/sources`);
-      setSources(res.data || []);
+      const res = await api.get<ARSource[]>(`${API_BASE}/sources`);
+      setSources(res || []);
     } catch (err: any) {
-      const msg = err.response?.data?.detail || err.message || 'Error desconocido';
+      const msg = err?.message || 'Error desconocido';
       setFetchError(`Error al cargar fuentes AR: ${msg}`);
       setSources([]);
     }
@@ -44,8 +44,8 @@ const AdminARPanel = () => {
 
   const fetchStats = useCallback(async () => {
     try {
-      const res = await axios.get(`${API_BASE}/stats`);
-      setStats(res.data);
+      const res = await api.get<ARStats>(`${API_BASE}/stats`);
+      setStats(res);
     } catch {}
   }, []);
 
@@ -56,7 +56,7 @@ const AdminARPanel = () => {
   const handleTriggerScraper = async (name: string) => {
     setActionLoading(name);
     try {
-      await axios.post(`/api/scheduler/trigger/${name}`);
+      await api.post(`/api/scheduler/trigger/${name}`);
       // Refresh after a short delay
       setTimeout(() => {
         fetchSources();
@@ -73,9 +73,9 @@ const AdminARPanel = () => {
     setActionLoading('trigger-all');
     setDigestResult(null);
     try {
-      const res = await axios.post(`${API_BASE}/trigger-all`);
-      const names = (res.data.triggered_names || []).join(', ');
-      setDigestResult(`${res.data.triggered} scrapers lanzados: ${names}`);
+      const res = await api.post<{ triggered: number; triggered_names?: string[] }>(`${API_BASE}/trigger-all`);
+      const names = (res.triggered_names || []).join(', ');
+      setDigestResult(`${res.triggered} scrapers lanzados: ${names}`);
       setTimeout(() => {
         fetchSources();
         fetchStats();
@@ -91,8 +91,8 @@ const AdminARPanel = () => {
     setActionLoading('seed');
     setDigestResult(null);
     try {
-      const res = await axios.post(`${API_BASE}/seed-sources`);
-      setDigestResult(`Fuentes creadas: ${res.data.created}, actualizadas: ${res.data.updated} (total: ${res.data.total})`);
+      const res = await api.post<{ created: number; updated: number; total: number }>(`${API_BASE}/seed-sources`);
+      setDigestResult(`Fuentes creadas: ${res.created}, actualizadas: ${res.updated} (total: ${res.total})`);
       await fetchSources();
       await fetchStats();
     } catch (err) {
@@ -106,8 +106,8 @@ const AdminARPanel = () => {
     setActionLoading('nodos');
     setNodoResult(null);
     try {
-      const res = await axios.post(`${API_BASE}/batch-assign-nodos?limit=500`);
-      setNodoResult(`Procesados: ${res.data.processed}, Asignados: ${res.data.assigned}`);
+      const res = await api.post<{ processed: number; assigned: number }>(`${API_BASE}/batch-assign-nodos?limit=500`);
+      setNodoResult(`Procesados: ${res.processed}, Asignados: ${res.assigned}`);
       fetchStats();
     } catch (err) {
       setNodoResult('Error al asignar nodos');
@@ -120,11 +120,11 @@ const AdminARPanel = () => {
     setActionLoading('digest');
     setDigestResult(null);
     try {
-      const res = await axios.post(`${API_BASE}/send-digest?hours=24`);
-      if (res.data.sent) {
-        setDigestResult(`Enviado: ${res.data.count} items`);
+      const res = await api.post<{ sent: boolean; count?: number; message?: string }>(`${API_BASE}/send-digest?hours=24`);
+      if (res.sent) {
+        setDigestResult(`Enviado: ${res.count} items`);
       } else {
-        setDigestResult(res.data.message || 'No hay items nuevos');
+        setDigestResult(res.message || 'No hay items nuevos');
       }
     } catch (err) {
       setDigestResult('Error al enviar digest');

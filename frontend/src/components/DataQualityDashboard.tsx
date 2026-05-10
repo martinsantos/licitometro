@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import axios from 'axios';
+import { api } from '../services/api';
 
 interface SourceQuality {
   fuente: string;
@@ -29,11 +29,11 @@ const DataQualityDashboard = () => {
   const fetchData = async () => {
     try {
       setLoading(true);
-      const res = await axios.get('/api/licitaciones/stats/data-quality');
-      setData(res.data);
+      const res = await api.get<DataQuality>('/api/licitaciones/stats/data-quality');
+      setData(res);
       setError(null);
     } catch (err: any) {
-      setError('Error al cargar estadísticas: ' + (err.response?.data?.detail || err.message));
+      setError('Error al cargar estadísticas: ' + (err?.message || 'error'));
     } finally {
       setLoading(false);
     }
@@ -47,13 +47,13 @@ const DataQualityDashboard = () => {
     try {
       setDeduplicating(true);
       setDedupResult(null);
-      const res = await axios.post('/api/licitaciones/deduplicate');
+      const res = await api.post<{ processed: number; merged: number; deleted: number }>('/api/licitaciones/deduplicate');
       setDedupResult(
-        `Procesados: ${res.data.processed}, Fusionados: ${res.data.merged}, Eliminados: ${res.data.deleted}`
+        `Procesados: ${res.processed}, Fusionados: ${res.merged}, Eliminados: ${res.deleted}`
       );
       fetchData();
     } catch (err: any) {
-      setError('Error en deduplicación: ' + (err.response?.data?.detail || err.message));
+      setError('Error en deduplicación: ' + (err?.message || 'error'));
     } finally {
       setDeduplicating(false);
     }

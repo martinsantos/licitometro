@@ -30,9 +30,12 @@ class DatosArgentinaScraper(BaseScraper):
 
     def __init__(self, config: ScraperConfig):
         super().__init__(config)
-        self.dataset_id = config.selectors.get(
+        selectors = config.selectors or {}
+        self.dataset_id = selectors.get(
             "dataset_id", "jgm-sistema-contrataciones-electronicas"
         )
+        self.resource_id = selectors.get("resource_id")
+        self.query = selectors.get("q") or selectors.get("query")
 
     async def run(self) -> List[LicitacionCreate]:
         """Override run to use API directly instead of HTML scraping."""
@@ -63,16 +66,15 @@ class DatosArgentinaScraper(BaseScraper):
             logger.error(f"CKAN API error: {data.get('error', {})}")
             return items
 
-        resources = data.get("result", {}).get("resources", [])
+        package = data.get("result", {})
+        resources = self._select_resources(package.get("resources", []))
         if not resources:
             logger.warning(f"No resources found for dataset {self.dataset_id}")
             return items
 
-        # Step 2: Find CSV/JSON resources with datastore
+        # Step 2: Fetch DataStore resources. Prefer resources explicitly selected
+        # by selector.resource_id, otherwise use active CSV/JSON/XLS-like resources.
         for resource in resources:
-            if not resource.get("datastore_active"):
-                continue
-
             resource_id = resource.get("id")
             resource_name = resource.get("name", "")
             logger.info(f"Processing resource: {resource_name} ({resource_id})")
@@ -89,6 +91,9 @@ class DatosArgentinaScraper(BaseScraper):
                     f"&limit={limit}&offset={offset}"
                     f"&sort=_id desc"
                 )
+                if self.query:
+                    from urllib.parse import quote_plus
+                    ds_url += f"&q={quote_plus(str(self.query))}"
                 ds_raw = await self.fetch_page(ds_url)
                 if not ds_raw:
                     break
@@ -103,7 +108,7 @@ class DatosArgentinaScraper(BaseScraper):
                     break
 
                 for record in records:
-                    lic = self._record_to_licitacion(record, resource_name)
+                    lic = self._record_to_licitacion(record, resource, package)
                     if lic:
                         items.append(lic)
                         if len(items) >= max_items:
@@ -119,17 +124,34 @@ class DatosArgentinaScraper(BaseScraper):
         logger.info(f"DatosArgentina: fetched {len(items)} items from {self.dataset_id}")
         return items
 
+    def _select_resources(self, resources: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+        """Choose CKAN resources that are usable by DataStore."""
+        usable = []
+        for resource in resources or []:
+            if self.resource_id and resource.get("id") != self.resource_id:
+                continue
+            if not resource.get("datastore_active"):
+                continue
+            fmt = (resource.get("format") or "").lower()
+            if fmt and fmt not in ("csv", "json", "xlsx", "xls", "xml", "ods"):
+                continue
+            usable.append(resource)
+        return usable
+
     def _record_to_licitacion(
-        self, record: Dict[str, Any], resource_name: str
+        self, record: Dict[str, Any], resource: Dict[str, Any], package: Dict[str, Any]
     ) -> Optional[LicitacionCreate]:
         """Convert a CKAN DataStore record to LicitacionCreate."""
         try:
+            resource_name = resource.get("name", "") or resource.get("id", "")
             # Field mapping varies by dataset; try common field names
             title = (
                 record.get("procedimiento_descripcion")
                 or record.get("descripcion")
                 or record.get("nombre")
                 or record.get("titulo")
+                or record.get("objeto")
+                or record.get("procedimiento_objeto")
                 or ""
             ).strip()
             if not title:
@@ -146,28 +168,49 @@ class DatosArgentinaScraper(BaseScraper):
             proc_id = (
                 record.get("procedimiento_id")
                 or record.get("numero_procedimiento")
+                or record.get("codigo_procedimiento")
+                or record.get("contratacion_id")
                 or record.get("_id")
                 or ""
             )
-            id_licitacion = f"datos-ar-{self.dataset_id[:20]}-{proc_id}"
+            safe_proc_id = re.sub(r"[^A-Za-z0-9_.-]+", "-", str(proc_id))[:80]
+            id_licitacion = f"datos-ar-{self.dataset_id[:40]}-{safe_proc_id}"
 
             # Dates
-            pub_date_raw = record.get("fecha_publicacion") or record.get("fecha")
+            pub_date_raw = (
+                record.get("fecha_publicacion")
+                or record.get("fecha")
+                or record.get("convocatoria_fecha_publicacion")
+            )
             pub_date = self._parse_ckan_date(pub_date_raw)
 
-            open_date_raw = record.get("fecha_apertura") or record.get("fecha_apertura_ofertas")
+            open_date_raw = (
+                record.get("fecha_apertura")
+                or record.get("fecha_apertura_ofertas")
+                or record.get("apertura_fecha")
+            )
             opening_date = self._parse_ckan_date(open_date_raw)
 
             # Budget
             budget = None
-            budget_raw = record.get("monto_estimado") or record.get("presupuesto") or record.get("monto")
+            budget_raw = (
+                record.get("monto_estimado")
+                or record.get("presupuesto")
+                or record.get("monto")
+                or record.get("presupuesto_oficial")
+            )
             if budget_raw:
                 try:
-                    budget = float(str(budget_raw).replace(",", ".").replace("$", "").strip())
+                    budget = self._parse_amount(budget_raw)
                 except (ValueError, TypeError):
                     pass
 
-            description = record.get("descripcion_completa") or record.get("observaciones") or ""
+            description = (
+                record.get("descripcion_completa")
+                or record.get("observaciones")
+                or record.get("procedimiento_descripcion")
+                or ""
+            )
             tipo_proc = record.get("tipo_procedimiento") or record.get("tipo_contratacion") or "No especificado"
             expediente = record.get("numero_expediente") or record.get("expediente")
 
@@ -214,11 +257,34 @@ class DatosArgentinaScraper(BaseScraper):
                 objeto=objeto,
                 fecha_prorroga=None,
                 status="active",
-                metadata={"ckan_dataset": self.dataset_id, "ckan_resource": resource_name},
+                metadata={
+                    "ckan_dataset": self.dataset_id,
+                    "ckan_dataset_title": package.get("title"),
+                    "ckan_dataset_modified": package.get("metadata_modified"),
+                    "ckan_resource": resource_name,
+                    "ckan_resource_id": resource.get("id"),
+                    "ckan_resource_format": resource.get("format"),
+                    "ckan_record_id": record.get("_id"),
+                },
             )
         except Exception as e:
             logger.warning(f"Error parsing CKAN record: {e}")
             return None
+
+    def _parse_amount(self, raw: Any) -> Optional[float]:
+        text = str(raw).replace("$", "").replace("ARS", "").strip()
+        text = re.sub(r"\s+", "", text)
+        if "," in text and "." in text:
+            if text.rfind(",") > text.rfind("."):
+                text = text.replace(".", "").replace(",", ".")
+            else:
+                text = text.replace(",", "")
+        elif "," in text:
+            left, _, right = text.partition(",")
+            text = left + right if len(right) == 3 else left + "." + right
+        elif text.count(".") > 1:
+            text = text.replace(".", "")
+        return float(text)
 
     def _parse_ckan_date(self, raw: Any) -> Optional[datetime]:
         """Parse date from CKAN record (various formats)."""

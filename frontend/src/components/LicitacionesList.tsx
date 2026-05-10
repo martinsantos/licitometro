@@ -28,6 +28,7 @@ import MobileFilterDrawer from './licitaciones/MobileFilterDrawer';
 import PresetSelector from './licitaciones/PresetSelector';
 import QuickPresetButton from './licitaciones/QuickPresetButton';
 import YearSelector from './licitaciones/YearSelector';
+import { DecisionSummary, EmptyResultsState } from './product/DecisionSummary';
 
 interface LicitacionesListProps {
   apiUrl: string;
@@ -342,6 +343,16 @@ const LicitacionesList = ({
         <div className="flex-1 min-w-0">
           {/* Toolbar simplificado */}
           <div className="lg:sticky lg:top-14 z-20 bg-gray-50 pb-2 space-y-1.5">
+            <DecisionSummary
+              totalItems={paginacion?.total_items ?? null}
+              activeFilterCount={activeFilterCount}
+              hasActiveFilters={hasActiveFilters}
+              isFetching={isFetching}
+              todayActive={isTodayFilterActive}
+              onClearFilters={clearAll}
+              onRetry={retry}
+            />
+
             <div className="flex items-center gap-1.5 sm:gap-2 flex-wrap">
               <div className="order-first w-full sm:order-none sm:w-auto sm:flex-1 sm:min-w-[200px]">
                 <SearchBar
@@ -492,12 +503,11 @@ const LicitacionesList = ({
                   ))}
 
                 {licitaciones.length === 0 && !isFetching && (
-                  <div className="bg-white rounded-xl p-12 text-center border border-gray-100">
-                    <p className="text-lg font-black text-gray-400 mb-3">No se encontraron licitaciones</p>
-                    <button onClick={clearAll} className="text-emerald-600 font-bold text-sm hover:underline">
-                      Limpiar todos los filtros
-                    </button>
-                  </div>
+                  <EmptyResultsState
+                    hasActiveFilters={hasActiveFilters}
+                    onClearFilters={clearAll}
+                    onRetry={retry}
+                  />
                 )}
               </div>
             ) : (

@@ -301,14 +301,8 @@ ssh root@76.13.234.213 "bash /opt/licitometro/scripts/cleanup-preview.sh X"
 ### 3. Testing Local Antes de Push
 
 ```bash
-# Backend
-cd backend && pytest tests/
-
-# Frontend
-cd frontend && npm test
-
-# Linting
-npm run lint
+# Desde la raíz del repo
+make test
 ```
 
 ### 4. Pull Antes de Branch Nueva

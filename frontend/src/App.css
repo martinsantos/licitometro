@@ -2,6 +2,12 @@
 @tailwind components;
 @tailwind utilities;
 
+html {
+  width: 100%;
+  max-width: 100%;
+  overflow-x: hidden;
+}
+
 body {
   margin: 0;
   padding: 0;
@@ -9,10 +15,16 @@ body {
   font-family: 'Outfit', sans-serif, system-ui;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  width: 100%;
+  max-width: 100%;
+  overflow-x: hidden;
 }
 
 .App {
   text-align: left;
+  min-width: 0;
+  max-width: 100%;
+  overflow-x: clip;
 }
 
 .App-header {
@@ -45,5 +57,105 @@ body {
 @media (max-width: 768px) {
   .overflow-x-auto {
     -webkit-overflow-scrolling: touch;
+  }
+}
+
+/* Admin 0.2 layout guardrails */
+.admin-workspace,
+.admin-workspace * {
+  min-width: 0;
+}
+
+.admin-workspace {
+  width: 100%;
+  max-width: 100%;
+  overflow: hidden;
+}
+
+.admin-surface {
+  width: 100%;
+  max-width: 100%;
+  overflow: hidden;
+  border-radius: 0.75rem;
+}
+
+.admin-panel {
+  width: 100%;
+  max-width: 100%;
+  overflow: hidden;
+}
+
+.admin-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.admin-toolbar-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 0.5rem;
+}
+
+.admin-card {
+  min-width: 0;
+  max-width: 100%;
+  overflow: hidden;
+}
+
+.admin-chip-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  min-width: 0;
+}
+
+.admin-chip-row > * {
+  max-width: 100%;
+  overflow-wrap: anywhere;
+}
+
+.admin-scroll-table {
+  width: 100%;
+  max-width: 100%;
+  overflow-x: auto;
+  overflow-y: hidden;
+  -webkit-overflow-scrolling: touch;
+}
+
+.admin-scroll-table table {
+  min-width: 760px;
+  table-layout: fixed;
+}
+
+.admin-scroll-table th,
+.admin-scroll-table td {
+  overflow-wrap: anywhere;
+  vertical-align: top;
+}
+
+.admin-break-anywhere {
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+@media (max-width: 640px) {
+  .admin-toolbar {
+    align-items: stretch;
+  }
+
+  .admin-toolbar-actions {
+    justify-content: flex-start;
+  }
+
+  .admin-toolbar-actions > button,
+  .admin-toolbar-actions > a,
+  .admin-toolbar-actions > input,
+  .admin-toolbar-actions > select {
+    flex: 1 1 9rem;
   }
 }

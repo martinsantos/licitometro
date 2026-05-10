@@ -1,7 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import axios from 'axios';
-
-const BACKEND_URL = process.env.REACT_APP_BACKEND_URL || '';
+import { api } from '../../services/api';
 
 interface ScraperHealth {
   name: string;
@@ -52,10 +50,8 @@ export default function AdminSistemaPanel() {
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const r = await axios.get(`${BACKEND_URL}/api/scheduler/stats/system`, {
-        withCredentials: true,
-      });
-      setStats(r.data);
+      const r = await api.get<SystemStats>('/api/scheduler/stats/system');
+      setStats(r);
       setLastLoaded(new Date().toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' }));
     } catch (e) {
       console.error('Failed to load system stats:', e);

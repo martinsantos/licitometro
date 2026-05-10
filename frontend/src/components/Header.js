@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
-import axios from 'axios';
+import { api } from '../services/api';
 
 const Header = ({ userRole }) => {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
@@ -13,8 +13,9 @@ const Header = ({ userRole }) => {
   const isActive = (path) => location.pathname === path;
   const isAdmin = userRole === 'admin';
 
-  // Primary nav (always visible). Admin-only links filtered below.
-  const primaryLinks = [
+  const visibleForRole = (links) => links.filter(link => !link.adminOnly || isAdmin);
+
+  const primaryLinkCandidates = [
     { path: '/', label: 'Inicio' },
     { path: '/licitaciones', label: 'Licitaciones' },
     { path: '/licitaciones-ar', label: 'Lic. AR', icon: (
@@ -66,28 +67,48 @@ const Header = ({ userRole }) => {
         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
       </svg>
     )},
-  ].filter(link => !link.adminOnly || isAdmin);
+  ];
 
-  // Secondary nav (in "More" dropdown on desktop)
-  const secondaryLinks = [
+  const secondaryLinkCandidates = [
     { path: '/perfil', label: 'Mi actividad' },
     { path: '/nodos', label: 'Nodos', adminOnly: true },
     { path: '/templates', label: 'Plantillas', adminOnly: true },
     { path: '/manual/all.html', label: 'Manual', external: true },
     { path: '/lab', label: 'Lab', adminOnly: true },
     { path: '/admin', label: 'Admin', adminOnly: true },
-  ].filter(link => !link.adminOnly || isAdmin);
+  ];
+
+  // Keep the top bar stable. Less-frequent sections live in "Mas" on desktop too.
+  const desktopPrimaryPaths = new Set([
+    '/licitaciones',
+    '/licitaciones-ar',
+    '/favoritos',
+    '/cotizar',
+    '/adjudicaciones',
+    '/observatorio',
+    '/admin',
+  ]);
+
+  const primaryLinks = visibleForRole(primaryLinkCandidates);
+  const desktopPrimaryLinks = visibleForRole([
+    ...primaryLinkCandidates.filter(link => desktopPrimaryPaths.has(link.path)),
+    ...secondaryLinkCandidates.filter(link => desktopPrimaryPaths.has(link.path)),
+  ]);
+  const secondaryLinks = visibleForRole([
+    ...primaryLinkCandidates.filter(link => !desktopPrimaryPaths.has(link.path)),
+    ...secondaryLinkCandidates.filter(link => !desktopPrimaryPaths.has(link.path)),
+  ]);
 
   // All links for mobile
-  const allLinks = [...primaryLinks, ...secondaryLinks];
+  const allLinks = visibleForRole([...primaryLinkCandidates, ...secondaryLinkCandidates]);
 
   // Fetch AI usage
   const [showAiDetail, setShowAiDetail] = useState(false);
   useEffect(() => {
     const fetchUsage = async () => {
       try {
-        const res = await axios.get('/api/cotizar-ai/ai-usage', { withCredentials: true });
-        setAiUsage(res.data);
+        const res = await api.get('/api/cotizar-ai/ai-usage');
+        setAiUsage(res);
       } catch {
         // Auth required — set default
         setAiUsage({ today_calls: 0, today_tokens: 0, token_limit: 100000, status: 'unknown', providers: {} });
@@ -113,9 +134,15 @@ const Header = ({ userRole }) => {
     return () => document.removeEventListener('mousedown', handleClick);
   }, []);
 
+  useEffect(() => {
+    setMobileMenuOpen(false);
+    setMoreMenuOpen(false);
+    setShowAiDetail(false);
+  }, [location.pathname]);
+
   const handleLogout = async () => {
     try {
-      await axios.post('/api/auth/logout');
+      await api.post('/api/auth/logout');
     } catch {}
     window.location.href = '/';
   };
@@ -124,8 +151,10 @@ const Header = ({ userRole }) => {
     : aiUsage?.status === 'near_limit' ? 'bg-amber-500'
     : 'bg-emerald-500';
 
-  const NavLink = ({ path, label, icon, external, onClick }) => {
-    const cls = `flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-sm font-medium transition-colors whitespace-nowrap ${
+  const NavLink = ({ path, label, icon, external, onClick, mobile = false }) => {
+    const cls = `flex items-center gap-2 rounded-md font-medium transition-colors ${
+      mobile ? 'w-full px-3 py-2.5 text-sm' : 'px-2.5 py-1.5 text-[13px]'
+    } ${
       isActive(path) ? 'bg-white/10 text-white' : 'text-slate-300 hover:bg-white/5 hover:text-white'
     }`;
     if (external) return <a href={path} className={cls} onClick={onClick}>{icon}{label}</a>;
@@ -133,37 +162,39 @@ const Header = ({ userRole }) => {
   };
 
   return (
-    <header className="bg-slate-900 text-white sticky top-0 z-50">
-      <div className="container mx-auto px-3">
-        <div className="flex items-center justify-between h-12">
+    <header className="bg-slate-900 text-white sticky top-0 z-50 border-b border-white/10">
+      <div className="w-full max-w-[1600px] mx-auto px-3 sm:px-4">
+        <div className="flex items-center gap-2 min-h-12">
           {/* Logo */}
-          <Link to="/" className="flex items-center gap-1.5 shrink-0">
-            <span className="text-lg font-bold tracking-tight text-white">LICITOMETRO</span>
-            <span className="text-[9px] font-medium bg-emerald-500 text-white px-1 py-0.5 rounded leading-none">BETA</span>
+          <Link to="/" className="flex items-center gap-1.5 min-w-0 shrink-0">
+            <span className="text-base sm:text-lg font-bold tracking-tight text-white truncate">LICITOMETRO</span>
+            <span className="text-[9px] font-medium bg-emerald-500 text-white px-1 py-0.5 rounded leading-none hidden sm:inline">BETA</span>
           </Link>
 
           {/* Desktop Nav */}
-          <nav className="hidden lg:flex items-center gap-0.5 flex-1 justify-end">
-            {primaryLinks.map(link => (
+          <nav className="hidden md:flex items-center justify-end gap-0.5 min-w-0 flex-1">
+            {desktopPrimaryLinks.map(link => (
               <NavLink key={link.path} {...link} />
             ))}
 
             {/* More dropdown */}
             {secondaryLinks.length > 0 && (
-              <div className="relative" ref={moreRef}>
+              <div className="relative shrink-0" ref={moreRef}>
                 <button
                   onClick={() => setMoreMenuOpen(!moreMenuOpen)}
-                  className={`flex items-center gap-1 px-2.5 py-1.5 rounded-md text-sm font-medium transition-colors ${
+                  className={`flex items-center gap-1 px-2.5 py-1.5 rounded-md text-[13px] font-medium transition-colors ${
                     moreMenuOpen ? 'bg-white/10 text-white' : 'text-slate-400 hover:bg-white/5 hover:text-white'
                   }`}
+                  aria-expanded={moreMenuOpen}
+                  aria-haspopup="menu"
                 >
                   <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 12h.01M12 12h.01M19 12h.01M6 12a1 1 0 11-2 0 1 1 0 012 0zm7 0a1 1 0 11-2 0 1 1 0 012 0zm7 0a1 1 0 11-2 0 1 1 0 012 0z" />
                   </svg>
-                  Mas
+                  Más
                 </button>
                 {moreMenuOpen && (
-                  <div className="absolute right-0 top-full mt-1 bg-slate-800 border border-slate-700 rounded-lg shadow-xl py-1 min-w-[160px] z-50">
+                  <div className="absolute right-0 top-full mt-2 bg-slate-800 border border-slate-700 rounded-lg shadow-xl py-1 w-56 max-h-[calc(100vh-4rem)] overflow-y-auto z-50">
                     {secondaryLinks.map(link => (
                       <NavLink key={link.path} {...link} onClick={() => setMoreMenuOpen(false)} />
                     ))}
@@ -174,9 +205,11 @@ const Header = ({ userRole }) => {
 
             {/* AI Usage indicator */}
             {aiUsage && (
-              <div className="relative" ref={aiRef}>
+              <div className="relative shrink-0" ref={aiRef}>
                 <button onClick={() => setShowAiDetail(!showAiDetail)}
-                  className="flex items-center gap-1.5 px-2 py-1 ml-1 rounded-md bg-white/5 text-xs hover:bg-white/10 transition-colors">
+                  className="flex items-center gap-1.5 px-2 py-1 ml-1 rounded-md bg-white/5 text-xs hover:bg-white/10 transition-colors"
+                  aria-expanded={showAiDetail}
+                  aria-haspopup="dialog">
                   <span className={`w-2 h-2 rounded-full ${aiStatusColor}`} />
                   <span className="text-slate-400 font-mono">
                     {aiUsage.today_tokens > 0
@@ -186,7 +219,7 @@ const Header = ({ userRole }) => {
                   <span className="text-slate-500">AI</span>
                 </button>
                 {showAiDetail && (
-                  <div className="absolute right-0 top-full mt-1 bg-slate-800 border border-slate-700 rounded-lg shadow-xl p-3 min-w-[220px] z-[60]">
+                  <div className="absolute right-0 top-full mt-2 bg-slate-800 border border-slate-700 rounded-lg shadow-xl p-3 w-[min(22rem,calc(100vw-1.5rem))] z-[60]">
                     <p className="text-xs font-semibold text-white mb-2">Consumo AI hoy</p>
                     <div className="space-y-2">
                       <div className="flex justify-between text-xs">
@@ -228,7 +261,7 @@ const Header = ({ userRole }) => {
             {/* Logout */}
             <button
               onClick={handleLogout}
-              className="ml-1 p-1.5 rounded-md text-slate-400 hover:bg-white/5 hover:text-white transition-colors"
+              className="ml-1 p-1.5 rounded-md text-slate-400 hover:bg-white/5 hover:text-white transition-colors shrink-0"
               title="Cerrar sesion"
             >
               <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -238,9 +271,9 @@ const Header = ({ userRole }) => {
           </nav>
 
           {/* Mobile: AI + hamburger */}
-          <div className="lg:hidden flex items-center gap-2">
+          <div className="md:hidden flex items-center justify-end gap-2 min-w-0 shrink-0">
             {aiUsage && (
-              <div className="flex items-center gap-1 text-xs"
+              <div className="hidden sm:flex items-center gap-1 text-xs"
                 title={`IA: ${(aiUsage.today_tokens || 0).toLocaleString()} tokens`}>
                 <span className={`w-2 h-2 rounded-full ${aiStatusColor}`} />
                 <span className="text-slate-400 font-mono">
@@ -251,6 +284,8 @@ const Header = ({ userRole }) => {
             <button
               onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
               className="p-2 rounded-md hover:bg-white/10"
+              aria-label={mobileMenuOpen ? 'Cerrar menú' : 'Abrir menú'}
+              aria-expanded={mobileMenuOpen}
             >
               <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 {mobileMenuOpen ? (
@@ -265,17 +300,17 @@ const Header = ({ userRole }) => {
 
         {/* Mobile Nav */}
         {mobileMenuOpen && (
-          <nav className="lg:hidden pb-3 border-t border-white/10 pt-2">
-            <ul className="space-y-0.5">
+          <nav className="md:hidden border-t border-white/10 py-2 max-h-[calc(100vh-3rem)] overflow-y-auto">
+            <ul className="grid grid-cols-1 sm:grid-cols-2 gap-1">
               {allLinks.map(link => (
                 <li key={link.path}>
-                  <NavLink {...link} onClick={() => setMobileMenuOpen(false)} />
+                  <NavLink {...link} mobile onClick={() => setMobileMenuOpen(false)} />
                 </li>
               ))}
               <li>
                 <button
                   onClick={handleLogout}
-                  className="w-full flex items-center gap-2 px-2.5 py-1.5 rounded-md text-sm font-medium text-slate-400 hover:bg-white/5 hover:text-white transition-colors"
+                  className="w-full flex items-center gap-2 px-3 py-2.5 rounded-md text-sm font-medium text-slate-400 hover:bg-white/5 hover:text-white transition-colors"
                 >
                   <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
