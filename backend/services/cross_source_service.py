@@ -113,6 +113,18 @@ class CrossSourceService:
                        "contact", "budget", "currency", "opening_date", "expiration_date",
                        "location", "category", "tipo_procedimiento"):
             if not base.get(field) and related.get(field):
+                if field == "opening_date":
+                    base_publication = base.get("publication_date")
+                    related_opening = related.get("opening_date")
+                    if base_publication and related_opening and related_opening < base_publication:
+                        logger.warning(
+                            "Skipping invalid cross-source opening_date merge for %s from %s: %s < publication_date %s",
+                            base_id,
+                            related_id,
+                            related_opening,
+                            base_publication,
+                        )
+                        continue
                 updates[field] = related[field]
 
         # Merge attached_files (filter by compatible domain)
