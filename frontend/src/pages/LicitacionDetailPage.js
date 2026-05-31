@@ -343,7 +343,7 @@ const LicitacionDetailPage = ({ userRole }) => {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-100 flex items-center justify-center">
+      <div className="codex-detail-page flex items-center justify-center">
         <div className="text-center">
           <div className="relative w-20 h-20 mx-auto mb-6">
             <div className="absolute inset-0 rounded-full border-4 border-blue-200 animate-pulse"></div>
@@ -357,8 +357,8 @@ const LicitacionDetailPage = ({ userRole }) => {
 
   if (error) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-100 flex items-center justify-center px-4">
-        <div className="glass max-w-md w-full p-8 rounded-3xl text-center shadow-2xl border border-white/40">
+      <div className="codex-detail-page flex items-center justify-center px-4">
+        <div className="codex-detail-card max-w-md w-full p-8 text-center">
           <div className="w-16 h-16 mx-auto mb-6 rounded-full bg-red-100 flex items-center justify-center">
             <svg className="w-8 h-8 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
@@ -376,8 +376,8 @@ const LicitacionDetailPage = ({ userRole }) => {
 
   if (!licitacion) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-100 flex items-center justify-center px-4">
-        <div className="glass max-w-md w-full p-8 rounded-3xl text-center shadow-2xl border border-white/40">
+      <div className="codex-detail-page flex items-center justify-center px-4">
+        <div className="codex-detail-card max-w-md w-full p-8 text-center">
           <div className="w-16 h-16 mx-auto mb-6 rounded-full bg-gray-100 flex items-center justify-center">
             <svg className="w-8 h-8 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9.172 16.172a4 4 0 015.656 0M9 10h.01M15 10h.01M12 12h.01M12 12h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
@@ -397,7 +397,7 @@ const LicitacionDetailPage = ({ userRole }) => {
   const detailUrl = getDetailUrl();
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-100 py-8 px-4 sm:px-6 lg:px-8">
+    <div className="codex-detail-page py-8 px-4 sm:px-6 lg:px-8">
       <div className="max-w-5xl mx-auto">
         {/* Breadcrumb */}
         <nav className="mb-8">
@@ -433,10 +433,9 @@ const LicitacionDetailPage = ({ userRole }) => {
         )}
 
         {/* Main Card */}
-        <div className="glass rounded-[2.5rem] shadow-[0_20px_60px_rgba(0,0,0,0.1)] border border-white/40 overflow-hidden">
+        <div className="codex-detail-card overflow-hidden">
           {/* Header */}
-          <div className="relative bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 p-4 sm:p-6 lg:p-10">
-            <div className="absolute inset-0 bg-[url('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNjAiIGhlaWdodD0iNjAiIHZpZXdCb3g9IjAgMCA2MCA2MCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48ZyBmaWxsPSJub25lIiBmaWxsLXJ1bGU9ImV2ZW5vZGQiPjxnIGZpbGw9IiNmZmYiIGZpbGwtb3BhY2l0eT0iMC4wNSI+PHBhdGggZD0iTTM2IDM0djItSDI0di0yaDEyek0zNiAzMHYySDI0di0yaDEyeiBNMzYgMjZ2MkgyNHYtMmgxMnoiLz48L2c+PC9nPjwvc3ZnPg==')] opacity-30"></div>
+          <div className="codex-detail-hero relative p-4 sm:p-6 lg:p-10">
             
             <div className="relative flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
               <div className="flex-1">
@@ -446,7 +445,7 @@ const LicitacionDetailPage = ({ userRole }) => {
                     (licitacion.estado || licitacion.status) === 'vencida' || (licitacion.estado || licitacion.status) === 'closed' ? 'bg-gray-400 text-gray-900' :
                     (licitacion.estado || licitacion.status) === 'prorrogada' ? 'bg-yellow-400 text-yellow-900' :
                     (licitacion.estado || licitacion.status) === 'archivada' ? 'bg-slate-400 text-slate-900' :
-                    'bg-gray-300 text-gray-800'
+                    'bg-gray-100 text-gray-800'
                   }`}>
                     {licitacion.estado === 'vigente' ? 'Vigente' :
                      licitacion.estado === 'vencida' ? 'Vencida' :
@@ -457,12 +456,12 @@ const LicitacionDetailPage = ({ userRole }) => {
                      licitacion.status === 'awarded' ? 'Adjudicada' : (licitacion.estado || licitacion.status)}
                   </span>
                   {licitacion.fuente && (
-                    <span className="px-3 py-1 rounded-full bg-white/20 text-white/90 text-xs font-bold">
+                    <span className="codex-detail-pill codex-detail-pill--progress">
                       {licitacion.fuente}
                     </span>
                   )}
                   {licitacion.category && (
-                    <span className="px-3 py-1 rounded-full bg-amber-400/90 text-amber-900 text-xs font-bold">
+                    <span className="codex-detail-pill codex-detail-pill--warning">
                       {licitacion.category}
                     </span>
                   )}
@@ -477,10 +476,10 @@ const LicitacionDetailPage = ({ userRole }) => {
                     );
                   })()}
                 </div>
-                <h1 className="text-2xl sm:text-3xl font-black text-white leading-tight mb-3">
+                <h1 className="text-2xl sm:text-3xl font-black leading-tight mb-3">
                   {licitacion.title}
                 </h1>
-                <p className="text-blue-100 font-medium flex items-center flex-wrap gap-x-4 gap-y-1">
+                <p className="codex-detail-hero__meta font-medium flex items-center flex-wrap gap-x-4 gap-y-1">
                   <span className="flex items-center">
                     <svg className="w-4 h-4 mr-1.5 opacity-70" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
@@ -505,8 +504,8 @@ const LicitacionDetailPage = ({ userRole }) => {
                   onClick={toggleSave}
                   className={`flex items-center gap-2 px-3 py-2 rounded-2xl transition-all duration-300 text-sm ${
                     isSaved
-                      ? 'bg-yellow-400 text-yellow-900 shadow-lg shadow-yellow-400/30'
-                      : 'bg-white/20 text-white hover:bg-white/30'
+                      ? 'codex-detail-action codex-detail-action--warning'
+                      : 'codex-detail-action'
                   }`}
                 >
                   <svg className="w-5 h-5" fill={isSaved ? 'currentColor' : 'none'} stroke="currentColor" viewBox="0 0 24 24">
@@ -518,7 +517,7 @@ const LicitacionDetailPage = ({ userRole }) => {
                 {/* Share Button with dropdown */}
                 <div className="relative group">
                   <button
-                    className="flex items-center gap-2 px-3 py-2 rounded-2xl bg-white/20 text-white hover:bg-white/30 transition-all duration-300 text-sm"
+                    className="codex-detail-action flex items-center gap-2 px-3 py-2 transition-all duration-300 text-sm"
                   >
                     <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z" />
@@ -575,7 +574,7 @@ const LicitacionDetailPage = ({ userRole }) => {
                 {isAdmin && (
                   <Link
                     to={`/cotizar?licitacion_id=${id}`}
-                    className="flex items-center gap-1.5 px-4 py-2.5 rounded-2xl bg-emerald-500 hover:bg-emerald-400 text-white text-sm font-semibold transition-all duration-300"
+                    className="codex-detail-action codex-detail-action--primary flex items-center gap-1.5 px-4 py-2.5 text-sm font-semibold transition-all duration-300"
                     title="Cotizar esta licitación"
                   >
                     <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -589,7 +588,7 @@ const LicitacionDetailPage = ({ userRole }) => {
                 {isAdmin && (
                   <button
                     onClick={() => setHunterOpen(true)}
-                    className="flex items-center gap-2 px-4 py-2.5 rounded-2xl bg-amber-500 text-white hover:bg-amber-600 transition-all duration-300 font-semibold text-sm shadow-lg"
+                    className="codex-detail-action codex-detail-action--warning flex items-center gap-2 px-4 py-2.5 transition-all duration-300 font-semibold text-sm"
                   >
                     <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                       <circle cx="12" cy="12" r="10" /><circle cx="12" cy="12" r="6" /><circle cx="12" cy="12" r="2" />
@@ -605,8 +604,8 @@ const LicitacionDetailPage = ({ userRole }) => {
                       disabled={enriching}
                       className={`flex items-center gap-2 px-3 py-2 rounded-2xl transition-all duration-300 text-sm ${
                         enriching
-                          ? 'bg-blue-300 text-blue-700 cursor-wait'
-                          : 'bg-white/20 text-white hover:bg-white/30'
+                          ? 'codex-detail-action codex-detail-action--muted cursor-wait'
+                          : 'codex-detail-action'
                       }`}
                     >
                       <svg className={`w-5 h-5 ${enriching ? 'animate-spin' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -618,7 +617,7 @@ const LicitacionDetailPage = ({ userRole }) => {
                       <button
                         onClick={() => enrichLicitacion(3)}
                         disabled={enriching}
-                        className="flex items-center gap-2 px-3 py-2 rounded-2xl bg-white/20 text-white hover:bg-white/30 transition-all duration-300 text-sm"
+                        className="codex-detail-action flex items-center gap-2 px-3 py-2 transition-all duration-300 text-sm"
                       >
                         <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />

@@ -901,6 +901,173 @@ body {
   border-color: var(--codex-blue-hover);
 }
 
+.codex-detail-page {
+  background: var(--codex-canvas);
+  color: var(--codex-text);
+  min-height: calc(100vh - 3rem);
+}
+
+.codex-detail-card {
+  background: var(--codex-surface);
+  border: 1px solid var(--codex-border-soft);
+  border-radius: 4px;
+  box-shadow: none;
+}
+
+.codex-detail-hero {
+  background: var(--codex-surface);
+  border-bottom: 1px solid var(--codex-border-soft);
+}
+
+.codex-detail-hero h1 {
+  color: var(--codex-text);
+  letter-spacing: 0;
+  max-width: 52rem;
+}
+
+.codex-detail-hero__meta {
+  color: var(--codex-subtle);
+}
+
+.codex-detail-pill {
+  border: 1px solid currentColor;
+  border-radius: 999px;
+  display: inline-flex;
+  font-size: 0.72rem;
+  font-weight: 800;
+  line-height: 1;
+  padding: 0.45rem 0.65rem;
+}
+
+.codex-detail-pill--progress {
+  background: #eaf3ff;
+  color: var(--codex-blue);
+}
+
+.codex-detail-pill--warning {
+  background: var(--codex-amber-bg);
+  color: var(--codex-amber);
+}
+
+.codex-detail-action {
+  background: #fff;
+  border: 1px solid var(--codex-border-soft);
+  border-radius: 2px !important;
+  color: var(--codex-text);
+  font-weight: 800;
+}
+
+.codex-detail-action:hover {
+  background: var(--codex-canvas);
+  border-color: var(--codex-border);
+}
+
+.codex-detail-action--primary {
+  background: var(--codex-blue);
+  border-color: var(--codex-blue);
+  color: #fff;
+}
+
+.codex-detail-action--primary:hover {
+  background: var(--codex-blue-hover);
+  border-color: var(--codex-blue-hover);
+}
+
+.codex-detail-action--warning {
+  background: var(--codex-amber-bg);
+  border-color: #f0b849;
+  color: var(--codex-amber);
+}
+
+.codex-detail-action--muted {
+  background: var(--codex-canvas);
+  color: var(--codex-subtle);
+}
+
+.codex-detail-page .glass {
+  background: var(--codex-surface) !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+}
+
+.codex-detail-page [class*="bg-gradient-to-r"],
+.codex-detail-page [class*="bg-gradient-to-br"] {
+  background-image: none !important;
+  background-color: var(--codex-surface) !important;
+}
+
+.codex-detail-page [class*="rounded-\\[2\\.5rem\\]"],
+.codex-detail-page .rounded-3xl,
+.codex-detail-page .rounded-2xl,
+.codex-detail-page .rounded-xl,
+.codex-detail-page .rounded-lg {
+  border-radius: 4px !important;
+}
+
+.codex-detail-page [class*="shadow"] {
+  box-shadow: none !important;
+}
+
+.codex-detail-page section,
+.codex-detail-page .bg-white,
+.codex-detail-page .bg-white\/80,
+.codex-detail-page .bg-white\/60 {
+  background-color: var(--codex-surface) !important;
+}
+
+.codex-detail-page .bg-gray-50,
+.codex-detail-page .bg-slate-50,
+.codex-detail-page .bg-blue-50,
+.codex-detail-page .bg-indigo-50,
+.codex-detail-page .bg-violet-50,
+.codex-detail-page .bg-purple-50,
+.codex-detail-page .bg-cyan-50,
+.codex-detail-page .bg-sky-50,
+.codex-detail-page .bg-rose-50,
+.codex-detail-page .bg-pink-50 {
+  background-color: var(--codex-canvas) !important;
+}
+
+.codex-detail-page .text-white,
+.codex-detail-page .text-blue-100 {
+  color: var(--codex-text) !important;
+}
+
+.codex-detail-page .text-violet-500,
+.codex-detail-page .text-violet-600,
+.codex-detail-page .text-violet-700,
+.codex-detail-page .text-indigo-600,
+.codex-detail-page .text-purple-600 {
+  color: var(--codex-blue) !important;
+}
+
+.codex-detail-page .border-white\/40,
+.codex-detail-page .border-gray-100,
+.codex-detail-page .border-gray-200,
+.codex-detail-page .border-blue-100,
+.codex-detail-page .border-indigo-100,
+.codex-detail-page .border-violet-200,
+.codex-detail-page .border-purple-100,
+.codex-detail-page .border-cyan-100,
+.codex-detail-page .border-rose-100 {
+  border-color: var(--codex-border-soft) !important;
+}
+
+.codex-detail-page .btn-primary {
+  background: var(--codex-blue) !important;
+  border: 1px solid var(--codex-blue);
+  border-radius: 2px !important;
+  box-shadow: none !important;
+  color: #fff !important;
+  letter-spacing: 0 !important;
+}
+
+.codex-detail-page .btn-primary:hover {
+  background: var(--codex-blue-hover) !important;
+  box-shadow: none !important;
+  transform: none !important;
+}
+
 @media (max-width: 1100px) {
   .codex-workbench {
     grid-template-columns: 1fr;
