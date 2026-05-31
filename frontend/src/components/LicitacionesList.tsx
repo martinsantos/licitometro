@@ -376,7 +376,7 @@ const LicitacionesList = ({
         {/* Contenido principal */}
         <div className="flex-1 min-w-0">
           {/* Toolbar simplificado */}
-          <div className="lg:sticky lg:top-14 z-20 bg-gray-50 pb-2 space-y-1.5">
+          <div className="lg:sticky lg:top-14 z-20 bg-[#f8f9fa] pb-2 space-y-1.5">
             <DecisionSummary
               totalItems={paginacion?.total_items ?? null}
               activeFilterCount={activeFilterCount}
@@ -499,8 +499,8 @@ const LicitacionesList = ({
                       {prefs.groupBy !== 'none' && (
                         <div className={`rounded-lg p-3 flex items-center justify-between ${
                           prefs.groupBy === 'category' && prefs.criticalRubros.has(groupName)
-                            ? 'bg-gradient-to-r from-red-50 to-orange-50 border border-red-200'
-                            : 'bg-gradient-to-r from-slate-100 to-gray-50'
+                            ? 'bg-[#fee7e6] border border-[#f54739]/30'
+                            : 'bg-white border border-[#eaecf0]'
                         }`}>
                           <div className="flex items-center gap-2">
                             {prefs.groupBy === 'status' && (

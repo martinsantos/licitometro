@@ -13,7 +13,6 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 from db.repositories import ScraperConfigRepository, LicitacionRepository
 from models.scraper_config import ScraperConfig, ScraperConfigCreate, ScraperConfigUpdate
 from dependencies import get_scraper_config_repository, get_licitacion_repository
-from scrapers.scraper_factory import create_scraper
 
 logger = logging.getLogger("api.scraper_configs")
 
@@ -114,6 +113,8 @@ async def toggle_scraper_config(
 async def run_scraper(config_id: UUID, scraper_repo, licitacion_repo):
     """Background task to run a scraper"""
     try:
+        from scrapers.scraper_factory import create_scraper
+
         config = await scraper_repo.get_by_id(config_id)
         if not config:
             logger.error(f"Scraper config {config_id} not found")

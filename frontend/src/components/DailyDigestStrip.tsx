@@ -84,10 +84,7 @@ const DailyDigestStrip = ({
   return (
     <div className="bg-white rounded-xl border border-gray-100 overflow-hidden">
       {/* Compact summary bar - always visible */}
-      <button
-        onClick={() => setExpanded(!expanded)}
-        className="w-full px-3 py-2 flex items-center justify-between hover:bg-gray-50 transition-colors"
-      >
+      <div className="w-full px-3 py-2 flex items-center justify-between gap-2 hover:bg-gray-50 transition-colors">
         <div className="flex items-center gap-1.5 sm:gap-3 text-xs font-bold min-w-0 overflow-x-auto scrollbar-hide">
           <span className="text-gray-400 uppercase tracking-wide flex-shrink-0 hidden sm:inline">Actividad</span>
           <button
@@ -135,13 +132,22 @@ const DailyDigestStrip = ({
             </button>
           )}
         </div>
-        <svg
-          className={`w-4 h-4 text-gray-400 transition-transform flex-shrink-0 ${expanded ? 'rotate-180' : ''}`}
-          fill="none" stroke="currentColor" viewBox="0 0 24 24"
+        <button
+          type="button"
+          onClick={() => setExpanded(!expanded)}
+          className="p-1 rounded hover:bg-gray-100 transition-colors flex-shrink-0"
+          aria-label={expanded ? 'Ocultar ultimos 14 dias' : 'Mostrar ultimos 14 dias'}
+          aria-expanded={expanded}
         >
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7" />
-        </svg>
-      </button>
+          <svg
+            className={`w-4 h-4 text-gray-400 transition-transform ${expanded ? 'rotate-180' : ''}`}
+            fill="none" stroke="currentColor" viewBox="0 0 24 24"
+            aria-hidden="true"
+          >
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7" />
+          </svg>
+        </button>
+      </div>
 
       {/* Expandable day strip */}
       <div

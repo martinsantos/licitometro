@@ -67,31 +67,33 @@ const NovedadesStrip: React.FC<NovedadesStripProps> = ({ apiUrl, apiPath = '/api
     >
       <div className="bg-white rounded-xl border border-gray-100 overflow-hidden">
         {/* Header - categorized badges */}
-        <button
-          onClick={() => setExpanded(!expanded)}
-          className="w-full px-3 py-2 flex items-center justify-between hover:bg-gray-50 transition-colors"
-        >
-          <div className="flex items-center gap-2 sm:gap-3 min-w-0 flex-wrap">
-            <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse flex-shrink-0" />
-            <span className="text-xs sm:text-sm font-black text-gray-800 flex-shrink-0">ACTIVIDAD</span>
-            {activity && activity.truly_new > 0 && (
-              <span className="px-2 py-0.5 bg-emerald-100 text-emerald-700 rounded-full text-[10px] sm:text-xs font-bold flex-shrink-0">
-                {activity.truly_new} nuevas
-              </span>
-            )}
-            {activity && activity.re_indexed > 0 && (
-              <span className="px-2 py-0.5 bg-amber-100 text-amber-700 rounded-full text-[10px] sm:text-xs font-bold flex-shrink-0">
-                {activity.re_indexed} reindexadas
-              </span>
-            )}
-            {activity && activity.updated > 0 && (
-              <span className="px-2 py-0.5 bg-blue-100 text-blue-700 rounded-full text-[10px] sm:text-xs font-bold flex-shrink-0">
-                {activity.updated} actualizadas
-              </span>
-            )}
-          </div>
+        <div className="w-full px-3 py-2 flex items-center justify-between gap-2 hover:bg-gray-50 transition-colors">
+          <button
+            type="button"
+            onClick={() => setExpanded(!expanded)}
+            className="flex items-center gap-2 sm:gap-3 min-w-0 flex-wrap text-left flex-1"
+            aria-expanded={expanded}
+          >
+              <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse flex-shrink-0" />
+              <span className="text-xs sm:text-sm font-black text-gray-800 flex-shrink-0">ACTIVIDAD</span>
+              {activity && activity.truly_new > 0 && (
+                <span className="px-2 py-0.5 bg-emerald-100 text-emerald-700 rounded-full text-[10px] sm:text-xs font-bold flex-shrink-0">
+                  {activity.truly_new} nuevas
+                </span>
+              )}
+              {activity && activity.re_indexed > 0 && (
+                <span className="px-2 py-0.5 bg-amber-100 text-amber-700 rounded-full text-[10px] sm:text-xs font-bold flex-shrink-0">
+                  {activity.re_indexed} reindexadas
+                </span>
+              )}
+              {activity && activity.updated > 0 && (
+                <span className="px-2 py-0.5 bg-blue-100 text-blue-700 rounded-full text-[10px] sm:text-xs font-bold flex-shrink-0">
+                  {activity.updated} actualizadas
+                </span>
+              )}
+          </button>
           <div className="flex items-center gap-1.5 sm:gap-2 flex-shrink-0">
-            <div className="flex bg-gray-100 rounded-lg p-0.5 text-[10px] sm:text-xs" onClick={(e) => e.stopPropagation()}>
+            <div className="flex bg-gray-100 rounded-lg p-0.5 text-[10px] sm:text-xs">
               {[
                 { value: 24, label: '24h' },
                 { value: 48, label: '48h' },
@@ -111,11 +113,12 @@ const NovedadesStrip: React.FC<NovedadesStripProps> = ({ apiUrl, apiPath = '/api
             <svg
               className={`w-4 h-4 text-gray-400 transition-transform ${expanded ? 'rotate-180' : ''}`}
               fill="none" stroke="currentColor" viewBox="0 0 24 24"
+              aria-hidden="true"
             >
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7" />
             </svg>
           </div>
-        </button>
+        </div>
 
         {/* Expanded content - source breakdown */}
         {expanded && activity && activity.by_source.length > 0 && (

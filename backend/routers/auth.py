@@ -9,6 +9,7 @@ from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 from typing import Optional
 import logging
+import os
 
 import sys
 from pathlib import Path
@@ -26,6 +27,8 @@ from db.models import user_entity
 logger = logging.getLogger("auth_router")
 
 router = APIRouter(prefix="/api/auth", tags=["auth"])
+_ENV = os.getenv("ENV", "development").lower()
+COOKIE_SECURE = os.getenv("COOKIE_SECURE", "true" if _ENV in ("production", "prod") else "false").lower() == "true"
 
 
 class LoginRequest(BaseModel):
@@ -70,7 +73,7 @@ async def login(body: LoginRequest, request: Request):
         value=token,
         httponly=True,
         samesite="lax",
-        secure=True,
+        secure=COOKIE_SECURE,
         max_age=86400,  # 24 hours
         path="/",
     )
@@ -123,7 +126,7 @@ async def token_login(body: TokenLoginRequest):
         value=token,
         httponly=True,
         samesite="lax",
-        secure=True,
+        secure=COOKIE_SECURE,
         max_age=86400,
         path="/",
     )

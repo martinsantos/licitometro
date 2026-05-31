@@ -56,10 +56,10 @@ const STATUS_LABEL: Record<CoreStatus, string> = {
 };
 
 const STATUS_CLASS: Record<CoreStatus, string> = {
-  up_perfect: 'bg-emerald-50 text-emerald-700 border-emerald-200',
-  up_degraded: 'bg-amber-50 text-amber-700 border-amber-200',
-  at_risk: 'bg-orange-50 text-orange-700 border-orange-200',
-  down: 'bg-rose-50 text-rose-700 border-rose-200',
+  up_perfect: 'bg-[#d5fdf4] text-[#14866d] border-[#9eebd7]',
+  up_degraded: 'bg-[#fef6e7] text-[#ac6600] border-[#f0c982]',
+  at_risk: 'bg-[#fef6e7] text-[#ac6600] border-[#f0c982]',
+  down: 'bg-[#fee7e6] text-[#b32424] border-[#f54739]/30',
 };
 
 function pct(value?: number) {
@@ -124,8 +124,9 @@ export default function MendozaCorePanel() {
     <section className="admin-panel space-y-4">
       <div className="admin-toolbar">
         <div>
-          <h2 className="font-semibold text-gray-900">Mendoza Core 3</h2>
-          <p className="mt-0.5 text-xs text-gray-500">
+          <p className="codex-eyebrow">Salud de indexacion</p>
+          <h2 className="font-semibold text-[#202122]">Mendoza Core 3</h2>
+          <p className="mt-0.5 text-xs text-[#54595d]">
             Fuentes criticas: ComprasApps, COMPR.AR Mendoza y Boletin Oficial Mendoza.
           </p>
         </div>
@@ -133,13 +134,13 @@ export default function MendozaCorePanel() {
           <button
             type="button"
             onClick={load}
-            className="rounded border border-gray-200 bg-white px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
+            className="codex-button codex-button--quiet text-sm"
           >
             Actualizar
           </button>
           <a
             href="/api/mendoza-core/export.csv"
-            className="rounded bg-blue-800 px-3 py-2 text-sm font-medium text-white hover:bg-blue-700"
+            className="codex-button codex-button--primary text-sm"
           >
             CSV
           </a>
@@ -164,11 +165,11 @@ export default function MendozaCorePanel() {
             ...(source.backlog_issues || []),
           ];
           return (
-            <article key={source.name} className="rounded-lg border border-gray-100 bg-white p-4">
+            <article key={source.name} className="rounded border border-[#eaecf0] bg-white p-4">
               <div className="flex items-start justify-between gap-3">
                 <div>
-                  <h3 className="font-bold text-gray-900">{source.name}</h3>
-                  <p className="mt-0.5 text-xs text-gray-500">
+                  <h3 className="font-bold text-[#202122]">{source.name}</h3>
+                  <p className="mt-0.5 text-xs text-[#54595d]">
                     Ultima corrida: {formatDate(source.last_run?.started_at)}
                   </p>
                 </div>
@@ -192,7 +193,7 @@ export default function MendozaCorePanel() {
               {issues.length > 0 && (
                 <div className="mt-3 flex flex-wrap gap-1.5">
                   {issues.map((issue) => (
-                    <span key={issue} className="rounded bg-gray-100 px-2 py-0.5 text-[11px] text-gray-700">
+                    <span key={issue} className="rounded-sm bg-[#f8f9fa] px-2 py-0.5 text-[11px] text-[#54595d] border border-[#eaecf0]">
                       {issueLabel(issue)}
                     </span>
                   ))}
@@ -203,25 +204,25 @@ export default function MendozaCorePanel() {
         })}
       </div>
 
-      <div className="rounded-lg border border-gray-100 bg-white">
-        <div className="border-b border-gray-100 px-4 py-3">
-          <h3 className="font-semibold text-gray-900">Cola de reparacion</h3>
+      <div className="rounded border border-[#eaecf0] bg-white">
+        <div className="border-b border-[#eaecf0] px-4 py-3">
+          <h3 className="font-semibold text-[#202122]">Cola de reparacion</h3>
         </div>
         {repairQueue.length === 0 ? (
-          <div className="px-4 py-6 text-sm text-emerald-700">Sin reparaciones abiertas en el nucleo critico.</div>
+          <div className="px-4 py-6 text-sm text-[#14866d]">Sin reparaciones abiertas en el nucleo critico.</div>
         ) : (
-          <div className="divide-y divide-gray-100">
+          <div className="divide-y divide-[#eaecf0]">
             {repairQueue.map((item) => (
               <div key={`${item.source_name}-${item.priority}`} className="grid gap-2 px-4 py-3 text-sm md:grid-cols-[90px_1fr_2fr]">
-                <div className="font-bold text-gray-700">P{item.priority}</div>
+                <div className="font-bold text-[#54595d]">P{item.priority}</div>
                 <div>
-                  <div className="font-semibold text-gray-900">{item.source_name}</div>
-                  <div className="text-xs text-gray-500">{STATUS_LABEL[item.status]}</div>
+                  <div className="font-semibold text-[#202122]">{item.source_name}</div>
+                  <div className="text-xs text-[#54595d]">{STATUS_LABEL[item.status]}</div>
                 </div>
                 <div>
-                  <div className="text-gray-700">{item.recommended_action}</div>
+                  <div className="text-[#202122]">{item.recommended_action}</div>
                   {(item.issues || []).length > 0 && (
-                    <div className="mt-1 text-xs text-gray-500">{(item.issues || []).map(issueLabel).join(', ')}</div>
+                    <div className="mt-1 text-xs text-[#54595d]">{(item.issues || []).map(issueLabel).join(', ')}</div>
                   )}
                 </div>
               </div>
@@ -242,18 +243,18 @@ function Kpi({ label, value, tone = 'gray' }: { label: string; value: number; to
     rose: 'text-rose-700',
   }[tone];
   return (
-    <div className="rounded-lg border border-gray-100 bg-white p-3">
+    <div className="rounded border border-[#eaecf0] bg-white p-3">
       <div className={`text-xl font-black ${color}`}>{value}</div>
-      <div className="text-xs text-gray-500">{label}</div>
+      <div className="text-xs text-[#54595d]">{label}</div>
     </div>
   );
 }
 
 function Metric({ label, value }: { label: string; value: string | number }) {
   return (
-    <div className="rounded bg-gray-50 px-2 py-1">
-      <div className="font-bold text-gray-800">{value}</div>
-      <div className="text-[11px] text-gray-500">{label}</div>
+    <div className="rounded-sm bg-[#f8f9fa] px-2 py-1 border border-[#eaecf0]">
+      <div className="font-bold text-[#202122]">{value}</div>
+      <div className="text-[11px] text-[#54595d]">{label}</div>
     </div>
   );
 }

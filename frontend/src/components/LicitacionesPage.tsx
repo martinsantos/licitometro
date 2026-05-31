@@ -12,12 +12,17 @@ const LicitacionesPage = ({ apiUrl = '' }) => {
   };
 
   return (
-    <div>
-      <div className="mb-6 flex justify-between items-center">
-        <h2 className="text-2xl font-bold">Licitaciones</h2>
+    <div className="licito-codex-shell">
+      <div className="licito-codex-container">
+      <div className="codex-hero">
+        <div>
+          <p className="codex-eyebrow">Radar de oportunidades</p>
+          <h1>Licitaciones</h1>
+          <p>Busqueda operativa con filtros persistentes, rubros criticos y estados legibles.</p>
+        </div>
         <button
           onClick={() => setShowForm(!showForm)}
-          className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 transition flex items-center"
+          className="codex-button codex-button--primary"
         >
           {showForm ? (
             <>
@@ -44,6 +49,7 @@ const LicitacionesPage = ({ apiUrl = '' }) => {
       )}
 
       <LicitacionesList apiUrl={apiUrl} refreshSignal={refreshList} />
+      </div>
     </div>
   );
 };

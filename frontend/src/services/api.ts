@@ -14,10 +14,13 @@ interface RequestOptions {
 }
 
 async function request<T>(method: string, path: string, options?: RequestOptions): Promise<T> {
+  const headers = options?.body
+    ? { 'Content-Type': 'application/json', ...options?.headers }
+    : options?.headers;
   const res = await fetch(`${BASE_URL}${path}`, {
     method,
     credentials: 'include',
-    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    headers,
     body: options?.body ? JSON.stringify(options.body) : undefined,
     signal: options?.signal,
   });

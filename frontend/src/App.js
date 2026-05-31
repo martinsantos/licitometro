@@ -29,6 +29,7 @@ const CotizarPage = lazy(() => import("./pages/CotizarPage"));
 const PerfilPage = lazy(() => import("./pages/PerfilPage"));
 const CompanyContextPage = lazy(() => import("./pages/CompanyContextPage"));
 const LabPage = lazy(() => import("./pages/LabPage"));
+const CodexUIDemoPage = lazy(() => import("./pages/CodexUIDemoPage"));
 const AnalisisPage = lazy(() => import("./pages/AnalisisPage"));
 const EmpresasPage = lazy(() => import("./pages/EmpresasPage"));
 const AdjudicacionesPage = lazy(() => import("./pages/AdjudicacionesPage"));
@@ -72,6 +73,7 @@ const AuthenticatedApp = ({ userRole }) => (
           <Route path="/empresas" element={userRole === 'admin' ? <EmpresasPage /> : <Navigate to="/licitaciones" />} />
           <Route path="/perfil" element={<PerfilPage />} />
           <Route path="/lab" element={userRole === 'admin' ? <LabPage /> : <Navigate to="/licitaciones" />} />
+          <Route path="/lab/ui-codex" element={userRole === 'admin' ? <CodexUIDemoPage apiUrl={BACKEND_URL} /> : <Navigate to="/licitaciones" />} />
           <Route path="/analisis" element={userRole === 'admin' ? <AnalisisPage /> : <Navigate to="/licitaciones" />} />
           <Route path="/adjudicaciones" element={<AdjudicacionesPage />} />
           <Route path="/catalogo" element={userRole === 'admin' ? <CatalogoPage /> : <Navigate to="/licitaciones" />} />

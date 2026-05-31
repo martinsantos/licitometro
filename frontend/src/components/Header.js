@@ -10,7 +10,7 @@ const Header = ({ userRole }) => {
   const location = useLocation();
   const navigate = useNavigate();
 
-  const isActive = (path) => location.pathname === path;
+  const isActive = (path) => location.pathname === path || (path !== '/' && location.pathname.startsWith(`${path}/`));
   const isAdmin = userRole === 'admin';
 
   const visibleForRole = (links) => links.filter(link => !link.adminOnly || isAdmin);
@@ -74,6 +74,7 @@ const Header = ({ userRole }) => {
     { path: '/nodos', label: 'Nodos', adminOnly: true },
     { path: '/templates', label: 'Plantillas', adminOnly: true },
     { path: '/manual/all.html', label: 'Manual', external: true },
+    { path: '/lab/ui-codex', label: 'UI Codex', adminOnly: true },
     { path: '/lab', label: 'Lab', adminOnly: true },
     { path: '/admin', label: 'Admin', adminOnly: true },
   ];
@@ -152,23 +153,23 @@ const Header = ({ userRole }) => {
     : 'bg-emerald-500';
 
   const NavLink = ({ path, label, icon, external, onClick, mobile = false }) => {
-    const cls = `flex items-center gap-2 rounded-md font-medium transition-colors ${
+    const cls = `flex items-center gap-2 rounded-sm font-medium transition-colors ${
       mobile ? 'w-full px-3 py-2.5 text-sm' : 'px-2.5 py-1.5 text-[13px]'
     } ${
-      isActive(path) ? 'bg-white/10 text-white' : 'text-slate-300 hover:bg-white/5 hover:text-white'
+      isActive(path) ? 'bg-[#36c] text-white' : 'text-[#54595d] hover:bg-[#f8f9fa] hover:text-[#202122]'
     }`;
     if (external) return <a href={path} className={cls} onClick={onClick}>{icon}{label}</a>;
     return <Link to={path} className={cls} onClick={onClick}>{icon}{label}</Link>;
   };
 
   return (
-    <header className="bg-slate-900 text-white sticky top-0 z-50 border-b border-white/10">
+    <header className="bg-white text-[#202122] sticky top-0 z-50 border-b border-[#a2a9b1] shadow-[0_1px_0_rgba(0,0,0,0.03)]">
       <div className="w-full max-w-[1600px] mx-auto px-3 sm:px-4">
         <div className="flex items-center gap-2 min-h-12">
           {/* Logo */}
           <Link to="/" className="flex items-center gap-1.5 min-w-0 shrink-0">
-            <span className="text-base sm:text-lg font-bold tracking-tight text-white truncate">LICITOMETRO</span>
-            <span className="text-[9px] font-medium bg-emerald-500 text-white px-1 py-0.5 rounded leading-none hidden sm:inline">BETA</span>
+            <span className="text-base sm:text-lg font-bold tracking-tight text-[#202122] truncate">LICITOMETRO</span>
+            <span className="text-[9px] font-bold bg-[#d5fdf4] text-[#14866d] px-1 py-0.5 rounded-sm leading-none hidden sm:inline border border-[#9eebd7]">BETA</span>
           </Link>
 
           {/* Desktop Nav */}
@@ -182,8 +183,8 @@ const Header = ({ userRole }) => {
               <div className="relative shrink-0" ref={moreRef}>
                 <button
                   onClick={() => setMoreMenuOpen(!moreMenuOpen)}
-                  className={`flex items-center gap-1 px-2.5 py-1.5 rounded-md text-[13px] font-medium transition-colors ${
-                    moreMenuOpen ? 'bg-white/10 text-white' : 'text-slate-400 hover:bg-white/5 hover:text-white'
+                  className={`flex items-center gap-1 px-2.5 py-1.5 rounded-sm text-[13px] font-medium transition-colors ${
+                    moreMenuOpen ? 'bg-[#36c] text-white' : 'text-[#54595d] hover:bg-[#f8f9fa] hover:text-[#202122]'
                   }`}
                   aria-expanded={moreMenuOpen}
                   aria-haspopup="menu"
@@ -194,7 +195,7 @@ const Header = ({ userRole }) => {
                   Más
                 </button>
                 {moreMenuOpen && (
-                  <div className="absolute right-0 top-full mt-2 bg-slate-800 border border-slate-700 rounded-lg shadow-xl py-1 w-56 max-h-[calc(100vh-4rem)] overflow-y-auto z-50">
+                  <div className="absolute right-0 top-full mt-2 bg-white border border-[#a2a9b1] rounded-sm shadow-xl py-1 w-56 max-h-[calc(100vh-4rem)] overflow-y-auto z-50">
                     {secondaryLinks.map(link => (
                       <NavLink key={link.path} {...link} onClick={() => setMoreMenuOpen(false)} />
                     ))}
@@ -207,49 +208,49 @@ const Header = ({ userRole }) => {
             {aiUsage && (
               <div className="relative shrink-0" ref={aiRef}>
                 <button onClick={() => setShowAiDetail(!showAiDetail)}
-                  className="flex items-center gap-1.5 px-2 py-1 ml-1 rounded-md bg-white/5 text-xs hover:bg-white/10 transition-colors"
+                  className="flex items-center gap-1.5 px-2 py-1 ml-1 rounded-sm bg-[#f8f9fa] border border-[#eaecf0] text-xs hover:bg-[#fff] transition-colors"
                   aria-expanded={showAiDetail}
                   aria-haspopup="dialog">
                   <span className={`w-2 h-2 rounded-full ${aiStatusColor}`} />
-                  <span className="text-slate-400 font-mono">
+                  <span className="text-[#54595d] font-mono">
                     {aiUsage.today_tokens > 0
                       ? `${(aiUsage.today_tokens / 1000).toFixed(1)}K`
                       : aiUsage.today_calls}
                   </span>
-                  <span className="text-slate-500">AI</span>
+                  <span className="text-[#72777d]">AI</span>
                 </button>
                 {showAiDetail && (
-                  <div className="absolute right-0 top-full mt-2 bg-slate-800 border border-slate-700 rounded-lg shadow-xl p-3 w-[min(22rem,calc(100vw-1.5rem))] z-[60]">
-                    <p className="text-xs font-semibold text-white mb-2">Consumo AI hoy</p>
+                  <div className="absolute right-0 top-full mt-2 bg-white border border-[#a2a9b1] rounded-sm shadow-xl p-3 w-[min(22rem,calc(100vw-1.5rem))] z-[60]">
+                    <p className="text-xs font-semibold text-[#202122] mb-2">Consumo AI hoy</p>
                     <div className="space-y-2">
                       <div className="flex justify-between text-xs">
-                        <span className="text-slate-400">Tokens hoy</span>
-                        <span className="text-white font-mono">{(aiUsage.today_tokens || 0).toLocaleString()}</span>
+                        <span className="text-[#54595d]">Tokens hoy</span>
+                        <span className="text-[#202122] font-mono">{(aiUsage.today_tokens || 0).toLocaleString()}</span>
                       </div>
                       <div className="flex justify-between text-xs">
-                        <span className="text-slate-400">Llamadas</span>
-                        <span className="text-white font-mono">{aiUsage.today_calls || 0}</span>
+                        <span className="text-[#54595d]">Llamadas</span>
+                        <span className="text-[#202122] font-mono">{aiUsage.today_calls || 0}</span>
                       </div>
                       {aiUsage.rate_limited > 0 && (
-                        <div className="bg-red-900/50 text-red-300 text-[10px] px-2 py-1 rounded">
+                        <div className="bg-[#fee7e6] text-[#b32424] text-[10px] px-2 py-1 rounded-sm border border-[#f54739]/30">
                           {aiUsage.rate_limited} llamada(s) rechazadas por limite
                         </div>
                       )}
                       {Object.entries(aiUsage.providers || {}).map(([name, data]) => (
                         <div key={name} className="flex justify-between text-[10px]">
-                          <span className="text-slate-400">{name}</span>
-                          <span className="text-slate-300 font-mono">{(data.tokens || 0).toLocaleString()} tok</span>
+                          <span className="text-[#54595d]">{name}</span>
+                          <span className="text-[#202122] font-mono">{(data.tokens || 0).toLocaleString()} tok</span>
                         </div>
                       ))}
-                      <div className="pt-1.5 border-t border-slate-700 space-y-1">
-                        <p className="text-[10px] font-semibold text-slate-400">Cuotas diarias</p>
+                      <div className="pt-1.5 border-t border-[#eaecf0] space-y-1">
+                        <p className="text-[10px] font-semibold text-[#54595d]">Cuotas diarias</p>
                         <div className="flex justify-between text-[10px]">
-                          <span className="text-slate-500">Groq (llama-3.3-70b)</span>
-                          <span className="text-slate-400">100K tok/dia</span>
+                          <span className="text-[#72777d]">Groq (llama-3.3-70b)</span>
+                          <span className="text-[#54595d]">100K tok/dia</span>
                         </div>
                         <div className="flex justify-between text-[10px]">
-                          <span className="text-slate-500">Cerebras (llama-3.1-8b)</span>
-                          <span className="text-slate-400">fallback ilimitado</span>
+                          <span className="text-[#72777d]">Cerebras (llama-3.1-8b)</span>
+                          <span className="text-[#54595d]">fallback ilimitado</span>
                         </div>
                       </div>
                     </div>
@@ -261,7 +262,7 @@ const Header = ({ userRole }) => {
             {/* Logout */}
             <button
               onClick={handleLogout}
-              className="ml-1 p-1.5 rounded-md text-slate-400 hover:bg-white/5 hover:text-white transition-colors shrink-0"
+              className="ml-1 p-1.5 rounded-sm text-[#54595d] hover:bg-[#f8f9fa] hover:text-[#202122] transition-colors shrink-0"
               title="Cerrar sesion"
             >
               <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -276,14 +277,14 @@ const Header = ({ userRole }) => {
               <div className="hidden sm:flex items-center gap-1 text-xs"
                 title={`IA: ${(aiUsage.today_tokens || 0).toLocaleString()} tokens`}>
                 <span className={`w-2 h-2 rounded-full ${aiStatusColor}`} />
-                <span className="text-slate-400 font-mono">
+                <span className="text-[#54595d] font-mono">
                   {aiUsage.today_tokens > 0 ? `${(aiUsage.today_tokens / 1000).toFixed(1)}K` : aiUsage.today_calls}
                 </span>
               </div>
             )}
             <button
               onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-              className="p-2 rounded-md hover:bg-white/10"
+              className="p-2 rounded-sm hover:bg-[#f8f9fa]"
               aria-label={mobileMenuOpen ? 'Cerrar menú' : 'Abrir menú'}
               aria-expanded={mobileMenuOpen}
             >
@@ -300,7 +301,7 @@ const Header = ({ userRole }) => {
 
         {/* Mobile Nav */}
         {mobileMenuOpen && (
-          <nav className="md:hidden border-t border-white/10 py-2 max-h-[calc(100vh-3rem)] overflow-y-auto">
+          <nav className="md:hidden border-t border-[#eaecf0] py-2 max-h-[calc(100vh-3rem)] overflow-y-auto">
             <ul className="grid grid-cols-1 sm:grid-cols-2 gap-1">
               {allLinks.map(link => (
                 <li key={link.path}>
@@ -310,7 +311,7 @@ const Header = ({ userRole }) => {
               <li>
                 <button
                   onClick={handleLogout}
-                  className="w-full flex items-center gap-2 px-3 py-2.5 rounded-md text-sm font-medium text-slate-400 hover:bg-white/5 hover:text-white transition-colors"
+                  className="w-full flex items-center gap-2 px-3 py-2.5 rounded-sm text-sm font-medium text-[#54595d] hover:bg-[#f8f9fa] hover:text-[#202122] transition-colors"
                 >
                   <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />

@@ -91,7 +91,13 @@ app = FastAPI(
 )
 
 # Add CORS middleware
-allowed_origins = os.environ.get("ALLOWED_ORIGINS", "https://licitometro.ar").split(",")
+_ENV = os.getenv("ENV", "development").lower()
+_default_origins = (
+    "https://licitometro.ar"
+    if _ENV in ("production", "prod")
+    else "http://localhost:3000,http://localhost:3001,http://127.0.0.1:3000,http://127.0.0.1:3001"
+)
+allowed_origins = os.environ.get("ALLOWED_ORIGINS", _default_origins).split(",")
 app.add_middleware(
     CORSMiddleware,
     allow_origins=allowed_origins,
