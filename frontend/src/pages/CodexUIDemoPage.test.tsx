@@ -24,6 +24,18 @@ describe('CodexUIDemoPage', () => {
     expect(screen.getByText(/ambar: riesgo operativo/i)).toBeInTheDocument();
     expect(screen.getByText(/rojo: fuente critica/i)).toBeInTheDocument();
     expect(screen.getByRole('link', { name: /buscar licitaciones/i })).toBeInTheDocument();
-    expect(screen.getByRole('heading', { name: /core 3/i })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: /^core 3$/i })).toBeInTheDocument();
+  });
+
+  it('shows the complete system map for the redesigned experience', () => {
+    render(<CodexUIDemoPage apiUrl="http://localhost:8001" />);
+
+    expect(screen.getByRole('heading', { name: /mapa completo del sistema/i })).toBeInTheDocument();
+    expect(screen.getByText(/ingreso y sesion/i)).toBeInTheDocument();
+    expect(screen.getByText(/tablero inicial/i)).toBeInTheDocument();
+    expect(screen.getByText(/listado central/i)).toBeInTheDocument();
+    expect(screen.getByText(/detalle de licitacion/i)).toBeInTheDocument();
+    expect(screen.getByText(/cotizador/i)).toBeInTheDocument();
+    expect(screen.getByText(/core 3 y scrapers/i)).toBeInTheDocument();
   });
 });

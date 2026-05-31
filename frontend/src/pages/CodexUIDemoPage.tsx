@@ -23,6 +23,45 @@ const tenders = [
   { title: 'Servicio integral de limpieza escolar', org: 'Direccion General de Escuelas', due: '24 horas', tone: 'danger' as StatusTone },
 ];
 
+const systemModules = [
+  {
+    name: 'Ingreso y sesion',
+    path: '/login',
+    tone: 'progress' as StatusTone,
+    body: 'Acceso claro, estado de sesion visible y errores de credenciales sin friccion.',
+  },
+  {
+    name: 'Tablero inicial',
+    path: '/',
+    tone: 'success' as StatusTone,
+    body: 'Resumen ejecutivo con actividad, cobertura, fuentes criticas y accesos a operacion.',
+  },
+  {
+    name: 'Listado central',
+    path: '/licitaciones',
+    tone: 'progress' as StatusTone,
+    body: 'La pantalla principal: busqueda, filtros, orden, vistas, paginacion y lectura de cada expediente.',
+  },
+  {
+    name: 'Detalle de licitacion',
+    path: '/licitacion/:id',
+    tone: 'warning' as StatusTone,
+    body: 'Ficha para evaluar pliego, fechas, requisitos, documentos, decision y oportunidades similares.',
+  },
+  {
+    name: 'Cotizador',
+    path: '/cotizar',
+    tone: 'progress' as StatusTone,
+    body: 'Armado de oferta, catalogo, antecedentes SGI y decision comercial con trazabilidad.',
+  },
+  {
+    name: 'Core 3 y scrapers',
+    path: '/admin',
+    tone: 'danger' as StatusTone,
+    body: 'Control operativo de COMPR.AR Mendoza, ComprasApps y Boletin con salud, cobertura y reparaciones.',
+  },
+];
+
 function StatusPill({ tone, children }: { tone: StatusTone; children: React.ReactNode }) {
   return <span className={`codex-status codex-status--${tone}`}>{children}</span>;
 }
@@ -70,6 +109,28 @@ export default function CodexUIDemoPage({ apiUrl = '' }: { apiUrl?: string }) {
           <strong>0</strong>
           <StatusPill tone="success">Sin bloqueos</StatusPill>
         </article>
+      </section>
+
+      <section className="codex-system-map" aria-label="Mapa completo del sistema">
+        <div className="codex-system-map__header">
+          <div>
+            <p className="codex-eyebrow">Demo completa</p>
+            <h2>Mapa completo del sistema</h2>
+            <p>Una lectura unica del nuevo LICITOMETRO: cada modulo usa la misma gramatica visual y prioriza decision operativa.</p>
+          </div>
+          <StatusPill tone="progress">Nuevo estilo aplicado</StatusPill>
+        </div>
+        <div className="codex-system-map__grid">
+          {systemModules.map((module) => (
+            <article className="codex-module-card" key={module.name}>
+              <div>
+                <StatusPill tone={module.tone}>{module.path}</StatusPill>
+                <h3>{module.name}</h3>
+                <p>{module.body}</p>
+              </div>
+            </article>
+          ))}
+        </div>
       </section>
 
       {apiUrl && (
