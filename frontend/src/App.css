@@ -400,6 +400,229 @@ body {
   padding-bottom: 0.8rem;
 }
 
+.licitometro-codex-list-surface {
+  background: var(--codex-surface);
+  border: 1px solid var(--codex-border-soft);
+  border-radius: 4px;
+  padding: 0.75rem;
+}
+
+.licitometro-codex-list {
+  color: var(--codex-text);
+}
+
+.licitometro-codex-list * {
+  letter-spacing: 0;
+}
+
+.licitometro-codex-list .rounded-2xl,
+.licitometro-codex-list .rounded-xl {
+  border-radius: 4px !important;
+}
+
+.licitometro-codex-list .rounded-lg,
+.licitometro-codex-list .rounded-md {
+  border-radius: 2px !important;
+}
+
+.licitometro-codex-list .shadow-sm,
+.licitometro-codex-list .shadow,
+.licitometro-codex-list .shadow-md,
+.licitometro-codex-list .shadow-lg,
+.licitometro-codex-list .shadow-xl {
+  box-shadow: none !important;
+}
+
+.licitometro-codex-list .bg-white {
+  background-color: var(--codex-surface) !important;
+}
+
+.licitometro-codex-list .border-gray-100,
+.licitometro-codex-list .border-gray-200 {
+  border-color: var(--codex-border-soft) !important;
+}
+
+.licitometro-codex-list .text-gray-900,
+.licitometro-codex-list .text-gray-800,
+.licitometro-codex-list .text-gray-700 {
+  color: var(--codex-text) !important;
+}
+
+.licitometro-codex-list .text-gray-600,
+.licitometro-codex-list .text-gray-500 {
+  color: var(--codex-subtle) !important;
+}
+
+.licitometro-codex-list .text-gray-400 {
+  color: var(--codex-muted) !important;
+}
+
+.licitometro-codex-list .bg-gray-50,
+.licitometro-codex-list .bg-gray-100,
+.licitometro-codex-list .bg-slate-50 {
+  background-color: var(--codex-canvas) !important;
+}
+
+.licitometro-codex-list .text-violet-400,
+.licitometro-codex-list .text-violet-500,
+.licitometro-codex-list .text-violet-600,
+.licitometro-codex-list .text-violet-700,
+.licitometro-codex-list .text-violet-800,
+.licitometro-codex-list .text-indigo-600,
+.licitometro-codex-list .text-indigo-700 {
+  color: var(--codex-blue) !important;
+}
+
+.licitometro-codex-list .bg-violet-50,
+.licitometro-codex-list .bg-indigo-50,
+.licitometro-codex-list .bg-indigo-100,
+.licitometro-codex-list .bg-sky-100 {
+  background-color: #eaf3ff !important;
+}
+
+.licitometro-codex-list .bg-emerald-600,
+.licitometro-codex-list .bg-blue-600 {
+  background-color: var(--codex-blue) !important;
+}
+
+.licitometro-codex-list .hover\:bg-emerald-700:hover,
+.licitometro-codex-list .hover\:bg-blue-700:hover {
+  background-color: var(--codex-blue-hover) !important;
+}
+
+.licitometro-codex-list .text-emerald-600,
+.licitometro-codex-list .text-emerald-700,
+.licitometro-codex-list .text-green-600,
+.licitometro-codex-list .text-green-700 {
+  color: var(--codex-green) !important;
+}
+
+.licitometro-codex-list .bg-emerald-50,
+.licitometro-codex-list .bg-emerald-100,
+.licitometro-codex-list .bg-green-50,
+.licitometro-codex-list .bg-green-100 {
+  background-color: var(--codex-green-bg) !important;
+}
+
+.licitometro-codex-list .text-amber-600,
+.licitometro-codex-list .text-amber-700,
+.licitometro-codex-list .text-amber-800,
+.licitometro-codex-list .text-yellow-600,
+.licitometro-codex-list .text-yellow-700,
+.licitometro-codex-list .text-orange-700 {
+  color: var(--codex-amber) !important;
+}
+
+.licitometro-codex-list .bg-amber-50,
+.licitometro-codex-list .bg-amber-100,
+.licitometro-codex-list .bg-yellow-50,
+.licitometro-codex-list .bg-yellow-100,
+.licitometro-codex-list .bg-orange-100 {
+  background-color: var(--codex-amber-bg) !important;
+}
+
+.licitometro-codex-list .text-red-500,
+.licitometro-codex-list .text-red-600,
+.licitometro-codex-list .text-red-700 {
+  color: var(--codex-red) !important;
+}
+
+.licitometro-codex-list .bg-red-50,
+.licitometro-codex-list .bg-red-100 {
+  background-color: var(--codex-red-bg) !important;
+}
+
+.licitometro-codex-list input,
+.licitometro-codex-list select {
+  border-color: var(--codex-border-soft) !important;
+  border-radius: 2px !important;
+}
+
+.licitometro-codex-list input:focus,
+.licitometro-codex-list select:focus {
+  border-color: var(--codex-blue) !important;
+  box-shadow: 0 0 0 1px var(--codex-blue) !important;
+}
+
+.licitometro-codex-list table {
+  border-collapse: collapse;
+}
+
+.licitometro-codex-list thead tr {
+  background: var(--codex-canvas) !important;
+}
+
+.licitometro-codex-list tbody tr:hover {
+  background: #f3f6fb !important;
+}
+
+.licitometro-codex-list [class*="sticky"][class*="top-14"] {
+  background: var(--codex-surface) !important;
+  border-bottom: 1px solid var(--codex-border-soft);
+  margin-bottom: 0.5rem;
+  padding-top: 0.25rem;
+}
+
+.licitometro-codex-list > .flex.gap-4 {
+  align-items: flex-start;
+}
+
+.licitometro-codex-list .lg\:sticky {
+  top: 3.75rem;
+}
+
+.licitometro-codex-list a:hover {
+  color: var(--codex-blue) !important;
+}
+
+.licitometro-codex-list button,
+.licitometro-codex-list a {
+  transition-duration: 120ms !important;
+}
+
+.licitometro-codex-list button:focus-visible,
+.licitometro-codex-list a:focus-visible {
+  outline: 2px solid var(--codex-blue);
+  outline-offset: 2px;
+}
+
+.codex-tender-card,
+.codex-filter-panel,
+.codex-data-table,
+.codex-pagination,
+.codex-decision-summary,
+.codex-activity-strip {
+  border-color: var(--codex-border-soft) !important;
+  border-radius: 4px !important;
+}
+
+.codex-tender-card:hover {
+  border-color: var(--codex-border) !important;
+  background: #fff !important;
+}
+
+.codex-tender-card h3 {
+  font-size: 1rem;
+  font-weight: 800;
+  line-height: 1.25;
+}
+
+.codex-tender-card .lg\:w-28 {
+  background: var(--codex-canvas) !important;
+}
+
+.codex-filter-panel {
+  background: #fff !important;
+}
+
+.codex-decision-summary {
+  background: #fff !important;
+}
+
+.codex-pagination {
+  margin-top: 0.9rem;
+}
+
 @media (max-width: 1100px) {
   .codex-workbench {
     grid-template-columns: 1fr;

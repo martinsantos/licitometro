@@ -41,8 +41,8 @@ const SortDropdown: React.FC<SortDropdownProps> = ({ sortBy, sortOrder, onSortCh
       <div className="relative" ref={ref}>
         <button
           onClick={() => setOpen(!open)}
-          className={`flex items-center gap-1 px-2 py-1.5 rounded-lg font-bold text-[11px] sm:text-xs transition-colors ${
-            open ? 'bg-emerald-100 text-emerald-700' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+          className={`flex items-center gap-1 px-2 py-1.5 rounded font-bold text-[11px] sm:text-xs transition-colors ${
+            open ? 'bg-blue-50 text-blue-700' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
           }`}
         >
           <svg className="w-3 h-3 text-gray-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -56,20 +56,20 @@ const SortDropdown: React.FC<SortDropdownProps> = ({ sortBy, sortOrder, onSortCh
 
         {/* Desktop dropdown */}
         {open && (
-          <div className="hidden sm:block absolute right-0 top-full mt-1 bg-white border border-gray-200 rounded-xl shadow-lg z-40 w-44 py-1">
+          <div className="hidden sm:block absolute right-0 top-full mt-1 bg-white border border-gray-200 rounded z-40 w-44 py-1">
             <div className="px-3 py-1 text-[10px] font-bold text-gray-400 uppercase">Ordenar por</div>
             {SORT_OPTIONS.map((opt) => (
               <button
                 key={opt.value}
                 className={`w-full px-3 py-2 text-left text-sm flex items-center gap-2 transition-colors ${
                   sortBy === opt.value
-                    ? 'bg-emerald-50 text-emerald-700 font-bold'
+                    ? 'bg-blue-50 text-blue-700 font-bold'
                     : 'text-gray-700 hover:bg-gray-50'
                 }`}
                 onClick={() => { onSortChange(opt.value); setOpen(false); }}
               >
                 {sortBy === opt.value && (
-                  <svg className="w-3.5 h-3.5 text-emerald-500 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <svg className="w-3.5 h-3.5 text-blue-500 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M5 13l4 4L19 7" />
                   </svg>
                 )}
@@ -101,15 +101,15 @@ const SortDropdown: React.FC<SortDropdownProps> = ({ sortBy, sortOrder, onSortCh
                 {SORT_OPTIONS.map((opt) => (
                   <button
                     key={opt.value}
-                    className={`w-full px-4 py-3 text-left rounded-xl flex items-center gap-3 transition-colors ${
+                    className={`w-full px-4 py-3 text-left rounded flex items-center gap-3 transition-colors ${
                       sortBy === opt.value
-                        ? 'bg-emerald-50 text-emerald-700 font-bold'
+                        ? 'bg-blue-50 text-blue-700 font-bold'
                         : 'text-gray-700 hover:bg-gray-50'
                     }`}
                     onClick={() => { onSortChange(opt.value); setOpen(false); }}
                   >
                     {sortBy === opt.value && (
-                      <svg className="w-5 h-5 text-emerald-500 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <svg className="w-5 h-5 text-blue-500 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M5 13l4 4L19 7" />
                       </svg>
                     )}
@@ -124,7 +124,7 @@ const SortDropdown: React.FC<SortDropdownProps> = ({ sortBy, sortOrder, onSortCh
 
       <button
         onClick={onToggleOrder}
-        className="flex items-center gap-0.5 px-1.5 py-1.5 rounded-lg bg-gray-100 hover:bg-gray-200 transition-colors text-gray-600"
+        className="flex items-center gap-0.5 px-1.5 py-1.5 rounded bg-gray-100 hover:bg-gray-200 transition-colors text-gray-600"
         title={sortOrder === 'asc' ? 'Ascendente' : 'Descendente'}
       >
         <span className="text-xs">{sortOrder === 'asc' ? '↑' : '↓'}</span>

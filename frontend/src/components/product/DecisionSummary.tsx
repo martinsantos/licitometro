@@ -25,7 +25,7 @@ export function DecisionSummary({
   const status = isFetching ? 'Actualizando' : totalItems === 0 ? 'Sin resultados' : 'Listo para revisar';
 
   return (
-    <section className="bg-white border border-gray-100 rounded-lg px-3 py-2.5 shadow-sm" aria-label={title}>
+    <section className="codex-decision-summary bg-white border border-gray-100 rounded px-3 py-2.5" aria-label={title}>
       <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
         <div className="grid grid-cols-3 gap-2 sm:flex sm:items-center sm:gap-3">
           <div>
@@ -44,7 +44,7 @@ export function DecisionSummary({
 
         <div className="flex items-center gap-2 flex-wrap">
           {todayActive && (
-            <span className="px-2 py-1 rounded-md bg-emerald-50 text-emerald-700 text-xs font-bold">
+            <span className="px-2 py-1 rounded bg-emerald-50 text-emerald-700 text-xs font-bold">
               Nuevas de hoy
             </span>
           )}
@@ -52,7 +52,7 @@ export function DecisionSummary({
             <button
               type="button"
               onClick={onClearFilters}
-              className="px-2.5 py-1.5 rounded-md bg-gray-100 text-gray-700 text-xs font-bold hover:bg-gray-200 transition-colors"
+              className="px-2.5 py-1.5 rounded bg-gray-100 text-gray-700 text-xs font-bold hover:bg-gray-200 transition-colors"
             >
               Limpiar filtros
             </button>
@@ -61,7 +61,7 @@ export function DecisionSummary({
             <button
               type="button"
               onClick={onRetry}
-              className="px-2.5 py-1.5 rounded-md bg-blue-50 text-blue-700 text-xs font-bold hover:bg-blue-100 transition-colors"
+              className="px-2.5 py-1.5 rounded bg-blue-50 text-blue-700 text-xs font-bold hover:bg-blue-100 transition-colors"
             >
               Actualizar
             </button>
@@ -92,7 +92,7 @@ export function EmptyResultsState({ hasActiveFilters, onClearFilters, onRetry }:
           <button
             type="button"
             onClick={onClearFilters}
-            className="px-4 py-2 bg-emerald-600 text-white rounded-lg font-bold text-sm hover:bg-emerald-700 transition-colors"
+            className="px-4 py-2 bg-blue-600 text-white rounded font-bold text-sm hover:bg-blue-700 transition-colors"
           >
             Limpiar filtros
           </button>
@@ -101,7 +101,7 @@ export function EmptyResultsState({ hasActiveFilters, onClearFilters, onRetry }:
           <button
             type="button"
             onClick={onRetry}
-            className="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg font-bold text-sm hover:bg-gray-200 transition-colors"
+            className="px-4 py-2 bg-gray-100 text-gray-700 rounded font-bold text-sm hover:bg-gray-200 transition-colors"
           >
             Reintentar
           </button>

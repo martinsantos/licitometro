@@ -62,12 +62,14 @@ const LicitacionesPage = ({ apiUrl }: { apiUrl: string }) => {
         </div>
       )}
 
-      <LicitacionesList
-        apiUrl={apiUrl}
-        defaultJurisdiccionMode="mendoza"
-        pageTitle="Licitaciones Mendoza"
-        refreshSignal={refreshList}
-      />
+      <section className="licitometro-codex-list-surface" aria-label="Listado completo de licitaciones">
+        <LicitacionesList
+          apiUrl={apiUrl}
+          defaultJurisdiccionMode="mendoza"
+          pageTitle="Licitaciones Mendoza"
+          refreshSignal={refreshList}
+        />
+      </section>
       </div>
     </div>
   );

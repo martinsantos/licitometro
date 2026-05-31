@@ -72,6 +72,28 @@ export default function CodexUIDemoPage({ apiUrl = '' }: { apiUrl?: string }) {
         </article>
       </section>
 
+      {apiUrl && (
+        <section className="codex-live-list" aria-label="Listado real de licitaciones">
+          <div className="codex-live-list__header">
+            <div>
+              <p className="codex-eyebrow">Listado completo</p>
+              <h2>Licitaciones indexadas para examinar</h2>
+              <p>Esta seccion usa los datos reales y los controles productivos: filtros, busqueda, vistas, orden y paginacion.</p>
+            </div>
+            <Link to="/licitaciones" className="codex-button codex-button--quiet">
+              Abrir pantalla dedicada
+            </Link>
+          </div>
+          <div className="licitometro-codex-list-surface">
+            <LicitacionesList
+              apiUrl={apiUrl}
+              defaultJurisdiccionMode="mendoza"
+              pageTitle="Licitaciones Mendoza"
+            />
+          </div>
+        </section>
+      )}
+
       <div className="codex-workbench">
         <aside className="codex-panel codex-panel--rail">
           <div className="codex-panel__header">
@@ -137,25 +159,6 @@ export default function CodexUIDemoPage({ apiUrl = '' }: { apiUrl?: string }) {
         </aside>
       </div>
 
-      {apiUrl && (
-        <section className="codex-live-list" aria-label="Listado real de licitaciones">
-          <div className="codex-live-list__header">
-            <div>
-              <p className="codex-eyebrow">Listado completo</p>
-              <h2>Licitaciones indexadas para examinar</h2>
-              <p>Esta seccion usa los datos reales y los controles productivos: filtros, busqueda, vistas, orden y paginacion.</p>
-            </div>
-            <Link to="/licitaciones" className="codex-button codex-button--quiet">
-              Abrir pantalla dedicada
-            </Link>
-          </div>
-          <LicitacionesList
-            apiUrl={apiUrl}
-            defaultJurisdiccionMode="mendoza"
-            pageTitle="Licitaciones Mendoza"
-          />
-        </section>
-      )}
     </div>
   );
 }

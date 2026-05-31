@@ -65,7 +65,7 @@ const NovedadesStrip: React.FC<NovedadesStripProps> = ({ apiUrl, apiPath = '/api
         marginBottom: hasActivity ? undefined : 0,
       }}
     >
-      <div className="bg-white rounded-xl border border-gray-100 overflow-hidden">
+      <div className="codex-activity-strip bg-white rounded border border-gray-100 overflow-hidden">
         {/* Header - categorized badges */}
         <div className="w-full px-3 py-2 flex items-center justify-between gap-2 hover:bg-gray-50 transition-colors">
           <button
@@ -103,7 +103,7 @@ const NovedadesStrip: React.FC<NovedadesStripProps> = ({ apiUrl, apiPath = '/api
                   key={opt.value}
                   onClick={() => setHours(opt.value)}
                   className={`px-1.5 sm:px-2 py-1 rounded-md font-bold transition-all ${
-                    hours === opt.value ? 'bg-white shadow-sm text-gray-800' : 'text-gray-500'
+                    hours === opt.value ? 'bg-white text-gray-800' : 'text-gray-500'
                   }`}
                 >
                   {opt.label}
@@ -132,9 +132,9 @@ const NovedadesStrip: React.FC<NovedadesStripProps> = ({ apiUrl, apiPath = '/api
                   <button
                     key={src.fuente}
                     onClick={() => onSourceClick?.(src.fuente)}
-                    className="w-full flex items-center gap-2 px-3 py-2 rounded-xl hover:bg-gray-50 transition-colors text-left"
+                    className="w-full flex items-center gap-2 px-3 py-2 rounded hover:bg-gray-50 transition-colors text-left"
                   >
-                    <span className="w-2 h-2 rounded-full bg-violet-500 flex-shrink-0" />
+                    <span className="w-2 h-2 rounded-full bg-blue-500 flex-shrink-0" />
                     <span className="text-sm font-bold text-gray-700 flex-1 min-w-0 truncate">
                       {src.fuente}
                     </span>

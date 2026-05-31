@@ -23,7 +23,7 @@ const LicitacionTable: React.FC<LicitacionTableProps> = ({
   }, []);
 
   return (
-    <div className="bg-white rounded-2xl shadow-lg border border-gray-100 overflow-hidden">
+    <div className="codex-data-table bg-white rounded border border-gray-100 overflow-hidden">
       <div className="overflow-x-auto">
         <table className="w-full text-left border-collapse">
           <thead>

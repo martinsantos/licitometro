@@ -82,7 +82,7 @@ const DailyDigestStrip = ({
   }
 
   return (
-    <div className="bg-white rounded-xl border border-gray-100 overflow-hidden">
+    <div className="codex-activity-strip bg-white rounded border border-gray-100 overflow-hidden">
       {/* Compact summary bar - always visible */}
       <div className="w-full px-3 py-2 flex items-center justify-between gap-2 hover:bg-gray-50 transition-colors">
         <div className="flex items-center gap-1.5 sm:gap-3 text-xs font-bold min-w-0 overflow-x-auto scrollbar-hide">
@@ -91,7 +91,7 @@ const DailyDigestStrip = ({
             onClick={(e) => { e.stopPropagation(); onDaySelect(selectedDate === today ? null : today); }}
             className={`px-2 py-1 rounded transition-all flex-shrink-0 flex items-center gap-1 ${
               selectedDate === today
-                ? 'bg-emerald-600 text-white'
+                ? 'bg-blue-600 text-white'
                 : 'bg-emerald-50 text-emerald-700 hover:bg-emerald-100'
             }`}
             title="Items scrapeados/actualizados hoy (incluye items viejos re-indexados). Diferente de 'Nuevas de hoy' que muestra solo items descubiertos hoy."

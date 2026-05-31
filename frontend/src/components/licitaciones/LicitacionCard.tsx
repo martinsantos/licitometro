@@ -36,7 +36,7 @@ const LicitacionCard: React.FC<LicitacionCardProps> = ({
 
   return (
     <div
-      className="bg-white rounded-2xl shadow-md border border-gray-100 hover:shadow-xl hover:border-gray-200 transition-all duration-300 overflow-hidden group cursor-pointer"
+      className="codex-tender-card bg-white border border-gray-100 hover:border-gray-300 transition-colors duration-150 overflow-hidden group cursor-pointer"
       onClick={handleClick}
     >
       <div className="flex flex-col lg:flex-row">
@@ -384,7 +384,7 @@ const LicitacionCard: React.FC<LicitacionCardProps> = ({
               <Link
                 to={`/cotizar?licitacion_id=${lic.id}`}
                 onClick={(e) => e.stopPropagation()}
-                className="flex items-center gap-1 px-2.5 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white text-[11px] font-bold rounded-lg transition-colors"
+                className="flex items-center gap-1 px-2.5 py-1.5 bg-blue-600 hover:bg-blue-700 text-white text-[11px] font-bold rounded transition-colors"
                 title="Armar cotización"
               >
                 <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">

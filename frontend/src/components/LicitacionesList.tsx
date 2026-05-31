@@ -337,7 +337,7 @@ const LicitacionesList = ({
   }
 
   return (
-    <div className="space-y-2" ref={listTopRef}>
+    <div className="licitometro-codex-list space-y-2" ref={listTopRef}>
       {/* Compact info strips — both collapsed by default */}
       <div className="flex flex-col gap-1.5">
         <DailyDigestStrip
