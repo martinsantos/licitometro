@@ -45,3 +45,35 @@ def test_boletin_mendoza_run_with_evidence_wraps_pdf_results(monkeypatch):
     assert results[0].extraction_confidence == 0.86
     assert {e.kind for e in results[0].evidence} == {EvidenceKind.PDF}
     assert len(results[0].evidence) == 1
+
+
+def test_boletin_mendoza_run_with_evidence_treats_verpdf_urls_as_pdf(monkeypatch):
+    scraper = BoletinOficialMendozaScraper(_config())
+    item = LicitacionCreate(
+        id_licitacion="BOE-VERPDF-1",
+        title="Licitacion publica",
+        organization="Gobierno de Mendoza",
+        fuente="Boletin Oficial Mendoza",
+        jurisdiccion="Mendoza",
+        tipo_procedimiento="Boletin Oficial - Norma",
+        source_url="https://boe.mendoza.gov.ar/default/public/publico/verpdf/32595",
+        attached_files=[
+            {
+                "url": "https://boe.mendoza.gov.ar/default/public/publico/verpdf/32595",
+                "name": "Boletin 32595",
+                "type": "pdf",
+            }
+        ],
+    )
+
+    async def fake_run():
+        return [item]
+
+    monkeypatch.setattr(scraper, "run", fake_run)
+
+    results = asyncio.run(scraper.run_with_evidence())
+
+    assert results[0].item.canonical_url == item.source_url
+    assert results[0].item.url_quality == "direct_pdf"
+    assert {e.kind for e in results[0].evidence} == {EvidenceKind.PDF}
+    assert results[0].extraction_confidence == 0.86

@@ -161,17 +161,19 @@ class ResilientHttpClient:
             try:
                 await domain_state.wait_rate_limit()
 
+                request_kwargs = dict(kwargs)
+                caller_headers = request_kwargs.pop("headers", {}) or {}
                 headers = {
                     "User-Agent": self._random_ua(),
                     "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
                     "Accept-Language": "es-AR,es;q=0.9,en;q=0.8",
                     "Accept-Encoding": "gzip, deflate",
                     **self.extra_headers,
+                    **caller_headers,
                 }
 
                 # Route blocked domains through Cloudflare Worker proxy
                 actual_url = url
-                request_kwargs = dict(kwargs)
                 if self._needs_proxy(url):
                     headers["X-Target-URL"] = url
                     headers["X-Proxy-Secret"] = PROXY_SECRET

@@ -34,6 +34,93 @@ from utils.proceso_id import normalize_proceso_id
 logger = logging.getLogger("scheduler_service")
 
 
+def canonical_scraper_source_id(scraper_name: str) -> str:
+    """Return stable source ids for evidence metadata.
+
+    Core sources must match their explicit contracts. The fallback stays
+    deterministic for non-core legacy scrapers.
+    """
+
+    try:
+        from config.mendoza_core_sources import CONTRACTS_BY_NAME
+        contract = CONTRACTS_BY_NAME.get(scraper_name)
+        if contract:
+            return contract.source_id
+    except Exception:
+        pass
+    slug = re.sub(r"[^a-z0-9]+", "_", scraper_name.lower()).strip("_")
+    return slug or "unknown"
+
+
+def expected_min_items_for_scraper(scraper_name: str, selectors: Optional[Dict[str, Any]] = None) -> int:
+    """Return the minimum acceptable run volume for a scraper.
+
+    Explicit config wins, but Mendoza Core sources have contracts even when
+    older DB configs do not carry ``selectors.expected_min_items``.
+    """
+
+    selectors = selectors or {}
+    try:
+        explicit = int(selectors.get("expected_min_items") or 0)
+    except (TypeError, ValueError):
+        explicit = 0
+    if explicit > 0:
+        return explicit
+
+    try:
+        from config.mendoza_core_sources import CONTRACTS_BY_NAME
+        contract = CONTRACTS_BY_NAME.get(scraper_name)
+        if contract:
+            return int(contract.expected_min_items)
+    except Exception:
+        pass
+    return 0
+
+
+def unchanged_item_sync_fields(
+    item,
+    item_data: Dict[str, Any],
+    *,
+    source_evidence: Optional[Dict[str, Any]] = None,
+    existing_source_evidence: Optional[Dict[str, Any]] = None,
+) -> Dict[str, Any]:
+    """Fields that must be refreshed even when content_hash is unchanged."""
+
+    sync: Dict[str, Any] = {}
+    src_meta = item_data.get("metadata") or {}
+    for key in (
+        "comprasapps_estado",
+        "comprasapps_detail_url",
+        "comprasapps_anio",
+        "comprasapps_seq",
+        "comprasapps_tipo_code",
+    ):
+        if key in src_meta and src_meta[key] is not None:
+            sync[f"metadata.{key}"] = src_meta[key]
+
+    if source_evidence:
+        existing_count = int((existing_source_evidence or {}).get("evidence_count") or 0)
+        new_count = int(source_evidence.get("evidence_count") or 0)
+        sync["metadata.source_evidence"] = (
+            existing_source_evidence
+            if existing_source_evidence and existing_count > new_count
+            else source_evidence
+        )
+
+    url_quality = getattr(item, "url_quality", None)
+    if url_quality in ("direct", "direct_pdf") and item_data.get("canonical_url"):
+        sync["canonical_url"] = item_data["canonical_url"]
+        sync["url_quality"] = url_quality
+    if item_data.get("source_urls"):
+        sync["source_urls"] = item_data["source_urls"]
+
+    for field in ("publication_date", "opening_date", "estado", "objeto", "pliegos_bases", "budget", "currency"):
+        if item_data.get(field) not in (None, "", [], {}):
+            sync[field] = item_data[field]
+
+    return sync
+
+
 class SchedulerService:
     """Service for scheduling and managing scraper executions"""
 
@@ -354,7 +441,7 @@ class SchedulerService:
             
             duration = (utc_now() - start_time).total_seconds()
 
-            source_id = scraper_name.lower().replace(" ", "_")
+            source_id = canonical_scraper_source_id(scraper_name)
             from scrapers.contracts import normalize_scraper_output, summarize_item_evidence
             items, _scrape_results, source_evidence = normalize_scraper_output(raw_items, source_id=source_id)
             scrape_results_by_id = {
@@ -394,14 +481,19 @@ class SchedulerService:
                 boe_existing_numbers: set = set()
 
                 existing_estados: Dict[str, Optional[str]] = {}  # id_licitacion → estado
+                existing_docs = []
                 if batch_ids:
                     existing_docs = await licitaciones_collection.find(
                         {"id_licitacion": {"$in": batch_ids}},
-                        {"id_licitacion": 1, "content_hash": 1, "estado": 1}
+                    {"id_licitacion": 1, "content_hash": 1, "estado": 1, "metadata.source_evidence": 1}
                     ).to_list(length=None)
                     existing_ids = {doc["id_licitacion"] for doc in existing_docs}
                     existing_id_hashes = {doc["id_licitacion"]: doc.get("content_hash") for doc in existing_docs}
-                    existing_estados = {doc["id_licitacion"]: doc.get("estado") for doc in existing_docs}
+                existing_estados = {doc["id_licitacion"]: doc.get("estado") for doc in existing_docs}
+                existing_source_evidence = {
+                    doc["id_licitacion"]: (doc.get("metadata") or {}).get("source_evidence")
+                    for doc in existing_docs
+                }
 
                 if batch_hashes:
                     hash_docs = await licitaciones_collection.find(
@@ -512,17 +604,12 @@ class SchedulerService:
                             old_hash = existing_id_hashes.get(item.id_licitacion)
                             if old_hash and item.content_hash and old_hash == item.content_hash:
                                 items_unchanged += 1
-                                meta_only_set = {}
-                                src_meta = item_data.get("metadata") or {}
-                                for k in ("comprasapps_estado", "comprasapps_detail_url",
-                                          "comprasapps_anio", "comprasapps_seq",
-                                          "comprasapps_tipo_code"):
-                                    if k in src_meta and src_meta[k] is not None:
-                                        meta_only_set[f"metadata.{k}"] = src_meta[k]
-                                # Sync canonical_url too if scraper produced a stable one
-                                if item.url_quality == "direct" and item_data.get("canonical_url"):
-                                    meta_only_set["canonical_url"] = item_data["canonical_url"]
-                                    meta_only_set["url_quality"] = "direct"
+                                meta_only_set = unchanged_item_sync_fields(
+                                    item,
+                                    item_data,
+                                    source_evidence=summarize_item_evidence(evidence_result) if evidence_result else None,
+                                    existing_source_evidence=existing_source_evidence.get(item.id_licitacion),
+                                )
                                 if meta_only_set:
                                     bulk_ops.append(UpdateOne(
                                         {"id_licitacion": item.id_licitacion},
@@ -649,16 +736,25 @@ class SchedulerService:
             if errors:
                 status = "partial" if items_saved > 0 else "failed"
 
-            # Detect silent failure: 0 items found with no errors
-            # A critical source can opt into a hard minimum; otherwise only
-            # sources with previous volume are marked suspicious.
+            # Detect silent or under-volume failures. Critical sources get their
+            # minimum from the Mendoza Core contract even if the DB config is old.
             if status == "success" and items_found == 0:
                 selectors = getattr(config, "selectors", None) or {}
-                expected_min_items = int(selectors.get("expected_min_items") or 0)
+                expected_min_items = expected_min_items_for_scraper(scraper_name, selectors)
                 if expected_min_items > 0:
                     status = "empty_suspicious"
                     log(
-                        f"Suspicious: 0 items found but config expects at least {expected_min_items}",
+                        f"Suspicious: 0 items found but source expects at least {expected_min_items}",
+                        "warning",
+                    )
+
+            if status == "success":
+                selectors = getattr(config, "selectors", None) or {}
+                expected_min_items = expected_min_items_for_scraper(scraper_name, selectors)
+                if expected_min_items > 0 and 0 < items_found < expected_min_items:
+                    status = "partial"
+                    log(
+                        f"Below expected volume: found {items_found} items, expected at least {expected_min_items}",
                         "warning",
                     )
 
@@ -728,15 +824,15 @@ class SchedulerService:
             # Circuit breaker: record success or failure
             if status == "success":
                 await health.record_success(scraper_name)
-            elif status in ("failed", "empty_suspicious"):
+            elif status in ("failed", "empty_suspicious", "partial"):
                 await health.record_failure(scraper_name)
 
             log(f"Scraper '{scraper_name}' completed. Found: {items_found}, Saved: {items_saved}, Updated: {items_updated}, Unchanged: {items_unchanged}, Dupes skipped: {duplicates_skipped}")
 
             # Handle failures and suspicious empties: alert + retry + escalation
-            if status in ("failed", "empty_suspicious"):
+            if status in ("failed", "empty_suspicious", "partial"):
                 await self._handle_scraper_failure(
-                    scraper_name, run_id, errors, config_data, status, retry_count
+                    scraper_name, run_id, errors + warnings, config_data, status, retry_count
                 )
 
             # Notify about new licitaciones (skip for AR scope - manual only)
@@ -796,7 +892,12 @@ class SchedulerService:
             from services.notification_service import get_notification_service
             ns = get_notification_service(self.db)
             last_items = (config_data or {}).get("last_items_found", 0)
-            error_text = errors[0] if errors else f"0 items returned (expected ~{last_items})"
+            if errors:
+                error_text = errors[0]
+            elif status == "partial":
+                error_text = f"Run completed below expected volume (last known ~{last_items})"
+            else:
+                error_text = f"0 items returned (expected ~{last_items})"
             await ns.notify_scraper_error_enhanced(
                 scraper_name=scraper_name,
                 error=error_text,

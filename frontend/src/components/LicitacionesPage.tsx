@@ -4,11 +4,11 @@ import LicitacionForm from '../components/LicitacionForm';
 
 const LicitacionesPage = ({ apiUrl = '' }) => {
   const [showForm, setShowForm] = useState(false);
-  const [refreshList, setRefreshList] = useState(false);
+  const [refreshList, setRefreshList] = useState(0);
 
   const handleLicitacionCreated = () => {
     setShowForm(false);
-    setRefreshList(prev => !prev); // Trigger refresh of the list
+    setRefreshList(prev => prev + 1);
   };
 
   return (
@@ -43,7 +43,7 @@ const LicitacionesPage = ({ apiUrl = '' }) => {
         </div>
       )}
 
-      <LicitacionesList apiUrl={apiUrl} key={refreshList ? 'refresh' : 'initial'} />
+      <LicitacionesList apiUrl={apiUrl} refreshSignal={refreshList} />
     </div>
   );
 };

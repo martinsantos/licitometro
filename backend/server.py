@@ -22,7 +22,7 @@ from routers import (
     scraper_configs, comprar, scheduler, workflow, offer_templates,
     auth, public, nodos, cotizar_ai, cotizaciones, market_data, documentos, company_context,
     lab, hunter, users, analytics, pileta, empresa, knowledge, empresa_perfiles, open_data,
-    adjudicaciones, catalogo, alertas,
+    adjudicaciones, catalogo, alertas, mendoza_core,
     canonical,
     admin_query, admin_open_data,
 )
@@ -72,6 +72,7 @@ ADMIN_ONLY_PREFIXES = (
     "/api/catalogo",
     "/api/alertas",
     "/api/canonical",
+    "/api/mendoza-core",
 )
 
 # Admin-only exact path suffixes (e.g. HUNTER endpoint on a licitacion).
@@ -224,6 +225,7 @@ app.include_router(adjudicaciones.router)
 app.include_router(catalogo.router)
 app.include_router(alertas.router)
 app.include_router(canonical.router)
+app.include_router(mendoza_core.router)
 app.include_router(admin_query.router)
 app.include_router(admin_open_data.router)
 app.include_router(public.router)

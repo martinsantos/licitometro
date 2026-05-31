@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import type { Licitacion, FilterState } from '../types/licitacion';
 import { useDebounce } from '../hooks/useDebounce';
 import { useLicitacionFilters } from '../hooks/useLicitacionFilters';
@@ -9,6 +9,7 @@ import { useFilterOptions } from '../hooks/useFilterOptions';
 import { isUrgentLic, isCriticalRubro as isCriticalRubroUtil } from '../utils/formatting';
 import { useFacetedFilters } from '../hooks/useFacetedFilters';
 import { useNodos } from '../hooks/useNodos';
+import { pageFromSearchParams, searchParamsWithPage } from '../utils/listUrlState';
 
 import DailyDigestStrip from './DailyDigestStrip';
 import NovedadesStrip from './NovedadesStrip';
@@ -37,6 +38,7 @@ interface LicitacionesListProps {
   defaultJurisdiccionMode?: 'all' | 'mendoza' | 'nacional';  // Force jurisdiction mode
   defaultEstadoFilter?: string; // override initial estadoFiltro (e.g., 'all' to skip default exclusion)
   pageTitle?: string;  // Custom page title (e.g., "Licitaciones Argentina")
+  refreshSignal?: number;
 }
 
 const LicitacionesList = ({
@@ -45,18 +47,14 @@ const LicitacionesList = ({
   defaultYear,
   defaultJurisdiccionMode,
   defaultEstadoFilter,
-  pageTitle
+  pageTitle,
+  refreshSignal
 }: LicitacionesListProps) => {
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
   const listTopRef = useRef<HTMLDivElement>(null);
   const hasRestoredScroll = useRef(false);
-  const [pagina, setPagina] = useState<number>(() => {
-    try {
-      const stored = sessionStorage.getItem('licitacion_pagina');
-      const parsed = stored ? parseInt(stored, 10) : 1;
-      return parsed > 0 ? parsed : 1;
-    } catch { return 1; }
-  });
+  const [pagina, setPagina] = useState<number>(() => pageFromSearchParams(searchParams));
   const [mobileFiltersOpen, setMobileFiltersOpen] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
 
@@ -105,6 +103,45 @@ const LicitacionesList = ({
     pageSize,
   });
 
+  const setPageInUrl = useCallback((page: number, replace: boolean) => {
+    setSearchParams((current) => searchParamsWithPage(current, page), { replace });
+  }, [setSearchParams]);
+
+  const handlePageChange = useCallback((page: number) => {
+    const nextPage = page > 0 ? page : 1;
+    setPagina(nextPage);
+    setPageInUrl(nextPage, false);
+  }, [setPageInUrl]);
+
+  const refreshFromHome = useCallback(() => {
+    setPageInUrl(1, true);
+    if (pagina === 1) {
+      retry();
+    } else {
+      setPagina(1);
+    }
+  }, [pagina, retry, setPageInUrl]);
+
+  const lastRefreshSignalRef = useRef(refreshSignal);
+  useEffect(() => {
+    if (refreshSignal === undefined || refreshSignal === lastRefreshSignalRef.current) return;
+    lastRefreshSignalRef.current = refreshSignal;
+    refreshFromHome();
+  }, [refreshSignal, refreshFromHome]);
+
+  useEffect(() => {
+    try {
+      sessionStorage.removeItem('licitacion_pagina');
+    } catch { /* ignore */ }
+  }, []);
+
+  useEffect(() => {
+    const urlPage = pageFromSearchParams(searchParams);
+    if (urlPage !== pagina) {
+      setPagina(urlPage);
+    }
+  }, [searchParams, pagina]);
+
   // Reset page on filter/sort change
   const prevFiltersRef = useRef(debouncedFilters);
   const prevSortRef = useRef({ sortBy: prefs.sortBy, sortOrder: prefs.sortOrder });
@@ -113,22 +150,19 @@ const LicitacionesList = ({
     const sortChanged = prevSortRef.current.sortBy !== prefs.sortBy || prevSortRef.current.sortOrder !== prefs.sortOrder;
     if (filtersChanged || sortChanged) {
       setPagina(1);
+      setPageInUrl(1, true);
       prevFiltersRef.current = debouncedFilters;
       prevSortRef.current = { sortBy: prefs.sortBy, sortOrder: prefs.sortOrder };
     }
-  }, [debouncedFilters, prefs.sortBy, prefs.sortOrder]);
-
-  // Persist pagina to sessionStorage
-  useEffect(() => {
-    sessionStorage.setItem('licitacion_pagina', String(pagina));
-  }, [pagina]);
+  }, [debouncedFilters, prefs.sortBy, prefs.sortOrder, setPageInUrl]);
 
   // Safeguard: reset if pagina exceeds total
   useEffect(() => {
     if (paginacion && pagina > paginacion.total_paginas && paginacion.total_paginas > 0) {
       setPagina(1);
+      setPageInUrl(1, true);
     }
-  }, [paginacion, pagina]);
+  }, [paginacion, pagina, setPageInUrl]);
 
   // Scroll to top on page change (offset for sticky header h-14 = 56px)
   useEffect(() => {
@@ -206,9 +240,9 @@ const LicitacionesList = ({
       await fetch(`${apiUrl}${apiPath}/${id}/enrich?level=2`, {
         method: 'POST', credentials: 'include'
       });
-      retry();
+      refreshFromHome();
     } catch { /* ignore */ }
-  }, [apiUrl, apiPath, retry]);
+  }, [apiUrl, apiPath, refreshFromHome]);
 
   const handleFilterChange = useCallback((key: keyof FilterState, value: string) => {
     setFilter(key, value);
@@ -285,14 +319,14 @@ const LicitacionesList = ({
         <p className="text-red-600 font-medium mb-4 text-sm">{error}</p>
         <div className="flex gap-3">
           <button
-            onClick={retry}
+            onClick={refreshFromHome}
             disabled={isFetching}
             className="px-4 py-2 bg-red-600 text-white rounded-lg font-bold text-sm hover:bg-red-700 transition-all disabled:opacity-50"
           >
             {isFetching ? 'Reintentando...' : 'Reintentar'}
           </button>
           <button
-            onClick={() => { clearAll(); retry(); }}
+            onClick={() => { clearAll(); refreshFromHome(); }}
             className="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg font-bold text-sm hover:bg-gray-300 transition-all"
           >
             Limpiar filtros y reintentar
@@ -350,7 +384,7 @@ const LicitacionesList = ({
               isFetching={isFetching}
               todayActive={isTodayFilterActive}
               onClearFilters={clearAll}
-              onRetry={retry}
+              onRetry={refreshFromHome}
             />
 
             <div className="flex items-center gap-1.5 sm:gap-2 flex-wrap">
@@ -506,7 +540,7 @@ const LicitacionesList = ({
                   <EmptyResultsState
                     hasActiveFilters={hasActiveFilters}
                     onClearFilters={clearAll}
-                    onRetry={retry}
+                    onRetry={refreshFromHome}
                   />
                 )}
               </div>
@@ -522,7 +556,7 @@ const LicitacionesList = ({
             )}
 
             {paginacion && (
-              <Pagination paginacion={paginacion} pagina={pagina} onPageChange={setPagina} />
+              <Pagination paginacion={paginacion} pagina={pagina} onPageChange={handlePageChange} />
             )}
           </div>
         </div>

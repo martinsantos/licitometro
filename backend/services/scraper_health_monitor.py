@@ -34,9 +34,21 @@ CRITICAL_SCRAPERS = {
 MIN_EXPECTED_ITEMS = {
     "ComprasApps Mendoza": 500,
     "COMPR.AR Mendoza": 30,
+    "Boletin Oficial Mendoza": 20,
     "Maipu": 100,
     "MPF Mendoza": 50,
 }
+
+
+def _min_expected_items(scraper_name: str) -> int:
+    try:
+        from config.mendoza_core_sources import CONTRACTS_BY_NAME
+        contract = CONTRACTS_BY_NAME.get(scraper_name)
+        if contract:
+            return int(contract.expected_min_items)
+    except Exception:
+        pass
+    return MIN_EXPECTED_ITEMS.get(scraper_name, 0)
 
 
 def _utcnow():
@@ -165,7 +177,7 @@ class ScraperHealthMonitor:
             status = r.get("status", "")
             if status == "success":
                 s["success"] += 1
-            elif status in ("failed", "error", "empty_suspicious"):
+            elif status in ("failed", "error", "empty_suspicious", "partial"):
                 s["failed"] += 1
             s["total_items"] += r.get("items_found", 0)
 
@@ -243,7 +255,7 @@ class ScraperHealthMonitor:
             total_new += new
 
             is_critical = name in CRITICAL_SCRAPERS
-            min_expected = MIN_EXPECTED_ITEMS.get(name, 0)
+            min_expected = _min_expected_items(name)
             icon = "🔴" if is_critical else "🟡"
 
             if status in ("failed", "error"):
@@ -251,6 +263,8 @@ class ScraperHealthMonitor:
                 failed.append(f"{icon} {name}: FALLÓ ({dur_str}) {err}")
             elif status == "empty_suspicious":
                 failed.append(f"{icon} {name}: 0 items (sospechoso)")
+            elif status == "partial":
+                degraded.append(f"⚠️ {name}: partial, {items} items ({dur_str})")
             elif min_expected > 0 and items < min_expected:
                 degraded.append(f"⚠️ {name}: {items} items (esperados ≥{min_expected}, {dur_str})")
             elif status == "success":

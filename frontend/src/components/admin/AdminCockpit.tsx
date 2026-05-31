@@ -7,6 +7,7 @@ type AdminCockpitProps = {
 
 const ITEMS = [
   { tab: 'monitor', title: 'Scheduler', description: 'Ejecuciones, jobs y estado operativo.' },
+  { tab: 'mendoza-core', title: 'Core Mza', description: 'Nucleo critico siempre arriba.' },
   { tab: 'fuentes', title: 'Fuentes', description: 'Scrapers, calidad de origen y remediación.' },
   { tab: 'quality', title: 'Calidad', description: 'Duplicados, datos faltantes y enriquecimiento.' },
   { tab: 'openarg', title: 'OpenArg', description: 'Consulta interna y datasets nacionales.' },
@@ -16,7 +17,7 @@ const ITEMS = [
 
 export default function AdminCockpit({ activeTab, onSelectTab }: AdminCockpitProps) {
   return (
-    <section className="mb-4 grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-6 gap-2" aria-label="Cockpit operativo">
+    <section className="mb-4 grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-7 gap-2" aria-label="Cockpit operativo">
       {ITEMS.map(item => (
         <button
           key={item.tab}

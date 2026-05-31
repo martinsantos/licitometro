@@ -38,6 +38,18 @@ def test_documents_and_direct_url_raise_quality():
     assert richer > base
 
 
+def test_direct_pdf_counts_as_direct_url_quality():
+    quality = evaluate_item_quality(
+        _item(
+            canonical_url="https://boe.mendoza.gov.ar/default/public/publico/verpdf/32595",
+            url_quality="direct_pdf",
+            attached_files=[{"url": "https://boe.mendoza.gov.ar/default/public/publico/verpdf/32595", "type": "pdf"}],
+        )
+    )
+
+    assert quality.has_direct_url is True
+
+
 def test_quality_summary_counts_missing_fields():
     summary = summarize_items_quality([
         _item(opening_date=None),

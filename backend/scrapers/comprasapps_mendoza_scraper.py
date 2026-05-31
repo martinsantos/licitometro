@@ -43,6 +43,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from models.scraper_config import ScraperConfig
 from models.licitacion import LicitacionCreate
+from scrapers.contracts import EvidenceKind, ScrapeResult, SourceEvidence
 from scrapers.base_scraper import BaseScraper
 from utils.dates import parse_date_guess
 
@@ -141,6 +142,21 @@ class ComprasAppsMendozaScraper(BaseScraper):
 
     # Short per-request timeout to avoid burning the total 1200s budget on slow requests
     _REQUEST_TIMEOUT = aiohttp.ClientTimeout(total=20, connect=5, sock_read=15)
+
+    @staticmethod
+    def _publication_date_from_process_year(numero: str, anio_raw: str = "") -> Optional[datetime]:
+        """ComprasApps grid has no publication date; use process year conservatively."""
+
+        year = None
+        if anio_raw and str(anio_raw).isdigit():
+            year = int(anio_raw)
+        else:
+            match = re.search(r"/(20\d{2})-", numero or "")
+            if match:
+                year = int(match.group(1))
+        if year and 2024 <= year <= 2027:
+            return datetime(year, 1, 1)
+        return None
 
     async def _init_session(self) -> bool:
         """GET initial page to establish session and extract GXState."""
@@ -570,15 +586,14 @@ class ComprasAppsMendozaScraper(BaseScraper):
                     date_str = f"{apertura_date} {t}"
                 opening_date_parsed = parse_date_guess(date_str)
 
-            # VIGENCIA MODEL: Resolve dates with multi-source fallback
-            # ComprasApps grid has no real publication date, but title has year "3/2026-616"
-            publication_date = self._resolve_publication_date(
-                parsed_date=None,  # No pub date in grid
-                title=titulo,  # Extract year from "3/2026-616" format
-                description=titulo,
-                opening_date=opening_date_parsed,
-                attached_files=[]
-            )
+            anio_raw = col(COL_ANIO)
+            seq_raw = col(COL_SEQ)
+            tip_code_raw = col(COL_TIPO_CODE)
+            cuc_raw = col(COL_CUC)
+
+            # ComprasApps grid has no publication date. Do not mine title dates:
+            # those are often site visits, delivery dates, or opening references.
+            publication_date = self._publication_date_from_process_year(numero, anio_raw)
 
             opening_date = self._resolve_opening_date(
                 parsed_date=opening_date_parsed,
@@ -622,10 +637,6 @@ class ComprasAppsMendozaScraper(BaseScraper):
             }
 
             # Reconstruct stable detail URL (hli00048 — public, no session)
-            anio_raw = col(COL_ANIO)
-            seq_raw = col(COL_SEQ)
-            tip_code_raw = col(COL_TIPO_CODE)
-            cuc_raw = col(COL_CUC)
             stable_detail_url = None
             if anio_raw and seq_raw and tip_code_raw and cuc_raw:
                 stable_detail_url = (
@@ -921,6 +932,38 @@ class ComprasAppsMendozaScraper(BaseScraper):
             raise  # Let scheduler handle failure tracking + retry + alert
         finally:
             await self.cleanup()
+
+    async def run_with_evidence(self) -> List[ScrapeResult]:
+        """Run scraper and return evidence-aware results for ComprasApps."""
+
+        licitaciones = await self.run()
+        results: List[ScrapeResult] = []
+        for lic in licitaciones:
+            evidence_by_url: Dict[str, SourceEvidence] = {}
+
+            def add_evidence(url: Optional[str], role: str):
+                if not url:
+                    return
+                clean_url = str(url)
+                if clean_url in evidence_by_url:
+                    return
+                evidence_by_url[clean_url] = SourceEvidence(
+                    kind=EvidenceKind.HTML,
+                    source_url=clean_url,
+                    metadata={"role": role},
+                )
+
+            add_evidence(str(lic.canonical_url) if lic.canonical_url else None, "canonical_url")
+            add_evidence(str(lic.source_url) if lic.source_url else None, "source_url")
+            confidence = 0.8 if lic.url_quality == "direct" and evidence_by_url else 0.65
+            results.append(ScrapeResult(
+                item=lic,
+                source_id="comprasapps_mendoza",
+                evidence=list(evidence_by_url.values()),
+                extraction_confidence=confidence,
+                extraction_version="comprasapps_mendoza_v1_evidence",
+            ))
+        return results
 
     async def extract_licitacion_data(self, html: str, url: str) -> Optional[LicitacionCreate]:
         """Not used - this scraper overrides run() directly."""

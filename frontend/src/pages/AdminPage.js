@@ -14,11 +14,13 @@ import CanonicalTendersPanel from '../components/admin/CanonicalTendersPanel';
 import ReadinessDashboardPanel from '../components/admin/ReadinessDashboardPanel';
 import AdminCockpit from '../components/admin/AdminCockpit';
 import AdminOpenArgPanel from '../components/admin/AdminOpenArgPanel';
+import MendozaCorePanel from '../components/admin/MendozaCorePanel';
 
 const API_URL = '';
 
 const TABS = [
   { key: 'monitor', label: 'Monitoreo' },
+  { key: 'mendoza-core', label: 'Mendoza Core' },
   { key: 'fuentes', label: 'Fuentes de Datos' },
   { key: 'import', label: 'Importar Fuentes' },
   { key: 'logs', label: 'Logs' },
@@ -72,6 +74,10 @@ const AdminPage = () => {
               </div>
               <SchedulerMonitor />
             </div>
+          )}
+
+          {activeTab === 'mendoza-core' && (
+            <MendozaCorePanel />
           )}
 
           {activeTab === 'fuentes' && (

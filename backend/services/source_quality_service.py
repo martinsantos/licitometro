@@ -74,7 +74,7 @@ def evaluate_item_quality(item: Any) -> ItemQuality:
 
     canonical_url = _get(item, "canonical_url")
     url_quality = _get(item, "url_quality")
-    has_direct_url = bool(canonical_url and url_quality == "direct")
+    has_direct_url = bool(canonical_url and url_quality in ("direct", "direct_pdf"))
 
     score = core_score + valuable_score
     if has_documents:

@@ -35,8 +35,10 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from models.scraper_config import ScraperConfig
 from models.licitacion import LicitacionCreate
+from scrapers.contracts import EvidenceKind, ScrapeResult, SourceEvidence
 from scrapers.comprar_asp_base import ComprarASPBaseScraper
 from utils.dates import parse_date_guess, last_business_days_set
+from utils.object_extractor import extract_objeto
 
 logger = logging.getLogger("scraper.mendoza_compra_v2")
 
@@ -125,6 +127,21 @@ class MendozaCompraScraperV2(ComprarASPBaseScraper):
             'cache_misses': 0,
             'redirect_resolved': 0,
         }
+
+    @staticmethod
+    def _build_objeto(
+        *,
+        title: str,
+        description: str,
+        pliego_fields: Dict[str, Any],
+    ) -> Optional[str]:
+        """Build the normalized object field from COMPR.AR detail evidence."""
+
+        return extract_objeto(
+            title=title,
+            description=description,
+            metadata={"comprar_pliego_fields": pliego_fields or {}},
+        )
 
     # ------------------------------------------------------------------
     # Pliego URL extraction — multiple strategies, no Selenium
@@ -552,7 +569,6 @@ class MendozaCompraScraperV2(ComprarASPBaseScraper):
                 if pliego_fields:
                     expedient_number = pliego_fields.get("Número de expediente") or pliego_fields.get("Número de Expediente")
                     description = pliego_fields.get("Objeto de la contratación") or pliego_fields.get("Objeto") or description
-                    objeto = pliego_fields.get("Objeto de la contratación") or pliego_fields.get("Objeto")
                     currency = pliego_fields.get("Moneda")
                     contact = pliego_fields.get("Lugar de recepción de documentación física")
                     nombre_desc = pliego_fields.get("Nombre descriptivo del proceso") or pliego_fields.get("Nombre descriptivo de proceso")
@@ -588,6 +604,12 @@ class MendozaCompraScraperV2(ComprarASPBaseScraper):
                         pub_parsed = parse_date_guess(pub_raw)
                         if pub_parsed:
                             publication_date = pub_parsed
+
+                objeto = self._build_objeto(
+                    title=title,
+                    description=description,
+                    pliego_fields=pliego_fields,
+                )
 
                 content_hash = hashlib.md5(
                     f"{title.lower().strip()}|{servicio_admin or unidad or ''}|{publication_date.strftime('%Y%m%d') if publication_date else 'unknown'}".encode()
@@ -669,6 +691,54 @@ class MendozaCompraScraperV2(ComprarASPBaseScraper):
 
         finally:
             await self.cleanup()
+
+    async def run_with_evidence(self) -> List[ScrapeResult]:
+        """Run scraper and return evidence-aware results for COMPR.AR Mendoza."""
+
+        licitaciones = await self.run()
+        results: List[ScrapeResult] = []
+        for lic in licitaciones:
+            evidence_by_url: Dict[str, SourceEvidence] = {}
+
+            def add_evidence(kind: EvidenceKind, url: Optional[str], metadata: Optional[Dict[str, Any]] = None):
+                if not url:
+                    return
+                clean_url = str(url)
+                if clean_url in evidence_by_url:
+                    return
+                evidence_by_url[clean_url] = SourceEvidence(
+                    kind=kind,
+                    source_url=clean_url,
+                    metadata=metadata or {},
+                )
+
+            add_evidence(EvidenceKind.HTML, str(lic.source_url) if lic.source_url else None, {"role": "source_url"})
+            add_evidence(EvidenceKind.HTML, str(lic.canonical_url) if lic.canonical_url else None, {"role": "canonical_url"})
+
+            if isinstance(lic.source_urls, dict):
+                for role, source_url in lic.source_urls.items():
+                    add_evidence(EvidenceKind.HTML, source_url, {"role": role or "source_urls"})
+
+            for pliego in lic.pliegos_bases or []:
+                if not isinstance(pliego, dict):
+                    continue
+                add_evidence(
+                    EvidenceKind.HTML,
+                    pliego.get("url"),
+                    {"role": "pliego_base", "titulo": pliego.get("titulo")},
+                )
+
+            confidence = 0.84 if lic.url_quality == "direct" else 0.72
+            if not evidence_by_url:
+                confidence = 0.55
+            results.append(ScrapeResult(
+                item=lic,
+                source_id="comprar_mendoza",
+                evidence=list(evidence_by_url.values()),
+                extraction_confidence=confidence,
+                extraction_version="mendoza_compra_v2_evidence",
+            ))
+        return results
 
     async def extract_links(self, html: str) -> List[str]:
         return []

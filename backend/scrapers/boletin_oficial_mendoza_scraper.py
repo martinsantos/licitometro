@@ -20,6 +20,16 @@ from utils.dates import last_business_days_set, parse_date_guess
 
 logger = logging.getLogger("scraper.boletin_oficial_mendoza")
 
+
+def _is_pdf_evidence_url(url: Optional[str], metadata: Optional[Dict[str, Any]] = None) -> bool:
+    if not url:
+        return False
+    lowered = str(url).lower().split("?")[0]
+    if lowered.endswith(".pdf") or "/verpdf/" in lowered:
+        return True
+    meta = metadata or {}
+    return str(meta.get("type") or meta.get("kind") or "").lower() == "pdf"
+
 # Patrones para detectar inicio de procesos de compras/contrataciones
 PROCESS_START_PATTERNS = [
     # Licitaciones
@@ -733,6 +743,9 @@ class BoletinOficialMendozaScraper(BaseScraper):
                 description=description[:3000],
                 status="active",
                 source_url=pdf_url,
+                canonical_url=pdf_url,
+                source_urls={"boletin_pdf": pdf_url},
+                url_quality="direct_pdf",
                 fuente="Boletin Oficial Mendoza (PDF)",
                 tipo_procedimiento=f"Boletin Oficial - {proc['process_type']}",
                 tipo_acceso="Boletin Oficial",
@@ -1142,12 +1155,17 @@ class BoletinOficialMendozaScraper(BaseScraper):
                 )
 
             source_url = str(lic.source_url) if lic.source_url else None
-            source_kind = EvidenceKind.PDF if source_url and source_url.lower().split("?")[0].endswith(".pdf") else EvidenceKind.HTML
+            if source_url and _is_pdf_evidence_url(source_url):
+                if not lic.canonical_url:
+                    lic.canonical_url = lic.source_url
+                if not lic.url_quality:
+                    lic.url_quality = "direct_pdf"
+            source_kind = EvidenceKind.PDF if _is_pdf_evidence_url(source_url) else EvidenceKind.HTML
             add_evidence(source_kind, source_url, {"role": "source_url"})
 
             if isinstance(lic.source_urls, dict):
                 for role, source_url in lic.source_urls.items():
-                    kind = EvidenceKind.PDF if str(source_url).lower().split("?")[0].endswith(".pdf") else EvidenceKind.HTML
+                    kind = EvidenceKind.PDF if _is_pdf_evidence_url(source_url) else EvidenceKind.HTML
                     add_evidence(kind, source_url, {"role": role or "source_urls"})
 
             for attached in lic.attached_files or []:
@@ -1156,8 +1174,7 @@ class BoletinOficialMendozaScraper(BaseScraper):
                 url = attached.get("url")
                 if not url:
                     continue
-                lowered = str(url).lower().split("?")[0]
-                kind = EvidenceKind.PDF if lowered.endswith(".pdf") else EvidenceKind.TEXT
+                kind = EvidenceKind.PDF if _is_pdf_evidence_url(url, attached) else EvidenceKind.TEXT
                 add_evidence(kind, url, {"role": "attached_file", "name": attached.get("name")})
 
             confidence = 0.86 if any(ev.kind == EvidenceKind.PDF for ev in evidence_by_url.values()) else 0.7

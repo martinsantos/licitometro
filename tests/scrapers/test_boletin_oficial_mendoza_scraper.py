@@ -63,9 +63,9 @@ def _make_config(**overrides) -> ScraperConfig:
 
 
 def _today_in_mza() -> date:
-    """Get today's date in Mendoza timezone (matches scraper logic)."""
-    from utils.dates import now_in_tz
-    return now_in_tz("America/Argentina/Mendoza").date()
+    """Get a date that is inside the scraper's business-day window."""
+    days = last_business_days_set(count=4, tz_name="America/Argentina/Mendoza")
+    return max(days)
 
 
 def _today_str() -> str:

@@ -4,11 +4,11 @@ import LicitacionForm from '../components/LicitacionForm';
 
 const LicitacionesPage = ({ apiUrl }: { apiUrl: string }) => {
   const [showForm, setShowForm] = useState(false);
-  const [refreshList, setRefreshList] = useState(false);
+  const [refreshList, setRefreshList] = useState(0);
 
   const handleLicitacionCreated = () => {
     setShowForm(false);
-    setRefreshList(prev => !prev); // Trigger refresh of the list
+    setRefreshList(prev => prev + 1);
   };
 
   return (
@@ -47,7 +47,7 @@ const LicitacionesPage = ({ apiUrl }: { apiUrl: string }) => {
         apiUrl={apiUrl}
         defaultJurisdiccionMode="mendoza"
         pageTitle="Licitaciones Mendoza"
-        key={refreshList ? 'refresh' : 'initial'}
+        refreshSignal={refreshList}
       />
     </div>
   );

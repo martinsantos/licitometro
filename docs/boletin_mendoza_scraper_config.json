@@ -5,7 +5,8 @@
   "schedule": "0 7,13,19 * * 1-5",
   "selectors": {
     "timezone": "America/Argentina/Mendoza",
-    "business_days_window": 4,
+    "business_days_window": 30,
+    "expected_min_items": 20,
     "include_all": true,
     "extract_pdf_content": true,
     "segment_processes": true,
@@ -62,8 +63,7 @@
       "oferta",
       "ofertas",
       "precio testigo"
-    ],
-    "strict_filter_regex": "\\b(licitaci[oó]n|contrataci[oó]n|concurso|convocatoria|compulsa|comparaci[oó]n de precios|adjudicaci[oó]n|obra|pliego|llamado|compra|adquisici[oó]n|suministro|servicio|contratista|proveedor|presupuesto oficial|apertura|cierre|oferta)\\b"
+    ]
   },
   "pagination": {
     "advance_search_url": "https://portalgateway.mendoza.gov.ar/api/boe/advance-search",
