@@ -10,7 +10,7 @@ interface CriticalRubrosConfigProps {
 const CriticalRubrosConfig: React.FC<CriticalRubrosConfigProps> = ({
   categoryOptions, criticalRubros, onToggle, onClose,
 }) => (
-  <div className="absolute top-full right-0 mt-2 w-80 bg-white rounded-xl shadow-2xl border border-gray-200 p-4 z-50">
+  <div className="codex-panel absolute top-full right-0 mt-2 w-80 p-4 z-50">
     <div className="flex items-center justify-between mb-3">
       <h4 className="font-black text-gray-800 text-sm">Mis Rubros Criticos</h4>
       <span className="text-xs text-gray-400">{criticalRubros.size} seleccionados</span>
@@ -34,7 +34,7 @@ const CriticalRubrosConfig: React.FC<CriticalRubrosConfigProps> = ({
     </div>
     <button
       onClick={onClose}
-      className="mt-3 w-full py-2 bg-gray-100 hover:bg-gray-200 rounded-lg text-sm font-bold text-gray-600 transition-colors"
+      className="codex-button codex-button--quiet mt-3 w-full text-sm"
     >
       Cerrar
     </button>

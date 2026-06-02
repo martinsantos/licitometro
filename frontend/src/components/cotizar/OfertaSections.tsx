@@ -405,7 +405,7 @@ export default function OfertaSections({ licitacionId, sections, onSectionsChang
       </div>
 
       {/* Pliego Finder Panel */}
-      <div className="border border-blue-200 bg-blue-50/50 rounded-xl p-4 space-y-3">
+      <div className="codex-panel p-4 space-y-3">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
             <span className="text-lg">📋</span>
@@ -424,7 +424,7 @@ export default function OfertaSections({ licitacionId, sections, onSectionsChang
             </button>
             {pliegos.length > 0 && (
               <button onClick={handleAnalyzeGaps} disabled={gapLoading}
-                className="text-xs px-3 py-1.5 bg-purple-600 text-white rounded-lg hover:bg-purple-700 disabled:opacity-50 transition-colors">
+                className="codex-button codex-button--primary text-xs disabled:opacity-50">
                 {gapLoading ? 'Analizando...' : 'Analizar gaps'}
               </button>
             )}
@@ -541,7 +541,7 @@ export default function OfertaSections({ licitacionId, sections, onSectionsChang
         <button
           onClick={handleGenerateAll}
           disabled={generatingAll || !!generating}
-          className="text-xs px-3 py-1.5 bg-gradient-to-r from-purple-600 to-blue-600 text-white rounded-lg hover:from-purple-700 hover:to-blue-700 disabled:opacity-50 transition-all flex items-center gap-1.5 shrink-0"
+          className="codex-button codex-button--primary text-xs disabled:opacity-50 flex items-center gap-1.5 shrink-0"
         >
           {generatingAll ? (
             <><div className="w-3 h-3 border-2 border-white/40 border-t-white rounded-full animate-spin" /> Generando todo...</>
@@ -558,7 +558,7 @@ export default function OfertaSections({ licitacionId, sections, onSectionsChang
         const isGenerating = generating === section.slug;
 
         return (
-          <div key={section.slug} className={`border rounded-xl overflow-hidden transition-colors ${isExpanded ? 'border-blue-300 shadow-sm' : 'border-gray-200'}`}>
+          <div key={section.slug} className={`codex-panel overflow-hidden transition-colors ${isExpanded ? 'border-blue-300' : ''}`}>
             {/* Section header */}
             <div
               className={`flex items-center gap-2 px-4 py-3 cursor-pointer select-none ${isExpanded ? 'bg-blue-50' : 'bg-white hover:bg-gray-50'}`}
@@ -592,7 +592,7 @@ export default function OfertaSections({ licitacionId, sections, onSectionsChang
 
               {/* Badges */}
               {section.required && <span className="text-[10px] bg-red-50 text-red-500 px-1.5 py-0.5 rounded font-medium">Req.</span>}
-              {section.generated_by === 'ai' && <span className="text-[10px] bg-purple-50 text-purple-500 px-1.5 py-0.5 rounded font-medium">IA</span>}
+              {section.generated_by === 'ai' && <span className="codex-status codex-status--progress text-[10px]">IA</span>}
 
               {/* Actions */}
               <div className="flex items-center gap-1" onClick={e => e.stopPropagation()}>
@@ -617,7 +617,7 @@ export default function OfertaSections({ licitacionId, sections, onSectionsChang
                   <button
                     onClick={() => handleGenerate(section.slug)}
                     disabled={isGenerating}
-                    className="text-xs px-3 py-1.5 bg-gradient-to-r from-purple-600 to-blue-600 text-white rounded-lg hover:from-purple-700 hover:to-blue-700 disabled:opacity-50 transition-all flex items-center gap-1.5"
+                    className="codex-button codex-button--primary text-xs disabled:opacity-50 flex items-center gap-1.5"
                   >
                     {isGenerating ? (
                       <><div className="w-3 h-3 border-2 border-white/40 border-t-white rounded-full animate-spin" /> Generando...</>

@@ -144,7 +144,7 @@ const NodosPage: React.FC = () => {
           <div key={nodo.id} className="relative">
             <NodoCard nodo={nodo} onEdit={handleEdit} onDelete={handleDelete} onRematch={handleRematch} />
             {rematchStatus[nodo.id] && (
-              <div className="absolute top-2 right-2 px-3 py-1 bg-emerald-600 text-white rounded-lg text-xs font-bold shadow-lg animate-pulse">
+              <div className="absolute top-2 right-2 px-3 py-1 bg-emerald-600 text-white rounded-lg text-xs font-bold animate-pulse">
                 {rematchStatus[nodo.id]}
               </div>
             )}

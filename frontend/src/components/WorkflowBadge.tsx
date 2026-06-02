@@ -11,31 +11,31 @@ const WORKFLOW_CONFIG: Record<string, { label: string; color: string; bg: string
     label: 'Descubierta',
     color: 'text-gray-700',
     bg: 'bg-gray-100',
-    icon: '🔍',
+    icon: 'D',
   },
   evaluando: {
     label: 'Evaluando',
     color: 'text-amber-700',
     bg: 'bg-amber-100',
-    icon: '📋',
+    icon: 'E',
   },
   preparando: {
     label: 'Preparando',
     color: 'text-blue-700',
     bg: 'bg-blue-100',
-    icon: '📝',
+    icon: 'P',
   },
   presentada: {
     label: 'Presentada',
     color: 'text-emerald-700',
     bg: 'bg-emerald-100',
-    icon: '✅',
+    icon: 'OK',
   },
   descartada: {
     label: 'Descartada',
     color: 'text-red-700',
     bg: 'bg-red-100',
-    icon: '❌',
+    icon: 'X',
   },
 };
 

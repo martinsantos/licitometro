@@ -85,17 +85,17 @@ const TimelineView: React.FC<TimelineViewProps> = ({ licitaciones, onItemClick }
   }, [licitaciones, timelineStart, timelineEnd]);
 
   return (
-    <div className="bg-white rounded-2xl shadow-lg border border-gray-100 overflow-hidden">
+    <div className="codex-panel overflow-hidden">
       {/* Header */}
       <div className="flex items-center justify-between px-4 py-3 bg-gray-50 border-b border-gray-100">
         <h3 className="font-bold text-gray-700 text-sm">Línea de tiempo</h3>
-        <div className="flex gap-1 bg-white rounded-lg p-0.5">
+        <div className="codex-tab-strip flex gap-1">
           {(['day', 'week', 'month'] as ZoomLevel[]).map((z) => (
             <button
               key={z}
               onClick={() => setZoom(z)}
-              className={`px-3 py-1 rounded-md text-xs font-bold transition-all ${
-                zoom === z ? 'bg-blue-600 text-white' : 'text-gray-500 hover:bg-gray-100'
+              className={`codex-button px-3 py-1 text-xs ${
+                zoom === z ? 'codex-button--primary' : 'codex-button--quiet'
               }`}
             >
               {z === 'day' ? 'Día' : z === 'week' ? 'Semana' : 'Mes'}

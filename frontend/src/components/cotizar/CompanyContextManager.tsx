@@ -881,7 +881,7 @@ export default function CompanyContextManager() {
                       <LogoPreview svg={company.brand_config.logo_svg} maxHeight={36} />
                     </div>
                   ) : (
-                    <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-blue-600 to-blue-400 text-white flex items-center justify-center text-lg font-bold flex-shrink-0">
+                    <div className="w-12 h-12 rounded-xl bg-blue-700 text-white flex items-center justify-center text-lg font-bold flex-shrink-0">
                       {(company.nombre || '?').substring(0, 2).toUpperCase()}
                     </div>
                   )}

@@ -609,20 +609,20 @@ const AdminFuentes = ({ apiUrl }: { apiUrl: string }) => {
           <button
             onClick={() => handleBackfillAI()}
             disabled={backfillRunning === '__all__'}
-            className="bg-indigo-700 text-white px-3 py-1.5 rounded text-sm hover:bg-indigo-600 disabled:opacity-50"
+            className="bg-blue-700 text-white px-3 py-1.5 rounded text-sm hover:bg-blue-600 disabled:opacity-50"
           >
             {backfillRunning === '__all__' ? 'Backfill...' : 'Backfill AI 0.2'}
           </button>
           <button
             onClick={handlePreviewBackfill}
             disabled={loadingCandidates}
-            className="bg-white border border-indigo-200 text-indigo-700 px-3 py-1.5 rounded text-sm hover:bg-indigo-50 disabled:opacity-50"
+            className="bg-white border border-blue-200 text-blue-700 px-3 py-1.5 rounded text-sm hover:bg-blue-50 disabled:opacity-50"
           >
             {loadingCandidates ? 'Cargando...' : 'Ver candidatas'}
           </button>
           <button
             onClick={() => { window.location.href = '/api/scheduler/source-readiness-backfill-candidates.csv?min_ai_coverage=0.85&limit_per_source=5'; }}
-            className="bg-white border border-indigo-200 text-indigo-700 px-3 py-1.5 rounded text-sm hover:bg-indigo-50"
+            className="bg-white border border-blue-200 text-blue-700 px-3 py-1.5 rounded text-sm hover:bg-blue-50"
           >
             CSV candidatas
           </button>
@@ -636,7 +636,7 @@ const AdminFuentes = ({ apiUrl }: { apiUrl: string }) => {
       </div>
 
       {backfillResult && (
-        <div className="admin-card mb-4 rounded-lg border border-indigo-100 bg-indigo-50 px-3 py-2 text-xs text-indigo-900">
+        <div className="admin-card mb-4 rounded-lg border border-blue-100 bg-blue-50 px-3 py-2 text-xs text-blue-900">
           <div className="admin-chip-row items-center">
             <span className="font-semibold">Backfill AI 0.2</span>
             <span>{backfillResult.message || `${backfillResult.processed} procesadas`}</span>
@@ -673,7 +673,7 @@ const AdminFuentes = ({ apiUrl }: { apiUrl: string }) => {
                 <div key={source.name} className="admin-card rounded border border-gray-100 bg-gray-50 px-2 py-2">
                   <div className="admin-chip-row items-center text-xs">
                     <span className="font-medium text-gray-700">{source.name}</span>
-                    <span className="text-indigo-700">AI {pct(source.ai_coverage)}</span>
+                    <span className="text-blue-700">AI {pct(source.ai_coverage)}</span>
                     <span className="text-gray-500">umbral {pct(source.min_ai_coverage)}</span>
                     <span className="text-gray-500">snap {pct(source.snapshot_coverage)}</span>
                     <span className="text-gray-500">{source.candidate_count} candidatas</span>
@@ -714,22 +714,22 @@ const AdminFuentes = ({ apiUrl }: { apiUrl: string }) => {
       )}
 
       {remediationLeaderboard.length > 0 && (
-        <div className="admin-card mb-4 rounded-lg border border-indigo-100 bg-indigo-50 px-3 py-2">
+        <div className="admin-card mb-4 rounded-lg border border-blue-100 bg-blue-50 px-3 py-2">
           <div className="admin-toolbar mb-2">
-            <div className="text-sm font-semibold text-indigo-900">Ranking remediacion AI 0.2</div>
+            <div className="text-sm font-semibold text-blue-900">Ranking remediacion AI 0.2</div>
             <button
               onClick={() => { window.location.href = '/api/scheduler/source-remediation-leaderboard.csv?min_ai_coverage=0.85&limit_per_source=5'; }}
-              className="rounded border border-indigo-200 bg-white px-2 py-1 text-xs text-indigo-700 hover:bg-indigo-50"
+              className="rounded border border-blue-200 bg-white px-2 py-1 text-xs text-blue-700 hover:bg-blue-50"
             >
               CSV ranking
             </button>
           </div>
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-2">
             {remediationLeaderboard.slice(0, 6).map((item) => (
-              <div key={item.source_name} className="admin-card rounded border border-indigo-100 bg-white px-2 py-2 text-xs">
+              <div key={item.source_name} className="admin-card rounded border border-blue-100 bg-white px-2 py-2 text-xs">
                 <div className="admin-toolbar gap-2">
                   <span className="font-medium text-gray-700 admin-break-anywhere" title={item.source_name}>{item.source_name}</span>
-                  <span className="rounded bg-indigo-100 px-1.5 py-0.5 font-semibold text-indigo-700">P{item.remediation_score}</span>
+                  <span className="rounded bg-blue-100 px-1.5 py-0.5 font-semibold text-blue-700">P{item.remediation_score}</span>
                 </div>
                 <div className="mt-1 flex flex-wrap gap-x-2 gap-y-1 text-[11px] text-gray-500">
                   <span>brecha {pct(item.coverage_gap)}</span>
@@ -834,7 +834,7 @@ const AdminFuentes = ({ apiUrl }: { apiUrl: string }) => {
                     <button
                       onClick={() => handleInputQualityRerun(item)}
                       disabled={rerunningInputQualityId === item.id}
-                      className="rounded bg-indigo-100 px-2 py-1 text-indigo-700 hover:bg-indigo-200 disabled:opacity-50"
+                      className="rounded bg-blue-100 px-2 py-1 text-blue-700 hover:bg-blue-200 disabled:opacity-50"
                     >
                       {rerunningInputQualityId === item.id ? 'AI...' : 'Relanzar AI'}
                     </button>
@@ -1089,7 +1089,7 @@ const AdminFuentes = ({ apiUrl }: { apiUrl: string }) => {
                         <button
                           onClick={() => handleBackfillAI(config.name)}
                           disabled={backfillRunning === config.name}
-                          className="bg-indigo-50 text-indigo-700 px-3 py-1 rounded text-xs hover:bg-indigo-100 disabled:opacity-50"
+                          className="bg-blue-50 text-blue-700 px-3 py-1 rounded text-xs hover:bg-blue-100 disabled:opacity-50"
                         >
                           {backfillRunning === config.name ? 'AI...' : 'AI 0.2'}
                         </button>
@@ -1193,7 +1193,7 @@ const AdminFuentes = ({ apiUrl }: { apiUrl: string }) => {
                     <div className="admin-card mt-2 rounded-lg border border-gray-100 bg-white px-3 py-2">
                       <div className="admin-chip-row items-center text-xs">
                         <span className="font-medium text-gray-600">Backfill AI</span>
-                        <span className={config.ai_backfill?.disabled ? 'text-red-600' : 'text-indigo-700'}>
+                        <span className={config.ai_backfill?.disabled ? 'text-red-600' : 'text-blue-700'}>
                           {config.ai_backfill?.disabled ? 'pausado' : `umbral ${pct(config.ai_backfill?.min_ai_coverage ?? 0.85)}`}
                         </span>
                         <span className="text-gray-500">limite {config.ai_backfill?.limit_per_source ?? 3}/fuente</span>
@@ -1272,9 +1272,9 @@ const AdminFuentes = ({ apiUrl }: { apiUrl: string }) => {
                     )}
 
                     {h?.readiness && (
-                      <div className="mt-2 rounded-lg border border-indigo-100 bg-indigo-50 px-3 py-2">
+                      <div className="mt-2 rounded-lg border border-blue-100 bg-blue-50 px-3 py-2">
                         <div className="admin-chip-row items-center text-xs">
-                          <span className="font-medium text-indigo-700">Readiness 0.2</span>
+                          <span className="font-medium text-blue-700">Readiness 0.2</span>
                           <span className="text-gray-600">
                             AI <strong className="text-gray-800">{pct(h.readiness.ai_coverage)}</strong>
                           </span>
@@ -1302,11 +1302,11 @@ const AdminFuentes = ({ apiUrl }: { apiUrl: string }) => {
                     )}
 
                     {(readinessTrends[config.name] || []).length > 0 && (
-                      <div className="mt-2 rounded-lg border border-indigo-100 bg-white px-3 py-2">
+                      <div className="mt-2 rounded-lg border border-blue-100 bg-white px-3 py-2">
                         <div className="admin-chip-row items-center text-xs">
-                          <span className="font-medium text-indigo-700">Tendencia readiness</span>
+                          <span className="font-medium text-blue-700">Tendencia readiness</span>
                           {(readinessTrends[config.name] || []).slice(0, 5).map((point, idx) => (
-                            <span key={idx} className="rounded bg-indigo-50 px-1.5 py-0.5 text-indigo-700">
+                            <span key={idx} className="rounded bg-blue-50 px-1.5 py-0.5 text-blue-700">
                               P{point.priority_score ?? point.score ?? '-'} · {point.status}
                               {(point.missing_documents || 0) > 0 && ` · ${point.missing_documents} falt.`}
                             </span>

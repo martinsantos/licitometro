@@ -98,7 +98,7 @@ export const PiletaDocumentos: React.FC = () => {
         <div className="flex flex-wrap gap-2 text-xs">
           <span className="bg-gray-100 px-2 py-1 rounded-full text-gray-600">{stats.total} docs</span>
           {Object.entries(stats.by_pileta).map(([k, v]) => (
-            <span key={k} className={`px-2 py-1 rounded-full ${k === 'privada' ? 'bg-indigo-100 text-indigo-700' : 'bg-green-100 text-green-700'}`}>
+            <span key={k} className={`px-2 py-1 rounded-full ${k === 'privada' ? 'bg-blue-100 text-blue-700' : 'bg-green-100 text-green-700'}`}>
               {k === 'privada' ? '🔒' : '🌐'} {k}: {v}
             </span>
           ))}
@@ -160,7 +160,7 @@ export const PiletaDocumentos: React.FC = () => {
                 onClick={() => setExpanded(expanded === doc.id ? null : doc.id)}
               >
                 <span className={`shrink-0 text-[10px] font-bold px-1.5 py-0.5 rounded-full ${
-                  doc.pileta === 'privada' ? 'bg-indigo-100 text-indigo-700' : 'bg-green-100 text-green-700'
+                  doc.pileta === 'privada' ? 'bg-blue-100 text-blue-700' : 'bg-green-100 text-green-700'
                 }`}>
                   {doc.pileta === 'privada' ? '🔒' : '🌐'}
                 </span>

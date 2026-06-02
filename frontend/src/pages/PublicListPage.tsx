@@ -54,9 +54,9 @@ const PublicListPage: React.FC = () => {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-slate-50 to-white">
+    <div className="codex-public-page">
       {/* Header */}
-      <header className="bg-white border-b border-gray-200 shadow-sm">
+      <header className="bg-white border-b border-gray-200">
         <div className="max-w-5xl mx-auto px-4 py-4 flex items-center justify-between">
           <a href="/" className="flex items-center gap-2 group">
             <div className="w-8 h-8 bg-emerald-600 rounded-lg flex items-center justify-center">
@@ -94,13 +94,13 @@ const PublicListPage: React.FC = () => {
               <Link
                 key={lic.id}
                 to={`/p/${lic.public_slug}`}
-                className="block bg-white rounded-xl border border-gray-200 p-5 hover:shadow-lg hover:border-gray-300 transition-all"
+                className="codex-public-card block p-5"
               >
                 <div className="flex items-start justify-between gap-4">
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 mb-1">
-                      <span className={`px-2 py-0.5 rounded text-xs font-bold ${
-                        lic.status === 'active' ? 'bg-emerald-100 text-emerald-700' : 'bg-red-100 text-red-700'
+                      <span className={`codex-status ${
+                        lic.status === 'active' ? 'codex-status--success' : 'codex-status--danger'
                       }`}>
                         {lic.status === 'active' ? 'Abierta' : 'Cerrada'}
                       </span>
@@ -133,7 +133,7 @@ const PublicListPage: React.FC = () => {
             <button
               onClick={() => setPage(Math.max(1, page - 1))}
               disabled={page <= 1}
-              className="px-4 py-2 bg-white border border-gray-200 rounded-lg text-sm font-bold disabled:opacity-30"
+              className="codex-button codex-button--quiet text-sm disabled:opacity-30"
             >
               Anterior
             </button>
@@ -143,7 +143,7 @@ const PublicListPage: React.FC = () => {
             <button
               onClick={() => setPage(Math.min(totalPages, page + 1))}
               disabled={page >= totalPages}
-              className="px-4 py-2 bg-white border border-gray-200 rounded-lg text-sm font-bold disabled:opacity-30"
+              className="codex-button codex-button--quiet text-sm disabled:opacity-30"
             >
               Siguiente
             </button>
@@ -151,14 +151,14 @@ const PublicListPage: React.FC = () => {
         )}
 
         {/* CTA */}
-        <div className="mt-12 bg-gradient-to-r from-emerald-600 to-teal-600 rounded-2xl p-8 text-center text-white">
+        <div className="codex-public-card mt-12 p-8 text-center">
           <h2 className="text-2xl font-black mb-2">Monitoreá todas las licitaciones de Mendoza</h2>
-          <p className="text-emerald-100 mb-6">
+          <p className="text-gray-600 mb-6">
             +20 fuentes oficiales, alertas personalizadas y herramientas de seguimiento.
           </p>
           <a
             href="/"
-            className="inline-block px-8 py-3 bg-white text-emerald-700 font-black rounded-xl hover:bg-emerald-50 transition-colors"
+            className="codex-button codex-button--primary"
           >
             Ingresá a Licitómetro
           </a>

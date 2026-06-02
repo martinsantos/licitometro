@@ -94,7 +94,7 @@ const NotaCotizacion = forwardRef<HTMLDivElement, Props>(({
   return (
     <div ref={ref} className="bg-white border border-gray-200 rounded-xl overflow-hidden text-sm leading-relaxed print:border-none print:shadow-none print:rounded-none print:p-0">
       {/* ─── Blue accent bar ─── */}
-      <div className="h-2 bg-gradient-to-r from-blue-700 to-blue-500 print:bg-blue-700" />
+      <div className="h-2 bg-blue-700 print:bg-blue-700" />
 
       <div className="p-8">
         {/* ─── Header ─── */}

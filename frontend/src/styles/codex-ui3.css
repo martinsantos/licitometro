@@ -1,0 +1,572 @@
+/* Codex UI 3.0: readable operational refinement layer. */
+:root {
+  --lm-ui3-font-body: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --lm-ui3-body-size: 16px;
+  --lm-ui3-small-size: 14px;
+  --lm-ui3-label-size: 12.5px;
+  --lm-ui3-title-size: clamp(1.05rem, 1rem + 0.18vw, 1.22rem);
+  --lm-ui3-page-title-size: clamp(2rem, 1.82rem + 0.72vw, 2.75rem);
+  --lm-ui3-control-height: 44px;
+  --lm-ui3-control-compact-height: 38px;
+  --lm-ui3-panel-pad: 18px;
+  --lm-ui3-card-pad: 18px;
+  --lm-ui3-grid-gap: 18px;
+  --lm-ui3-radius: 6px;
+  --lm-ui3-radius-sm: 4px;
+  --lm-ui3-ink: #20242b;
+  --lm-ui3-ink-soft: #4e5663;
+  --lm-ui3-ink-muted: #687383;
+  --lm-ui3-surface: #ffffff;
+  --lm-ui3-surface-warm: #fafafa;
+  --lm-ui3-surface-raised: #f5f6f8;
+  --lm-ui3-line: #d8dde6;
+  --lm-ui3-line-soft: #e7eaf0;
+  --lm-ui3-accent: #3b5bdb;
+  --lm-ui3-accent-weak: #eef2ff;
+  --lm-ui3-success: #177245;
+  --lm-ui3-success-weak: #eef8f2;
+  --lm-ui3-warning: #a15c00;
+  --lm-ui3-warning-weak: #fff5df;
+  --lm-ui3-danger: #bb2d20;
+  --lm-ui3-danger-weak: #fff0ee;
+  --lm-ui3-shadow: 0 1px 2px rgb(15 23 42 / 0.05);
+}
+
+.licito-codex-main,
+.codex-ui3-contract,
+.codex-page,
+.codex-public-page {
+  background: var(--lm-ui3-surface-warm);
+  color: var(--lm-ui3-ink);
+  font-family: var(--lm-ui3-font-body);
+  font-size: var(--lm-ui3-body-size);
+  letter-spacing: 0;
+}
+
+.licito-codex-main *,
+.codex-ui3-contract *,
+.codex-page *,
+.codex-public-page * {
+  letter-spacing: 0;
+}
+
+.codex-ui3-contract :is(p, li, dd, td),
+.codex-page :is(p, li, dd, td),
+.codex-public-page :is(p, li, dd, td) {
+  color: var(--lm-ui3-ink-soft);
+  font-size: var(--lm-ui3-small-size);
+  line-height: 1.52;
+}
+
+.codex-ui3-contract :is(input, select, textarea, button, .codex-button),
+.codex-page :is(input, select, textarea, button, .codex-button),
+.codex-public-page :is(input, select, textarea, button, .codex-button) {
+  min-height: var(--lm-ui3-control-height);
+}
+
+.codex-ui3-contract :is(.text-\[10px\], .text-\[11px\], .text-xs),
+.codex-page :is(.text-\[10px\], .text-\[11px\], .text-xs),
+.codex-public-page :is(.text-\[10px\], .text-\[11px\], .text-xs) {
+  font-size: var(--lm-ui3-label-size) !important;
+  line-height: 1.28;
+}
+
+.codex-ui3-contract :is(.codex-panel, .codex-detail-card, .codex-data-table, .codex-data-table-wrap, .codex-filter-panel),
+.codex-page :is(.codex-panel, .codex-data-table, .codex-data-table-wrap),
+.codex-public-page :is(.codex-panel, .codex-public-card) {
+  background: var(--lm-ui3-surface);
+  border: 1px solid var(--lm-ui3-line-soft);
+  border-radius: var(--lm-ui3-radius);
+  box-shadow: var(--lm-ui3-shadow);
+}
+
+.codex-ui3-contract :is(.codex-page-header, .codex-panel__header),
+.codex-page :is(.codex-page-header, .codex-panel__header) {
+  align-items: flex-start;
+  gap: 0.85rem;
+}
+
+.codex-ui3-contract .codex-page-header h1,
+.codex-page .codex-page-header h1 {
+  color: var(--lm-ui3-ink);
+  font-size: var(--lm-ui3-page-title-size);
+  line-height: 1.04;
+  margin: 0;
+  max-width: 16ch;
+}
+
+.codex-ui3-contract .codex-page-kicker,
+.codex-page .codex-page-kicker {
+  color: var(--lm-ui3-ink-muted);
+  font-size: var(--lm-ui3-label-size);
+  font-weight: 800;
+  line-height: 1.2;
+  text-transform: uppercase;
+}
+
+.codex-ui3-contract .codex-page-toolbar,
+.codex-page .codex-page-toolbar {
+  align-items: center;
+  gap: 0.65rem;
+}
+
+.codex-ui3-record-ledger {
+  display: flex;
+  flex-direction: column;
+  gap: 0.9rem;
+}
+
+.codex-ui3-record-ledger .codex-list-workbench {
+  gap: var(--lm-ui3-grid-gap);
+}
+
+.codex-ui3-record-ledger .codex-list-main {
+  display: flex;
+  flex-direction: column;
+  gap: 0.9rem;
+}
+
+.codex-ui3-record-ledger .codex-list-toolbar {
+  background: color-mix(in srgb, var(--lm-ui3-surface-warm) 94%, white);
+  border: 1px solid var(--lm-ui3-line-soft);
+  border-radius: var(--lm-ui3-radius);
+  padding: 0.85rem;
+}
+
+.codex-ui3-record-ledger .codex-list-mobile-control,
+.codex-ui3-record-ledger .codex-filter-chip,
+.codex-ui3-record-ledger .codex-status {
+  min-height: var(--lm-ui3-control-compact-height);
+}
+
+.codex-filter-panel {
+  color: var(--lm-ui3-ink-soft);
+  font-size: var(--lm-ui3-small-size);
+}
+
+.codex-filter-panel :is(button, input, select) {
+  font-size: var(--lm-ui3-small-size);
+  min-height: var(--lm-ui3-control-compact-height);
+}
+
+.codex-filter-panel :is(.p-3, .p-2\.5) {
+  padding: 0.85rem;
+}
+
+.codex-filter-panel [class*="max-h-"] {
+  scrollbar-width: thin;
+}
+
+.codex-facet-item {
+  align-items: flex-start;
+  min-height: 38px;
+  padding: 0.5rem 0.55rem;
+}
+
+.codex-facet-item__label {
+  color: var(--lm-ui3-ink-soft);
+  font-size: var(--lm-ui3-small-size);
+  line-height: 1.32;
+}
+
+.codex-facet-item__count {
+  color: var(--lm-ui3-ink-muted);
+  font-size: var(--lm-ui3-label-size);
+}
+
+.codex-tender-record {
+  align-items: stretch;
+  border-color: var(--lm-ui3-line-soft);
+  border-radius: var(--lm-ui3-radius);
+  gap: 1rem;
+  min-height: 154px;
+  padding: var(--lm-ui3-card-pad);
+}
+
+.codex-tender-record__date {
+  background: var(--lm-ui3-surface-raised);
+  border-color: var(--lm-ui3-line-soft);
+  border-radius: var(--lm-ui3-radius-sm);
+  min-width: 86px;
+  padding: 0.75rem 0.65rem;
+}
+
+.codex-tender-record__date span,
+.codex-tender-record__deadline span,
+.codex-tender-record__budget span,
+.codex-tender-record__kicker {
+  color: var(--lm-ui3-ink-muted);
+  font-size: var(--lm-ui3-label-size);
+  line-height: 1.25;
+}
+
+.codex-tender-record__date strong {
+  color: var(--lm-ui3-ink);
+  font-size: clamp(1.75rem, 1.55rem + 0.5vw, 2.2rem);
+  line-height: 1;
+}
+
+.codex-tender-record__body {
+  gap: 0.55rem;
+}
+
+.codex-tender-record__badges {
+  gap: 0.45rem;
+  row-gap: 0.4rem;
+}
+
+.codex-tender-record__title {
+  color: var(--lm-ui3-ink);
+  font-size: var(--lm-ui3-title-size);
+  font-weight: 820;
+  line-height: 1.25;
+}
+
+.codex-tender-record__title a {
+  color: inherit;
+  text-decoration-thickness: 1px;
+  text-underline-offset: 0.18em;
+}
+
+.codex-tender-record__org {
+  gap: 0.4rem;
+}
+
+.codex-tender-record__org strong {
+  color: var(--lm-ui3-ink);
+  font-size: 0.96rem;
+}
+
+.codex-tender-record__description {
+  color: var(--lm-ui3-ink-soft);
+  font-size: var(--lm-ui3-small-size);
+  line-height: 1.45;
+  max-width: 82ch;
+}
+
+.codex-tender-record__aside {
+  gap: 0.7rem;
+  min-width: 178px;
+}
+
+.codex-tender-record__deadline,
+.codex-tender-record__budget {
+  border-color: var(--lm-ui3-line-soft);
+  border-radius: var(--lm-ui3-radius-sm);
+  padding: 0.72rem;
+}
+
+.codex-tender-record__deadline strong,
+.codex-tender-record__budget strong {
+  color: var(--lm-ui3-ink);
+  font-size: 1.02rem;
+  line-height: 1.18;
+}
+
+.codex-tender-record__actions {
+  gap: 0.35rem;
+}
+
+.codex-tender-record__actions button {
+  border-radius: var(--lm-ui3-radius-sm);
+  font-size: 0.82rem;
+  min-height: 38px;
+  min-width: 38px;
+}
+
+.codex-tender-record__quote {
+  border-radius: var(--lm-ui3-radius-sm);
+  font-size: 0.94rem;
+  min-height: 42px;
+}
+
+.codex-detail-page--complete {
+  color: var(--lm-ui3-ink);
+  font-size: var(--lm-ui3-body-size);
+}
+
+.codex-detail-page--complete .codex-detail-card {
+  box-shadow: none !important;
+}
+
+.codex-detail-page--complete .codex-detail-shell {
+  max-width: 1280px;
+}
+
+.codex-detail-page--complete .codex-detail-hero {
+  padding: clamp(1.25rem, 1rem + 1vw, 2.25rem);
+}
+
+.codex-detail-page--complete .codex-detail-hero h1,
+.codex-detail-page--complete .codex-detail-hero__title {
+  font-size: clamp(1.9rem, 1.55rem + 1.25vw, 3rem);
+  line-height: 1.08;
+  max-width: 20ch;
+}
+
+.codex-detail-page--complete .codex-detail-hero__meta {
+  color: var(--lm-ui3-ink-soft);
+  font-size: 0.98rem;
+  line-height: 1.4;
+}
+
+.codex-detail-page--complete .codex-detail-actions {
+  gap: 0.65rem;
+}
+
+.codex-detail-page--complete .codex-detail-action {
+  border-radius: var(--lm-ui3-radius-sm);
+  font-size: 0.94rem;
+  min-height: var(--lm-ui3-control-height);
+  padding-left: 0.9rem;
+  padding-right: 0.9rem;
+}
+
+.codex-detail-page--complete .codex-detail-menu {
+  border-radius: var(--lm-ui3-radius);
+  box-shadow: none !important;
+}
+
+.codex-detail-page--complete .codex-detail-tabs {
+  border-color: var(--lm-ui3-line-soft);
+}
+
+.codex-detail-page--complete .codex-detail-tabs__list {
+  gap: 0.15rem;
+}
+
+.codex-detail-page--complete .codex-detail-tab {
+  border-radius: var(--lm-ui3-radius-sm) var(--lm-ui3-radius-sm) 0 0;
+  color: var(--lm-ui3-ink-soft);
+  font-size: 0.92rem;
+  min-height: 46px;
+  padding: 0.65rem 0.85rem;
+}
+
+.codex-detail-page--complete .codex-detail-tab--active {
+  color: var(--lm-ui3-accent);
+}
+
+.codex-detail-page--complete .codex-detail-content {
+  font-size: var(--lm-ui3-body-size);
+}
+
+.codex-detail-page--complete .codex-detail-grid {
+  gap: 1.25rem;
+  grid-template-columns: minmax(0, 1fr) minmax(280px, 340px);
+}
+
+.codex-detail-page--complete .codex-detail-main > section,
+.codex-detail-page--complete .codex-detail-sidebar > section {
+  border-radius: var(--lm-ui3-radius);
+  padding: var(--lm-ui3-panel-pad);
+}
+
+.codex-detail-page--complete .codex-detail-main section h2,
+.codex-detail-page--complete .codex-detail-sidebar section h3 {
+  color: var(--lm-ui3-ink);
+  font-size: 1.02rem;
+  line-height: 1.25;
+}
+
+.codex-data-table,
+.codex-data-table--complete {
+  border-radius: var(--lm-ui3-radius);
+  font-size: var(--lm-ui3-small-size);
+}
+
+.codex-data-table :is(th, td),
+.codex-data-table--complete :is(th, td) {
+  font-size: var(--lm-ui3-small-size);
+  line-height: 1.42;
+  padding: 0.85rem 0.75rem;
+  vertical-align: top;
+}
+
+.codex-data-table th,
+.codex-data-table--complete th {
+  color: var(--lm-ui3-ink-muted);
+  font-size: var(--lm-ui3-label-size);
+}
+
+.codex-cotizar-summary {
+  gap: 1rem;
+  padding: var(--lm-ui3-panel-pad);
+}
+
+.codex-cotizar-summary__metric {
+  border-radius: var(--lm-ui3-radius-sm);
+  min-height: 5.75rem;
+  padding: 0.9rem;
+}
+
+.codex-cotizar-summary__metric strong,
+.codex-cotizar-summary__metric b {
+  color: var(--lm-ui3-ink);
+  font-size: 1.08rem;
+}
+
+.admin-workspace {
+  font-size: var(--lm-ui3-body-size);
+}
+
+.admin-workspace .admin-cockpit-grid {
+  gap: var(--lm-ui3-grid-gap);
+}
+
+.admin-workspace .admin-cockpit-card {
+  border-radius: var(--lm-ui3-radius);
+  min-height: 6.15rem;
+  padding: 1rem;
+}
+
+.admin-workspace .admin-cockpit-card__title {
+  color: var(--lm-ui3-ink);
+  font-size: 0.96rem;
+  line-height: 1.25;
+}
+
+.admin-workspace .admin-cockpit-card__description {
+  color: var(--lm-ui3-ink-soft);
+  font-size: var(--lm-ui3-small-size);
+  line-height: 1.4;
+}
+
+.codex-observatorio-panel,
+.codex-filter-bar,
+.codex-data-table-wrap {
+  padding: var(--lm-ui3-panel-pad);
+}
+
+.codex-favorite-row h4,
+.codex-template-card h3,
+.codex-public-card h3,
+.codex-panel h3 {
+  color: var(--lm-ui3-ink);
+  font-size: 1.04rem;
+  line-height: 1.3;
+}
+
+.codex-ui3-contract :is(.codex-mini-badge, .codex-status, .codex-detail-pill, .codex-filter-chip),
+.codex-page :is(.codex-mini-badge, .codex-status, .codex-filter-chip),
+.codex-public-page :is(.codex-mini-badge, .codex-status) {
+  border-radius: 999px;
+  font-size: var(--lm-ui3-label-size);
+  line-height: 1.2;
+  min-height: 26px;
+  padding: 0.28rem 0.55rem;
+}
+
+.codex-ui3-contract :is(.codex-detail-action--primary, .codex-tender-record__quote, .btn-primary),
+.codex-page :is(.codex-detail-action--primary, .btn-primary) {
+  background: var(--lm-ui3-accent);
+  border-color: var(--lm-ui3-accent);
+  color: white;
+}
+
+.codex-ui3-contract :is(.codex-detail-action--warning, .codex-status--warning),
+.codex-page :is(.codex-detail-action--warning, .codex-status--warning) {
+  background: var(--lm-ui3-warning-weak);
+  border-color: #efc266;
+  color: var(--lm-ui3-warning);
+}
+
+.codex-ui3-contract :is(.codex-status--success, .codex-mini-badge--success),
+.codex-page :is(.codex-status--success, .codex-mini-badge--success) {
+  background: var(--lm-ui3-success-weak);
+  border-color: #a8d8b9;
+  color: var(--lm-ui3-success);
+}
+
+.codex-ui3-contract :is(.codex-status--danger, .codex-mini-badge--danger),
+.codex-page :is(.codex-status--danger, .codex-mini-badge--danger) {
+  background: var(--lm-ui3-danger-weak);
+  border-color: #f2b2aa;
+  color: var(--lm-ui3-danger);
+}
+
+@media (max-width: 1024px) {
+  .codex-ui3-record-ledger .codex-list-workbench {
+    gap: 1rem;
+  }
+
+  .codex-tender-record {
+    grid-template-columns: minmax(0, 1fr);
+    min-height: 0;
+  }
+
+  .codex-tender-record__date {
+    align-items: center;
+    flex-direction: row;
+    gap: 0.55rem;
+    min-width: 0;
+    width: auto;
+  }
+
+  .codex-tender-record__aside {
+    min-width: 0;
+    width: 100%;
+  }
+
+  .codex-detail-page--complete .codex-detail-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+@media (max-width: 760px) {
+  :root {
+    --lm-ui3-body-size: 16px;
+    --lm-ui3-small-size: 14.5px;
+    --lm-ui3-label-size: 12.5px;
+    --lm-ui3-control-height: 46px;
+    --lm-ui3-panel-pad: 15px;
+    --lm-ui3-card-pad: 15px;
+    --lm-ui3-grid-gap: 14px;
+  }
+
+  .codex-ui3-contract,
+  .codex-page,
+  .codex-public-page {
+    font-size: var(--lm-ui3-body-size);
+  }
+
+  .codex-ui3-contract .codex-page-header h1,
+  .codex-page .codex-page-header h1 {
+    font-size: 2rem;
+    max-width: 12ch;
+  }
+
+  .codex-ui3-record-ledger .codex-list-toolbar {
+    padding: 0.7rem;
+  }
+
+  .codex-tender-record {
+    gap: 0.85rem;
+    padding: var(--lm-ui3-card-pad);
+  }
+
+  .codex-tender-record__title {
+    font-size: 1.14rem;
+    line-height: 1.26;
+  }
+
+  .codex-tender-record__actions button {
+    min-width: 42px;
+  }
+
+  .codex-detail-page--complete .codex-detail-hero h1,
+  .codex-detail-page--complete .codex-detail-hero__title {
+    font-size: 2rem;
+    max-width: 13ch;
+  }
+
+  .codex-detail-page--complete .codex-detail-tabs__list {
+    gap: 0;
+  }
+
+  .codex-detail-page--complete .codex-detail-tab {
+    flex: 0 0 auto;
+    min-height: 44px;
+    padding: 0.62rem 0.75rem;
+  }
+}

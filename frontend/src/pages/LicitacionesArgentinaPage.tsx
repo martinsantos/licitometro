@@ -62,8 +62,8 @@ export default function LicitacionesArgentinaPage() {
           <span className="px-2.5 py-1 bg-sky-50 border border-sky-200 rounded-full text-sky-700 font-medium">
             {Object.keys(stats.by_fuente || {}).length} <span className="text-sky-500">fuentes</span>
           </span>
-          <span className="px-2.5 py-1 bg-purple-50 border border-purple-200 rounded-full text-purple-700 font-medium">
-            {stats.with_nodos} <span className="text-purple-500">con nodos</span>
+          <span className="codex-status codex-status--progress">
+            {stats.with_nodos} <span>con nodos</span>
           </span>
           <span className="px-2.5 py-1 bg-amber-50 border border-amber-200 rounded-full text-amber-700 font-medium">
             {Object.keys(stats.by_jurisdiccion || {}).length} <span className="text-amber-500">jurisdicciones</span>

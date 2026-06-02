@@ -66,7 +66,7 @@ const PublicLicitacionPage: React.FC = () => {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gradient-to-b from-slate-50 to-white flex items-center justify-center">
+      <div className="codex-public-page flex items-center justify-center">
         <div className="animate-spin rounded-full h-12 w-12 border-t-4 border-b-4 border-emerald-600"></div>
       </div>
     );
@@ -74,7 +74,7 @@ const PublicLicitacionPage: React.FC = () => {
 
   if (error || !lic) {
     return (
-      <div className="min-h-screen bg-gradient-to-b from-slate-50 to-white flex items-center justify-center">
+      <div className="codex-public-page flex items-center justify-center">
         <div className="text-center max-w-md mx-auto p-8">
           <div className="w-20 h-20 mx-auto mb-4 rounded-full bg-red-100 flex items-center justify-center">
             <svg className="w-10 h-10 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -83,7 +83,7 @@ const PublicLicitacionPage: React.FC = () => {
           </div>
           <h1 className="text-2xl font-bold text-gray-800 mb-2">No encontrada</h1>
           <p className="text-gray-600">{error}</p>
-          <a href="/" className="inline-block mt-6 px-6 py-3 bg-emerald-600 text-white rounded-xl font-bold hover:bg-emerald-700 transition-colors">
+          <a href="/" className="codex-button codex-button--primary mt-6">
             Ir a Licitómetro
           </a>
         </div>
@@ -106,9 +106,9 @@ const PublicLicitacionPage: React.FC = () => {
       <meta name="twitter:title" content={lic.title} />
       <meta name="twitter:description" content={ogDescription} />
 
-      <div className="min-h-screen bg-gradient-to-b from-slate-50 to-white">
+      <div className="codex-public-page">
         {/* Header */}
-        <header className="bg-white border-b border-gray-200 shadow-sm">
+        <header className="bg-white border-b border-gray-200">
           <div className="max-w-4xl mx-auto px-4 py-4 flex items-center justify-between">
             <a href="/" className="flex items-center gap-2 group">
               <div className="w-8 h-8 bg-emerald-600 rounded-lg flex items-center justify-center">
@@ -131,10 +131,10 @@ const PublicLicitacionPage: React.FC = () => {
         <main className="max-w-4xl mx-auto px-4 py-8">
           {/* Status badge */}
           <div className="flex items-center gap-3 mb-4">
-            <span className={`px-3 py-1 rounded-full text-xs font-bold ${
-              (lic.estado === 'vigente' || (!lic.estado && lic.status === 'active')) ? 'bg-emerald-100 text-emerald-700' :
-              lic.estado === 'prorrogada' ? 'bg-yellow-100 text-yellow-700' :
-              'bg-gray-100 text-gray-600'
+            <span className={`codex-status ${
+              (lic.estado === 'vigente' || (!lic.estado && lic.status === 'active')) ? 'codex-status--success' :
+              lic.estado === 'prorrogada' ? 'codex-status--warning' :
+              'codex-status--progress'
             }`}>
               {lic.estado === 'vigente' ? 'Vigente' :
                lic.estado === 'vencida' ? 'Vencida' :
@@ -143,12 +143,12 @@ const PublicLicitacionPage: React.FC = () => {
                lic.status === 'active' ? 'Abierta' : 'Cerrada'}
             </span>
             {lic.tipo_procedimiento && (
-              <span className="px-3 py-1 bg-blue-100 text-blue-700 rounded-full text-xs font-bold">
+              <span className="codex-status codex-status--progress">
                 {lic.tipo_procedimiento}
               </span>
             )}
             {lic.category && (
-              <span className="px-3 py-1 bg-violet-100 text-violet-700 rounded-full text-xs font-bold">
+              <span className="codex-status codex-status--warning">
                 {lic.category}
               </span>
             )}
@@ -170,37 +170,37 @@ const PublicLicitacionPage: React.FC = () => {
           {/* Key Info Cards */}
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 mb-8">
             {formatDate(lic.publication_date) && (
-              <div className="bg-white rounded-xl border border-gray-200 p-4">
+              <div className="codex-public-card p-4">
                 <p className="text-xs font-bold text-gray-400 uppercase mb-1">Fecha de Publicación</p>
                 <p className="text-sm font-bold text-gray-800">{formatDate(lic.publication_date)}</p>
               </div>
             )}
             {formatDate(lic.opening_date) && (
-              <div className="bg-emerald-50 rounded-xl border border-emerald-200 p-4">
+              <div className="codex-public-card p-4">
                 <p className="text-xs font-bold text-emerald-600 uppercase mb-1">Acto de Apertura</p>
                 <p className="text-sm font-bold text-emerald-800">{formatDate(lic.opening_date)}</p>
               </div>
             )}
             {formatDate(lic.expiration_date) && (
-              <div className="bg-orange-50 rounded-xl border border-orange-200 p-4">
+              <div className="codex-public-card p-4">
                 <p className="text-xs font-bold text-orange-600 uppercase mb-1">Vencimiento</p>
                 <p className="text-sm font-bold text-orange-800">{formatDate(lic.expiration_date)}</p>
               </div>
             )}
             {formatBudget(lic.budget, lic.currency) && (
-              <div className="bg-blue-50 rounded-xl border border-blue-200 p-4">
+              <div className="codex-public-card p-4">
                 <p className="text-xs font-bold text-blue-600 uppercase mb-1">Presupuesto Oficial</p>
                 <p className="text-lg font-black text-blue-800">{formatBudget(lic.budget, lic.currency)}</p>
               </div>
             )}
             {lic.expedient_number && (
-              <div className="bg-white rounded-xl border border-gray-200 p-4">
+              <div className="codex-public-card p-4">
                 <p className="text-xs font-bold text-gray-400 uppercase mb-1">Expediente</p>
                 <p className="text-sm font-bold text-gray-800">{lic.expedient_number}</p>
               </div>
             )}
             {lic.licitacion_number && (
-              <div className="bg-white rounded-xl border border-gray-200 p-4">
+              <div className="codex-public-card p-4">
                 <p className="text-xs font-bold text-gray-400 uppercase mb-1">Nro. Licitación</p>
                 <p className="text-sm font-bold text-gray-800">{lic.licitacion_number}</p>
               </div>
@@ -209,7 +209,7 @@ const PublicLicitacionPage: React.FC = () => {
 
           {/* Description */}
           {lic.description && (
-            <div className="bg-white rounded-xl border border-gray-200 p-6 mb-8">
+            <div className="codex-public-card p-6 mb-8">
               <h2 className="text-lg font-black text-gray-800 mb-3">Descripción</h2>
               <p className="text-gray-700 leading-relaxed whitespace-pre-line">{lic.description}</p>
             </div>
@@ -217,7 +217,7 @@ const PublicLicitacionPage: React.FC = () => {
 
           {/* Attached Files */}
           {lic.attached_files && lic.attached_files.length > 0 && (
-            <div className="bg-white rounded-xl border border-gray-200 p-6 mb-8">
+            <div className="codex-public-card p-6 mb-8">
               <h2 className="text-lg font-black text-gray-800 mb-3">Documentos Adjuntos</h2>
               <div className="space-y-2">
                 {lic.attached_files.map((file, idx) => (
@@ -240,7 +240,7 @@ const PublicLicitacionPage: React.FC = () => {
 
           {/* Source Link */}
           {lic.source_url && (
-            <div className="bg-white rounded-xl border border-gray-200 p-6 mb-8">
+            <div className="codex-public-card p-6 mb-8">
               <h2 className="text-lg font-black text-gray-800 mb-3">Fuente Original</h2>
               <a
                 href={lic.source_url}
@@ -257,14 +257,14 @@ const PublicLicitacionPage: React.FC = () => {
           )}
 
           {/* CTA */}
-          <div className="bg-gradient-to-r from-emerald-600 to-teal-600 rounded-2xl p-8 text-center text-white mb-8">
+          <div className="codex-public-card p-8 text-center mb-8">
             <h2 className="text-2xl font-black mb-2">Accedé a todas las licitaciones de Mendoza</h2>
-            <p className="text-emerald-100 mb-6 max-w-lg mx-auto">
+            <p className="text-gray-600 mb-6 max-w-lg mx-auto">
               Licitómetro monitorea +20 fuentes oficiales de toda la provincia. Recibí alertas, filtrá por rubro y seguí tus licitaciones.
             </p>
             <a
               href="/"
-              className="inline-block px-8 py-3 bg-white text-emerald-700 font-black rounded-xl hover:bg-emerald-50 transition-colors"
+              className="codex-button codex-button--primary"
             >
               Ingresá a Licitómetro
             </a>

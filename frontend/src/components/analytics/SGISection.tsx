@@ -195,7 +195,7 @@ export const SGISection: React.FC = () => {
 
           {/* KPIs Operativos */}
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-            <KpiTile label="Win Rate" value={`${summary.presupuestos?.win_rate ?? 0}%`} sub="Efectividad global" color="text-indigo-700" />
+            <KpiTile label="Win Rate" value={`${summary.presupuestos?.win_rate ?? 0}%`} sub="Efectividad global" color="text-blue-700" />
             <KpiTile label="Pipeline" value={fmt(summary.presupuestos?.pipeline_total ?? 0)} sub="Presupuestos activos" />
             <KpiTile label="Proyectos activos" value={String(summary.dashboard?.proyectosActivos ?? summary.proyectos_stats?.activos ?? 0)} />
             <KpiTile label="Cert. pendientes" value={String(summary.dashboard?.certificadosPendientes ?? 0)} color="text-orange-600" />

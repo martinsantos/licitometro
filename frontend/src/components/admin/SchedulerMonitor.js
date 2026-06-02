@@ -165,9 +165,9 @@ const SchedulerMonitor = () => {
             <p className="text-2xl font-bold text-blue-700">{status?.jobs?.length || 0}</p>
           </div>
           
-          <div className="bg-purple-50 border border-purple-200 p-4 rounded-lg">
+          <div className="bg-blue-50 border border-blue-200 p-4 rounded-lg">
             <p className="text-sm text-gray-600">Total Ejecuciones (Histórico)</p>
-            <p className="text-2xl font-bold text-purple-700">
+            <p className="text-2xl font-bold text-blue-700">
               {stats?.overall?.total_runs || 0}
             </p>
           </div>
@@ -290,7 +290,7 @@ const SchedulerMonitor = () => {
       {/* Logs Modal */}
       {selectedRun && runLogs && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg shadow-lg max-w-4xl w-full max-h-[80vh] overflow-hidden m-4">
+          <div className="bg-white rounded-lg  max-w-4xl w-full max-h-[80vh] overflow-hidden m-4">
             <div className="flex justify-between items-center p-4 border-b">
               <h3 className="text-lg font-semibold">Logs de Ejecución</h3>
               <button 

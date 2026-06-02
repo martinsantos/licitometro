@@ -50,7 +50,7 @@ function LicitacionCard({
   onSelect: (id: string) => void;
 }) {
   return (
-    <div className="flex items-start gap-3 p-4 bg-white rounded-xl border border-gray-100 hover:border-blue-200 hover:shadow-sm transition-all group">
+    <div className="codex-panel codex-cotizar-card flex items-start gap-4 p-4 transition-colors group">
       <div className="flex-1 min-w-0">
         <p className="font-medium text-gray-800 text-sm line-clamp-2 group-hover:text-blue-700 transition-colors">
           {lic.objeto || lic.title}
@@ -75,13 +75,13 @@ function LicitacionCard({
       </div>
       <div className="flex flex-col items-end gap-2 shrink-0">
         {hasBid && (
-          <span className="text-xs bg-emerald-50 text-emerald-700 px-2 py-0.5 rounded-full font-medium">
+          <span className="codex-status codex-status--success">
             En proceso
           </span>
         )}
         <button
           onClick={() => onSelect(lic.id)}
-          className="text-xs font-semibold px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors"
+          className="codex-button codex-button--primary text-xs"
         >
           {hasBid ? 'Continuar' : 'Cotizar'}
         </button>
@@ -91,13 +91,13 @@ function LicitacionCard({
 }
 
 // ── Status config ─────────────────────────────────────────────────────────────
-const STATUS_CONFIG: Record<string, { label: string; color: string; bg: string }> = {
-  borrador:   { label: 'En proceso',  color: 'text-gray-600',    bg: 'bg-gray-100' },
-  presentada: { label: 'Presentada',  color: 'text-blue-700',    bg: 'bg-blue-50' },
-  adjudicada: { label: 'Adjudicada',  color: 'text-emerald-700', bg: 'bg-emerald-50' },
-  rechazada:  { label: 'Rechazada',   color: 'text-red-700',     bg: 'bg-red-50' },
-  perdida:    { label: 'Perdida',     color: 'text-orange-700',  bg: 'bg-orange-50' },
-  cancelada:  { label: 'Cancelada',   color: 'text-gray-500',    bg: 'bg-gray-50' },
+const STATUS_CONFIG: Record<string, { label: string; badge: string }> = {
+  borrador:   { label: 'En proceso',  badge: 'codex-status--progress' },
+  presentada: { label: 'Presentada',  badge: 'codex-status--progress' },
+  adjudicada: { label: 'Adjudicada',  badge: 'codex-status--success' },
+  rechazada:  { label: 'Rechazada',   badge: 'codex-status--danger' },
+  perdida:    { label: 'Perdida',     badge: 'codex-status--warning' },
+  cancelada:  { label: 'Cancelada',   badge: 'codex-status--progress' },
 };
 
 const STATUS_FLOW = ['borrador', 'presentada', 'adjudicada', 'rechazada', 'perdida', 'cancelada'];
@@ -220,7 +220,7 @@ function MisCotizacionesTab({ onSelect }: { onSelect: (id: string) => void }) {
             { label: 'Adjudicadas', value: stats.adjudicadas_count, sub: formatARS(stats.adjudicadas_monto), highlight: true },
             { label: 'Tasa de éxito', value: `${stats.tasa_exito_pct}%`, sub: `${stats.adjudicadas_count} de ${stats.total_count}` },
           ].map(({ label, value, sub, highlight }) => (
-            <div key={label} className={`rounded-xl p-3 text-center ${highlight ? 'bg-emerald-50 border border-emerald-200' : 'bg-gray-50 border border-gray-200'}`}>
+            <div key={label} className={`codex-metric text-center ${highlight ? 'codex-metric--success' : ''}`}>
               <p className={`text-xl font-bold ${highlight ? 'text-emerald-700' : 'text-gray-800'}`}>{value}</p>
               <p className="text-xs font-medium text-gray-600 mt-0.5">{label}</p>
               <p className="text-[11px] text-gray-400 tabular-nums">{sub}</p>
@@ -245,10 +245,10 @@ function MisCotizacionesTab({ onSelect }: { onSelect: (id: string) => void }) {
               <button
                 key={s}
                 onClick={() => setFilterStatus(s)}
-                className={`text-xs px-2.5 py-1 rounded-full border transition-colors ${
+                className={`codex-button text-xs ${
                   filterStatus === s
-                    ? 'bg-gray-800 text-white border-gray-800'
-                    : 'bg-white text-gray-600 border-gray-200 hover:border-gray-400'
+                    ? 'codex-button--primary'
+                    : 'codex-button--quiet'
                 }`}
               >
                 {cfg ? cfg.label : 'Todas'} {count > 0 && <span className="opacity-60">({count})</span>}
@@ -266,7 +266,7 @@ function MisCotizacionesTab({ onSelect }: { onSelect: (id: string) => void }) {
           const cfg = STATUS_CONFIG[cot.status] || STATUS_CONFIG.borrador;
           const isFinal = ['adjudicada', 'rechazada', 'perdida', 'cancelada'].includes(cot.status);
           return (
-            <div key={cot.id} className="flex items-start gap-3 p-4 bg-white rounded-xl border border-gray-100 hover:border-blue-100 hover:shadow-sm transition-all">
+            <div key={cot.id} className="codex-panel flex items-start gap-3 p-4 transition-colors">
               {/* Status indicator bar */}
               <div className={`w-1 self-stretch rounded-full shrink-0 ${
                 cot.status === 'adjudicada' ? 'bg-emerald-400' :
@@ -293,7 +293,7 @@ function MisCotizacionesTab({ onSelect }: { onSelect: (id: string) => void }) {
 
                 {/* Status changer */}
                 <div className="flex items-center gap-2 mt-2">
-                  <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${cfg.bg} ${cfg.color}`}>{cfg.label}</span>
+                  <span className={`codex-status ${cfg.badge}`}>{cfg.label}</span>
                   {!isFinal && (
                     <select
                       value=""
@@ -324,7 +324,7 @@ function MisCotizacionesTab({ onSelect }: { onSelect: (id: string) => void }) {
               <div className="shrink-0 flex flex-col gap-1.5">
                 <button
                   onClick={() => onSelect(cot.licitacion_id)}
-                  className="text-xs font-semibold px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors"
+                  className="codex-button codex-button--primary text-xs"
                 >
                   {isFinal ? 'Ver' : 'Continuar'}
                 </button>
@@ -338,7 +338,7 @@ function MisCotizacionesTab({ onSelect }: { onSelect: (id: string) => void }) {
                 {cot.status === 'adjudicada' && (
                   <button
                     onClick={() => openHitos(cot)}
-                    className="text-xs px-3 py-1 border border-indigo-200 text-indigo-700 rounded-lg hover:bg-indigo-50 transition-colors"
+                    className="codex-button codex-button--quiet text-xs"
                   >
                     📅 Hitos
                   </button>
@@ -352,7 +352,7 @@ function MisCotizacionesTab({ onSelect }: { onSelect: (id: string) => void }) {
       {/* Notas modal for terminal statuses */}
       {notasModal && (
         <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50">
-          <div className="bg-white rounded-xl p-6 w-80 space-y-4 shadow-xl">
+          <div className="codex-panel p-6 w-80 space-y-4">
             <h3 className="font-semibold text-gray-800">
               Marcar como {STATUS_CONFIG[notasModal.status]?.label}
             </h3>
@@ -367,7 +367,7 @@ function MisCotizacionesTab({ onSelect }: { onSelect: (id: string) => void }) {
               />
             </div>
             <div className="flex gap-2 justify-end">
-              <button onClick={() => setNotasModal(null)} className="text-sm px-3 py-1.5 text-gray-600 border border-gray-200 rounded-lg hover:bg-gray-50">
+              <button onClick={() => setNotasModal(null)} className="codex-button codex-button--quiet text-sm">
                 Cancelar
               </button>
               <button
@@ -375,7 +375,7 @@ function MisCotizacionesTab({ onSelect }: { onSelect: (id: string) => void }) {
                   doChangeStatus(notasModal.id, notasModal.status, notasText || undefined);
                   setNotasModal(null);
                 }}
-                className="text-sm px-4 py-1.5 bg-gray-800 text-white rounded-lg hover:bg-gray-900"
+                className="codex-button codex-button--primary text-sm"
               >
                 Confirmar
               </button>
@@ -387,7 +387,7 @@ function MisCotizacionesTab({ onSelect }: { onSelect: (id: string) => void }) {
       {/* Hitos modal */}
       {hitosModal && (
         <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-xl w-full max-w-lg shadow-xl flex flex-col max-h-[80vh]">
+          <div className="codex-panel w-full max-w-lg flex flex-col max-h-[80vh]">
             <div className="p-5 border-b border-gray-100 flex justify-between items-center">
               <h3 className="font-bold text-gray-800">📅 Hitos post-adjudicación</h3>
               <button onClick={() => setHitosModal(null)} className="text-gray-400 hover:text-gray-600 text-lg">✕</button>
@@ -409,13 +409,13 @@ function MisCotizacionesTab({ onSelect }: { onSelect: (id: string) => void }) {
                       value={h.titulo}
                       onChange={e => setHitosModal(m => m ? { ...m, hitos: m.hitos.map((x, xi) => xi === i ? { ...x, titulo: e.target.value } : x) } : m)}
                       placeholder="Título del hito"
-                      className="w-full text-sm border border-gray-200 rounded px-2 py-1 focus:outline-none focus:ring-1 focus:ring-indigo-400"
+                      className="w-full text-sm border border-gray-200 rounded px-2 py-1 focus:outline-none focus:ring-1 focus:ring-blue-400"
                     />
                     <input
                       type="date"
                       value={h.fecha}
                       onChange={e => setHitosModal(m => m ? { ...m, hitos: m.hitos.map((x, xi) => xi === i ? { ...x, fecha: e.target.value } : x) } : m)}
-                      className="text-sm border border-gray-200 rounded px-2 py-1 focus:outline-none focus:ring-1 focus:ring-indigo-400"
+                      className="text-sm border border-gray-200 rounded px-2 py-1 focus:outline-none focus:ring-1 focus:ring-blue-400"
                     />
                   </div>
                   <button
@@ -424,18 +424,18 @@ function MisCotizacionesTab({ onSelect }: { onSelect: (id: string) => void }) {
                   >✕</button>
                 </div>
               ))}
-              <button onClick={addHito} className="w-full text-sm py-2 border border-dashed border-indigo-300 text-indigo-600 rounded-lg hover:bg-indigo-50 transition-colors">
+              <button onClick={addHito} className="codex-button codex-button--quiet w-full text-sm border-dashed">
                 + Agregar hito
               </button>
             </div>
             <div className="p-4 border-t border-gray-100 flex justify-end gap-2">
-              <button onClick={() => setHitosModal(null)} className="text-sm px-3 py-1.5 text-gray-600 border border-gray-200 rounded-lg hover:bg-gray-50">
+              <button onClick={() => setHitosModal(null)} className="codex-button codex-button--quiet text-sm">
                 Cancelar
               </button>
               <button
                 onClick={saveHitos}
                 disabled={savingHitos}
-                className="text-sm px-4 py-1.5 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:opacity-60"
+                className="codex-button codex-button--primary text-sm disabled:opacity-60"
               >
                 {savingHitos ? 'Guardando...' : 'Guardar hitos'}
               </button>
@@ -547,7 +547,7 @@ function LicitacionesActivasTab({
               <button
                 onClick={() => setPage(p => Math.max(1, p - 1))}
                 disabled={page === 1}
-                className="px-3 py-1.5 text-sm border border-gray-200 rounded-lg disabled:opacity-40 hover:bg-gray-50"
+              className="codex-button codex-button--quiet text-sm disabled:opacity-40"
               >
                 ←
               </button>
@@ -555,7 +555,7 @@ function LicitacionesActivasTab({
               <button
                 onClick={() => setPage(p => Math.min(totalPages, p + 1))}
                 disabled={page === totalPages}
-                className="px-3 py-1.5 text-sm border border-gray-200 rounded-lg disabled:opacity-40 hover:bg-gray-50"
+              className="codex-button codex-button--quiet text-sm disabled:opacity-40"
               >
                 →
               </button>
@@ -678,15 +678,15 @@ function CotizarHome({ onSelect }: { onSelect: (id: string) => void }) {
   return (
     <div className="max-w-3xl mx-auto px-4 py-6 space-y-5">
       {/* Tabs */}
-      <div className="flex gap-1 bg-gray-100 rounded-xl p-1">
+      <div className="codex-tab-strip flex gap-1">
         {TABS.map(t => (
           <button
             key={t.id}
             onClick={() => setTab(t.id)}
-            className={`flex-1 flex items-center justify-center gap-2 px-3 py-2 rounded-lg text-sm font-medium transition-all ${
+            className={`codex-button flex-1 flex items-center justify-center gap-2 text-sm ${
               tab === t.id
-                ? 'bg-white text-gray-800 shadow-sm'
-                : 'text-gray-500 hover:text-gray-700'
+                ? 'codex-button--primary'
+                : 'codex-button--quiet'
             }`}
           >
             <span className="hidden sm:inline">{t.icon}</span>
@@ -760,7 +760,7 @@ function LicitacionCotizarView({
         </Link>
       </div>
 
-      <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+      <div className="codex-panel overflow-hidden">
         <div className="px-6 py-4 border-b border-gray-100 bg-gray-50">
           <h2 className="font-bold text-gray-800">Armar Cotización</h2>
           <p className="text-sm text-gray-500 mt-0.5 line-clamp-2">
@@ -791,15 +791,18 @@ export default function CotizarPage() {
   }, [setSearchParams]);
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      <div className="bg-white border-b border-gray-200 px-4 py-3 flex items-center justify-between">
-        <h1 className="text-base font-bold text-gray-800">Cotizador</h1>
-        <div className="flex items-center gap-3">
-          <Link to="/empresa" className="text-sm text-blue-600 hover:text-blue-800 transition-colors">
-            🏢 Empresa
+    <div className="codex-page min-h-screen">
+      <div className="codex-cotizar-topbar">
+        <div>
+          <span className="codex-page-kicker">Cotización operativa</span>
+          <h1 className="text-lg font-bold text-gray-800">Cotizador</h1>
+        </div>
+        <div className="codex-page-toolbar">
+          <Link to="/empresa" className="codex-button codex-button--quiet text-sm">
+            Empresa
           </Link>
-          <Link to="/licitaciones" className="text-sm text-gray-400 hover:text-gray-700 transition-colors">
-            ← Licitaciones
+          <Link to="/licitaciones" className="codex-button codex-button--quiet text-sm">
+            Licitaciones
           </Link>
         </div>
       </div>

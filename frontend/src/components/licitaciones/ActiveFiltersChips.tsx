@@ -35,7 +35,7 @@ interface ActiveFiltersChipsProps {
 }
 
 const Chip: React.FC<{ label: string; color: string; onRemove: () => void }> = ({ label, color, onRemove }) => (
-  <span className={`inline-flex items-center gap-1 px-2 py-0.5 ${color} rounded text-[11px] font-bold`}>
+  <span className={`codex-filter-chip ${color}`}>
     {label}
     <button onClick={onRemove} className="hover:text-red-600">&times;</button>
   </span>
@@ -63,7 +63,7 @@ const ActiveFiltersChips: React.FC<ActiveFiltersChipsProps> = ({
         </span>
       )}
       {filters.fuenteFiltro && (
-        <Chip label={filters.fuenteFiltro} color="bg-violet-100 text-violet-700" onRemove={() => onFilterChange('fuenteFiltro', '')} />
+        <Chip label={filters.fuenteFiltro} color="codex-chip--progress" onRemove={() => onFilterChange('fuenteFiltro', '')} />
       )}
       {filters.statusFiltro && (
         <Chip label={filters.statusFiltro === 'active' ? 'Abierta' : filters.statusFiltro} color="bg-blue-100 text-blue-700" onRemove={() => onFilterChange('statusFiltro', '')} />
@@ -78,7 +78,7 @@ const ActiveFiltersChips: React.FC<ActiveFiltersChipsProps> = ({
         <Chip label={filters.tipoProcedimientoFiltro} color="bg-cyan-100 text-cyan-700" onRemove={() => onFilterChange('tipoProcedimientoFiltro', '')} />
       )}
       {filters.organizacionFiltro && (
-        <Chip label={`Org: ${filters.organizacionFiltro}`} color="bg-indigo-100 text-indigo-700" onRemove={() => onFilterChange('organizacionFiltro', '')} />
+        <Chip label={`Org: ${filters.organizacionFiltro}`} color="codex-chip--progress" onRemove={() => onFilterChange('organizacionFiltro', '')} />
       )}
       {filters.categoryFiltro && (
         <Chip label={filters.categoryFiltro} color="bg-pink-100 text-pink-700" onRemove={() => onFilterChange('categoryFiltro', '')} />

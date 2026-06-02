@@ -6,7 +6,6 @@ import WorkflowBadge from '../components/WorkflowBadge';
 import OfferChecklist from '../components/OfferChecklist';
 import OfertaEditor from '../components/cotizar/OfertaEditor';
 import { useNodos } from '../hooks/useNodos';
-import HunterButton from '../components/hunter/HunterButton';
 import HunterPanel from '../components/hunter/HunterPanel';
 import PliegoChatPanel from '../components/licitaciones/PliegoChatPanel';
 import { RequisitosChecklist } from '../components/licitaciones/RequisitosChecklist';
@@ -56,12 +55,12 @@ function CompetenciaPanel({ licitacionId }) {
                   {p.cuit && <span className="ml-2 text-xs text-gray-400">CUIT: {p.cuit}</span>}
                 </div>
                 <div className="text-right shrink-0">
-                  <div className="text-sm font-bold text-indigo-600">{fmtARS(p.monto_total)}</div>
+                  <div className="text-sm font-bold text-blue-600">{fmtARS(p.monto_total)}</div>
                   <div className="text-xs text-gray-400">{p.count} adjudicación{p.count !== 1 ? 'es' : ''}</div>
                 </div>
               </div>
               <div className="w-full bg-gray-100 rounded-full h-2 mb-3">
-                <div className="h-2 rounded-full bg-indigo-400 transition-all" style={{ width: `${pct}%` }} />
+                <div className="h-2 rounded-full bg-blue-500 transition-all" style={{ width: `${pct}%` }} />
               </div>
               {p.sample && p.sample.length > 0 && (
                 <div className="space-y-1">
@@ -113,7 +112,7 @@ function SimilaresTab({ licitacionId }) {
         <Link
           key={item.id}
           to={`/licitaciones/${item.id}`}
-          className="block bg-white rounded-xl border border-gray-100 p-4 hover:border-blue-200 hover:shadow-sm transition-all"
+          className="block bg-white rounded-xl border border-gray-100 p-4 hover:border-blue-200 transition-all"
         >
           <div className="flex items-start justify-between gap-3">
             <div className="flex-1 min-w-0">
@@ -397,10 +396,10 @@ const LicitacionDetailPage = ({ userRole }) => {
   const detailUrl = getDetailUrl();
 
   return (
-    <div className="codex-detail-page py-8 px-4 sm:px-6 lg:px-8">
-      <div className="max-w-5xl mx-auto">
+    <div className="codex-detail-page codex-detail-page--complete py-5 px-3 sm:px-5 lg:px-8">
+      <div className="codex-detail-shell">
         {/* Breadcrumb */}
-        <nav className="mb-8">
+        <nav className="codex-detail-breadcrumb">
           <Link to="/licitaciones" className="inline-flex items-center text-sm font-bold text-gray-500 hover:text-blue-600 transition-colors group">
             <svg className="w-5 h-5 mr-2 transform group-hover:-translate-x-1 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M10 19l-7-7m0 0l7-7m-7 7h18" />
@@ -437,9 +436,9 @@ const LicitacionDetailPage = ({ userRole }) => {
           {/* Header */}
           <div className="codex-detail-hero relative p-4 sm:p-6 lg:p-10">
             
-            <div className="relative flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
-              <div className="flex-1">
-                <div className="flex items-center gap-3 mb-4 flex-wrap">
+            <div className="codex-detail-hero__grid relative">
+              <div className="codex-detail-hero__main">
+                <div className="codex-detail-hero__badges">
                   <span className={`px-4 py-1.5 rounded-full text-xs font-black uppercase tracking-wider ${
                     (licitacion.estado || licitacion.status) === 'vigente' || (licitacion.estado || licitacion.status) === 'active' ? 'bg-emerald-400 text-emerald-900' :
                     (licitacion.estado || licitacion.status) === 'vencida' || (licitacion.estado || licitacion.status) === 'closed' ? 'bg-gray-400 text-gray-900' :
@@ -499,10 +498,10 @@ const LicitacionDetailPage = ({ userRole }) => {
               </div>
               
               {/* Action Buttons */}
-              <div className="flex flex-wrap gap-2 sm:flex-col sm:gap-3">
+              <div className="codex-detail-actions">
                 <button
                   onClick={toggleSave}
-                  className={`flex items-center gap-2 px-3 py-2 rounded-2xl transition-all duration-300 text-sm ${
+                  className={`flex items-center gap-2 px-3 py-2 transition-all duration-300 text-sm ${
                     isSaved
                       ? 'codex-detail-action codex-detail-action--warning'
                       : 'codex-detail-action'
@@ -525,7 +524,7 @@ const LicitacionDetailPage = ({ userRole }) => {
                     Compartir
                   </button>
                   {/* Share dropdown */}
-                  <div className="absolute right-0 mt-2 w-48 bg-white rounded-xl shadow-xl border border-gray-100 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-50">
+                  <div className="codex-detail-menu absolute right-0 mt-2 w-48 bg-white rounded-xl border border-gray-100 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-50">
                     <button
                       onClick={() => {
                         const subject = encodeURIComponent(`Licitación: ${licitacion.title}`);
@@ -602,7 +601,7 @@ const LicitacionDetailPage = ({ userRole }) => {
                     <button
                       onClick={() => enrichLicitacion(2)}
                       disabled={enriching}
-                      className={`flex items-center gap-2 px-3 py-2 rounded-2xl transition-all duration-300 text-sm ${
+                      className={`flex items-center gap-2 px-3 py-2 transition-all duration-300 text-sm ${
                         enriching
                           ? 'codex-detail-action codex-detail-action--muted cursor-wait'
                           : 'codex-detail-action'
@@ -631,20 +630,20 @@ const LicitacionDetailPage = ({ userRole }) => {
             </div>
           </div>
 
-          <div className="p-4 sm:p-6 bg-white/80 border-b border-gray-100">
+          <div className="codex-detail-readiness">
             <DecisionReadinessPanel licitacion={licitacion} />
           </div>
 
           {/* Score Afinidad (admin only) */}
           {isAdmin && (
-            <div className="px-8 sm:px-10 py-3 bg-gray-50 border-t border-gray-100">
+            <div className="codex-detail-tool-band">
               <ScoreAfinidad licitacionId={id} />
             </div>
           )}
 
           {/* Workflow Stepper (admin only) */}
           {isAdmin && (
-            <div className="px-8 sm:px-10 py-4 bg-gray-50 border-t border-gray-100">
+            <div className="codex-detail-tool-band">
               <WorkflowStepper
                 licId={id}
                 currentState={licitacion.workflow_state || 'descubierta'}
@@ -655,20 +654,20 @@ const LicitacionDetailPage = ({ userRole }) => {
           )}
 
           {/* Tabs Navigation */}
-          <div className="px-4 sm:px-6 lg:px-10 border-b border-gray-200 bg-white" ref={tabNavRef}>
-            <nav className="flex gap-1 overflow-x-auto scrollbar-hide -mb-px">
+          <div className="codex-detail-tabs" ref={tabNavRef}>
+            <nav className="codex-detail-tabs__list">
               {[
-                { id: 'general', label: 'Info General' },
+                { id: 'general', label: 'Info General', shortLabel: 'General' },
                 { id: 'items', label: 'Items', count: (licitacion.items || []).length },
-                { id: 'docs', label: 'Documentos', count: (licitacion.attached_files || []).length + (licitacion.pliegos_bases || []).length },
+                { id: 'docs', label: 'Documentos', shortLabel: 'Docs', count: (licitacion.attached_files || []).length + (licitacion.pliegos_bases || []).length },
                 { id: 'cronograma', label: 'Cronograma', show: hasCronograma },
                 { id: 'workflow', label: 'Workflow', show: isAdmin },
                 { id: 'oferta', label: 'Oferta', show: isAdmin && ['evaluando', 'preparando'].includes(licitacion?.workflow_state) },
-                { id: 'pliego_ia', label: '🤖 Pliego IA', show: isAdmin },
-                { id: 'checklist', label: '✅ Checklist', show: isAdmin },
+                { id: 'pliego_ia', label: 'Pliego IA', show: isAdmin },
+                { id: 'checklist', label: 'Checklist', show: isAdmin },
                 { id: 'similares', label: 'Similares' },
-                { id: 'competencia', label: '🏆 Competencia', show: isAdmin },
-                { id: 'ia_pliego', label: '💬 IA del pliego', show: isAdmin },
+                { id: 'competencia', label: 'Competencia', shortLabel: 'Comp.', show: isAdmin },
+                { id: 'ia_pliego', label: 'IA del pliego', shortLabel: 'IA pliego', show: isAdmin },
               ].filter(t => t.show !== false).map(tab => (
                 <button
                   key={tab.id}
@@ -678,15 +677,16 @@ const LicitacionDetailPage = ({ userRole }) => {
                       tabNavRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
                     }, 0);
                   }}
-                  className={`px-4 py-3 text-sm font-bold whitespace-nowrap border-b-2 transition-all ${
+                  className={`codex-detail-tab ${
                     activeTab === tab.id
-                      ? 'border-blue-600 text-blue-600'
-                      : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                      ? 'codex-detail-tab--active'
+                      : ''
                   }`}
                 >
-                  {tab.label}
+                  <span className="codex-detail-tab__label">{tab.label}</span>
+                  <span className="codex-detail-tab__label codex-detail-tab__label--short">{tab.shortLabel || tab.label}</span>
                   {tab.count > 0 && (
-                    <span className="ml-1.5 px-1.5 py-0.5 bg-gray-100 text-gray-600 rounded text-xs">{tab.count}</span>
+                    <span className="codex-detail-tab__count">{tab.count}</span>
                   )}
                 </button>
               ))}
@@ -694,7 +694,7 @@ const LicitacionDetailPage = ({ userRole }) => {
           </div>
 
           {/* Content */}
-          <div className="p-8 sm:p-10">
+          <div className="codex-detail-content codex-detail-content--complete">
             {/* Workflow Tab */}
             {activeTab === 'workflow' && (
               <div className="space-y-6">
@@ -761,9 +761,9 @@ const LicitacionDetailPage = ({ userRole }) => {
             )}
 
             {/* All other tabs show the existing grid layout */}
-            <div className={`grid grid-cols-1 lg:grid-cols-3 gap-8 ${activeTab === 'workflow' || activeTab === 'oferta' || activeTab === 'similares' || activeTab === 'pliego_ia' || activeTab === 'checklist' || activeTab === 'competencia' ? 'hidden' : ''}`}>
+            <div className={`codex-detail-grid ${activeTab === 'workflow' || activeTab === 'oferta' || activeTab === 'similares' || activeTab === 'pliego_ia' || activeTab === 'checklist' || activeTab === 'competencia' ? 'hidden' : ''}`}>
               {/* Left Column - Main Info */}
-              <div className="lg:col-span-2 space-y-8">
+              <div className="codex-detail-main">
                 {/* Información General */}
                 <section className={activeTab !== 'general' ? 'hidden' : ''}>
                   <h2 className="text-lg font-black text-gray-900 mb-6 flex items-center">
@@ -846,7 +846,7 @@ const LicitacionDetailPage = ({ userRole }) => {
 
                 {/* CRONOGRAMA - Fechas Críticas */}
                 {hasCronograma && (
-                  <section className={`bg-gradient-to-r from-orange-50 to-amber-50 rounded-2xl p-6 border border-orange-100 ${activeTab !== 'general' && activeTab !== 'cronograma' ? 'hidden' : ''}`}>
+                  <section className={activeTab !== 'general' && activeTab !== 'cronograma' ? 'hidden' : ''}>
                     <h2 className="text-lg font-black text-gray-900 mb-6 flex items-center">
                       <span className="w-8 h-8 rounded-xl bg-orange-100 text-orange-600 flex items-center justify-center mr-3">
                         <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -898,7 +898,7 @@ const LicitacionDetailPage = ({ userRole }) => {
                 {(licitacion.etapa || licitacion.modalidad || licitacion.alcance || licitacion.encuadre_legal) && (
                   <section>
                     <h2 className="text-lg font-black text-gray-900 mb-6 flex items-center">
-                      <span className="w-8 h-8 rounded-xl bg-indigo-100 text-indigo-600 flex items-center justify-center mr-3">
+                      <span className="w-8 h-8 rounded-xl bg-blue-100 text-blue-600 flex items-center justify-center mr-3">
                         <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                         </svg>
@@ -922,7 +922,7 @@ const LicitacionDetailPage = ({ userRole }) => {
 
                 {/* Información del Contrato */}
                 {(licitacion.duracion_contrato || licitacion.fecha_inicio_contrato) && (
-                  <section className="bg-gradient-to-r from-cyan-50 to-sky-50 rounded-2xl p-6 border border-cyan-100">
+                  <section>
                     <h2 className="text-lg font-black text-gray-900 mb-4 flex items-center">
                       <span className="w-8 h-8 rounded-xl bg-cyan-100 text-cyan-600 flex items-center justify-center mr-3">
                         <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -1024,7 +1024,7 @@ const LicitacionDetailPage = ({ userRole }) => {
 
                 {/* GARANTIAS */}
                 {licitacion.garantias && licitacion.garantias.length > 0 && (
-                  <section className={`bg-gradient-to-r from-red-50 to-rose-50 rounded-2xl p-6 border border-red-100 ${activeTab !== 'general' && activeTab !== 'docs' ? 'hidden' : ''}`}>
+                  <section className={activeTab !== 'general' && activeTab !== 'docs' ? 'hidden' : ''}>
                      <h2 className="text-lg font-black text-gray-900 mb-6 flex items-center">
                       <span className="w-8 h-8 rounded-xl bg-red-100 text-red-600 flex items-center justify-center mr-3">
                         <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -1035,7 +1035,7 @@ const LicitacionDetailPage = ({ userRole }) => {
                     </h2>
                     <div className="space-y-4">
                       {licitacion.garantias.map((garantia, idx) => (
-                        <div key={idx} className="bg-white/80 rounded-xl p-4 shadow-sm">
+                        <div key={idx} className="bg-white/80 rounded-xl p-4 border border-gray-100">
                           <h4 className="font-bold text-red-800 mb-1">{garantia.titulo}</h4>
                           <p className="text-sm text-gray-700">{garantia.detalle}</p>
                         </div>
@@ -1123,7 +1123,7 @@ const LicitacionDetailPage = ({ userRole }) => {
                 {licitacion.requisitos_participacion && licitacion.requisitos_participacion.length > 0 && (
                   <section className={activeTab !== 'general' && activeTab !== 'docs' ? 'hidden' : ''}>
                     <h2 className="text-lg font-black text-gray-900 mb-4 flex items-center">
-                      <span className="w-8 h-8 rounded-xl bg-violet-100 text-violet-600 flex items-center justify-center mr-3">
+                      <span className="w-8 h-8 rounded-xl bg-blue-100 text-blue-600 flex items-center justify-center mr-3">
                         <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
                         </svg>
@@ -1133,7 +1133,7 @@ const LicitacionDetailPage = ({ userRole }) => {
                     <ul className="space-y-2">
                       {licitacion.requisitos_participacion.map((req, idx) => (
                         <li key={idx} className="flex items-start gap-2 text-gray-700">
-                          <svg className="w-5 h-5 text-violet-500 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <svg className="w-5 h-5 text-blue-500 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
                           </svg>
                           <span>{req}</span>
@@ -1145,7 +1145,7 @@ const LicitacionDetailPage = ({ userRole }) => {
 
                 {/* Circulares */}
                 {licitacion.circulares && licitacion.circulares.length > 0 && (
-                  <section className={`bg-gradient-to-r from-rose-50 to-pink-50 rounded-2xl p-6 border border-rose-100 ${activeTab !== 'general' && activeTab !== 'docs' ? 'hidden' : ''}`}>
+                  <section className={activeTab !== 'general' && activeTab !== 'docs' ? 'hidden' : ''}>
                     <h2 className="text-lg font-black text-gray-900 mb-4 flex items-center">
                       <span className="w-8 h-8 rounded-xl bg-rose-100 text-rose-600 flex items-center justify-center mr-3">
                         <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -1211,7 +1211,7 @@ const LicitacionDetailPage = ({ userRole }) => {
                 {licitacion.budget && (() => {
                   const isEstimated = licitacion.metadata?.budget_source === 'estimated_from_pliego';
                   return (
-                    <section className={`rounded-2xl p-6 border ${isEstimated ? 'bg-gradient-to-r from-amber-50 to-yellow-50 border-amber-200' : 'bg-gradient-to-r from-emerald-50 to-teal-50 border-emerald-100'}`}>
+                    <section className={isEstimated ? 'codex-detail-section--warning' : 'codex-detail-section--success'}>
                       <div className="flex items-center justify-between">
                         <div>
                           <div className="flex items-center gap-2 mb-1">
@@ -1233,7 +1233,7 @@ const LicitacionDetailPage = ({ userRole }) => {
                             </p>
                           )}
                         </div>
-                        <div className={`w-14 h-14 rounded-2xl flex items-center justify-center ${isEstimated ? 'bg-amber-100' : 'bg-emerald-100'}`}>
+                        <div className={`w-14 h-14 rounded-xl flex items-center justify-center ${isEstimated ? 'bg-amber-100' : 'bg-emerald-100'}`}>
                           <svg className={`w-7 h-7 ${isEstimated ? 'text-amber-600' : 'text-emerald-600'}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                           </svg>
@@ -1247,14 +1247,14 @@ const LicitacionDetailPage = ({ userRole }) => {
                 {licitacion.description && (
                   <section>
                     <h2 className="text-lg font-black text-gray-900 mb-4 flex items-center">
-                      <span className="w-8 h-8 rounded-xl bg-purple-100 text-purple-600 flex items-center justify-center mr-3">
+                      <span className="w-8 h-8 rounded-xl bg-blue-100 text-blue-600 flex items-center justify-center mr-3">
                         <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 6h16M4 12h16M4 18h7" />
                         </svg>
                       </span>
                       Descripción
                     </h2>
-                    <div className="bg-gray-50 rounded-2xl p-6 border border-gray-100">
+                    <div className="bg-gray-50 rounded-xl p-6 border border-gray-100">
                       <p className="text-gray-700 leading-relaxed whitespace-pre-wrap">{licitacion.description}</p>
                     </div>
                   </section>
@@ -1264,24 +1264,24 @@ const LicitacionDetailPage = ({ userRole }) => {
                 {isAdmin && (() => {
                   const iaResumen = licitacion.metadata?.ia_resumen;
                   return (
-                    <section className="bg-gradient-to-r from-violet-50 to-purple-50 rounded-2xl p-6 border border-violet-200">
+                    <section>
                       <div className="flex items-center justify-between mb-4">
                         <h2 className="text-lg font-black text-gray-900 flex items-center">
-                          <span className="w-8 h-8 rounded-xl bg-violet-100 text-violet-600 flex items-center justify-center mr-3">
+                          <span className="w-8 h-8 rounded-xl bg-blue-100 text-blue-600 flex items-center justify-center mr-3">
                             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
                             </svg>
                           </span>
                           Resumen IA del Pliego
                           {licitacion.metadata?.ia_resumen_provider && (
-                            <span className="ml-2 text-xs font-normal text-violet-400">via {licitacion.metadata.ia_resumen_provider}</span>
+                            <span className="ml-2 text-xs font-normal text-blue-400">via {licitacion.metadata.ia_resumen_provider}</span>
                           )}
                         </h2>
                         {iaResumen && (
                           <button
                             onClick={() => generateAIResumen(true)}
                             disabled={aiResumenLoading}
-                            className="text-xs text-violet-500 hover:text-violet-700 underline shrink-0"
+                            className="text-xs text-blue-600 hover:text-blue-700 underline shrink-0"
                           >
                             Regenerar
                           </button>
@@ -1290,7 +1290,7 @@ const LicitacionDetailPage = ({ userRole }) => {
 
                       {aiResumenLoading && (
                         <div className="flex items-center gap-3 py-8 text-gray-400 text-sm justify-center">
-                          <div className="w-4 h-4 border-2 border-violet-200 border-t-violet-500 rounded-full animate-spin" />
+                          <div className="w-4 h-4 border-2 border-blue-200 border-t-blue-500 rounded-full animate-spin" />
                           Analizando pliego con IA...
                         </div>
                       )}
@@ -1305,11 +1305,11 @@ const LicitacionDetailPage = ({ userRole }) => {
                         <div className="space-y-4">
                           {iaResumen.documentacion_requerida?.length > 0 && (
                             <div>
-                              <p className="text-xs font-bold text-violet-600 uppercase tracking-wider mb-2">Documentacion Requerida</p>
+                              <p className="text-xs font-bold text-blue-600 uppercase tracking-wider mb-2">Documentacion Requerida</p>
                               <ul className="space-y-1.5">
                                 {iaResumen.documentacion_requerida.map((d, i) => (
                                   <li key={i} className="flex gap-2 text-sm text-gray-700">
-                                    <span className="text-violet-400 mt-0.5 shrink-0">&#8226;</span>
+                                    <span className="text-blue-400 mt-0.5 shrink-0">&#8226;</span>
                                     <span>{d}</span>
                                   </li>
                                 ))}
@@ -1320,25 +1320,25 @@ const LicitacionDetailPage = ({ userRole }) => {
                           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                             {iaResumen.plazo_entrega && iaResumen.plazo_entrega !== 'No se especifica' && (
                               <div className="bg-white/60 rounded-xl p-3">
-                                <p className="text-xs font-bold text-violet-500 uppercase mb-0.5">Plazo de Entrega</p>
+                                <p className="text-xs font-bold text-blue-600 uppercase mb-0.5">Plazo de Entrega</p>
                                 <p className="text-sm text-gray-800">{iaResumen.plazo_entrega}</p>
                               </div>
                             )}
                             {iaResumen.lugar_entrega && iaResumen.lugar_entrega !== 'No se especifica' && (
                               <div className="bg-white/60 rounded-xl p-3">
-                                <p className="text-xs font-bold text-violet-500 uppercase mb-0.5">Lugar de Entrega</p>
+                                <p className="text-xs font-bold text-blue-600 uppercase mb-0.5">Lugar de Entrega</p>
                                 <p className="text-sm text-gray-800">{iaResumen.lugar_entrega}</p>
                               </div>
                             )}
                             {iaResumen.garantia_mantenimiento_oferta && iaResumen.garantia_mantenimiento_oferta !== 'No se especifica' && (
                               <div className="bg-white/60 rounded-xl p-3">
-                                <p className="text-xs font-bold text-violet-500 uppercase mb-0.5">Garantia de Oferta</p>
+                                <p className="text-xs font-bold text-blue-600 uppercase mb-0.5">Garantia de Oferta</p>
                                 <p className="text-sm text-gray-800">{iaResumen.garantia_mantenimiento_oferta}</p>
                               </div>
                             )}
                             {(iaResumen.contactos?.email || iaResumen.contactos?.telefono) && (
                               <div className="bg-white/60 rounded-xl p-3">
-                                <p className="text-xs font-bold text-violet-500 uppercase mb-0.5">Contactos</p>
+                                <p className="text-xs font-bold text-blue-600 uppercase mb-0.5">Contactos</p>
                                 <p className="text-sm text-gray-800">
                                   {[iaResumen.contactos.email, iaResumen.contactos.telefono].filter(Boolean).join(' | ')}
                                 </p>
@@ -1359,7 +1359,7 @@ const LicitacionDetailPage = ({ userRole }) => {
                           <button
                             onClick={() => generateAIResumen(false)}
                             disabled={aiResumenLoading}
-                            className="px-4 py-2 bg-violet-600 text-white text-sm rounded-lg hover:bg-violet-700 transition-colors disabled:opacity-50"
+                            className="codex-button codex-button--primary text-sm disabled:opacity-50"
                           >
                             Generar resumen IA
                           </button>
@@ -1386,9 +1386,9 @@ const LicitacionDetailPage = ({ userRole }) => {
               </div>
 
               {/* Right Column - Actions & Files */}
-              <div className="space-y-6">
+              <div className="codex-detail-sidebar codex-detail-sidebar--complete">
                 {/* Enlaces Externos */}
-                <section className="bg-white rounded-2xl p-6 shadow-lg border border-gray-100">
+                <section>
                   <h3 className="text-sm font-black text-gray-500 uppercase tracking-wider mb-4">Enlace Original</h3>
                   <div className="space-y-3">
                     {detailUrl && (
@@ -1409,11 +1409,11 @@ const LicitacionDetailPage = ({ userRole }) => {
                         href={comprarUrl}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className={`flex items-center justify-center gap-3 p-4 rounded-xl transition-all shadow-lg font-bold ${
-                          licitacion.metadata?.pliego_local_url && !comprarUrl.includes('comprar.')
-                            ? 'bg-gradient-to-r from-emerald-600 to-green-600 hover:from-emerald-700 hover:to-green-700 shadow-emerald-200 hover:shadow-emerald-300'
-                            : 'bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 shadow-blue-200 hover:shadow-blue-300'
-                        }`}
+                            className={`codex-detail-external flex items-center justify-center gap-3 p-4 rounded-xl transition-all font-bold ${
+                              licitacion.metadata?.pliego_local_url && !comprarUrl.includes('comprar.')
+                                ? 'codex-detail-external--success'
+                                : 'codex-detail-external--primary'
+                            }`}
                       >
                         <span>{licitacion.metadata?.pliego_local_url && !comprarUrl.includes('comprar.') ? 'Ver PDF local (copia persistente)' : 'Abrir en COMPR.AR'}</span>
                         <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -1425,7 +1425,7 @@ const LicitacionDetailPage = ({ userRole }) => {
                 </section>
 
                 {/* Archivos Adjuntos */}
-                <section className="bg-white rounded-2xl p-6 shadow-lg border border-gray-100">
+                <section>
                   <h3 className="text-sm font-black text-gray-500 uppercase tracking-wider mb-4">Archivos Adjuntos</h3>
                   {licitacion.attached_files && licitacion.attached_files.length > 0 ? (
                     <ul className="space-y-2">
@@ -1465,7 +1465,7 @@ const LicitacionDetailPage = ({ userRole }) => {
 
                 {/* Public Sharing Toggle (admin only) */}
                 {isAdmin && (
-                  <section className="bg-white rounded-2xl p-6 shadow-lg border border-gray-100">
+                  <section>
                     <h3 className="text-sm font-black text-gray-500 uppercase tracking-wider mb-4">Compartir Públicamente</h3>
                     <div className="flex items-center justify-between mb-3">
                       <span className="text-sm text-gray-600">
@@ -1521,7 +1521,7 @@ const LicitacionDetailPage = ({ userRole }) => {
                 )}
 
                 {/* Metadata */}
-                <section className="bg-gray-50 rounded-2xl p-6 border border-gray-100">
+                <section>
                   <h3 className="text-xs font-black text-gray-400 uppercase tracking-wider mb-3">Información del Sistema</h3>
                   <dl className="space-y-2 text-sm">
                     <div className="flex justify-between">
@@ -1548,13 +1548,6 @@ const LicitacionDetailPage = ({ userRole }) => {
         </div>
       </div>
 
-      {/* Estilos */}
-      <style dangerouslySetInnerHTML={{ __html: `
-        .glass { background: rgba(255, 255, 255, 0.7); backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px); }
-        .btn-primary { background: linear-gradient(135deg, #2563eb, #4f46e5); color: white; border-radius: 16px; font-weight: 800; letter-spacing: 0.03em; transition: all 0.3s ease; box-shadow: 0 8px 20px -5px rgba(37, 99, 235, 0.4); }
-        .btn-primary:hover { transform: translateY(-2px); box-shadow: 0 12px 25px -5px rgba(37, 99, 235, 0.5); }
-      `}} />
-
       {/* HUNTER Panel */}
       <HunterPanel
         licitacionId={id}
@@ -1577,7 +1570,7 @@ const InfoItem = ({ label, value, fullWidth = false }) => {
   if (!value || value === 'N/A') return null;
 
   return (
-    <div className={fullWidth ? 'sm:col-span-2' : ''}>
+    <div className={`codex-info-item ${fullWidth ? 'sm:col-span-2' : ''}`}>
       <dt className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-1">{label}</dt>
       <dd className="text-gray-800 font-medium">{value}</dd>
     </div>
@@ -1594,7 +1587,7 @@ const DateItem = ({ label, date, formatFn, icon, isDeadline = false }) => {
   const isUpcoming = !isPast && (dateObj - now) < 7 * 24 * 60 * 60 * 1000; // 7 days
 
   return (
-    <div className={`p-4 rounded-xl border ${
+    <div className={`codex-date-item p-4 rounded-xl border ${
       isDeadline && isUpcoming ? 'bg-red-50 border-red-200' :
       isDeadline && isPast ? 'bg-gray-100 border-gray-200' :
       'bg-white/60 border-orange-100'

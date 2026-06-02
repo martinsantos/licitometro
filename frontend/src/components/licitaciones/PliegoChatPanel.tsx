@@ -137,25 +137,25 @@ export default function PliegoChatPanel({ licitacionId }: Props) {
   };
 
   return (
-    <div className="bg-white border border-gray-100 rounded-xl overflow-hidden">
+    <div className="codex-pliego-chat bg-white border border-gray-100 rounded-xl overflow-hidden">
       {/* Header */}
-      <div className="flex items-center gap-3 px-4 py-3 bg-gradient-to-r from-violet-50 to-purple-50 border-b border-purple-100">
+      <div className="codex-pliego-chat__header">
         <span className="text-lg">🤖</span>
-        <span className="font-semibold text-purple-900 text-sm">Asistente de Pliego</span>
+        <span className="font-semibold text-gray-900 text-sm">Asistente de Pliego</span>
         {summary && summaryCached && (
-          <span className="ml-auto text-xs text-purple-400">📋 cacheado</span>
+          <span className="ml-auto text-xs text-blue-500">📋 cacheado</span>
         )}
       </div>
 
       {/* Tabs */}
-      <div className="flex border-b border-gray-100">
+      <div className="codex-pliego-chat__tabs">
         {(['resumen', 'extraccion', 'chat'] as const).map(t => (
           <button
             key={t}
             onClick={() => setTab(t)}
             className={`flex-1 py-2 text-xs font-medium transition-colors ${
               tab === t
-                ? 'text-purple-700 border-b-2 border-purple-500 bg-purple-50'
+                ? 'codex-pliego-chat__tab--active'
                 : 'text-gray-500 hover:text-gray-700'
             }`}
           >
@@ -175,7 +175,7 @@ export default function PliegoChatPanel({ licitacionId }: Props) {
                 </p>
                 <button
                   onClick={loadSummary}
-                  className="px-4 py-2 bg-purple-600 text-white text-sm rounded-lg hover:bg-purple-700 transition-colors"
+                  className="codex-button codex-button--primary text-sm"
                 >
                   Analizar pliego
                 </button>
@@ -183,7 +183,7 @@ export default function PliegoChatPanel({ licitacionId }: Props) {
             )}
             {summaryLoading && (
               <div className="flex items-center gap-3 py-8 text-gray-400 text-sm justify-center">
-                <div className="w-4 h-4 border-2 border-purple-200 border-t-purple-500 rounded-full animate-spin" />
+                <div className="w-4 h-4 border-2 border-blue-200 border-t-blue-500 rounded-full animate-spin" />
                 Analizando pliego...
               </div>
             )}
@@ -201,7 +201,7 @@ export default function PliegoChatPanel({ licitacionId }: Props) {
                     <ul className="space-y-1">
                       {summary.documentacion_requerida.map((d, i) => (
                         <li key={i} className="flex gap-2 text-gray-600">
-                          <span className="text-purple-400 mt-0.5">•</span>
+                          <span className="text-blue-500 mt-0.5">•</span>
                           <span>{d}</span>
                         </li>
                       ))}
@@ -211,25 +211,25 @@ export default function PliegoChatPanel({ licitacionId }: Props) {
                 <div className="grid grid-cols-1 gap-2">
                   {summary.plazo_entrega && summary.plazo_entrega !== 'No se especifica' && (
                     <div className="bg-gray-50 rounded-lg p-2.5">
-                      <span className="text-xs font-bold text-purple-500">Plazo de entrega: </span>
+                      <span className="text-xs font-bold text-blue-600">Plazo de entrega: </span>
                       <span className="text-gray-700">{summary.plazo_entrega}</span>
                     </div>
                   )}
                   {summary.lugar_entrega && summary.lugar_entrega !== 'No se especifica' && (
                     <div className="bg-gray-50 rounded-lg p-2.5">
-                      <span className="text-xs font-bold text-purple-500">Lugar de entrega: </span>
+                      <span className="text-xs font-bold text-blue-600">Lugar de entrega: </span>
                       <span className="text-gray-700">{summary.lugar_entrega}</span>
                     </div>
                   )}
                   {summary.garantia_mantenimiento_oferta && summary.garantia_mantenimiento_oferta !== 'No se especifica' && (
                     <div className="bg-gray-50 rounded-lg p-2.5">
-                      <span className="text-xs font-bold text-purple-500">Garantia de oferta: </span>
+                      <span className="text-xs font-bold text-blue-600">Garantia de oferta: </span>
                       <span className="text-gray-700">{summary.garantia_mantenimiento_oferta}</span>
                     </div>
                   )}
                   {(summary.contactos?.email || summary.contactos?.telefono) && (
                     <div className="bg-gray-50 rounded-lg p-2.5">
-                      <span className="text-xs font-bold text-purple-500">Contactos: </span>
+                      <span className="text-xs font-bold text-blue-600">Contactos: </span>
                       <span className="text-gray-700">
                         {[summary.contactos.email, summary.contactos.telefono].filter(Boolean).join(' | ')}
                       </span>
@@ -245,7 +245,7 @@ export default function PliegoChatPanel({ licitacionId }: Props) {
                 <AIGroundingBadge grounding={summaryGrounding} />
                 <button
                   onClick={loadSummary}
-                  className="text-xs text-purple-500 hover:text-purple-700 underline"
+                  className="text-xs text-blue-600 hover:text-blue-700 underline"
                 >
                   Reanalizar
                 </button>
@@ -263,7 +263,7 @@ export default function PliegoChatPanel({ licitacionId }: Props) {
                 </p>
                 <button
                   onClick={() => loadExtractionV2(false)}
-                  className="px-4 py-2 bg-indigo-600 text-white text-sm rounded-lg hover:bg-indigo-700 transition-colors"
+                  className="codex-button codex-button--primary text-sm"
                 >
                   Extraer con 0.2
                 </button>
@@ -271,7 +271,7 @@ export default function PliegoChatPanel({ licitacionId }: Props) {
             )}
             {extractV2Loading && (
               <div className="flex items-center gap-3 py-8 text-gray-400 text-sm justify-center">
-                <div className="w-4 h-4 border-2 border-indigo-200 border-t-indigo-500 rounded-full animate-spin" />
+                <div className="w-4 h-4 border-2 border-blue-200 border-t-blue-500 rounded-full animate-spin" />
                 Ejecutando extraccion 0.2...
               </div>
             )}
@@ -284,7 +284,7 @@ export default function PliegoChatPanel({ licitacionId }: Props) {
             {extractV2 && !extractV2Error && (
               <div className="space-y-4 text-sm">
                 <div className="flex flex-wrap gap-2 text-xs text-gray-500">
-                  <span className="px-2 py-0.5 bg-indigo-50 text-indigo-700 rounded-full">{extractV2Meta?.schema_version || 'schema'}</span>
+                  <span className="codex-status codex-status--progress">{extractV2Meta?.schema_version || 'schema'}</span>
                   {extractV2Meta?.provider && <span className="px-2 py-0.5 bg-gray-100 rounded-full">{extractV2Meta.provider}</span>}
                   {extractV2Meta?.cached && <span className="px-2 py-0.5 bg-emerald-50 text-emerald-700 rounded-full">cacheado</span>}
                 </div>
@@ -310,7 +310,7 @@ export default function PliegoChatPanel({ licitacionId }: Props) {
                     <ul className="space-y-1">
                       {extractV2.documentacion_requerida.map((d, i) => (
                         <li key={i} className="flex gap-2 text-gray-600">
-                          <span className="text-indigo-400 mt-0.5">•</span>
+                          <span className="text-blue-500 mt-0.5">•</span>
                           <span>{d}</span>
                         </li>
                       ))}
@@ -324,7 +324,7 @@ export default function PliegoChatPanel({ licitacionId }: Props) {
                     <ul className="space-y-1">
                       {extractV2.requisitos_tecnicos.slice(0, 8).map((r, i) => (
                         <li key={i} className="flex gap-2 text-gray-600">
-                          <span className="text-indigo-400 mt-0.5">•</span>
+                          <span className="text-blue-500 mt-0.5">•</span>
                           <span>{r}</span>
                         </li>
                       ))}
@@ -334,8 +334,8 @@ export default function PliegoChatPanel({ licitacionId }: Props) {
 
                 {(extractV2.plazo_ejecucion || extractV2.lugar_entrega) && (
                   <div className="grid grid-cols-1 gap-2">
-                    {extractV2.plazo_ejecucion && <div className="bg-gray-50 rounded-lg p-2.5"><span className="text-xs font-bold text-indigo-500">Plazo: </span>{extractV2.plazo_ejecucion}</div>}
-                    {extractV2.lugar_entrega && <div className="bg-gray-50 rounded-lg p-2.5"><span className="text-xs font-bold text-indigo-500">Lugar: </span>{extractV2.lugar_entrega}</div>}
+                    {extractV2.plazo_ejecucion && <div className="bg-gray-50 rounded-lg p-2.5"><span className="text-xs font-bold text-blue-600">Plazo: </span>{extractV2.plazo_ejecucion}</div>}
+                    {extractV2.lugar_entrega && <div className="bg-gray-50 rounded-lg p-2.5"><span className="text-xs font-bold text-blue-600">Lugar: </span>{extractV2.lugar_entrega}</div>}
                   </div>
                 )}
 
@@ -348,7 +348,7 @@ export default function PliegoChatPanel({ licitacionId }: Props) {
                   </div>
                 )}
 
-                <button onClick={() => loadExtractionV2(true)} className="text-xs text-indigo-500 hover:text-indigo-700 underline">
+                <button onClick={() => loadExtractionV2(true)} className="text-xs text-blue-600 hover:text-blue-700 underline">
                   Forzar nueva extraccion
                 </button>
               </div>
@@ -370,7 +370,7 @@ export default function PliegoChatPanel({ licitacionId }: Props) {
                         key={i}
                         onClick={() => sendMessage(q)}
                         disabled={chatLoading}
-                        className="px-2.5 py-1 bg-purple-50 text-purple-700 rounded-full text-xs hover:bg-purple-100 transition-colors disabled:opacity-50"
+                        className="codex-chip codex-chip--progress disabled:opacity-50"
                       >
                         {q}
                       </button>
@@ -383,7 +383,7 @@ export default function PliegoChatPanel({ licitacionId }: Props) {
                   <div
                     className={`max-w-[85%] px-3 py-2 rounded-xl text-sm ${
                       m.role === 'user'
-                        ? 'bg-purple-600 text-white rounded-br-sm'
+                        ? 'bg-blue-600 text-white rounded-br-sm'
                         : 'bg-gray-100 text-gray-800 rounded-bl-sm'
                     }`}
                   >
@@ -415,13 +415,13 @@ export default function PliegoChatPanel({ licitacionId }: Props) {
                 onChange={e => setInput(e.target.value)}
                 onKeyDown={e => e.key === 'Enter' && !e.shiftKey && sendMessage()}
                 placeholder="Que certificaciones se piden?"
-                className="flex-1 text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-purple-300"
+                className="codex-field flex-1"
                 disabled={chatLoading}
               />
               <button
                 onClick={() => sendMessage()}
                 disabled={!input.trim() || chatLoading}
-                className="px-3 py-2 bg-purple-600 text-white rounded-lg text-sm hover:bg-purple-700 disabled:opacity-40 transition-colors"
+                className="codex-button codex-button--primary text-sm disabled:opacity-40"
               >
                 ➤
               </button>

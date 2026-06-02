@@ -154,7 +154,7 @@ const DataQualityDashboard = () => {
                 <td className="px-3 py-2 text-right">{src.with_budget}</td>
                 <td className="px-3 py-2 text-right">
                   {src.decretos > 0 && (
-                    <span className="bg-purple-100 text-purple-700 px-1.5 py-0.5 rounded text-xs">
+                    <span className="codex-status codex-status--progress text-xs">
                       {src.decretos}
                     </span>
                   )}

@@ -50,38 +50,38 @@ export default function DecisionReadinessPanel({ licitacion }: { licitacion: Lic
     `${days} dias`;
 
   return (
-    <section className="bg-white border border-gray-100 rounded-lg p-4 shadow-sm" aria-label="Qué falta para cotizar">
-      <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-        <div className="min-w-0">
+    <section className="codex-panel codex-readiness-panel p-4" aria-label="Qué falta para cotizar">
+      <div className="codex-readiness-panel__grid">
+        <div className="codex-readiness-panel__summary">
           <h2 className="text-sm font-black text-gray-900 mb-1">Qué falta para cotizar</h2>
           <p className="text-xs text-gray-500">
             {nextMissing ? `Próxima acción recomendada: ${nextMissing.label}.` : 'La licitación tiene los datos mínimos para avanzar.'}
           </p>
-          <div className="mt-3 grid grid-cols-2 sm:grid-cols-4 gap-2">
-            <div className="rounded-md bg-gray-50 px-3 py-2">
+          <div className="codex-readiness-panel__metrics mt-3 grid grid-cols-2 sm:grid-cols-4 gap-2">
+            <div className="codex-metric px-3 py-2">
               <div className="text-[10px] uppercase font-bold text-gray-400">Apertura</div>
               <div className="text-sm font-black text-gray-800">{deadlineLabel}</div>
             </div>
-            <div className="rounded-md bg-gray-50 px-3 py-2">
+            <div className="codex-metric px-3 py-2">
               <div className="text-[10px] uppercase font-bold text-gray-400">Presupuesto</div>
               <div className="text-sm font-black text-gray-800 truncate">{formatARS(licitacion.budget)}</div>
             </div>
-            <div className="rounded-md bg-gray-50 px-3 py-2">
+            <div className="codex-metric px-3 py-2">
               <div className="text-[10px] uppercase font-bold text-gray-400">Fuente</div>
               <div className="text-sm font-black text-gray-800 truncate">{licitacion.fuente || 'Sin fuente'}</div>
             </div>
-            <div className="rounded-md bg-gray-50 px-3 py-2">
+            <div className="codex-metric px-3 py-2">
               <div className="text-[10px] uppercase font-bold text-gray-400">Completitud</div>
               <div className="text-sm font-black text-gray-800">{doneCount}/{readinessItems.length}</div>
             </div>
           </div>
         </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:w-72 gap-2">
+        <div className="codex-readiness-panel__checks">
           {readinessItems.map(item => (
             <div
               key={item.label}
-              className={`rounded-md px-3 py-2 text-xs font-bold ${
+              className={`codex-status ${
                 item.done ? 'bg-emerald-50 text-emerald-700' : 'bg-amber-50 text-amber-700'
               }`}
             >

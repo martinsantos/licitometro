@@ -85,7 +85,7 @@ const MobileFilterDrawer: React.FC<MobileFilterDrawerProps> = ({
       />
 
       {/* Drawer */}
-      <div className={`fixed inset-y-0 right-0 w-80 max-w-[85vw] bg-white z-50 shadow-2xl transition-transform lg:hidden ${isOpen ? 'translate-x-0' : 'translate-x-full'}`}>
+      <div className={`codex-mobile-filter-drawer fixed inset-y-0 right-0 w-80 max-w-[85vw] bg-white z-50 transition-transform lg:hidden ${isOpen ? 'translate-x-0' : 'translate-x-full'}`}>
         <div className="flex flex-col h-full">
           {/* Header */}
           <div className="flex items-center justify-between p-4 border-b border-gray-100">
@@ -97,7 +97,7 @@ const MobileFilterDrawer: React.FC<MobileFilterDrawerProps> = ({
                 </span>
               )}
             </div>
-            <button onClick={onClose} className="p-2 hover:bg-gray-100 rounded-lg transition-colors">
+            <button onClick={onClose} className="codex-icon-button">
               <svg className="w-5 h-5 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
               </svg>
@@ -259,11 +259,11 @@ const MobileFilterDrawer: React.FC<MobileFilterDrawerProps> = ({
           {/* Footer */}
           <div className="p-4 border-t border-gray-100 space-y-2">
             {activeFilterCount > 0 && (
-              <button onClick={onClearAll} className="w-full py-3 bg-red-50 text-red-600 rounded-xl font-bold text-sm hover:bg-red-100 transition-colors">
+                  <button onClick={onClearAll} className="codex-button codex-button--danger-quiet w-full text-sm">
                 Limpiar todos los filtros
               </button>
             )}
-            <button onClick={onClose} className="w-full py-3 bg-emerald-600 text-white rounded-xl font-bold text-sm hover:bg-emerald-700 transition-colors">
+                <button onClick={onClose} className="codex-button codex-button--primary w-full text-sm">
               {totalItems != null ? `Ver ${totalItems} resultados` : 'Aplicar filtros'}
             </button>
           </div>

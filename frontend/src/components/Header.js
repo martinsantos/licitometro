@@ -163,7 +163,7 @@ const Header = ({ userRole }) => {
   };
 
   return (
-    <header className="bg-white text-[#202122] sticky top-0 z-50 border-b border-[#a2a9b1] shadow-[0_1px_0_rgba(0,0,0,0.03)]">
+    <header className="bg-white text-[#202122] sticky top-0 z-50 border-b border-[#a2a9b1]">
       <div className="w-full max-w-[1600px] mx-auto px-3 sm:px-4">
         <div className="flex items-center gap-2 min-h-12">
           {/* Logo */}
@@ -195,7 +195,7 @@ const Header = ({ userRole }) => {
                   Más
                 </button>
                 {moreMenuOpen && (
-                  <div className="absolute right-0 top-full mt-2 bg-white border border-[#a2a9b1] rounded-sm shadow-xl py-1 w-56 max-h-[calc(100vh-4rem)] overflow-y-auto z-50">
+                  <div className="absolute right-0 top-full mt-2 bg-white border border-[#a2a9b1] rounded-sm py-1 w-56 max-h-[calc(100vh-4rem)] overflow-y-auto z-50">
                     {secondaryLinks.map(link => (
                       <NavLink key={link.path} {...link} onClick={() => setMoreMenuOpen(false)} />
                     ))}
@@ -220,7 +220,7 @@ const Header = ({ userRole }) => {
                   <span className="text-[#72777d]">AI</span>
                 </button>
                 {showAiDetail && (
-                  <div className="absolute right-0 top-full mt-2 bg-white border border-[#a2a9b1] rounded-sm shadow-xl p-3 w-[min(22rem,calc(100vw-1.5rem))] z-[60]">
+                  <div className="absolute right-0 top-full mt-2 bg-white border border-[#a2a9b1] rounded-sm p-3 w-[min(22rem,calc(100vw-1.5rem))] z-[60]">
                     <p className="text-xs font-semibold text-[#202122] mb-2">Consumo AI hoy</p>
                     <div className="space-y-2">
                       <div className="flex justify-between text-xs">

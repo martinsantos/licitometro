@@ -144,7 +144,7 @@ const NodoForm: React.FC<NodoFormProps> = ({ nodo, onSave, onCancel }) => {
       onClick={handleOverlayClick}
       className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
     >
-      <div className="bg-white rounded-2xl shadow-2xl border border-gray-100 w-full max-w-2xl max-h-[90vh] overflow-y-auto">
+      <div className="codex-panel w-full max-w-2xl max-h-[90vh] overflow-y-auto">
         <form onSubmit={handleSubmit} className="p-6 space-y-5">
           {/* Header */}
           <div className="flex items-center justify-between">
@@ -392,10 +392,10 @@ const NodoForm: React.FC<NodoFormProps> = ({ nodo, onSave, onCancel }) => {
                   key={opt.value}
                   type="button"
                   onClick={() => setDigestFrequency(opt.value)}
-                  className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-colors ${
+                  className={`codex-button text-xs ${
                     digestFrequency === opt.value
-                      ? 'bg-violet-600 text-white'
-                      : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                      ? 'codex-button--primary'
+                      : 'codex-button--quiet'
                   }`}
                 >
                   {opt.label}
@@ -406,7 +406,7 @@ const NodoForm: React.FC<NodoFormProps> = ({ nodo, onSave, onCancel }) => {
 
           {/* Submit */}
           <div className="flex items-center gap-3 pt-3 border-t border-gray-100">
-            <button type="submit" className="px-5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-sm font-bold transition-colors">
+            <button type="submit" className="codex-button codex-button--primary text-sm">
               {nodo ? 'Guardar' : 'Crear Nodo'}
             </button>
             <button type="button" onClick={onCancel} className="px-5 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg text-sm font-bold transition-colors">

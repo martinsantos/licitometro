@@ -100,7 +100,7 @@ export default function DocumentRepository({ open, onClose }: Props) {
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40" onClick={onClose}>
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-3xl max-h-[85vh] flex flex-col mx-4" onClick={e => e.stopPropagation()}>
+      <div className="codex-panel w-full max-w-3xl max-h-[85vh] flex flex-col mx-4" onClick={e => e.stopPropagation()}>
         {/* Header */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
           <h2 className="font-bold text-gray-800 text-lg">Repositorio de Documentos</h2>
@@ -149,7 +149,7 @@ export default function DocumentRepository({ open, onClose }: Props) {
             <button
               onClick={() => fileRef.current?.click()}
               disabled={uploading}
-              className="px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50"
+              className="codex-button codex-button--primary text-sm disabled:opacity-50"
             >
               {uploading ? 'Subiendo...' : 'Seleccionar archivo'}
             </button>
@@ -161,14 +161,14 @@ export default function DocumentRepository({ open, onClose }: Props) {
             <span className="text-xs text-gray-500 font-medium">Filtrar:</span>
             <button
               onClick={() => setFilterCat('')}
-              className={`text-xs px-2 py-1 rounded-full transition-colors ${!filterCat ? 'bg-blue-100 text-blue-700' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}
+              className={`codex-button text-xs ${!filterCat ? 'codex-button--primary' : 'codex-button--quiet'}`}
             >
               Todos ({docs.length})
             </button>
             {categories.filter(c => grouped[c]).map(c => (
               <button
                 key={c} onClick={() => setFilterCat(filterCat === c ? '' : c)}
-                className={`text-xs px-2 py-1 rounded-full transition-colors ${filterCat === c ? 'bg-blue-100 text-blue-700' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}
+                className={`codex-button text-xs ${filterCat === c ? 'codex-button--primary' : 'codex-button--quiet'}`}
               >
                 {CATEGORY_ICONS[c] || '📎'} {c} ({grouped[c]?.length || 0})
               </button>
@@ -193,7 +193,7 @@ export default function DocumentRepository({ open, onClose }: Props) {
                   {catDocs.map(doc => {
                     const expStatus = isExpiringSoon(doc.expiration_date);
                     return (
-                      <div key={doc.id} className="border border-gray-200 rounded-lg p-3 bg-white hover:shadow-sm transition-shadow">
+                      <div key={doc.id} className="codex-panel p-3 transition-colors">
                         <div className="flex items-start justify-between gap-2">
                           <div className="flex-1 min-w-0">
                             <p className="text-sm font-medium text-gray-800 truncate">{doc.filename}</p>

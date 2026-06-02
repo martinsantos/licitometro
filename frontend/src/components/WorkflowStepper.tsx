@@ -59,9 +59,9 @@ const WorkflowStepper: React.FC<WorkflowStepperProps> = ({
   };
 
   return (
-    <div className="space-y-4">
+    <div className="codex-workflow-stepper">
       {/* Stepper */}
-      <div className="flex items-center gap-1">
+      <div className="codex-workflow-stepper__track">
         {WORKFLOW_STEPS.map((step, index) => {
           const config = WORKFLOW_CONFIG[step];
           const isCompleted = !isDiscarded && currentIndex > index;
@@ -72,33 +72,35 @@ const WorkflowStepper: React.FC<WorkflowStepperProps> = ({
             <React.Fragment key={step}>
               {index > 0 && (
                 <div
-                  className={`flex-1 h-1 rounded-full transition-all ${
-                    isCompleted ? 'bg-emerald-400' : 'bg-gray-200'
+                  className={`codex-workflow-stepper__connector ${
+                    isCompleted ? 'codex-workflow-stepper__connector--done' : ''
                   }`}
                 />
               )}
               <button
                 disabled={!isClickable || transitioning}
                 onClick={() => isClickable && setShowConfirm(step)}
-                className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-sm font-bold transition-all ${
+                className={`codex-workflow-stepper__step ${
                   isCurrent
-                    ? `${config.bg} ${config.color} ring-2 ring-offset-2 ring-current`
+                    ? 'codex-workflow-stepper__step--current'
                     : isCompleted
-                    ? 'bg-emerald-100 text-emerald-700'
+                    ? 'codex-workflow-stepper__step--done'
                     : isClickable
-                    ? 'bg-gray-50 text-gray-500 hover:bg-gray-100 cursor-pointer'
-                    : 'bg-gray-50 text-gray-300'
+                    ? 'codex-workflow-stepper__step--clickable'
+                    : 'codex-workflow-stepper__step--disabled'
                 }`}
                 title={isCurrent ? 'Estado actual' : isClickable ? `Cambiar a ${config.label}` : ''}
               >
-                {isCompleted ? (
-                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <span className="codex-workflow-stepper__mark">
+                  {isCompleted ? (
+                    <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M5 13l4 4L19 7" />
-                  </svg>
-                ) : (
-                  <span className="text-sm">{config.icon}</span>
-                )}
-                <span className="hidden sm:inline">{config.label}</span>
+                    </svg>
+                  ) : (
+                    <span>{index + 1}</span>
+                  )}
+                </span>
+                <span className="codex-workflow-stepper__label">{config.label}</span>
               </button>
             </React.Fragment>
           );
@@ -107,15 +109,15 @@ const WorkflowStepper: React.FC<WorkflowStepperProps> = ({
         {/* Discard button (always available unless terminal) */}
         {allowedTransitions.includes('descartada') && (
           <>
-            <div className="mx-2 text-gray-300">|</div>
+            <div className="codex-workflow-stepper__divider" />
             <button
               disabled={transitioning}
               onClick={() => setShowConfirm('descartada')}
-              className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-sm font-bold bg-red-50 text-red-500 hover:bg-red-100 transition-all"
+              className="codex-workflow-stepper__step codex-workflow-stepper__step--discard"
               title="Descartar"
             >
-              <span>❌</span>
-              <span className="hidden sm:inline">Descartar</span>
+              <span className="codex-workflow-stepper__mark">x</span>
+              <span className="codex-workflow-stepper__label">Descartar</span>
             </button>
           </>
         )}
@@ -123,7 +125,7 @@ const WorkflowStepper: React.FC<WorkflowStepperProps> = ({
 
       {/* Discarded indicator */}
       {isDiscarded && (
-        <div className="flex items-center gap-2 px-4 py-2 bg-red-50 rounded-xl text-red-700 font-bold text-sm">
+        <div className="codex-workflow-stepper__discarded">
           <span>❌</span>
           Licitación descartada
         </div>
@@ -131,7 +133,7 @@ const WorkflowStepper: React.FC<WorkflowStepperProps> = ({
 
       {/* Confirmation dialog */}
       {showConfirm && (
-        <div className="bg-white border-2 border-gray-200 rounded-xl p-4 shadow-lg space-y-3">
+        <div className="codex-workflow-stepper__confirm">
           <p className="font-bold text-gray-800">
             Cambiar a <span className={WORKFLOW_CONFIG[showConfirm]?.color}>{WORKFLOW_CONFIG[showConfirm]?.label}</span>?
           </p>

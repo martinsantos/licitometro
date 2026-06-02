@@ -39,20 +39,26 @@ const AdminPage = () => {
   const [activeTab, setActiveTab] = useState('monitor');
 
   return (
-    <div className="admin-workspace mx-auto w-full max-w-[1600px] px-3 py-4 sm:px-4 sm:py-6 lg:px-6 lg:py-8">
-      <h1 className="text-xl sm:text-2xl lg:text-3xl font-bold mb-4 sm:mb-6">Panel de Administración</h1>
+    <div className="codex-page admin-workspace mx-auto w-full max-w-[1600px] px-3 py-4 sm:px-4 sm:py-6 lg:px-6 lg:py-8">
+      <div className="codex-page-header codex-page-header--wide">
+        <div>
+          <span className="codex-page-kicker">Operación del sistema</span>
+          <h1 className="text-xl sm:text-2xl lg:text-3xl font-bold">Panel de Administración</h1>
+          <p>Scrapers, scheduler, fuentes, calidad, importaciones y monitoreo en una sola superficie.</p>
+        </div>
+      </div>
 
-      <div className="admin-surface bg-white shadow-md">
+      <div className="admin-surface codex-panel">
         <div className="border-b border-gray-200">
-          <nav className="-mb-px flex overflow-x-auto scrollbar-hide">
+          <nav className="admin-tabs -mb-px flex overflow-x-auto scrollbar-hide">
             {TABS.map((tab) => (
               <button
                 key={tab.key}
                 onClick={() => setActiveTab(tab.key)}
-                className={`px-3 py-2.5 sm:px-4 sm:py-3 lg:px-6 lg:py-4 text-center text-xs sm:text-sm font-medium whitespace-nowrap ${
+                className={`admin-tab codex-button px-3 py-2.5 sm:px-4 sm:py-3 lg:px-6 lg:py-4 text-center text-xs sm:text-sm font-medium whitespace-nowrap ${
                   activeTab === tab.key
-                    ? 'border-b-2 border-blue-800 text-blue-800'
-                    : 'border-b-2 border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                    ? 'codex-button--primary'
+                    : 'codex-button--quiet'
                 }`}
               >
                 {tab.label}

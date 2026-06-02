@@ -92,7 +92,7 @@ export default function PerfilPage() {
   });
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="codex-page min-h-screen">
       <div className="max-w-5xl mx-auto px-4 py-6">
         <div className="mb-6">
           <h1 className="text-xl font-bold text-gray-900">Mi Actividad</h1>
@@ -101,7 +101,7 @@ export default function PerfilPage() {
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           {/* Card 1: Guardadas con deadline */}
-          <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+          <div className="codex-panel overflow-hidden">
             <div className="px-4 py-3 border-b border-gray-100 flex items-center justify-between">
               <h2 className="font-semibold text-gray-800 text-sm">📌 Guardadas</h2>
               <span className="text-xs text-gray-400">{savedLics.length} items</span>
@@ -141,7 +141,7 @@ export default function PerfilPage() {
           </div>
 
           {/* Card 2: Mis cotizaciones */}
-          <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+          <div className="codex-panel overflow-hidden">
             <div className="px-4 py-3 border-b border-gray-100 flex items-center justify-between">
               <h2 className="font-semibold text-gray-800 text-sm">💼 Cotizaciones</h2>
               <Link to="/cotizar" className="text-xs text-blue-500 hover:underline">Ver todas →</Link>
@@ -183,7 +183,7 @@ export default function PerfilPage() {
           </div>
 
           {/* Card 3: Nodos seguidos */}
-          <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+          <div className="codex-panel overflow-hidden">
             <div className="px-4 py-3 border-b border-gray-100 flex items-center justify-between">
               <h2 className="font-semibold text-gray-800 text-sm">🎯 Nodos activos</h2>
               <Link to="/nodos" className="text-xs text-blue-500 hover:underline">Gestionar →</Link>

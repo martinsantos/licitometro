@@ -33,8 +33,8 @@ const fmt = (n?: number, cur?: string) => {
 };
 
 const fuenteColor: Record<string, string> = {
-  'COMPR.AR Mendoza': 'bg-blue-100 text-blue-700', 'ComprasApps Mendoza': 'bg-teal-100 text-teal-700',
-  'Boletin Oficial Mendoza': 'bg-amber-100 text-amber-700', 'contrataciones_abiertas_mendoza_ocds': 'bg-violet-100 text-violet-700',
+  'COMPR.AR Mendoza': 'codex-status codex-status--progress', 'ComprasApps Mendoza': 'codex-status codex-status--success',
+  'Boletin Oficial Mendoza': 'codex-status codex-status--warning', 'contrataciones_abiertas_mendoza_ocds': 'codex-status codex-status--progress',
 };
 
 export default function HunterPanel({ licitacionId, mode, isOpen, onClose, onMerge, onImportItems, initialTab }: HunterPanelProps) {
@@ -80,21 +80,21 @@ export default function HunterPanel({ licitacionId, mode, isOpen, onClose, onMer
   return (
     <>
       <div className="fixed inset-0 bg-black/25 z-40" onClick={onClose} />
-      <div className="fixed top-0 right-0 h-full w-full sm:w-[480px] bg-white shadow-2xl z-50 flex flex-col animate-slideIn">
+      <div className="codex-hunter-panel fixed top-0 right-0 h-full w-full sm:w-[480px] bg-white z-50 flex flex-col animate-slideIn">
         {/* Header */}
-        <div className="bg-amber-600 text-white px-5 py-3 flex items-center justify-between">
+        <div className="codex-hunter-panel__header">
           <div className="flex items-center gap-3">
             <span className="text-xl">🎯</span>
             <div>
               <h2 className="font-bold text-lg leading-tight">HUNTER</h2>
-              <p className="text-amber-100 text-xs">Investigacion de mercado</p>
+              <p className="text-xs">Investigacion de mercado</p>
             </div>
           </div>
-          <button onClick={onClose} className="text-amber-200 hover:text-white text-xl p-1">✕</button>
+          <button onClick={onClose} className="codex-icon-button">✕</button>
         </div>
 
         {/* 3 Tabs */}
-        <div className="flex border-b border-gray-200 bg-gray-50">
+        <div className="codex-hunter-panel__tabs">
           {([
             ['pliego', '📄 Pliego'],
             ['inteligencia', '💰 Inteligencia'],
@@ -102,17 +102,17 @@ export default function HunterPanel({ licitacionId, mode, isOpen, onClose, onMer
           ] as [string, string][]).map(([key, label]) => (
             <button key={key} onClick={() => setTab(key as any)}
               className={`flex-1 py-2 text-xs font-semibold transition-colors ${
-                tab === key ? 'text-amber-700 border-b-2 border-amber-500 bg-white' : 'text-gray-500 hover:text-gray-700'
+                tab === key ? 'codex-hunter-panel__tab--active' : 'text-gray-500 hover:text-gray-700'
               }`}>
               {label}
               {key === 'pliego' && pliego && pliego.documents.length > 0 && (
-                <span className="ml-1 bg-emerald-100 text-emerald-700 px-1 py-0.5 rounded-full text-[9px]">{pliego.documents.length}</span>
+                <span className="codex-status codex-status--success ml-1">{pliego.documents.length}</span>
               )}
               {key === 'inteligencia' && intel && (intel.referencias.length + intel.adjudicaciones.length) > 0 && (
-                <span className="ml-1 bg-blue-100 text-blue-700 px-1 py-0.5 rounded-full text-[9px]">{intel.referencias.length + intel.adjudicaciones.length}</span>
+                <span className="codex-status codex-status--progress ml-1">{intel.referencias.length + intel.adjudicaciones.length}</span>
               )}
               {key === 'antecedentes' && ants && ants.empresa.length > 0 && (
-                <span className="ml-1 bg-purple-100 text-purple-700 px-1 py-0.5 rounded-full text-[9px]">{ants.empresa.length}</span>
+                <span className="codex-status codex-status--progress ml-1">{ants.empresa.length}</span>
               )}
             </button>
           ))}
@@ -198,7 +198,7 @@ export default function HunterPanel({ licitacionId, mode, isOpen, onClose, onMer
                         <p className="text-[10px] text-gray-500">{a.organization}</p>
                         <div className="flex items-center justify-between mt-1.5">
                           <div>
-                            {a.adjudicatario && <span className="text-[10px] bg-violet-100 text-violet-700 px-1.5 py-0.5 rounded font-medium mr-1">🏆 {a.adjudicatario}</span>}
+                            {a.adjudicatario && <span className="codex-status codex-status--progress mr-1">🏆 {a.adjudicatario}</span>}
                             {a.monto_adjudicado && <span className="text-xs font-bold text-emerald-700">{fmt(a.monto_adjudicado)}</span>}
                             {!a.monto_adjudicado && a.budget && <span className="text-xs font-bold text-emerald-700">{fmt(a.budget)}</span>}
                           </div>
@@ -241,7 +241,7 @@ export default function HunterPanel({ licitacionId, mode, isOpen, onClose, onMer
                         </div>
                         <div className="text-right shrink-0">
                           <span className="font-bold text-emerald-700">{fmt(r.budget, r.currency)}</span>
-                          {r.items_count > 0 && <span className="text-[9px] text-purple-600 ml-1">{r.items_count}it</span>}
+                          {r.items_count > 0 && <span className="text-[9px] text-blue-600 ml-1">{r.items_count}it</span>}
                         </div>
                       </div>
                     ))}
@@ -300,7 +300,7 @@ export default function HunterPanel({ licitacionId, mode, isOpen, onClose, onMer
 
         {/* Toast */}
         {toast && (
-          <div className={`absolute bottom-6 left-4 right-4 py-3 px-4 rounded-xl text-sm font-medium shadow-lg text-white ${toast.type === 'ok' ? 'bg-emerald-500' : 'bg-red-500'}`}>
+          <div className={`codex-hunter-panel__toast absolute bottom-6 left-4 right-4 py-3 px-4 rounded-xl text-sm font-medium ${toast.type === 'ok' ? 'bg-emerald-500 text-white' : 'bg-red-500 text-white'}`}>
             {toast.msg}
           </div>
         )}

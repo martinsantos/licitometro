@@ -101,7 +101,7 @@ export default function ScoreAfinidad({ licitacionId }: Props) {
           <div key={s.company_id} className="relative">
             <button
               onClick={() => setTooltip(tooltip === s.company_id ? null : s.company_id)}
-              className="flex items-center gap-1.5 px-2.5 py-1 rounded-full text-white text-xs font-semibold shadow-sm transition-opacity hover:opacity-90"
+              className="flex items-center gap-1.5 px-2.5 py-1 rounded-full text-white text-xs font-semibold transition-opacity hover:opacity-90"
               style={{ backgroundColor: NIVEL_COLOR[s.nivel] }}
               title={`Score de afinidad para ${s.nombre}`}
             >
@@ -117,7 +117,7 @@ export default function ScoreAfinidad({ licitacionId }: Props) {
 
             {showTooltip && (
             <div
-              className="absolute top-8 left-0 z-50 bg-white border border-gray-200 rounded-xl shadow-xl p-3 min-w-[260px] max-w-xs"
+              className="codex-panel absolute top-8 left-0 z-50 p-3 min-w-[260px] max-w-xs"
               onMouseLeave={() => setTooltip(null)}
             >
               <p className="text-xs font-semibold text-gray-700 mb-2">
@@ -125,7 +125,7 @@ export default function ScoreAfinidad({ licitacionId }: Props) {
               </p>
               {isAiV2 && (
                 <div className="mb-2 flex flex-wrap gap-1">
-                  <span className="rounded bg-indigo-50 px-1.5 py-0.5 text-[11px] font-semibold text-indigo-700">
+                  <span className="codex-status codex-status--progress text-[11px]">
                     AI 0.2
                   </span>
                   {context?.documentacion_count ? (

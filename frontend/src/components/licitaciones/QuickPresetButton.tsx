@@ -69,10 +69,10 @@ const QuickPresetButton: React.FC<QuickPresetButtonProps> = ({
     <button
       onClick={handleClick}
       disabled={loading}
-      className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-bold transition-all active:scale-95 flex-shrink-0 ${
+      className={`codex-button flex items-center gap-1.5 text-xs flex-shrink-0 ${
         isActive
-          ? 'bg-emerald-600 text-white border border-emerald-700 hover:bg-emerald-700'
-          : 'bg-gradient-to-r from-emerald-50 to-green-50 border border-emerald-200 text-emerald-700 hover:from-emerald-100 hover:to-green-100 hover:border-emerald-300'
+          ? 'codex-button--primary'
+          : 'codex-button--quiet text-emerald-700 border-emerald-200'
       } disabled:opacity-50 disabled:cursor-wait`}
       title={isActive ? 'Remover filtro de hoy' : 'Mostrar solo licitaciones descubiertas hoy (nuevas en el sistema)'}
     >

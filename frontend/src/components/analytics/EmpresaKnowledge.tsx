@@ -158,7 +158,7 @@ function renderChunk(text: string, _tipo: string): React.ReactNode {
                   </span>
                 )}
                 {amount?.type === 'money' && (
-                  <span className="shrink-0 font-mono text-indigo-700 text-[11px]">{amount.display}</span>
+                  <span className="shrink-0 font-mono text-blue-700 text-[11px]">{amount.display}</span>
                 )}
             </div>
             );
@@ -206,7 +206,7 @@ function renderChunk(text: string, _tipo: string): React.ReactNode {
                 if (!cell) return <td key={ci} className="px-2 py-1 border-b border-gray-100" />;
                 const fmt = fmtNum(cell);
                 return (
-                  <td key={ci} className={`px-2 py-1 border-b border-gray-100 max-w-[160px] truncate ${fmt.type === 'money' ? 'text-right font-mono text-indigo-700' : fmt.type === 'pct' ? 'text-right font-mono text-emerald-700' : 'text-gray-800'}`}>
+                  <td key={ci} className={`px-2 py-1 border-b border-gray-100 max-w-[160px] truncate ${fmt.type === 'money' ? 'text-right font-mono text-blue-700' : fmt.type === 'pct' ? 'text-right font-mono text-emerald-700' : 'text-gray-800'}`}>
                     {fmt.display}
                   </td>
                 );
@@ -227,7 +227,7 @@ function ScoreBadge({ score }: { score: number }) {
   const cls = score >= 0.75
     ? 'bg-green-100 text-green-700'
     : score >= 0.6
-    ? 'bg-indigo-100 text-indigo-700'
+    ? 'bg-blue-100 text-blue-700'
     : 'bg-gray-100 text-gray-500';
   return <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${cls}`}>{pct}% similitud</span>;
 }
@@ -280,7 +280,7 @@ function DocResultCard({ doc, defaultExpanded = false }: { doc: DocResult; defau
               <div key={i} className="text-xs">
                 <span className="text-gray-500">{a.label}</span>
                 {' '}
-                <span className="font-mono font-semibold text-indigo-700">
+                <span className="font-mono font-semibold text-blue-700">
                   ${a.amount.toLocaleString('es-AR', { maximumFractionDigits: 0 })}
                 </span>
               </div>
@@ -441,7 +441,7 @@ const EmpresaKnowledge: React.FC = () => {
       {/* Stats strip */}
       {stats && stats.total_docs > 0 && (
         <div className="flex flex-wrap gap-2 text-xs">
-          <span className="bg-indigo-50 text-indigo-700 px-2 py-1 rounded-full font-medium">
+          <span className="bg-blue-50 text-blue-700 px-2 py-1 rounded-full font-medium">
             {stats.total_docs} documentos · {stats.total_chunks} fragmentos
           </span>
           {Object.entries(stats.by_tipo).map(([t, v]) => (
@@ -462,7 +462,7 @@ const EmpresaKnowledge: React.FC = () => {
               onClick={() => setUploadTipo(k)}
               className={`text-xs px-3 py-1 rounded-full border transition-colors ${
                 uploadTipo === k
-                  ? 'bg-indigo-600 text-white border-indigo-600'
+                  ? 'bg-blue-600 text-white border-blue-600'
                   : 'bg-white text-gray-600 border-gray-300 hover:bg-gray-50'
               }`}
             >
@@ -473,7 +473,7 @@ const EmpresaKnowledge: React.FC = () => {
 
         <label
           className={`flex flex-col items-center justify-center p-6 border-2 border-dashed rounded-lg cursor-pointer transition-colors ${
-            dragging ? 'border-indigo-400 bg-indigo-50' : 'border-gray-300 hover:border-indigo-300 bg-gray-50'
+            dragging ? 'border-blue-400 bg-blue-50' : 'border-gray-300 hover:border-blue-300 bg-gray-50'
           }`}
           onDragEnter={(e) => { e.preventDefault(); setDragging(true); }}
           onDragLeave={() => setDragging(false)}
@@ -513,7 +513,7 @@ const EmpresaKnowledge: React.FC = () => {
           <button
             type="submit"
             disabled={searching || !query.trim()}
-            className="px-4 py-2 text-sm bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:opacity-50 transition-colors"
+            className="px-4 py-2 text-sm bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 transition-colors"
           >
             {searching ? '…' : '🔍 Buscar'}
           </button>

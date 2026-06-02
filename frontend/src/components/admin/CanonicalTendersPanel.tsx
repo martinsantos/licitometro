@@ -167,7 +167,7 @@ export default function CanonicalTendersPanel() {
           <button
             onClick={runAIExtractionBatch}
             disabled={extractingAI}
-            className="px-3 py-2 text-sm bg-indigo-700 text-white rounded-lg disabled:opacity-50"
+            className="px-3 py-2 text-sm bg-blue-700 text-white rounded-lg disabled:opacity-50"
           >
             {extractingAI ? 'Extrayendo' : 'AI 0.2 batch'}
           </button>
@@ -200,15 +200,15 @@ export default function CanonicalTendersPanel() {
       )}
       {lastAIExtract && (
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
-          <div className="admin-card border border-indigo-100 rounded-lg px-3 py-2">
+          <div className="admin-card border border-blue-100 rounded-lg px-3 py-2">
             <div className="text-[11px] text-gray-400 uppercase tracking-wide">AI procesadas</div>
             <div className="text-lg font-semibold text-gray-800">{lastAIExtract.processed}</div>
           </div>
-          <div className="admin-card border border-indigo-100 rounded-lg px-3 py-2">
+          <div className="admin-card border border-blue-100 rounded-lg px-3 py-2">
             <div className="text-[11px] text-gray-400 uppercase tracking-wide">Exitosas</div>
-            <div className="text-lg font-semibold text-indigo-700">{lastAIExtract.succeeded}</div>
+            <div className="text-lg font-semibold text-blue-700">{lastAIExtract.succeeded}</div>
           </div>
-          <div className="admin-card border border-indigo-100 rounded-lg px-3 py-2">
+          <div className="admin-card border border-blue-100 rounded-lg px-3 py-2">
             <div className="text-[11px] text-gray-400 uppercase tracking-wide">Fallidas</div>
             <div className="text-lg font-semibold text-red-600">{lastAIExtract.failed}</div>
           </div>
@@ -216,9 +216,9 @@ export default function CanonicalTendersPanel() {
       )}
 
       {aiRuns.length > 0 && (
-        <div className="admin-card border border-indigo-100 rounded-lg p-3">
+        <div className="admin-card border border-blue-100 rounded-lg p-3">
           <div className="admin-toolbar mb-2">
-            <h3 className="text-sm font-semibold text-indigo-800">Corridas AI 0.2</h3>
+            <h3 className="text-sm font-semibold text-blue-800">Corridas AI 0.2</h3>
             <span className="text-xs text-gray-400">ultimas {aiRuns.length}</span>
           </div>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
@@ -230,7 +230,7 @@ export default function CanonicalTendersPanel() {
                 </div>
                 <div className="admin-chip-row mt-1">
                   <span className="text-gray-500">{run.processed} procesadas</span>
-                  <span className="text-indigo-700">{run.succeeded} ok</span>
+                  <span className="text-blue-700">{run.succeeded} ok</span>
                   {run.failed > 0 && <span className="text-red-600">{run.failed} fallidas</span>}
                   {run.force_refresh && <span className="text-amber-600">force</span>}
                 </div>

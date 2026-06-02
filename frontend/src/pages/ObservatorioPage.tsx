@@ -3,10 +3,10 @@ import { Link } from 'react-router-dom';
 
 const API = process.env.REACT_APP_BACKEND_URL || '';
 
-// ── Helpers ───────────────────────────────────────────────────────────────────
 function fmtN(n: number) {
   return new Intl.NumberFormat('es-AR').format(n);
 }
+
 function fmtM(n: number): string {
   if (n >= 1e9) return `$${(n / 1e9).toFixed(1)}B`;
   if (n >= 1e6) return `$${(n / 1e6).toFixed(0)}M`;
@@ -14,61 +14,67 @@ function fmtM(n: number): string {
   return `$${n}`;
 }
 
-// ── Mini bar chart (horizontal) ───────────────────────────────────────────────
-function HBar({ label, value, max, sub, color = '#6366f1' }: {
-  label: string; value: number; max: number; sub?: string; color?: string;
+function HBar({
+  label,
+  value,
+  max,
+  sub,
+  color = '#36c',
+}: {
+  label: string;
+  value: number;
+  max: number;
+  sub?: string;
+  color?: string;
 }) {
   const pct = max > 0 ? Math.max(2, (value / max) * 100) : 0;
   return (
-    <div className="flex items-center gap-2 py-1">
-      <span className="text-xs text-gray-600 w-44 shrink-0 truncate" title={label}>{label}</span>
-      <div className="flex-1 bg-gray-100 rounded-full h-4 relative">
-        <div className="h-4 rounded-full transition-all" style={{ width: `${pct}%`, background: color }} />
+    <div className="codex-observatorio-bar">
+      <span className="codex-observatorio-bar__label" title={label}>{label}</span>
+      <div className="codex-observatorio-bar__track">
+        <div className="codex-observatorio-bar__fill" style={{ width: `${pct}%`, background: color }} />
       </div>
-      <span className="text-xs font-semibold text-gray-700 w-16 text-right tabular-nums shrink-0">{fmtN(value)}</span>
-      {sub && <span className="text-xs text-gray-400 w-20 text-right shrink-0">{sub}</span>}
+      <span className="codex-observatorio-bar__value">{fmtN(value)}</span>
+      {sub && <span className="codex-observatorio-bar__sub">{sub}</span>}
     </div>
   );
 }
 
-// ── Vertical bar chart (por mes) ──────────────────────────────────────────────
 function VBarChart({ data }: { data: { label: string; count: number; presupuesto: number }[] }) {
   const maxCount = Math.max(1, ...data.map(d => d.count));
   return (
-    <div>
-      <div className="flex items-end gap-1 h-40">
-        {data.map(d => {
-          const h = Math.max(4, (d.count / maxCount) * 100);
-          return (
-            <div key={d.label} className="flex-1 flex flex-col items-center justify-end gap-0.5 min-w-0">
-              <span className="text-[9px] text-gray-400 tabular-nums">{d.count > 0 ? fmtN(d.count) : ''}</span>
-              <div
-                className="w-full rounded-t bg-indigo-500 hover:bg-indigo-700 transition-colors cursor-default"
-                style={{ height: `${h}%` }}
-                title={`${d.label}: ${fmtN(d.count)} licitaciones · ${fmtM(d.presupuesto)}`}
-              />
-              <span className="text-[9px] text-gray-400 truncate w-full text-center">{d.label}</span>
-            </div>
-          );
-        })}
-      </div>
+    <div className="codex-observatorio-vbars">
+      {data.map((d) => {
+        const h = Math.max(4, (d.count / maxCount) * 100);
+        return (
+          <div key={d.label} className="codex-observatorio-vbars__item">
+            <span className="codex-observatorio-vbars__count">{d.count > 0 ? fmtN(d.count) : ''}</span>
+            <div
+              className="codex-observatorio-vbars__bar"
+              style={{ height: `${h}%` }}
+              title={`${d.label}: ${fmtN(d.count)} licitaciones · ${fmtM(d.presupuesto)}`}
+            />
+            <span className="codex-observatorio-vbars__label">{d.label}</span>
+          </div>
+        );
+      })}
     </div>
   );
 }
 
-// ── Category pill cloud ───────────────────────────────────────────────────────
 function CategoryCloud({ data }: { data: { categoria: string; count: number }[] }) {
   const max = Math.max(1, ...data.map(d => d.count));
-  const COLORS = ['#6366f1','#8b5cf6','#06b6d4','#10b981','#f59e0b','#ef4444','#ec4899','#14b8a6','#f97316','#84cc16','#a78bfa','#fb7185'];
+  const colors = ['#36c', '#00af89', '#fc3', '#d33', '#06b6d4', '#72777d', '#f28500', '#14866d', '#447ff5', '#54595d'];
+
   return (
-    <div className="flex flex-wrap gap-2">
+    <div className="codex-pill-row">
       {data.map((d, i) => {
-        const size = 11 + Math.round((d.count / max) * 6);
+        const size = 12 + Math.round((d.count / max) * 5);
         return (
           <span
             key={d.categoria}
-            style={{ fontSize: size, color: COLORS[i % COLORS.length], borderColor: COLORS[i % COLORS.length] + '40' }}
-            className="border rounded-full px-2.5 py-0.5 font-medium"
+            className="codex-chip"
+            style={{ fontSize: size, color: colors[i % colors.length], borderColor: `${colors[i % colors.length]}40` }}
             title={`${d.categoria}: ${fmtN(d.count)} licitaciones`}
           >
             {d.categoria}
@@ -79,7 +85,6 @@ function CategoryCloud({ data }: { data: { categoria: string; count: number }[] 
   );
 }
 
-// ── Main page ─────────────────────────────────────────────────────────────────
 export default function ObservatorioPage() {
   const [resumen, setResumen] = useState<any>(null);
   const [porMes, setPorMes] = useState<any[]>([]);
@@ -87,7 +92,7 @@ export default function ObservatorioPage() {
   const [porFuente, setPorFuente] = useState<any[]>([]);
   const [porCategoria, setPorCategoria] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState<'organismos'|'fuentes'>('organismos');
+  const [activeTab, setActiveTab] = useState<'organismos' | 'fuentes'>('organismos');
 
   useEffect(() => {
     const get = (path: string) => fetch(`${API}/api/open-data/${path}`).then(r => r.json());
@@ -103,98 +108,90 @@ export default function ObservatorioPage() {
       setPorOrganismo(org);
       setPorFuente(fue);
       setPorCategoria(cat);
-    }).catch(() => {}).finally(() => setLoading(false));
+    }).catch(() => {
+      setResumen(null);
+      setPorMes([]);
+      setPorOrganismo([]);
+      setPorFuente([]);
+      setPorCategoria([]);
+    }).finally(() => setLoading(false));
   }, []);
 
   return (
-    <div style={{ maxWidth: 1100, margin: '0 auto', padding: '32px 16px' }}>
-      {/* Header */}
-      <div style={{ marginBottom: 32 }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 12 }}>
-          <div>
-            <h1 style={{ fontSize: 26, fontWeight: 800, color: '#111827', margin: 0 }}>
-              Observatorio de Licitaciones
-            </h1>
-            <p style={{ color: '#6b7280', fontSize: 14, margin: '6px 0 0' }}>
-              Datos abiertos de contrataciones publicas de Argentina
-            </p>
-          </div>
+    <div className="codex-page codex-observatorio-page">
+      <div className="codex-page-header codex-page-header--wide">
+        <div>
+          <span className="codex-page-kicker">Datos abiertos</span>
+          <h1>Observatorio de Licitaciones</h1>
+          <p>Datos abiertos de contrataciones públicas de Argentina.</p>
+        </div>
+        <div className="codex-page-toolbar">
           <a
             href={`${API}/api/open-data/licitaciones?limit=500`}
             target="_blank"
             rel="noopener noreferrer"
-            style={{
-              background: '#f3f4f6', color: '#374151', border: '1px solid #d1d5db',
-              borderRadius: 6, padding: '7px 14px', fontSize: 13, textDecoration: 'none',
-              display: 'flex', alignItems: 'center', gap: 6,
-            }}
+            className="codex-button codex-button--quiet"
           >
-            📥 Descargar OCDS JSON
+            Descargar OCDS JSON
           </a>
-        </div>
-
-        {/* OCDS badge */}
-        <div style={{ marginTop: 12, display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-              {['OCDS 1.1', 'Datos abiertos', 'Argentina', 'Actualizacion diaria'].map(tag => (
-            <span key={tag} style={{ background: '#eef2ff', color: '#4338ca', borderRadius: 4, padding: '2px 8px', fontSize: 11, fontWeight: 600 }}>
-              {tag}
-            </span>
-          ))}
         </div>
       </div>
 
+      <div className="codex-pill-row">
+        {['OCDS 1.1', 'Datos abiertos', 'Argentina', 'Actualización diaria'].map(tag => (
+          <span key={tag} className="codex-status codex-status--progress">
+            {tag}
+          </span>
+        ))}
+      </div>
+
       {loading ? (
-        <div style={{ textAlign: 'center', padding: 80, color: '#9ca3af' }}>Cargando datos…</div>
+        <div className="codex-empty-state">Cargando datos…</div>
       ) : (
         <>
-          {/* KPI strip */}
           {resumen && (
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 12, marginBottom: 32 }}>
+            <div className="codex-grid-metrics">
               {[
-                { label: 'Licitaciones indexadas', value: fmtN(resumen.total_licitaciones), icon: '📋', color: '#6366f1' },
-                { label: 'Organismos públicos', value: fmtN(resumen.organismos_unicos), icon: '🏛️', color: '#8b5cf6' },
+                { label: 'Licitaciones indexadas', value: fmtN(resumen.total_licitaciones), icon: '📋', color: '#36c' },
+                { label: 'Organismos públicos', value: fmtN(resumen.organismos_unicos), icon: '🏛️', color: '#54595d' },
                 { label: 'Fuentes activas', value: fmtN(resumen.fuentes_activas), icon: '🔗', color: '#06b6d4' },
                 { label: 'Presupuesto indexado', value: fmtM(resumen.presupuesto_total_ars), icon: '💰', color: '#10b981' },
-              ].map(kpi => (
-                <div key={kpi.label} style={{ background: 'white', border: '1px solid #e5e7eb', borderRadius: 10, padding: '16px 20px' }}>
-                  <p style={{ fontSize: 22, fontWeight: 800, color: kpi.color, margin: 0 }}>{kpi.icon} {kpi.value}</p>
-                  <p style={{ fontSize: 12, color: '#6b7280', margin: '4px 0 0' }}>{kpi.label}</p>
+              ].map((kpi) => (
+                <div key={kpi.label} className="codex-metric codex-observatorio-metric">
+                  <strong style={{ color: kpi.color }}>{kpi.icon} {kpi.value}</strong>
+                  <span>{kpi.label}</span>
                 </div>
               ))}
             </div>
           )}
 
-          {/* Actividad mensual */}
           {porMes.length > 0 && (
-            <div style={{ background: 'white', border: '1px solid #e5e7eb', borderRadius: 10, padding: 20, marginBottom: 20 }}>
-              <h2 style={{ fontSize: 15, fontWeight: 700, color: '#111827', margin: '0 0 16px' }}>
-                Actividad mensual — últimos 12 meses
-              </h2>
+            <section className="codex-panel codex-observatorio-panel">
+              <div className="codex-panel__header">
+                <div>
+                  <h2>Actividad mensual</h2>
+                  <p>Últimos 12 meses de oportunidades indexadas.</p>
+                </div>
+              </div>
               <VBarChart data={porMes} />
-            </div>
+            </section>
           )}
 
-          {/* Organismos + Fuentes */}
-          <div style={{ background: 'white', border: '1px solid #e5e7eb', borderRadius: 10, padding: 20, marginBottom: 20 }}>
-            <div style={{ display: 'flex', gap: 8, marginBottom: 16 }}>
-              {(['organismos', 'fuentes'] as const).map(t => (
+          <section className="codex-panel codex-observatorio-panel">
+            <div className="codex-compact-tabs">
+              {(['organismos', 'fuentes'] as const).map((tab) => (
                 <button
-                  key={t}
-                  onClick={() => setActiveTab(t)}
-                  style={{
-                    background: activeTab === t ? '#6366f1' : '#f9fafb',
-                    color: activeTab === t ? 'white' : '#374151',
-                    border: `1px solid ${activeTab === t ? '#6366f1' : '#d1d5db'}`,
-                    borderRadius: 6, padding: '5px 14px', fontSize: 13, cursor: 'pointer',
-                  }}
+                  key={tab}
+                  onClick={() => setActiveTab(tab)}
+                  className={activeTab === tab ? 'codex-button codex-button--primary' : 'codex-button codex-button--quiet'}
                 >
-                  {t === 'organismos' ? '🏛️ Top organismos' : '🔗 Por fuente'}
+                  {tab === 'organismos' ? 'Top organismos' : 'Por fuente'}
                 </button>
               ))}
             </div>
 
             {activeTab === 'organismos' && porOrganismo.length > 0 && (
-              <div>
+              <div className="codex-observatorio-stack">
                 {(() => {
                   const max = Math.max(...porOrganismo.map(d => d.count));
                   return porOrganismo.map(d => (
@@ -204,7 +201,7 @@ export default function ObservatorioPage() {
                       value={d.count}
                       max={max}
                       sub={d.presupuesto > 0 ? fmtM(d.presupuesto) : undefined}
-                      color="#6366f1"
+                      color="#36c"
                     />
                   ));
                 })()}
@@ -212,7 +209,7 @@ export default function ObservatorioPage() {
             )}
 
             {activeTab === 'fuentes' && porFuente.length > 0 && (
-              <div>
+              <div className="codex-observatorio-stack">
                 {(() => {
                   const max = Math.max(...porFuente.map(d => d.count));
                   return porFuente.map(d => (
@@ -222,55 +219,54 @@ export default function ObservatorioPage() {
                       value={d.count}
                       max={max}
                       sub={d.presupuesto > 0 ? fmtM(d.presupuesto) : undefined}
-                      color="#8b5cf6"
+                      color="#00af89"
                     />
                   ));
                 })()}
               </div>
             )}
-          </div>
+          </section>
 
-          {/* Categorías */}
           {porCategoria.length > 0 && (
-            <div style={{ background: 'white', border: '1px solid #e5e7eb', borderRadius: 10, padding: 20, marginBottom: 20 }}>
-              <h2 style={{ fontSize: 15, fontWeight: 700, color: '#111827', margin: '0 0 16px' }}>
-                Categorías más frecuentes
-              </h2>
+            <section className="codex-panel codex-observatorio-panel">
+              <div className="codex-panel__header">
+                <div>
+                  <h2>Categorías más frecuentes</h2>
+                  <p>Rubros y familias que concentran actividad.</p>
+                </div>
+              </div>
               <CategoryCloud data={porCategoria} />
-            </div>
+            </section>
           )}
 
-          {/* CTA / API info */}
-          <div style={{ background: '#f5f3ff', border: '1px solid #ddd6fe', borderRadius: 10, padding: 20 }}>
-            <h2 style={{ fontSize: 15, fontWeight: 700, color: '#4338ca', margin: '0 0 8px' }}>
-              📡 API de datos abiertos
-            </h2>
-            <p style={{ fontSize: 13, color: '#6b7280', margin: '0 0 12px' }}>
-              Todos los datos están disponibles bajo el estándar OCDS 1.1 sin autenticación.
-            </p>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+          <section className="codex-panel codex-observatorio-panel codex-note-panel">
+            <div className="codex-panel__header">
+              <div>
+                <h2>API de datos abiertos</h2>
+                <p>Todos los endpoints están disponibles bajo estándar OCDS 1.1 sin autenticación.</p>
+              </div>
+            </div>
+
+            <div className="codex-inline-code-list">
               {[
                 { path: '/api/open-data/licitaciones?limit=100', desc: 'Últimas 100 licitaciones (OCDS JSON)' },
-                { path: '/api/open-data/licitaciones?fuente=comprasapps_mendoza&limit=50', desc: 'Por fuente' },
+                { path: '/api/open-data/licitaciones?fuente=comprasapps_mendoza&limit=50', desc: 'Consulta filtrada por fuente' },
                 { path: '/api/open-data/stats/resumen', desc: 'Estadísticas globales' },
                 { path: '/api/open-data/stats/por-organismo', desc: 'Ranking de organismos' },
               ].map(({ path, desc }) => (
-                <div key={path} style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-                  <code style={{ background: '#ede9fe', color: '#5b21b6', borderRadius: 4, padding: '2px 6px', fontSize: 11 }}>
-                    GET {path}
-                  </code>
-                  <span style={{ fontSize: 12, color: '#9ca3af' }}>{desc}</span>
+                <div key={path} className="codex-inline-code-list__row">
+                  <code>GET {path}</code>
+                  <span>{desc}</span>
                 </div>
               ))}
             </div>
-          </div>
 
-          {/* Footer note */}
-          <p style={{ textAlign: 'center', fontSize: 12, color: '#d1d5db', marginTop: 24 }}>
-            Datos indexados por{' '}
-            <Link to="/" style={{ color: '#6366f1' }}>Licitometro.ar</Link>
-            {' '}· Actualización diaria · Mendoza, Argentina
-          </p>
+            <div className="mt-4">
+              <Link to="/licitaciones" className="codex-button codex-button--quiet">
+                Ver licitaciones indexadas
+              </Link>
+            </div>
+          </section>
         </>
       )}
     </div>

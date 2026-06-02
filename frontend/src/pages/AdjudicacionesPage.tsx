@@ -126,18 +126,18 @@ const AdjudicacionesPage: React.FC = () => {
   };
 
   return (
-    <div className="max-w-7xl mx-auto px-4 py-6">
-      {/* Header */}
-      <div className="mb-6 flex items-start justify-between gap-4 flex-wrap">
+    <div className="codex-page max-w-7xl mx-auto px-4 py-6">
+      <div className="codex-page-header">
         <div>
+          <span className="codex-page-kicker">Histórico contractual</span>
           <h1 className="text-2xl font-bold text-gray-900">Adjudicaciones Históricas</h1>
-          <p className="text-sm text-gray-500 mt-1">
+          <p>
             Historial de licitaciones adjudicadas — filtrá por organismo, proveedor, fuente o rubro.
           </p>
         </div>
         <button
           onClick={() => setModalOpen(true)}
-          className="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white text-sm font-medium rounded hover:bg-indigo-700 transition-colors"
+          className="codex-button codex-button--primary flex items-center gap-2 text-sm"
         >
           <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
@@ -148,7 +148,7 @@ const AdjudicacionesPage: React.FC = () => {
       </div>
 
       {/* Filter bar */}
-      <div className="mb-4 p-4 bg-white border border-gray-200 rounded flex items-end gap-3 flex-wrap">
+      <div className="codex-panel codex-filter-bar mb-4 p-4">
         <div className="flex flex-col gap-1 min-w-[180px]">
           <label className="text-xs text-gray-500 font-medium">Organismo</label>
           <input
@@ -157,7 +157,7 @@ const AdjudicacionesPage: React.FC = () => {
             onChange={(e) => setOrganismo(e.target.value)}
             onKeyDown={handleKeyDown}
             placeholder="Ej: Municipalidad..."
-            className="px-2.5 py-1.5 border border-gray-200 rounded text-sm bg-white focus:outline-none focus:ring-1 focus:ring-indigo-400"
+            className="codex-field"
           />
         </div>
 
@@ -169,7 +169,7 @@ const AdjudicacionesPage: React.FC = () => {
             onChange={(e) => setProveedor(e.target.value)}
             onKeyDown={handleKeyDown}
             placeholder="Nombre o CUIT..."
-            className="px-2.5 py-1.5 border border-gray-200 rounded text-sm bg-white focus:outline-none focus:ring-1 focus:ring-indigo-400"
+            className="codex-field"
           />
         </div>
 
@@ -178,7 +178,7 @@ const AdjudicacionesPage: React.FC = () => {
           <select
             value={fuente}
             onChange={(e) => setFuente(e.target.value)}
-            className="px-2.5 py-1.5 border border-gray-200 rounded text-sm bg-white focus:outline-none focus:ring-1 focus:ring-indigo-400"
+            className="codex-field"
           >
             <option value="">Todas</option>
             <option value="comprasapps_mendoza">ComprasApps Mendoza</option>
@@ -197,14 +197,14 @@ const AdjudicacionesPage: React.FC = () => {
             onChange={(e) => setCategoria(e.target.value)}
             onKeyDown={handleKeyDown}
             placeholder="Rubro..."
-            className="px-2.5 py-1.5 border border-gray-200 rounded text-sm bg-white focus:outline-none focus:ring-1 focus:ring-indigo-400"
+            className="codex-field"
           />
         </div>
 
         <button
           onClick={() => doSearch(1)}
           disabled={loading}
-          className="px-5 py-1.5 bg-gray-900 text-white text-sm font-medium rounded hover:bg-gray-800 disabled:opacity-50 transition-colors self-end"
+          className="codex-button codex-button--primary self-end"
         >
           {loading ? 'Buscando…' : 'Buscar'}
         </button>
@@ -215,7 +215,7 @@ const AdjudicacionesPage: React.FC = () => {
               setOrganismo(''); setProveedor(''); setFuente(''); setCategoria('');
               setResult(null);
             }}
-            className="text-xs text-blue-600 hover:text-blue-800 underline self-end pb-1.5"
+            className="codex-link-button self-end pb-1.5"
           >
             Limpiar
           </button>
@@ -224,34 +224,34 @@ const AdjudicacionesPage: React.FC = () => {
 
       {/* Error */}
       {error && (
-        <div className="mb-4 p-3 bg-red-50 border border-red-100 rounded text-sm text-red-700">{error}</div>
+        <div className="codex-form-error mb-4">{error}</div>
       )}
 
       {/* Empty / initial state */}
       {!result && !loading && !error && (
-        <div className="py-16 text-center text-gray-400 text-sm">
+        <div className="codex-empty-state">
           Usá los filtros de arriba y hacé clic en <strong>Buscar</strong> para explorar adjudicaciones históricas.
         </div>
       )}
 
       {/* Loading */}
       {loading && (
-        <div className="py-16 text-center text-gray-400 text-sm">Cargando…</div>
+        <div className="codex-empty-state">Cargando…</div>
       )}
 
       {/* Results */}
       {result && !loading && (
         <>
-          <div className="mb-2 text-xs text-gray-500">
+          <div className="mb-3 text-sm text-gray-500">
             {result.total.toLocaleString('es-AR')} adjudicaciones encontradas — página {result.page} de {result.pages}
           </div>
 
           {result.items.length === 0 ? (
-            <div className="py-12 text-center text-gray-400 text-sm bg-white border border-gray-100 rounded">
+            <div className="codex-empty-state">
               No se encontraron adjudicaciones con los filtros actuales.
             </div>
           ) : (
-            <div className="bg-white border border-gray-100 rounded overflow-x-auto">
+            <div className="codex-data-table-wrap">
               <table className="min-w-full text-sm">
                 <thead className="text-xs text-gray-500 uppercase border-b border-gray-100 bg-gray-50">
                   <tr>
@@ -264,7 +264,7 @@ const AdjudicacionesPage: React.FC = () => {
                     <th className="text-left py-2.5 px-3 font-medium">Fuente</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-gray-50">
+                <tbody className="divide-y divide-gray-100">
                   {result.items.map((adj) => (
                     <tr key={adj._id} className="hover:bg-blue-50 transition-colors">
                       <td className="py-2.5 px-3 max-w-xs">
@@ -296,7 +296,7 @@ const AdjudicacionesPage: React.FC = () => {
                         {fmtFecha(adj.fecha_adjudicacion)}
                       </td>
                       <td className="py-2.5 px-3">
-                        <span className="inline-block px-1.5 py-0.5 text-[10px] bg-gray-100 text-gray-600 rounded">
+                        <span className="codex-status">
                           {fmtFuente(adj.fuente)}
                         </span>
                       </td>
@@ -309,21 +309,21 @@ const AdjudicacionesPage: React.FC = () => {
 
           {/* Pagination */}
           {result.pages > 1 && (
-            <div className="mt-4 flex items-center justify-between">
+            <div className="mt-5 flex items-center justify-between gap-3">
               <button
                 onClick={() => doSearch(page - 1)}
                 disabled={page <= 1 || loading}
-                className="px-3 py-1.5 text-sm border border-gray-200 rounded bg-white hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed"
+                className="codex-button codex-button--quiet disabled:opacity-40 disabled:cursor-not-allowed"
               >
                 ← Anterior
               </button>
-              <span className="text-xs text-gray-500">
+              <span className="text-sm text-gray-500">
                 Página {result.page} de {result.pages}
               </span>
               <button
                 onClick={() => doSearch(page + 1)}
                 disabled={page >= result.pages || loading}
-                className="px-3 py-1.5 text-sm border border-gray-200 rounded bg-white hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed"
+                className="codex-button codex-button--quiet disabled:opacity-40 disabled:cursor-not-allowed"
               >
                 Siguiente →
               </button>
@@ -335,8 +335,8 @@ const AdjudicacionesPage: React.FC = () => {
       {/* Precios de referencia modal */}
       {modalOpen && (
         <>
-          <div className="fixed inset-0 bg-black/40 z-40" onClick={() => setModalOpen(false)} />
-          <div className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-50 w-full max-w-2xl bg-white rounded-xl shadow-2xl overflow-hidden">
+          <div className="codex-modal-backdrop" onClick={() => setModalOpen(false)}>
+            <div className="codex-modal" onClick={(e) => e.stopPropagation()}>
             <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
               <div>
                 <h2 className="text-base font-bold text-gray-900">Precios de referencia</h2>
@@ -355,13 +355,13 @@ const AdjudicacionesPage: React.FC = () => {
                   onChange={(e) => setPrecioQ(e.target.value)}
                   onKeyDown={(e) => e.key === 'Enter' && doPrecioSearch()}
                   placeholder="Ej: informática, mobiliario, vialidad…"
-                  className="flex-1 px-3 py-2 border border-gray-200 rounded text-sm focus:outline-none focus:ring-1 focus:ring-indigo-400"
+                  className="codex-field flex-1"
                   autoFocus
                 />
                 <button
                   onClick={doPrecioSearch}
                   disabled={precioLoading}
-                  className="px-4 py-2 bg-indigo-600 text-white text-sm font-medium rounded hover:bg-indigo-700 disabled:opacity-50 transition-colors"
+                  className="codex-button codex-button--primary text-sm disabled:opacity-50"
                 >
                   {precioLoading ? 'Buscando…' : 'Buscar'}
                 </button>
@@ -374,7 +374,7 @@ const AdjudicacionesPage: React.FC = () => {
               )}
 
               {precioResults.length > 0 && (
-                <div className="overflow-y-auto max-h-96">
+                <div className="codex-data-table-wrap max-h-96 overflow-y-auto">
                   <table className="min-w-full text-sm">
                     <thead className="text-xs text-gray-500 uppercase border-b border-gray-100 sticky top-0 bg-white">
                       <tr>
@@ -408,6 +408,7 @@ const AdjudicacionesPage: React.FC = () => {
                 </div>
               )}
             </div>
+          </div>
           </div>
         </>
       )}

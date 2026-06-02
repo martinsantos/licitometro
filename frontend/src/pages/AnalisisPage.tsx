@@ -635,7 +635,7 @@ const SupplierPanel: React.FC<{
   return (
     <>
       <div className="fixed inset-0 bg-black/30 z-40" onClick={onClose} />
-      <div className="fixed top-0 right-0 bottom-0 w-full max-w-2xl bg-white z-50 shadow-xl overflow-y-auto">
+      <div className="codex-panel fixed top-0 right-0 bottom-0 w-full max-w-2xl z-50 overflow-y-auto">
         <div className="sticky top-0 bg-white border-b border-gray-200 px-5 py-3 flex items-center justify-between">
           <div className="min-w-0 flex-1 mr-3">
             <div className="text-xs text-gray-500 uppercase">Proveedor</div>
@@ -770,7 +770,7 @@ const PiletaTab: React.FC = () => {
             onClick={() => setSub(t)}
             className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors -mb-px ${
               sub === t
-                ? 'border-indigo-600 text-indigo-700'
+                ? 'border-blue-700 text-blue-700'
                 : 'border-transparent text-gray-500 hover:text-gray-700'
             }`}
           >

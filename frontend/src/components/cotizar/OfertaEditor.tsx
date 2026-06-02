@@ -923,20 +923,20 @@ export default function OfertaEditor({ licitacion, onSaved }: Props) {
 
       {/* Pliego Intelligence Banner */}
       {pliegoInfo?.ai_v2 && (
-        <div className="bg-indigo-50 border border-indigo-200 rounded-xl p-4 text-sm">
+        <div className="codex-panel p-4 text-sm">
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
             <div>
-              <p className="font-semibold text-indigo-800">Extraccion AI 0.2 activa</p>
-              <p className="text-indigo-700 text-xs mt-0.5">
+              <p className="font-semibold text-gray-800">Extraccion AI 0.2 activa</p>
+              <p className="text-blue-700 text-xs mt-0.5">
                 {pliegoInfo.schema_version || 'schema versionado'}
                 {pliegoInfo.provider && <span className="mx-1">· {pliegoInfo.provider}</span>}
                 {pliegoInfo.cached && <span className="mx-1">· cache</span>}
               </p>
             </div>
             <div className="flex flex-wrap gap-1.5 text-xs">
-              <span className="px-2 py-0.5 bg-white border border-indigo-100 rounded-full text-indigo-700">{pliegoInfo.items?.length || 0} items</span>
-              <span className="px-2 py-0.5 bg-white border border-indigo-100 rounded-full text-indigo-700">{pliegoInfo.documentacion_requerida?.length || 0} docs</span>
-              <span className="px-2 py-0.5 bg-white border border-indigo-100 rounded-full text-indigo-700">{pliegoInfo.requisitos_tecnicos?.length || 0} req.</span>
+              <span className="codex-status codex-status--progress">{pliegoInfo.items?.length || 0} items</span>
+              <span className="codex-status codex-status--progress">{pliegoInfo.documentacion_requerida?.length || 0} docs</span>
+              <span className="codex-status codex-status--progress">{pliegoInfo.requisitos_tecnicos?.length || 0} req.</span>
               <AIGroundingBadge grounding={pliegoInfo.grounding} compact />
             </div>
           </div>
@@ -1127,9 +1127,9 @@ export default function OfertaEditor({ licitacion, onSaved }: Props) {
 
           {/* Price Intelligence Panel */}
           {priceIntelligence && priceIntelligence.price_range && (
-            <div className="bg-indigo-50 border border-indigo-200 rounded-xl p-4 text-sm space-y-2">
+            <div className="codex-panel p-4 text-sm space-y-2">
               <div className="flex items-center justify-between">
-                <span className="text-xs font-semibold uppercase tracking-wide text-indigo-600">Inteligencia de Precios</span>
+                <span className="text-xs font-semibold uppercase tracking-wide text-blue-700">Inteligencia de Precios</span>
                 <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${
                   priceIntelligence.price_range.confidence === 'alta' ? 'bg-emerald-100 text-emerald-700' :
                   priceIntelligence.price_range.confidence === 'media' ? 'bg-yellow-100 text-yellow-700' :
@@ -1140,11 +1140,11 @@ export default function OfertaEditor({ licitacion, onSaved }: Props) {
               </div>
               <div className="flex items-center gap-4">
                 <span className="text-xs text-gray-500">Min: {formatARS(priceIntelligence.price_range.min)}</span>
-                <div className="flex-1 h-2 bg-indigo-100 rounded-full relative">
-                  <div className="absolute left-[25%] right-[25%] h-full bg-indigo-300 rounded-full" />
+                <div className="flex-1 h-2 bg-blue-100 rounded-full relative">
+                  <div className="absolute left-[25%] right-[25%] h-full bg-blue-300 rounded-full" />
                   {total > 0 && priceIntelligence.price_range.max > 0 && (
                     <div
-                      className="absolute w-3 h-3 bg-indigo-600 rounded-full -mt-0.5 border-2 border-white"
+                      className="absolute w-3 h-3 bg-blue-600 rounded-full -mt-0.5 border-2 border-white"
                       style={{ left: `${Math.min(100, Math.max(0, (total / priceIntelligence.price_range.max) * 100))}%` }}
                       title={`Tu oferta: ${formatARS(total)}`}
                     />
@@ -1153,7 +1153,7 @@ export default function OfertaEditor({ licitacion, onSaved }: Props) {
                 <span className="text-xs text-gray-500">Max: {formatARS(priceIntelligence.price_range.max)}</span>
               </div>
               {priceIntelligence.your_offer_position && total > 0 && (
-                <p className="text-xs text-indigo-700">
+                <p className="text-xs text-blue-700">
                   Tu oferta esta <strong>{priceIntelligence.your_offer_position === 'below' ? 'por debajo' : priceIntelligence.your_offer_position === 'above' ? 'por encima' : 'dentro'}</strong> del rango de mercado
                 </p>
               )}
@@ -1178,7 +1178,7 @@ export default function OfertaEditor({ licitacion, onSaved }: Props) {
                   <span className="text-[10px] bg-emerald-200 text-emerald-800 px-1.5 py-0.5 rounded-full font-semibold ml-1">COPIA LOCAL</span>
                 )}
                 {pliegoInfo.ai_v2 && (
-                  <span className="text-[10px] bg-indigo-100 text-indigo-700 px-1.5 py-0.5 rounded-full font-semibold ml-1">0.2</span>
+                  <span className="codex-status codex-status--progress text-[10px] ml-1">0.2</span>
                 )}
               </div>
             ) : hasLocalPliego ? (
@@ -1198,9 +1198,9 @@ export default function OfertaEditor({ licitacion, onSaved }: Props) {
                 <button
                   onClick={handleLoadPriceIntelligence}
                   disabled={loadingPrices}
-                  className="text-xs text-indigo-600 hover:text-indigo-800 border border-indigo-200 hover:border-indigo-400 px-3 py-1.5 rounded-lg transition-colors disabled:opacity-50 flex items-center gap-1"
+                  className="codex-button codex-button--quiet text-xs disabled:opacity-50 flex items-center gap-1"
                 >
-                  {loadingPrices ? <span className="w-3 h-3 border border-indigo-400 border-t-transparent rounded-full animate-spin" /> : '📊'}
+                  {loadingPrices ? <span className="w-3 h-3 border border-blue-400 border-t-transparent rounded-full animate-spin" /> : '📊'}
                   Precios ref.
                 </button>
               )}
@@ -1212,9 +1212,9 @@ export default function OfertaEditor({ licitacion, onSaved }: Props) {
               <button
                 onClick={handleImportAIItems}
                 disabled={loadingHints}
-                className="text-xs text-purple-600 hover:text-purple-800 border border-purple-200 hover:border-purple-400 px-3 py-1.5 rounded-lg transition-colors disabled:opacity-50 flex items-center gap-1"
+                className="codex-button codex-button--quiet text-xs disabled:opacity-50 flex items-center gap-1"
               >
-                {loadingHints ? <span className="w-3 h-3 border border-purple-400 border-t-transparent rounded-full animate-spin" /> : '✨'}
+                {loadingHints ? <span className="w-3 h-3 border border-blue-400 border-t-transparent rounded-full animate-spin" /> : '✨'}
                 Cargar items con IA
               </button>
               <button
@@ -1335,7 +1335,7 @@ export default function OfertaEditor({ licitacion, onSaved }: Props) {
                           if (res.ok) { const data = await res.json(); if (data.items) { setItems(data.items); setPriceInstruction(''); } else if (data.error) { alert(data.error); } }
                         } finally { setAdjustingPrices(false); }
                       }}
-                      className="text-[10px] px-3 py-1.5 bg-purple-600 text-white rounded-lg hover:bg-purple-700 disabled:opacity-50 font-medium shrink-0">
+                      className="codex-button codex-button--primary text-[10px] disabled:opacity-50 shrink-0">
                       {adjustingPrices ? 'Ajustando...' : 'Aplicar con AI'}
                     </button>
                   </div>
@@ -1375,7 +1375,7 @@ export default function OfertaEditor({ licitacion, onSaved }: Props) {
                 </div>
                 {/* Item-level price reference */}
                 {priceIntelligence?.item_level_prices?.find(p => item.descripcion && p.descripcion.toLowerCase().includes(item.descripcion.toLowerCase().slice(0, 20))) && (
-                  <p className="text-xs text-indigo-500">
+                  <p className="text-xs text-blue-600">
                     Ref: {formatARS(priceIntelligence.item_level_prices.find(p => p.descripcion.toLowerCase().includes(item.descripcion.toLowerCase().slice(0, 20)))?.ref_price_min || 0)} - {formatARS(priceIntelligence.item_level_prices.find(p => p.descripcion.toLowerCase().includes(item.descripcion.toLowerCase().slice(0, 20)))?.ref_price_max || 0)}
                   </p>
                 )}
@@ -1580,8 +1580,8 @@ export default function OfertaEditor({ licitacion, onSaved }: Props) {
         <div className="space-y-5">
           <div className="flex items-center justify-between">
             <h3 className="font-semibold text-gray-800">Propuesta Tecnica</h3>
-            <button onClick={handleSuggestPropuesta} disabled={suggestingPropuesta} className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg border border-purple-200 text-purple-600 hover:text-purple-800 hover:border-purple-400 transition-colors disabled:opacity-50">
-              {suggestingPropuesta ? <span className="w-3 h-3 border border-purple-400 border-t-transparent rounded-full animate-spin" /> : '✨'}
+            <button onClick={handleSuggestPropuesta} disabled={suggestingPropuesta} className="codex-button codex-button--quiet flex items-center gap-1.5 text-xs disabled:opacity-50">
+              {suggestingPropuesta ? <span className="w-3 h-3 border border-blue-400 border-t-transparent rounded-full animate-spin" /> : '✨'}
               Sugerir con IA
             </button>
           </div>
@@ -1767,7 +1767,7 @@ export default function OfertaEditor({ licitacion, onSaved }: Props) {
                           )}
                           {ant.publication_date && <span>{new Date(ant.publication_date).toLocaleDateString('es-AR')}</span>}
                           {ant.relevance_score != null && (
-                            <span className="text-purple-500">Rel: {ant.relevance_score.toFixed(1)}</span>
+                            <span className="text-blue-600">Rel: {ant.relevance_score.toFixed(1)}</span>
                           )}
                         </div>
                       </div>
@@ -2013,7 +2013,7 @@ export default function OfertaEditor({ licitacion, onSaved }: Props) {
               </p>
               <button
                 onClick={handleLoadMarcoLegal}
-                className="px-6 py-3 bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 text-white font-semibold rounded-xl text-sm transition-all shadow-lg shadow-amber-200"
+                className="codex-button codex-button--primary text-sm h-12 px-6"
               >
                 Analizar marco legal con IA
               </button>
@@ -2207,7 +2207,7 @@ export default function OfertaEditor({ licitacion, onSaved }: Props) {
             <div className="text-center py-8">
               <div className="text-5xl mb-4">🤖</div>
               <p className="text-gray-600 text-sm mb-4">Analizamos tus items, propuesta tecnica y datos de empresa contra la licitacion.</p>
-              <button onClick={handleAnalyze} disabled={items.length === 0 || total <= 0} className="px-6 py-3 bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700 text-white font-semibold rounded-xl text-sm transition-all disabled:opacity-40 disabled:cursor-not-allowed shadow-lg shadow-purple-200">
+              <button onClick={handleAnalyze} disabled={items.length === 0 || total <= 0} className="codex-button codex-button--primary text-sm h-12 px-6 disabled:opacity-40 disabled:cursor-not-allowed">
                 Ejecutar Analisis IA
               </button>
               {(items.length === 0 || total <= 0) && (
@@ -2218,7 +2218,7 @@ export default function OfertaEditor({ licitacion, onSaved }: Props) {
 
           {analyzing && (
             <div className="flex flex-col items-center py-12 gap-3">
-              <div className="w-10 h-10 border-3 border-purple-200 border-t-purple-600 rounded-full animate-spin" />
+              <div className="w-10 h-10 border-3 border-blue-200 border-t-blue-600 rounded-full animate-spin" />
               <p className="text-sm text-gray-500">Analizando tu oferta...</p>
             </div>
           )}
@@ -2290,7 +2290,7 @@ export default function OfertaEditor({ licitacion, onSaved }: Props) {
                 </div>
               )}
 
-              <button onClick={handleAnalyze} className="text-xs text-purple-600 hover:text-purple-800 transition-colors">Volver a analizar</button>
+              <button onClick={handleAnalyze} className="codex-button codex-button--quiet text-xs">Volver a analizar</button>
             </div>
           )}
 

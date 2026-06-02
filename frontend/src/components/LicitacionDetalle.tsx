@@ -66,7 +66,7 @@ const LicitacionDetalle = ({ apiUrl, licitacionId }: { apiUrl: string, licitacio
   // Render logic using real data
   return (
     <div>
-      <div className="bg-white rounded-lg shadow-lg p-6 mb-8">
+      <div className="codex-panel p-6 mb-8">
         <div className="flex justify-between items-start mb-6">
           <h2 className="text-2xl font-bold">{licitacion.title}</h2>
           <span className={`badge ${

@@ -88,7 +88,7 @@ const StatsPage = () => {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-100 flex items-center justify-center">
+      <div className="codex-page flex items-center justify-center">
         <div className="text-center">
           <div className="relative w-20 h-20 mx-auto mb-6">
             <div className="absolute inset-0 rounded-full border-4 border-blue-200 animate-pulse"></div>
@@ -102,16 +102,16 @@ const StatsPage = () => {
 
   if (error) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-100 flex items-center justify-center">
+      <div className="codex-page flex items-center justify-center">
         <div className="text-center max-w-md mx-auto px-4">
-          <div className="w-20 h-20 mx-auto mb-6 rounded-3xl bg-red-100 flex items-center justify-center">
+          <div className="w-20 h-20 mx-auto mb-6 rounded-lg bg-red-100 flex items-center justify-center">
             <span className="text-4xl">!</span>
           </div>
           <h2 className="text-xl font-black text-gray-900 mb-2">Error al cargar estadísticas</h2>
           <p className="text-gray-500 mb-6">{error}</p>
           <button
             onClick={() => { setError(null); setLoading(true); window.location.reload(); }}
-            className="inline-flex items-center gap-2 px-6 py-3 bg-blue-600 text-white rounded-2xl font-bold hover:bg-blue-700 transition-colors"
+            className="codex-button codex-button--primary"
           >
             Reintentar
           </button>
@@ -121,44 +121,37 @@ const StatsPage = () => {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-100 py-8 px-4 sm:px-6 lg:px-8">
+    <div className="codex-page">
       <div className="max-w-6xl mx-auto">
-        {/* Header */}
-        <div className="mb-8">
-          <Link to="/licitaciones" className="inline-flex items-center text-sm font-bold text-gray-500 hover:text-blue-600 transition-colors group mb-4">
+        <div className="codex-page-header">
+          <div>
+            <span className="codex-page-kicker">Métricas internas</span>
+            <Link to="/licitaciones" className="inline-flex items-center text-sm font-bold text-gray-500 hover:text-blue-600 transition-colors group mb-4">
             <svg className="w-5 h-5 mr-2 transform group-hover:-translate-x-1 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M10 19l-7-7m0 0l7-7m-7 7h18" />
             </svg>
             Volver a licitaciones
-          </Link>
-          <h1 className="text-3xl sm:text-4xl font-black text-gray-900">Dashboard de Estadísticas</h1>
-          <p className="text-gray-500 mt-2">Métricas y licitaciones guardadas</p>
+            </Link>
+            <h1 className="text-3xl sm:text-4xl font-black text-gray-900">Dashboard de Estadísticas</h1>
+            <p>Métricas del universo indexado y seguimiento de licitaciones guardadas.</p>
+          </div>
         </div>
 
-        {/* Tabs */}
-        <div className="flex gap-2 mb-8">
+        <div className="codex-compact-tabs mb-8">
           <button
             onClick={() => setActiveTab('overview')}
-            className={`px-3 py-2 sm:px-6 sm:py-3 rounded-2xl font-bold text-sm sm:text-base transition-all ${
-              activeTab === 'overview'
-                ? 'bg-blue-600 text-white shadow-lg shadow-blue-200'
-                : 'bg-white/70 text-gray-600 hover:bg-white'
-            }`}
+            className={`codex-button ${activeTab === 'overview' ? 'codex-button--primary' : 'codex-button--quiet'}`}
           >
             Vista General
           </button>
           <button
             onClick={() => setActiveTab('saved')}
-            className={`px-3 py-2 sm:px-6 sm:py-3 rounded-2xl font-bold text-sm sm:text-base transition-all flex items-center gap-2 ${
-              activeTab === 'saved'
-                ? 'bg-blue-600 text-white shadow-lg shadow-blue-200'
-                : 'bg-white/70 text-gray-600 hover:bg-white'
-            }`}
+            className={`codex-button ${activeTab === 'saved' ? 'codex-button--primary' : 'codex-button--quiet'}`}
           >
             Guardadas
             {savedItems.length > 0 && (
               <span className={`px-2 py-0.5 rounded-full text-xs font-black ${
-                activeTab === 'saved' ? 'bg-white/20 text-white' : 'bg-blue-100 text-blue-700'
+                activeTab === 'saved' ? 'bg-blue-100 text-blue-700' : 'bg-blue-100 text-blue-700'
               }`}>
                 {savedItems.length}
               </span>
@@ -174,25 +167,21 @@ const StatsPage = () => {
                 label="Total Licitaciones" 
                 value={stats.total} 
                 icon="📊"
-                gradient="from-blue-500 to-indigo-600"
               />
               <MetricCard 
                 label="Activas" 
                 value={stats.byStatus.active || 0} 
                 icon="✅"
-                gradient="from-emerald-500 to-teal-600"
               />
               <MetricCard 
                 label="Nuevas (7 días)" 
                 value={stats.recentCount} 
                 icon="🆕"
-                gradient="from-amber-500 to-orange-600"
               />
               <MetricCard 
                 label="Guardadas" 
                 value={savedItems.length} 
                 icon="⭐"
-                gradient="from-purple-500 to-pink-600"
               />
             </div>
 
@@ -205,17 +194,17 @@ const StatsPage = () => {
               <StatCard title="Por Estado" data={stats.byStatus} colorScheme="green" statusLabels />
               
               {/* By Jurisdiccion */}
-              <StatCard title="Por Jurisdicción" data={stats.byJurisdiccion} colorScheme="purple" />
+              <StatCard title="Por Jurisdicción" data={stats.byJurisdiccion} colorScheme="amber" />
             </div>
           </>
         )}
 
         {activeTab === 'saved' && (
-          <div className="glass rounded-3xl p-8 shadow-xl border border-white/40">
+          <div className="codex-panel">
             {savedLicitaciones.length > 0 ? (
               <ul className="space-y-4">
                 {savedLicitaciones.map(lic => (
-                  <li key={lic.id} className="bg-white rounded-2xl p-5 shadow-sm border border-gray-100 flex items-start justify-between gap-4">
+                <li key={lic.id} className="codex-saved-row">
                     <div className="flex-1 min-w-0">
                       <Link 
                         to={`/licitaciones/${lic.id}`}
@@ -239,7 +228,7 @@ const StatsPage = () => {
                     </div>
                     <button
                       onClick={() => removeSaved(lic.id)}
-                      className="p-2 rounded-xl text-red-400 hover:text-red-600 hover:bg-red-50 transition-colors"
+                    className="codex-icon-button codex-icon-button--danger"
                       title="Quitar de guardados"
                     >
                       <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -250,15 +239,15 @@ const StatsPage = () => {
                 ))}
               </ul>
             ) : (
-              <div className="text-center py-12">
-                <div className="w-20 h-20 mx-auto mb-6 rounded-3xl bg-gray-100 flex items-center justify-center">
+              <div className="codex-empty-state">
+                <div className="w-20 h-20 mx-auto mb-6 rounded-lg bg-gray-100 flex items-center justify-center">
                   <span className="text-4xl">⭐</span>
                 </div>
                 <h3 className="text-xl font-black text-gray-900 mb-2">No tienes licitaciones guardadas</h3>
                 <p className="text-gray-500 mb-6">Guarda licitaciones haciendo clic en el ícono de marcador en la vista de detalle.</p>
                 <Link 
                   to="/licitaciones" 
-                  className="inline-flex items-center gap-2 px-6 py-3 bg-blue-600 text-white rounded-2xl font-bold hover:bg-blue-700 transition-colors"
+                  className="codex-button codex-button--primary"
                 >
                   Explorar licitaciones
                   <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -271,22 +260,18 @@ const StatsPage = () => {
         )}
       </div>
 
-      {/* Estilos */}
-      <style dangerouslySetInnerHTML={{ __html: `
-        .glass { background: rgba(255, 255, 255, 0.7); backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px); }
-      `}} />
     </div>
   );
 };
 
 // Componente para métricas
-const MetricCard = ({ label, value, icon, gradient }) => (
-  <div className={`bg-gradient-to-br ${gradient} rounded-3xl p-4 sm:p-6 text-white shadow-xl`}>
+const MetricCard = ({ label, value, icon }) => (
+  <div className="codex-metric">
     <div className="flex items-start justify-between mb-3 sm:mb-4">
       <span className="text-2xl sm:text-4xl">{icon}</span>
     </div>
-    <p className="text-2xl sm:text-3xl lg:text-4xl font-black mb-1">{value.toLocaleString()}</p>
-    <p className="text-white/80 font-medium text-sm">{label}</p>
+    <strong>{value.toLocaleString()}</strong>
+    <span>{label}</span>
   </div>
 );
 
@@ -298,7 +283,7 @@ const StatCard = ({ title, data, colorScheme, statusLabels = false }) => {
   const colors = {
     blue: { bar: 'bg-blue-500', bg: 'bg-blue-100', text: 'text-blue-600' },
     green: { bar: 'bg-emerald-500', bg: 'bg-emerald-100', text: 'text-emerald-600' },
-    purple: { bar: 'bg-purple-500', bg: 'bg-purple-100', text: 'text-purple-600' }
+    amber: { bar: 'bg-amber-500', bg: 'bg-amber-100', text: 'text-amber-600' }
   };
   
   const statusMap = {
@@ -309,7 +294,7 @@ const StatCard = ({ title, data, colorScheme, statusLabels = false }) => {
   };
 
   return (
-    <div className="glass rounded-3xl p-4 sm:p-6 shadow-xl border border-white/40">
+    <div className="codex-panel">
       <h3 className="text-base sm:text-lg font-black text-gray-900 mb-4 sm:mb-6">{title}</h3>
       <div className="space-y-4">
         {entries.map(([key, count]) => (

@@ -42,20 +42,6 @@ const LicitacionesPage = ({ apiUrl }: { apiUrl: string }) => {
         </button>
       </div>
 
-      <section className="licito-list-intro" aria-label="Foco del listado">
-        <div>
-          <span className="codex-status codex-status--progress">Listado central</span>
-          <h2>Examinar licitaciones indexadas</h2>
-          <p>La barra superior resume resultados y estado; la columna izquierda concentra filtros. El cuerpo principal queda reservado para revisar cada licitacion.</p>
-        </div>
-        <div className="licito-list-intro__stats" aria-label="Controles disponibles">
-          <span>Busqueda</span>
-          <span>Filtros</span>
-          <span>Vista</span>
-          <span>Orden</span>
-        </div>
-      </section>
-
       {showForm && (
         <div className="mb-4">
           <LicitacionForm apiUrl={apiUrl} onSuccess={handleLicitacionCreated} />

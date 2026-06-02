@@ -70,11 +70,7 @@ const HunterButton: React.FC<HunterButtonProps> = ({
       onClick={onClick}
       disabled={loading}
       className={`
-        relative inline-flex items-center font-semibold rounded-lg
-        bg-gradient-to-r from-amber-500 to-orange-500
-        hover:from-amber-600 hover:to-orange-600
-        text-white shadow-md hover:shadow-lg
-        transition-all duration-200
+        codex-button codex-button--primary relative inline-flex items-center
         disabled:opacity-60 disabled:cursor-not-allowed
         focus:outline-none focus:ring-2 focus:ring-amber-400 focus:ring-offset-2
         ${sizeClasses[size]}
@@ -95,7 +91,7 @@ const HunterButton: React.FC<HunterButtonProps> = ({
             min-w-[20px] h-5 px-1.5
             text-[11px] font-bold
             text-white bg-red-500
-            rounded-full shadow-sm
+            rounded-full
             animate-pulse
           "
         >

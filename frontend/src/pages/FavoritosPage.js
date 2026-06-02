@@ -126,34 +126,35 @@ const FavoritosPage = () => {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-100 flex items-center justify-center">
-        <div className="text-center">
+      <div className="codex-page flex items-center justify-center">
+        <div className="codex-empty-state">
           <div className="relative w-20 h-20 mx-auto mb-6">
             <div className="absolute inset-0 rounded-full border-4 border-yellow-200 animate-pulse"></div>
             <div className="absolute inset-0 rounded-full border-4 border-transparent border-t-yellow-500 animate-spin"></div>
           </div>
-          <p className="text-xl font-bold text-gray-600">Cargando favoritos...</p>
+          <p>Cargando favoritos...</p>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-100 py-8 px-4 sm:px-6 lg:px-8">
-      <div className="max-w-7xl mx-auto">
+    <div className="codex-page">
+      <div className="licito-codex-container">
         {/* Header */}
-        <div className="mb-8">
-          <div className="flex items-center justify-between">
+        <div className="codex-hero">
+          <div className="flex items-center justify-between w-full gap-4">
             <div>
-              <h1 className="text-xl sm:text-2xl lg:text-3xl font-black text-gray-900 flex items-center gap-2 sm:gap-3">
-                <span className="w-8 h-8 sm:w-12 sm:h-12 rounded-xl sm:rounded-2xl bg-yellow-100 flex items-center justify-center flex-shrink-0">
-                  <svg className="w-4 h-4 sm:w-6 sm:h-6 text-yellow-600" fill="currentColor" viewBox="0 0 24 24">
+              <p className="codex-eyebrow">Seguimiento</p>
+              <h1 className="flex items-center gap-2">
+                <span className="codex-icon-button bg-yellow-100 text-yellow-700 flex-shrink-0">
+                  <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
                     <path d="M5 5a2 2 0 012-2h10a2 2 0 012 2v16l-7-3.5L5 21V5z" />
                   </svg>
                 </span>
                 Mis Favoritos
               </h1>
-              <p className="mt-2 text-gray-500 font-medium">
+              <p>
                 {favoritos.length} licitaciones guardadas
               </p>
             </div>
@@ -161,7 +162,7 @@ const FavoritosPage = () => {
             {favoritos.length > 0 && (
               <button
                 onClick={clearAllFavoritos}
-                className="px-4 py-2 text-sm font-bold text-red-600 hover:bg-red-50 rounded-xl transition-colors"
+                className="codex-button codex-button--danger-quiet text-sm"
               >
                 Limpiar todo
               </button>
@@ -170,7 +171,7 @@ const FavoritosPage = () => {
         </div>
 
         {favoritos.length === 0 ? (
-          <div className="bg-white rounded-3xl shadow-xl p-16 text-center">
+          <div className="codex-panel codex-empty-state">
             <div className="w-24 h-24 mx-auto mb-6 rounded-full bg-gray-100 flex items-center justify-center">
               <svg className="w-12 h-12 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 5a2 2 0 012-2h10a2 2 0 012 2v16l-7-3.5L5 21V5z" />
@@ -182,7 +183,7 @@ const FavoritosPage = () => {
             </p>
             <Link
               to="/licitaciones"
-              className="inline-flex items-center px-6 py-3 bg-blue-600 text-white font-bold rounded-xl hover:bg-blue-700 transition-colors"
+              className="codex-button codex-button--primary gap-2"
             >
               Explorar licitaciones
               <svg className="w-5 h-5 ml-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -193,13 +194,13 @@ const FavoritosPage = () => {
         ) : (
           <>
             {/* Controls */}
-            <div className="bg-white rounded-2xl shadow-lg p-3 sm:p-4 mb-6 flex flex-col sm:flex-row flex-wrap gap-2 sm:gap-4 items-stretch sm:items-center">
-              <div className="flex items-center gap-2">
+            <div className="codex-panel codex-toolbar codex-favorites-toolbar">
+              <div className="codex-favorites-toolbar__group">
                 <label className="text-sm font-bold text-gray-500">Agrupar por:</label>
                 <select
                   value={groupBy}
                   onChange={(e) => setGroupBy(e.target.value)}
-                  className="px-4 py-2 bg-gray-50 border-2 border-transparent focus:border-blue-500 rounded-xl outline-none font-bold text-gray-700"
+                  className="codex-field"
                 >
                   <option value="none">Sin agrupar</option>
                   <option value="organization">Organización</option>
@@ -210,12 +211,12 @@ const FavoritosPage = () => {
                 </select>
               </div>
 
-              <div className="flex items-center gap-2">
+              <div className="codex-favorites-toolbar__group">
                 <label className="text-sm font-bold text-gray-500">Ordenar por:</label>
                 <select
                   value={sortBy}
                   onChange={(e) => setSortBy(e.target.value)}
-                  className="px-4 py-2 bg-gray-50 border-2 border-transparent focus:border-blue-500 rounded-xl outline-none font-bold text-gray-700"
+                  className="codex-field"
                 >
                   <option value="fecha_guardado">Fecha guardado</option>
                   <option value="publication_date">Fecha publicación</option>
@@ -223,7 +224,7 @@ const FavoritosPage = () => {
                 </select>
                 <button
                   onClick={() => setSortOrder(prev => prev === 'asc' ? 'desc' : 'asc')}
-                  className="p-2 bg-gray-50 rounded-xl hover:bg-gray-100 transition-colors"
+                  className="codex-icon-button"
                   title={sortOrder === 'asc' ? 'Ascendente' : 'Descendente'}
                 >
                   {sortOrder === 'asc' ? (
@@ -238,36 +239,38 @@ const FavoritosPage = () => {
                 </button>
               </div>
 
-              <div className="ml-auto text-sm text-gray-400">
-                {Object.keys(groupedFavoritos).length} {groupBy !== 'none' ? 'grupos' : 'total'}
+              <div className="codex-favorites-toolbar__meta">
+                {groupBy !== 'none'
+                  ? `${Object.keys(groupedFavoritos).length} grupos`
+                  : `${favoritos.length} guardadas`}
               </div>
             </div>
 
             {/* Grouped Results */}
-            <div className="space-y-8">
+            <div className="codex-favorites-list">
               {Object.entries(groupedFavoritos).map(([groupName, items]) => (
-                <div key={groupName} className="bg-white rounded-3xl shadow-xl overflow-hidden">
+                <section key={groupName} className="codex-panel overflow-hidden">
                   {/* Group Header */}
                   {groupBy !== 'none' && (
-                    <div className="px-6 py-4 bg-gradient-to-r from-slate-50 to-gray-50 border-b border-gray-100">
+                    <div className="px-6 py-4 bg-gray-50 border-b border-gray-100">
                       <div className="flex items-center justify-between">
                         <h3 className="text-lg font-black text-gray-800 flex items-center gap-2">
                           {groupBy === 'status' && (
                             <span className={`w-3 h-3 rounded-full ${groupName === 'Abiertas' ? 'bg-emerald-500' : 'bg-red-500'}`}></span>
                           )}
                           {groupBy === 'fuente' && (
-                            <svg className="w-5 h-5 text-violet-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <svg className="w-5 h-5 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101" />
                             </svg>
                           )}
                           {groupBy === 'organization' && (
-                            <svg className="w-5 h-5 text-indigo-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <svg className="w-5 h-5 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5" />
                             </svg>
                           )}
                           {groupName}
                         </h3>
-                        <span className="px-3 py-1 bg-gray-200 text-gray-600 text-sm font-bold rounded-full">
+                        <span className="codex-status">
                           {items.length}
                         </span>
                       </div>
@@ -278,9 +281,9 @@ const FavoritosPage = () => {
                   <div className="divide-y divide-gray-50">
                     {items.map((fav) => (
                       <div
-                        key={fav.id}
-                        className="p-4 sm:p-6 hover:bg-slate-50/50 transition-colors cursor-pointer group"
-                        onClick={() => navigate(`/licitacion/${fav.id}`)}
+                            key={fav.id}
+                            className="codex-favorite-row"
+                            onClick={() => navigate(`/licitacion/${fav.id}`)}
                       >
                         <div className="flex items-start gap-4">
                           {/* Status indicator */}
@@ -305,7 +308,7 @@ const FavoritosPage = () => {
                                 <Link
                                   to={`/cotizar?licitacion_id=${fav.id}`}
                                   onClick={e => e.stopPropagation()}
-                                  className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold rounded-lg transition-colors"
+                                  className="codex-button codex-button--primary gap-1.5 text-xs"
                                   title="Armar cotización"
                                 >
                                   <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -315,7 +318,7 @@ const FavoritosPage = () => {
                                 </Link>
                                 <button
                                   onClick={(e) => removeFavorito(fav.id, e)}
-                                  className="p-2 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-xl transition-colors"
+                                  className="codex-icon-button codex-icon-button--danger"
                                   title="Quitar de favoritos"
                                 >
                                   <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -332,19 +335,19 @@ const FavoritosPage = () => {
                                   {fav.licitacion_number}
                                 </span>
                               )}
-                              <span className="px-2 py-1 bg-violet-50 text-violet-700 text-xs font-bold rounded-lg">
+                              <span className="codex-chip codex-chip--progress">
                                 {fav.fuente || 'Sin fuente'}
                               </span>
-                              <span className="px-2 py-1 bg-orange-50 text-orange-700 text-xs font-bold rounded-lg">
+                              <span className="codex-chip codex-chip--warning">
                                 Pub: {formatDate(fav.publication_date)}
                               </span>
                               {fav.opening_date && (
-                                <span className="px-2 py-1 bg-red-50 text-red-700 text-xs font-bold rounded-lg">
+                                <span className="codex-chip codex-chip--danger">
                                   Apertura: {formatDate(fav.opening_date)}
                                 </span>
                               )}
                               {fav.fecha_fin_consultas && (
-                                <span className="px-2 py-1 bg-amber-50 text-amber-700 text-xs font-bold rounded-lg">
+                                <span className="codex-chip codex-chip--warning">
                                   Fin consultas: {formatDate(fav.fecha_fin_consultas)}
                                 </span>
                               )}
@@ -354,7 +357,7 @@ const FavoritosPage = () => {
                       </div>
                     ))}
                   </div>
-                </div>
+                </section>
               ))}
             </div>
 
@@ -376,13 +379,13 @@ const FavoritosPage = () => {
                 label="Organizaciones"
                 value={new Set(favoritos.map(f => f.organization)).size}
                 icon={<svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5" /></svg>}
-                color="indigo"
+                color="blue"
               />
               <StatCard
                 label="Fuentes"
                 value={new Set(favoritos.map(f => f.fuente)).size}
                 icon={<svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101" /></svg>}
-                color="violet"
+                color="blue"
               />
             </div>
           </>
@@ -397,12 +400,11 @@ const StatCard = ({ label, value, icon, color }) => {
   const colorClasses = {
     yellow: 'bg-yellow-50 text-yellow-600',
     emerald: 'bg-emerald-50 text-emerald-600',
-    indigo: 'bg-indigo-50 text-indigo-600',
-    violet: 'bg-violet-50 text-violet-600',
+    blue: 'bg-blue-50 text-blue-600',
   };
 
   return (
-    <div className="bg-white rounded-2xl p-4 sm:p-6 shadow-lg">
+    <div className="codex-metric">
       <div className={`w-10 h-10 sm:w-12 sm:h-12 rounded-xl ${colorClasses[color]} flex items-center justify-center mb-3`}>
         {icon}
       </div>

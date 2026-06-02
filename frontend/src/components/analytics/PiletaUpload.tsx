@@ -88,7 +88,7 @@ export const PiletaUpload: React.FC = () => {
             onClick={() => setPileta(p)}
             className={`text-xs px-3 py-1 rounded-full border transition-colors ${
               pileta === p
-                ? p === 'privada' ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-green-600 text-white border-green-600'
+                ? p === 'privada' ? 'bg-blue-600 text-white border-blue-600' : 'bg-green-600 text-white border-green-600'
                 : 'bg-white text-gray-600 border-gray-300 hover:bg-gray-50'
             }`}
           >

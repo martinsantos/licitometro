@@ -42,9 +42,9 @@ interface OfferChecklistProps {
 }
 
 const TEMPLATE_TYPE_LABELS: Record<string, { label: string; icon: string; color: string }> = {
-  servicio: { label: 'Servicio', icon: '🛠', color: 'bg-emerald-100 text-emerald-700' },
-  producto: { label: 'Producto', icon: '📦', color: 'bg-amber-100 text-amber-700' },
-  obra: { label: 'Obra', icon: '🏗', color: 'bg-violet-100 text-violet-700' },
+  servicio: { label: 'Servicio', icon: '🛠', color: 'codex-status codex-status--success' },
+  producto: { label: 'Producto', icon: '📦', color: 'codex-status codex-status--warning' },
+  obra: { label: 'Obra', icon: '🏗', color: 'codex-status codex-status--progress' },
 };
 
 const OfferChecklist: React.FC<OfferChecklistProps> = ({ licitacionId, apiUrl }) => {
@@ -196,7 +196,7 @@ const OfferChecklist: React.FC<OfferChecklistProps> = ({ licitacionId, apiUrl })
 
   if (loading) {
     return (
-      <div className="text-center py-8">
+      <div className="codex-offer-checklist codex-empty-state">
         <div className="relative w-12 h-12 mx-auto mb-3">
           <div className="absolute inset-0 rounded-full border-4 border-emerald-200 animate-pulse"></div>
           <div className="absolute inset-0 rounded-full border-4 border-transparent border-t-emerald-600 animate-spin"></div>
@@ -209,24 +209,24 @@ const OfferChecklist: React.FC<OfferChecklistProps> = ({ licitacionId, apiUrl })
   // No application yet - show template selector
   if (!application) {
     return (
-      <div className="space-y-6">
+      <div className="codex-offer-checklist space-y-6">
         <div className="text-center py-4">
           <h3 className="text-lg font-bold text-gray-800 mb-2">Selecciona una Plantilla de Oferta</h3>
           <p className="text-gray-500 text-sm">Elige una plantilla para comenzar a preparar tu oferta</p>
         </div>
 
         {error && (
-          <div className="p-3 bg-red-50 border border-red-200 rounded-xl text-red-700 text-sm font-medium">
+          <div className="codex-form-error">
             {error}
           </div>
         )}
 
         {templates.length === 0 ? (
-          <div className="text-center py-8 bg-gray-50 rounded-2xl">
+          <div className="codex-empty-state">
             <p className="text-gray-400 mb-3">No hay plantillas disponibles</p>
             <a
               href="/templates"
-              className="inline-flex items-center gap-2 px-4 py-2 bg-emerald-500 text-white rounded-xl text-sm font-bold"
+              className="codex-button codex-button--primary gap-2"
             >
               Crear Plantilla
             </a>
@@ -240,10 +240,10 @@ const OfferChecklist: React.FC<OfferChecklistProps> = ({ licitacionId, apiUrl })
                   key={template.id}
                   onClick={() => applyTemplate(template.id)}
                   disabled={applying}
-                  className="text-left bg-white rounded-2xl p-5 border-2 border-gray-100 hover:border-emerald-300 hover:shadow-lg transition-all disabled:opacity-50"
+                  className="codex-template-card text-left disabled:opacity-50"
                 >
                   <div className="flex items-center gap-2 mb-2">
-                    <span className={`px-2.5 py-0.5 rounded-full text-xs font-bold ${typeConf.color}`}>
+                    <span className={typeConf.color}>
                       {typeConf.icon} {typeConf.label}
                     </span>
                     <span className="text-xs text-gray-400">{template.usage_count} usos</span>
@@ -270,7 +270,7 @@ const OfferChecklist: React.FC<OfferChecklistProps> = ({ licitacionId, apiUrl })
   const isCompleted = application.status === 'completed';
 
   return (
-    <div className="space-y-6">
+    <div className="codex-offer-checklist space-y-6">
       {/* Header with progress */}
       <div className="flex items-center justify-between">
         <div>
@@ -299,12 +299,12 @@ const OfferChecklist: React.FC<OfferChecklistProps> = ({ licitacionId, apiUrl })
           </span>
         </div>
         <div className="w-full bg-gray-100 rounded-full h-3 overflow-hidden">
-          <div
-            className={`h-full rounded-full transition-all duration-500 ${
-              application.progress_percent >= 100 ? 'bg-gradient-to-r from-emerald-400 to-emerald-600' :
-              application.progress_percent >= 50 ? 'bg-gradient-to-r from-blue-400 to-blue-600' :
-              'bg-gradient-to-r from-gray-300 to-gray-400'
-            }`}
+              <div
+                className={`h-full rounded-full transition-all duration-500 ${
+                  application.progress_percent >= 100 ? 'bg-emerald-600' :
+                  application.progress_percent >= 50 ? 'bg-blue-600' :
+                  'bg-gray-400'
+                }`}
             style={{ width: `${Math.min(application.progress_percent, 100)}%` }}
           />
         </div>
@@ -312,7 +312,7 @@ const OfferChecklist: React.FC<OfferChecklistProps> = ({ licitacionId, apiUrl })
 
       {/* Completed banner */}
       {isCompleted && (
-        <div className="flex items-center gap-3 p-4 bg-emerald-50 border border-emerald-200 rounded-2xl">
+        <div className="codex-offer-checklist__complete">
           <div className="w-10 h-10 rounded-full bg-emerald-100 flex items-center justify-center flex-shrink-0">
             <svg className="w-6 h-6 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
@@ -330,7 +330,7 @@ const OfferChecklist: React.FC<OfferChecklistProps> = ({ licitacionId, apiUrl })
         {sections.map((section) => {
           const sectionComplete = section.completedCount === section.totalCount;
           return (
-            <div key={section.name} className="bg-white rounded-2xl border border-gray-100 overflow-hidden">
+            <div key={section.name} className="codex-offer-checklist__section">
               {/* Section Header */}
               <div className={`px-5 py-3 flex items-center justify-between ${
                 sectionComplete ? 'bg-emerald-50' : 'bg-gray-50'
@@ -357,7 +357,7 @@ const OfferChecklist: React.FC<OfferChecklistProps> = ({ licitacionId, apiUrl })
                 {!sectionComplete && (
                   <button
                     onClick={() => completeSection(section.name)}
-                    className="text-xs font-bold text-emerald-600 hover:text-emerald-700 px-2 py-1 hover:bg-emerald-50 rounded-lg transition-colors"
+                    className="codex-link-button"
                   >
                     Marcar completo
                   </button>

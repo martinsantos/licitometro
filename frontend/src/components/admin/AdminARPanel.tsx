@@ -187,7 +187,7 @@ const AdminARPanel = () => {
           <button
             onClick={handleBatchNodos}
             disabled={actionLoading === 'nodos'}
-            className="px-4 py-2 bg-purple-600 text-white rounded-lg text-sm font-medium hover:bg-purple-700 disabled:opacity-50 flex items-center gap-2"
+            className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 disabled:opacity-50 flex items-center gap-2"
           >
             {actionLoading === 'nodos' ? (
               <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white" />
@@ -214,7 +214,7 @@ const AdminARPanel = () => {
           </button>
         </div>
         {nodoResult && (
-          <p className="mt-2 text-sm text-purple-700">{nodoResult}</p>
+          <p className="mt-2 text-sm text-blue-700">{nodoResult}</p>
         )}
         {digestResult && (
           <p className="mt-2 text-sm text-emerald-700">{digestResult}</p>
@@ -343,7 +343,7 @@ const StatCard = ({ label, value, color }: { label: string; value: number; color
     gray: 'text-gray-900',
     emerald: 'text-emerald-600',
     sky: 'text-sky-600',
-    purple: 'text-purple-600',
+    purple: 'text-blue-600',
     amber: 'text-amber-600',
   };
   return (

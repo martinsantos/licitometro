@@ -21,7 +21,7 @@ const NodoCard: React.FC<NodoCardProps> = ({ nodo, onEdit, onDelete, onRematch }
   const freqLabel = FREQ_LABELS[nodo.digest_frequency];
 
   return (
-    <div className="bg-white rounded-2xl shadow-md border border-gray-100 p-5 hover:shadow-lg transition-shadow">
+    <div className="codex-panel p-5">
       <div className="flex items-start justify-between mb-3">
         <div className="flex items-center gap-2">
           <span className="w-3 h-3 rounded-full flex-shrink-0" style={{ backgroundColor: nodo.color }} />
@@ -83,7 +83,7 @@ const NodoCard: React.FC<NodoCardProps> = ({ nodo, onEdit, onDelete, onRematch }
           </span>
         ))}
         {freqLabel && (
-          <span className="px-2 py-0.5 bg-violet-50 text-violet-600 rounded text-[10px] font-bold">
+          <span className="codex-status codex-status--progress text-[10px]">
             {freqLabel}
           </span>
         )}
@@ -99,13 +99,13 @@ const NodoCard: React.FC<NodoCardProps> = ({ nodo, onEdit, onDelete, onRematch }
       </div>
 
       <div className="flex items-center gap-2 pt-3 border-t border-gray-100">
-        <button onClick={() => onEdit(nodo)} className="px-3 py-1.5 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg text-xs font-bold transition-colors">
+        <button onClick={() => onEdit(nodo)} className="codex-button codex-button--quiet text-xs">
           Editar
         </button>
-        <button onClick={() => onRematch(nodo.id)} className="px-3 py-1.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 rounded-lg text-xs font-bold transition-colors">
+        <button onClick={() => onRematch(nodo.id)} className="codex-button codex-button--quiet text-xs">
           Re-match
         </button>
-        <button onClick={() => onDelete(nodo.id)} className="px-3 py-1.5 bg-red-50 hover:bg-red-100 text-red-600 rounded-lg text-xs font-bold transition-colors ml-auto">
+        <button onClick={() => onDelete(nodo.id)} className="codex-button codex-button--danger-quiet text-xs ml-auto">
           Eliminar
         </button>
       </div>

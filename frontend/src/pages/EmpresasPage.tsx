@@ -141,7 +141,7 @@ function PerfilForm({
         <button
           type="submit"
           disabled={saving}
-          className="px-4 py-2 bg-indigo-600 text-white text-sm rounded-lg hover:bg-indigo-700 disabled:opacity-50"
+          className="codex-button codex-button--primary text-sm disabled:opacity-50"
         >
           {saving ? 'Guardando…' : 'Guardar'}
         </button>
@@ -180,7 +180,7 @@ function PerfilCard({
               </span>
             )}
             {perfil.rubro && (
-              <span className="text-[11px] px-2 py-0.5 bg-indigo-50 text-indigo-700 rounded-full border border-indigo-100">
+              <span className="codex-status codex-status--progress text-[11px]">
                 {perfil.rubro}
               </span>
             )}
@@ -193,10 +193,10 @@ function PerfilCard({
           )}
           <div className="flex flex-wrap gap-3 mt-2 text-[11px] text-gray-500">
             {perfil.contacto && <span>👤 {perfil.contacto}</span>}
-            {perfil.email && <a href={`mailto:${perfil.email}`} className="hover:text-indigo-600">✉️ {perfil.email}</a>}
+            {perfil.email && <a href={`mailto:${perfil.email}`} className="hover:text-blue-700">✉️ {perfil.email}</a>}
             {perfil.telefono && <span>📞 {perfil.telefono}</span>}
             {perfil.web && (
-              <a href={perfil.web} target="_blank" rel="noopener noreferrer" className="hover:text-indigo-600">
+              <a href={perfil.web} target="_blank" rel="noopener noreferrer" className="hover:text-blue-700">
                 🌐 {perfil.web.replace(/^https?:\/\//, '')}
               </a>
             )}
@@ -287,7 +287,7 @@ function PerfilesTab() {
         <p className="text-sm text-gray-500">{perfiles.length} empresa(s) registrada(s)</p>
         <button
           onClick={() => { setShowNew(true); setEditingId(null); }}
-          className="text-sm px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700"
+          className="codex-button codex-button--primary text-sm"
         >
           + Nueva empresa
         </button>
@@ -352,7 +352,7 @@ const EmpresasPage: React.FC = () => {
   const [activeTab, setActiveTab] = useState<Tab>('perfiles');
 
   return (
-    <div className="max-w-5xl mx-auto px-4 py-6">
+    <div className="codex-page max-w-5xl mx-auto px-4 py-6">
       {/* Header */}
       <div className="mb-6">
         <h1 className="text-2xl font-bold text-gray-900">Mi Empresa</h1>
@@ -362,15 +362,15 @@ const EmpresasPage: React.FC = () => {
       </div>
 
       {/* Tabs */}
-      <div className="flex gap-1 mb-6 border-b border-gray-200">
+      <div className="codex-tab-strip flex gap-1 mb-6">
         {TABS.map(tab => (
           <button
             key={tab.id}
             onClick={() => setActiveTab(tab.id)}
-            className={`flex items-center gap-2 px-4 py-2.5 text-sm font-medium rounded-t-lg border-b-2 transition-colors ${
+            className={`codex-button flex items-center gap-2 px-4 py-2.5 text-sm ${
               activeTab === tab.id
-                ? 'border-indigo-600 text-indigo-700 bg-indigo-50/50'
-                : 'border-transparent text-gray-500 hover:text-gray-700 hover:bg-gray-50'
+                ? 'codex-button--primary'
+                : 'codex-button--quiet'
             }`}
           >
             <span>{tab.icon}</span>

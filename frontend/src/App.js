@@ -1,5 +1,6 @@
 import React, { useState, useEffect, lazy, Suspense } from "react";
 import "./App.css";
+import "./styles/codex-ui3.css";
 import { BrowserRouter, Routes, Route, Navigate, useLocation } from "react-router-dom";
 import { api } from "./services/api";
 
@@ -52,7 +53,7 @@ const AuthenticatedApp = ({ userRole }) => (
   <FavoritesProvider>
   <div className="App flex flex-col min-h-screen">
     <Header userRole={userRole} />
-    <main className="flex-grow min-w-0 max-w-full">
+    <main className="licito-codex-main codex-ui3-contract flex-grow min-w-0 max-w-full">
       <Suspense fallback={<PageLoader />}>
         <Routes>
           <Route path="/" element={<HomePage />} />

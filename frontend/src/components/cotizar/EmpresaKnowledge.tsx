@@ -111,7 +111,7 @@ function MarginCards({ text }: { text: string }) {
                 </span>
               )}
               {amount && amount.type === 'money' && (
-                <span className="shrink-0 font-mono text-indigo-700 text-[11px]">{amount.display}</span>
+                <span className="shrink-0 font-mono text-blue-700 text-[11px]">{amount.display}</span>
               )}
             </div>
           );
@@ -136,7 +136,7 @@ function DocCard({ doc, onDelete }: { doc: KnowledgeDoc; onDelete: () => void })
   const e = doc.entities || {};
 
   return (
-    <div className="bg-white border border-gray-200 rounded-xl p-4 space-y-2">
+    <div className="codex-panel p-4 space-y-2">
       <div className="flex items-start gap-2">
         <span className="text-lg mt-0.5">{SOURCE_LABELS[doc.source] || '📎'}</span>
         <div className="flex-1 min-w-0">
@@ -155,7 +155,7 @@ function DocCard({ doc, onDelete }: { doc: KnowledgeDoc; onDelete: () => void })
           {doc.summary && <p className="text-xs text-gray-500 mt-1 line-clamp-2">{doc.summary}</p>}
           <div className="flex flex-wrap gap-3 mt-1.5 text-[11px] text-gray-500">
             {e.monto_total && (
-              <span className="font-mono text-indigo-600 font-semibold">
+              <span className="font-mono text-blue-700 font-semibold">
                 ${Number(e.monto_total).toLocaleString('es-AR', { maximumFractionDigits: 0 })}
               </span>
             )}
@@ -265,13 +265,13 @@ function ImportMenu({ nodeId, docType, setDocType, onDone }: {
   };
 
   return (
-    <div className="border border-dashed border-indigo-300 rounded-xl p-4 bg-indigo-50/50 space-y-3">
+    <div className="codex-panel border-dashed p-4 space-y-3">
       <div className="flex items-center gap-2 flex-wrap">
         <span className="text-xs font-medium text-gray-600">Tipo:</span>
         {Object.entries(DOC_TYPE_LABELS).map(([k, v]) => (
           <button key={k} onClick={() => setDocType(k)}
             className={`text-[11px] px-2 py-0.5 rounded-full border transition-colors ${
-              docType === k ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-white text-gray-600 border-gray-300 hover:bg-gray-50'
+              docType === k ? 'codex-button--primary' : 'codex-button--quiet'
             }`}>{v}</button>
         ))}
       </div>
@@ -306,7 +306,7 @@ function ImportMenu({ nodeId, docType, setDocType, onDone }: {
           <input value={url} onChange={e => setUrl(e.target.value)} placeholder="https://..."
             className="flex-1 text-xs border border-gray-300 rounded-lg px-3 py-2" autoFocus />
           <button onClick={importUrl} disabled={loading || !url.trim()}
-            className="text-xs px-3 py-2 bg-indigo-600 text-white rounded-lg disabled:opacity-50">
+            className="codex-button codex-button--primary text-xs disabled:opacity-50">
             {loading ? '…' : 'Importar'}
           </button>
           <button onClick={reset} className="text-xs px-3 py-2 border border-gray-300 rounded-lg">✕</button>
@@ -320,7 +320,7 @@ function ImportMenu({ nodeId, docType, setDocType, onDone }: {
             <input value={licId} onChange={e => setLicId(e.target.value)} placeholder="507f1f77bcf86cd799439011"
               className="flex-1 text-xs border border-gray-300 rounded-lg px-3 py-2 font-mono" autoFocus />
             <button onClick={importLicitacion} disabled={loading || !licId.trim()}
-              className="text-xs px-3 py-2 bg-indigo-600 text-white rounded-lg disabled:opacity-50">
+              className="codex-button codex-button--primary text-xs disabled:opacity-50">
               {loading ? '…' : 'Importar'}
             </button>
             <button onClick={reset} className="text-xs px-3 py-2 border border-gray-300 rounded-lg">✕</button>
@@ -336,7 +336,7 @@ function ImportMenu({ nodeId, docType, setDocType, onDone }: {
             rows={4} className="w-full text-xs border border-gray-300 rounded-lg px-3 py-2 resize-none" autoFocus />
           <div className="flex gap-2">
             <button onClick={importPaste} disabled={loading || !pasteText.trim()}
-              className="text-xs px-3 py-2 bg-indigo-600 text-white rounded-lg disabled:opacity-50">
+              className="codex-button codex-button--primary text-xs disabled:opacity-50">
               {loading ? '…' : 'Guardar'}
             </button>
             <button onClick={reset} className="text-xs px-3 py-2 border border-gray-300 rounded-lg">✕</button>
@@ -408,7 +408,7 @@ function NodePanel({ node, onRefresh, onDelete }: {
           <span>{node.chunk_count ?? 0} frags</span>
         </div>
         <button onClick={() => setShowImport(x => !x)}
-          className="text-xs px-3 py-1.5 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700">
+          className="codex-button codex-button--primary text-xs">
           + Agregar
         </button>
         <button onClick={onDelete} className="text-xs text-red-400 hover:text-red-600 px-2 py-1">🗑</button>
@@ -423,7 +423,7 @@ function NodePanel({ node, onRefresh, onDelete }: {
       <form onSubmit={doSearch} className="flex gap-2">
         <input value={searchQ} onChange={e => setSearchQ(e.target.value)}
           placeholder={`Buscar en ${node.name}…`}
-          className="flex-1 text-xs border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-1 focus:ring-indigo-400" />
+          className="flex-1 text-xs border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-1 focus:ring-blue-400" />
         <button type="submit" disabled={searching || !searchQ.trim()}
           className="text-xs px-3 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 disabled:opacity-50">
           {searching ? '…' : '🔍'}
@@ -441,7 +441,7 @@ function NodePanel({ node, onRefresh, onDelete }: {
             Resultados ({searchResults.length})
           </div>
           {searchResults.map(doc => (
-            <div key={doc._id} className="bg-blue-50 border border-blue-100 rounded-xl p-3">
+            <div key={doc._id} className="codex-panel p-3">
               <div className="flex items-center gap-2 mb-2">
                 <span className="text-[10px] font-medium text-blue-700">{doc.filename}</span>
                 <span className="text-[10px] text-gray-400">{DOC_TYPE_LABELS[doc.doc_type] || doc.doc_type}</span>
@@ -546,8 +546,8 @@ const EmpresaKnowledge: React.FC = () => {
             onClick={() => setActiveNode(node._id)}
             className={`flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-full border transition-all ${
               activeNode === node._id
-                ? 'text-white border-transparent shadow-sm'
-                : 'bg-white text-gray-600 border-gray-300 hover:bg-gray-50'
+                ? 'codex-button--primary'
+                : 'codex-button--quiet'
             }`}
             style={activeNode === node._id ? { background: node.color, borderColor: node.color } : {}}
           >
@@ -566,7 +566,7 @@ const EmpresaKnowledge: React.FC = () => {
 
       {/* New node form */}
       {showNewNode && (
-        <div className="bg-gray-50 border border-gray-200 rounded-xl p-4 space-y-3">
+        <div className="codex-panel p-4 space-y-3">
           <div className="text-xs font-semibold text-gray-700">Crear nodo temático</div>
           <div className="grid grid-cols-2 gap-2">
             <input value={newName} onChange={e => setNewName(e.target.value)}
@@ -589,7 +589,7 @@ const EmpresaKnowledge: React.FC = () => {
           </div>
           <div className="flex gap-2">
             <button onClick={createNode} disabled={creating || !newName.trim()}
-              className="text-xs px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:opacity-50">
+              className="codex-button codex-button--primary text-xs disabled:opacity-50">
               {creating ? '…' : 'Crear nodo'}
             </button>
             <button onClick={() => setShowNewNode(false)}
@@ -602,7 +602,7 @@ const EmpresaKnowledge: React.FC = () => {
 
       {/* Active node panel */}
       {active ? (
-        <div className="bg-white border border-gray-200 rounded-xl p-4">
+        <div className="codex-panel p-4">
           <NodePanel node={active} onRefresh={loadNodes}
             onDelete={() => deleteNode(active._id)} />
         </div>

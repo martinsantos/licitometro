@@ -25,9 +25,9 @@ interface OfferTemplate {
 }
 
 const TEMPLATE_TYPES = [
-  { value: 'servicio', label: 'Servicio', color: 'bg-emerald-100 text-emerald-700', icon: '🛠' },
-  { value: 'producto', label: 'Producto', color: 'bg-amber-100 text-amber-700', icon: '📦' },
-  { value: 'obra', label: 'Obra', color: 'bg-violet-100 text-violet-700', icon: '🏗' },
+  { value: 'servicio', label: 'Servicio', color: 'codex-status codex-status--success', icon: '🛠' },
+  { value: 'producto', label: 'Producto', color: 'codex-status codex-status--warning', icon: '📦' },
+  { value: 'obra', label: 'Obra', color: 'codex-status codex-status--progress', icon: '🏗' },
 ];
 
 const emptySection: TemplateSection = {
@@ -209,17 +209,18 @@ const OfferTemplatesPage: React.FC = () => {
   })).filter(g => !filterType || g.value === filterType);
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-100 py-8 px-4 sm:px-6 lg:px-8">
-      <div className="max-w-6xl mx-auto">
+    <div className="codex-page">
+      <div className="licito-codex-container">
         {/* Header */}
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-8">
+        <div className="codex-hero">
           <div>
-            <h1 className="text-3xl font-black text-gray-900">Plantillas de Oferta</h1>
-            <p className="text-gray-500 mt-1">Gestiona tus plantillas para preparar ofertas</p>
+            <p className="codex-eyebrow">Cotización</p>
+            <h1>Plantillas de Oferta</h1>
+            <p>Gestiona estructuras reutilizables para preparar ofertas.</p>
           </div>
           <button
             onClick={openCreate}
-            className="inline-flex items-center gap-2 px-5 py-3 bg-gradient-to-r from-emerald-500 to-teal-600 text-white rounded-2xl font-bold shadow-lg shadow-emerald-200 hover:shadow-xl hover:shadow-emerald-300 transition-all"
+            className="codex-button codex-button--primary gap-2"
           >
             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 4v16m8-8H4" />
@@ -229,12 +230,10 @@ const OfferTemplatesPage: React.FC = () => {
         </div>
 
         {/* Filters */}
-        <div className="flex gap-2 mb-6 flex-wrap">
+        <div className="codex-toolbar">
           <button
             onClick={() => setFilterType('')}
-            className={`px-4 py-2 rounded-xl text-sm font-bold transition-all ${
-              !filterType ? 'bg-gray-800 text-white' : 'bg-white text-gray-600 hover:bg-gray-100'
-            }`}
+            className={`codex-button ${!filterType ? 'codex-button--primary' : 'codex-button--quiet'}`}
           >
             Todas
           </button>
@@ -242,9 +241,7 @@ const OfferTemplatesPage: React.FC = () => {
             <button
               key={type.value}
               onClick={() => setFilterType(type.value)}
-              className={`px-4 py-2 rounded-xl text-sm font-bold transition-all ${
-                filterType === type.value ? 'bg-gray-800 text-white' : 'bg-white text-gray-600 hover:bg-gray-100'
-              }`}
+              className={`codex-button ${filterType === type.value ? 'codex-button--primary' : 'codex-button--quiet'}`}
             >
               {type.icon} {type.label}
             </button>
@@ -253,31 +250,31 @@ const OfferTemplatesPage: React.FC = () => {
 
         {/* Loading */}
         {loading && (
-          <div className="text-center py-12">
+          <div className="codex-empty-state">
             <div className="relative w-16 h-16 mx-auto mb-4">
               <div className="absolute inset-0 rounded-full border-4 border-emerald-200 animate-pulse"></div>
               <div className="absolute inset-0 rounded-full border-4 border-transparent border-t-emerald-600 animate-spin"></div>
             </div>
-            <p className="text-gray-500 font-bold">Cargando plantillas...</p>
+            <p>Cargando plantillas...</p>
           </div>
         )}
 
         {/* Template Cards */}
         {!loading && grouped.map(group => (
           group.templates.length > 0 && (
-            <div key={group.value} className="mb-8">
-              <h2 className="text-lg font-black text-gray-700 mb-4 flex items-center gap-2">
+            <section key={group.value} className="codex-panel">
+              <h2 className="codex-section-heading">
                 <span>{group.icon}</span>
                 {group.label}s
                 <span className="text-sm font-medium text-gray-400">({group.templates.length})</span>
               </h2>
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              <div className="codex-template-grid">
                 {group.templates.map(template => {
                   const typeConf = getTypeConfig(template.template_type);
                   return (
-                    <div key={template.id} className="bg-white rounded-2xl p-6 shadow-lg border border-gray-100 hover:shadow-xl transition-shadow">
+                    <article key={template.id} className="codex-template-card">
                       <div className="flex items-start justify-between mb-3">
-                        <span className={`px-3 py-1 rounded-full text-xs font-bold ${typeConf.color}`}>
+                        <span className={typeConf.color}>
                           {typeConf.icon} {typeConf.label}
                         </span>
                         <span className="text-xs text-gray-400">
@@ -290,7 +287,7 @@ const OfferTemplatesPage: React.FC = () => {
                       )}
                       <div className="flex flex-wrap gap-1 mb-4">
                         {template.tags.map((tag, i) => (
-                          <span key={i} className="px-2 py-0.5 bg-gray-100 text-gray-500 rounded text-xs font-medium">
+                          <span key={i} className="codex-chip">
                             {tag}
                           </span>
                         ))}
@@ -301,7 +298,7 @@ const OfferTemplatesPage: React.FC = () => {
                       <div className="flex gap-2">
                         <button
                           onClick={() => openEdit(template)}
-                          className="flex-1 px-3 py-2 bg-gray-50 hover:bg-gray-100 text-gray-700 rounded-xl text-sm font-bold transition-colors"
+                          className="codex-button codex-button--quiet flex-1"
                         >
                           Editar
                         </button>
@@ -309,13 +306,13 @@ const OfferTemplatesPage: React.FC = () => {
                           <div className="flex gap-1">
                             <button
                               onClick={() => handleDelete(template.id)}
-                              className="px-3 py-2 bg-red-500 text-white rounded-xl text-sm font-bold"
+                              className="codex-button codex-button--danger"
                             >
                               Confirmar
                             </button>
                             <button
                               onClick={() => setDeleteConfirm(null)}
-                              className="px-3 py-2 bg-gray-100 text-gray-600 rounded-xl text-sm font-bold"
+                              className="codex-button codex-button--quiet"
                             >
                               No
                             </button>
@@ -323,33 +320,33 @@ const OfferTemplatesPage: React.FC = () => {
                         ) : (
                           <button
                             onClick={() => setDeleteConfirm(template.id)}
-                            className="px-3 py-2 bg-red-50 hover:bg-red-100 text-red-600 rounded-xl text-sm font-bold transition-colors"
+                            className="codex-button codex-button--danger-quiet"
                           >
                             Eliminar
                           </button>
                         )}
                       </div>
-                    </div>
+                    </article>
                   );
                 })}
               </div>
-            </div>
+            </section>
           )
         ))}
 
         {/* Empty state */}
         {!loading && templates.length === 0 && (
-          <div className="text-center py-16">
+          <div className="codex-empty-state">
             <div className="w-20 h-20 mx-auto mb-6 rounded-full bg-gray-100 flex items-center justify-center">
               <svg className="w-10 h-10 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
               </svg>
             </div>
-            <h3 className="text-xl font-bold text-gray-600 mb-2">No hay plantillas</h3>
-            <p className="text-gray-400 mb-6">Crea tu primera plantilla para organizar tus ofertas</p>
+            <h3>No hay plantillas</h3>
+            <p>Crea tu primera plantilla para organizar tus ofertas.</p>
             <button
               onClick={openCreate}
-              className="inline-flex items-center gap-2 px-5 py-3 bg-emerald-500 text-white rounded-2xl font-bold"
+              className="codex-button codex-button--primary gap-2"
             >
               <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 4v16m8-8H4" />
@@ -361,15 +358,15 @@ const OfferTemplatesPage: React.FC = () => {
 
         {/* Create/Edit Modal */}
         {showForm && (
-          <div className="fixed inset-0 bg-black/50 z-50 flex items-start justify-center overflow-y-auto pt-8 pb-8">
-            <div className="bg-white rounded-3xl shadow-2xl w-full max-w-3xl mx-4 p-8">
+          <div className="codex-modal-backdrop">
+            <div className="codex-modal">
               <div className="flex items-center justify-between mb-6">
                 <h2 className="text-2xl font-black text-gray-900">
                   {editingId ? 'Editar Plantilla' : 'Nueva Plantilla'}
                 </h2>
                 <button
                   onClick={() => { setShowForm(false); resetForm(); }}
-                  className="p-2 hover:bg-gray-100 rounded-xl transition-colors"
+                  className="codex-icon-button"
                 >
                   <svg className="w-6 h-6 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
@@ -378,7 +375,7 @@ const OfferTemplatesPage: React.FC = () => {
               </div>
 
               {error && (
-                <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-xl text-red-700 text-sm font-medium">
+                <div className="codex-form-error">
                   {error}
                 </div>
               )}
@@ -392,7 +389,7 @@ const OfferTemplatesPage: React.FC = () => {
                       type="text"
                       value={formName}
                       onChange={e => setFormName(e.target.value)}
-                      className="w-full px-4 py-2.5 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
+                      className="codex-field"
                       placeholder="Ej: Oferta de Limpieza"
                     />
                   </div>
@@ -401,7 +398,7 @@ const OfferTemplatesPage: React.FC = () => {
                     <select
                       value={formType}
                       onChange={e => setFormType(e.target.value)}
-                      className="w-full px-4 py-2.5 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
+                      className="codex-field"
                     >
                       {TEMPLATE_TYPES.map(t => (
                         <option key={t.value} value={t.value}>{t.icon} {t.label}</option>
@@ -415,7 +412,7 @@ const OfferTemplatesPage: React.FC = () => {
                   <textarea
                     value={formDescription}
                     onChange={e => setFormDescription(e.target.value)}
-                    className="w-full px-4 py-2.5 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
+                    className="codex-field"
                     rows={2}
                     placeholder="Descripcion opcional..."
                   />
@@ -427,28 +424,28 @@ const OfferTemplatesPage: React.FC = () => {
                     <label className="text-sm font-bold text-gray-700">Secciones</label>
                     <button
                       onClick={addSection}
-                      className="text-sm font-bold text-emerald-600 hover:text-emerald-700"
+                      className="codex-link-button"
                     >
                       + Agregar seccion
                     </button>
                   </div>
                   <div className="space-y-4">
                     {formSections.map((section, sIdx) => (
-                      <div key={sIdx} className="bg-gray-50 rounded-2xl p-4 border border-gray-100">
+                      <div key={sIdx} className="codex-template-section">
                         <div className="flex items-start gap-3 mb-3">
                           <div className="flex-1 grid grid-cols-1 sm:grid-cols-2 gap-3">
                             <input
                               type="text"
                               value={section.name}
                               onChange={e => updateSection(sIdx, 'name', e.target.value)}
-                              className="px-3 py-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
+                              className="codex-field"
                               placeholder="Nombre de la seccion"
                             />
                             <input
                               type="text"
                               value={section.description || ''}
                               onChange={e => updateSection(sIdx, 'description', e.target.value)}
-                              className="px-3 py-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
+                              className="codex-field"
                               placeholder="Descripcion"
                             />
                           </div>
@@ -463,7 +460,7 @@ const OfferTemplatesPage: React.FC = () => {
                           </label>
                           <button
                             onClick={() => removeSection(sIdx)}
-                            className="p-1 hover:bg-red-100 rounded text-red-400 hover:text-red-600"
+                            className="codex-icon-button codex-icon-button--danger"
                           >
                             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
@@ -477,11 +474,11 @@ const OfferTemplatesPage: React.FC = () => {
                           <ul className="space-y-1 mb-2">
                             {section.checklist_items.map((item, iIdx) => (
                               <li key={iIdx} className="flex items-center gap-2 text-sm text-gray-600">
-                                <span className="w-4 h-4 rounded border border-gray-300 flex-shrink-0"></span>
+                                <span className="codex-checkbox-proxy"></span>
                                 <span className="flex-1">{item}</span>
                                 <button
                                   onClick={() => removeChecklistItem(sIdx, iIdx)}
-                                  className="text-gray-300 hover:text-red-500"
+                                  className="codex-link-button codex-link-button--danger"
                                 >
                                   <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
@@ -493,7 +490,7 @@ const OfferTemplatesPage: React.FC = () => {
                           <div className="flex gap-2">
                             <input
                               type="text"
-                              className="flex-1 px-3 py-1.5 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
+                                className="codex-field flex-1"
                               placeholder="Nuevo item del checklist..."
                               onKeyDown={e => {
                                 if (e.key === 'Enter') {
@@ -514,7 +511,7 @@ const OfferTemplatesPage: React.FC = () => {
                   <label className="block text-sm font-bold text-gray-700 mb-2">Documentos Requeridos</label>
                   <div className="flex flex-wrap gap-2 mb-2">
                     {formDocuments.map((doc, i) => (
-                      <span key={i} className="inline-flex items-center gap-1 px-3 py-1 bg-blue-50 text-blue-700 rounded-full text-sm font-medium">
+                        <span key={i} className="codex-chip codex-chip--progress">
                         {doc}
                         <button onClick={() => removeFromList(formDocuments, setFormDocuments, i)} className="hover:text-blue-900">
                           <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -529,7 +526,7 @@ const OfferTemplatesPage: React.FC = () => {
                       type="text"
                       value={newDocInput}
                       onChange={e => setNewDocInput(e.target.value)}
-                      className="flex-1 px-3 py-2 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
+                      className="codex-field flex-1"
                       placeholder="Nombre del documento..."
                       onKeyDown={e => {
                         if (e.key === 'Enter') {
@@ -539,7 +536,7 @@ const OfferTemplatesPage: React.FC = () => {
                     />
                     <button
                       onClick={() => addToList(formDocuments, setFormDocuments, newDocInput, setNewDocInput)}
-                      className="px-3 py-2 bg-gray-100 hover:bg-gray-200 text-gray-600 rounded-xl text-sm font-bold"
+                      className="codex-button codex-button--quiet"
                     >
                       Agregar
                     </button>
@@ -551,7 +548,7 @@ const OfferTemplatesPage: React.FC = () => {
                   <label className="block text-sm font-bold text-gray-700 mb-2">Tags</label>
                   <div className="flex flex-wrap gap-2 mb-2">
                     {formTags.map((tag, i) => (
-                      <span key={i} className="inline-flex items-center gap-1 px-3 py-1 bg-gray-100 text-gray-600 rounded-full text-sm font-medium">
+                        <span key={i} className="codex-chip">
                         {tag}
                         <button onClick={() => removeFromList(formTags, setFormTags, i)} className="hover:text-gray-900">
                           <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -566,7 +563,7 @@ const OfferTemplatesPage: React.FC = () => {
                       type="text"
                       value={newTagInput}
                       onChange={e => setNewTagInput(e.target.value)}
-                      className="flex-1 px-3 py-2 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
+                      className="codex-field flex-1"
                       placeholder="Tag..."
                       onKeyDown={e => {
                         if (e.key === 'Enter') {
@@ -576,7 +573,7 @@ const OfferTemplatesPage: React.FC = () => {
                     />
                     <button
                       onClick={() => addToList(formTags, setFormTags, newTagInput, setNewTagInput)}
-                      className="px-3 py-2 bg-gray-100 hover:bg-gray-200 text-gray-600 rounded-xl text-sm font-bold"
+                      className="codex-button codex-button--quiet"
                     >
                       Agregar
                     </button>
@@ -588,9 +585,9 @@ const OfferTemplatesPage: React.FC = () => {
                   <label className="block text-sm font-bold text-gray-700 mb-2">Rubros Aplicables</label>
                   <div className="flex flex-wrap gap-2 mb-2">
                     {formRubros.map((rubro, i) => (
-                      <span key={i} className="inline-flex items-center gap-1 px-3 py-1 bg-violet-50 text-violet-700 rounded-full text-sm font-medium">
-                        {rubro}
-                        <button onClick={() => removeFromList(formRubros, setFormRubros, i)} className="hover:text-violet-900">
+                        <span key={i} className="codex-chip codex-chip--progress">
+                          {rubro}
+                          <button onClick={() => removeFromList(formRubros, setFormRubros, i)} className="hover:text-blue-900">
                           <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
                           </svg>
@@ -603,7 +600,7 @@ const OfferTemplatesPage: React.FC = () => {
                       type="text"
                       value={newRubroInput}
                       onChange={e => setNewRubroInput(e.target.value)}
-                      className="flex-1 px-3 py-2 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
+                      className="codex-field flex-1"
                       placeholder="Rubro..."
                       onKeyDown={e => {
                         if (e.key === 'Enter') {
@@ -613,7 +610,7 @@ const OfferTemplatesPage: React.FC = () => {
                     />
                     <button
                       onClick={() => addToList(formRubros, setFormRubros, newRubroInput, setNewRubroInput)}
-                      className="px-3 py-2 bg-gray-100 hover:bg-gray-200 text-gray-600 rounded-xl text-sm font-bold"
+                      className="codex-button codex-button--quiet"
                     >
                       Agregar
                     </button>
@@ -626,13 +623,13 @@ const OfferTemplatesPage: React.FC = () => {
                 <button
                   onClick={handleSave}
                   disabled={saving}
-                  className="flex-1 py-3 bg-gradient-to-r from-emerald-500 to-teal-600 text-white rounded-2xl font-bold shadow-lg disabled:opacity-50"
+                  className="codex-button codex-button--primary flex-1 disabled:opacity-50"
                 >
                   {saving ? 'Guardando...' : editingId ? 'Actualizar' : 'Crear Plantilla'}
                 </button>
                 <button
                   onClick={() => { setShowForm(false); resetForm(); }}
-                  className="px-6 py-3 bg-gray-100 text-gray-700 rounded-2xl font-bold hover:bg-gray-200"
+                  className="codex-button codex-button--quiet"
                 >
                   Cancelar
                 </button>

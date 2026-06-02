@@ -274,16 +274,16 @@ const LabPage: React.FC = () => {
 
       {/* Tabs */}
       <div className="flex gap-1 mb-6 bg-gray-100 p-1 rounded-lg w-fit">
-        <button onClick={() => setTab('quick')} className={`px-4 py-2 rounded-md text-sm font-bold transition-all ${tab === 'quick' ? 'bg-white text-gray-800 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}>
+        <button onClick={() => setTab('quick')} className={`px-4 py-2 rounded-md text-sm font-bold transition-all ${tab === 'quick' ? 'bg-white text-gray-800 ' : 'text-gray-500 hover:text-gray-700'}`}>
           Quick Test
         </button>
-        <button onClick={() => setTab('compare')} className={`px-4 py-2 rounded-md text-sm font-bold transition-all ${tab === 'compare' ? 'bg-white text-gray-800 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}>
+        <button onClick={() => setTab('compare')} className={`px-4 py-2 rounded-md text-sm font-bold transition-all ${tab === 'compare' ? 'bg-white text-gray-800 ' : 'text-gray-500 hover:text-gray-700'}`}>
           Compare
         </button>
-        <button onClick={() => setTab('extract')} className={`px-4 py-2 rounded-md text-sm font-bold transition-all ${tab === 'extract' ? 'bg-white text-gray-800 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}>
+        <button onClick={() => setTab('extract')} className={`px-4 py-2 rounded-md text-sm font-bold transition-all ${tab === 'extract' ? 'bg-white text-gray-800 ' : 'text-gray-500 hover:text-gray-700'}`}>
           Extract (LLM)
         </button>
-        <button onClick={() => setTab('pdf')} className={`px-4 py-2 rounded-md text-sm font-bold transition-all ${tab === 'pdf' ? 'bg-white text-gray-800 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}>
+        <button onClick={() => setTab('pdf')} className={`px-4 py-2 rounded-md text-sm font-bold transition-all ${tab === 'pdf' ? 'bg-white text-gray-800 ' : 'text-gray-500 hover:text-gray-700'}`}>
           PDF Parser
         </button>
       </div>
@@ -544,13 +544,13 @@ const LabPage: React.FC = () => {
               value={extractUrl}
               onChange={e => setExtractUrl(e.target.value)}
               placeholder="https://ejemplo.gov.ar/licitaciones/"
-              className="flex-1 px-4 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:border-purple-400"
+              className="flex-1 px-4 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:border-blue-400"
               onKeyDown={e => e.key === 'Enter' && runExtract()}
             />
             <button
               onClick={runExtract}
               disabled={extractLoading || !extractUrl}
-              className="px-6 py-2 bg-purple-600 text-white rounded-lg text-sm font-bold hover:bg-purple-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              className="px-6 py-2 bg-blue-600 text-white rounded-lg text-sm font-bold hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
             >
               {extractLoading ? 'Extrayendo...' : 'Extraer'}
             </button>
@@ -566,7 +566,7 @@ const LabPage: React.FC = () => {
               { label: 'EMESA', url: 'https://emesa.com.ar/concursos' },
               { label: 'BOE Nacional', url: 'https://www.boletinoficial.gob.ar/seccion/tercera' },
             ].map(p => (
-              <button key={p.url} onClick={() => setExtractUrl(p.url)} className="px-3 py-1 bg-purple-50 text-purple-600 rounded text-xs font-bold hover:bg-purple-100 transition-colors">
+              <button key={p.url} onClick={() => setExtractUrl(p.url)} className="px-3 py-1 bg-blue-50 text-blue-600 rounded text-xs font-bold hover:bg-blue-100 transition-colors">
                 {p.label}
               </button>
             ))}
@@ -578,7 +578,7 @@ const LabPage: React.FC = () => {
             <textarea
               value={extractPrompt}
               onChange={e => setExtractPrompt(e.target.value)}
-              className="w-full h-20 px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-xs focus:outline-none focus:border-purple-400 resize-y"
+              className="w-full h-20 px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-xs focus:outline-none focus:border-blue-400 resize-y"
             />
           </div>
 
@@ -597,7 +597,7 @@ const LabPage: React.FC = () => {
                   <StatusBadge success={Boolean(extractResult.success)} />
                   {extractResult.timing_ms > 0 && <TimingBadge ms={extractResult.timing_ms} />}
                   {(((extractResult.data?.licitaciones as ExtractLicitacionItem[] | undefined) || []).length > 0) && (
-                    <span className="text-sm font-bold text-purple-700">
+                    <span className="text-sm font-bold text-blue-700">
                       {((extractResult.data?.licitaciones as ExtractLicitacionItem[] | undefined) || []).length} licitaciones extraidas
                     </span>
                   )}
@@ -613,7 +613,7 @@ const LabPage: React.FC = () => {
                   <div className="overflow-x-auto">
                     <table className="w-full text-xs">
                       <thead>
-                        <tr className="bg-purple-50 text-purple-800">
+                        <tr className="bg-blue-50 text-blue-800">
                           <th className="px-3 py-2 text-left font-bold">#</th>
                           <th className="px-3 py-2 text-left font-bold">Titulo</th>
                           <th className="px-3 py-2 text-left font-bold">Numero</th>
@@ -815,9 +815,9 @@ const LabPage: React.FC = () => {
                     <div className="text-2xl font-bold text-blue-700">{pdfResult.summary.total_elements}</div>
                     <div className="text-xs text-blue-600 uppercase">Elementos</div>
                   </div>
-                  <div className="bg-purple-50 border border-purple-200 rounded-lg p-3 text-center">
-                    <div className="text-2xl font-bold text-purple-700">{pdfResult.summary.tables_found}</div>
-                    <div className="text-xs text-purple-600 uppercase">Tablas</div>
+                  <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 text-center">
+                    <div className="text-2xl font-bold text-blue-700">{pdfResult.summary.tables_found}</div>
+                    <div className="text-xs text-blue-600 uppercase">Tablas</div>
                   </div>
                   <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 text-center">
                     <div className="text-2xl font-bold text-amber-700">{Object.keys(pdfResult.summary.type_counts || {}).length}</div>
@@ -861,9 +861,9 @@ const LabPage: React.FC = () => {
                   <h4 className="text-xs font-bold text-gray-500 uppercase mb-2">Tablas encontradas</h4>
                   <div className="space-y-2">
                     {((pdfResult.tables as PdfTableSample[] | undefined) || []).map((t, i: number) => (
-                      <div key={i} className="bg-purple-50 border border-purple-200 rounded p-2 text-xs">
-                        <div className="font-bold text-purple-700 mb-1">Tabla {i + 1} {t.page !== undefined && `(p.${t.page})`}</div>
-                        {t.preview && <p className="text-purple-900 font-mono whitespace-pre-wrap">{t.preview}</p>}
+                      <div key={i} className="bg-blue-50 border border-blue-200 rounded p-2 text-xs">
+                        <div className="font-bold text-blue-700 mb-1">Tabla {i + 1} {t.page !== undefined && `(p.${t.page})`}</div>
+                        {t.preview && <p className="text-blue-900 font-mono whitespace-pre-wrap">{t.preview}</p>}
                       </div>
                     ))}
                   </div>

@@ -27,9 +27,9 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLogin }) => {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-50">
+    <div className="codex-page min-h-screen flex items-center justify-center">
       <div className="max-w-md w-full mx-4">
-        <div className="bg-white rounded-lg shadow-lg p-8">
+        <div className="codex-panel p-8">
           <div className="text-center mb-8">
             <h1 className="text-3xl font-bold text-gray-900">Licitometro</h1>
             <p className="text-gray-500 mt-2">Ingrese sus credenciales para acceder</p>
@@ -68,7 +68,7 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLogin }) => {
             <button
               type="submit"
               disabled={loading || !email || !password}
-              className="w-full py-3 px-4 bg-emerald-600 hover:bg-emerald-700 disabled:bg-gray-300 text-white font-semibold rounded-lg transition-colors text-lg"
+              className="codex-button codex-button--primary w-full h-12 text-lg disabled:opacity-50"
             >
               {loading ? "Verificando..." : "Ingresar"}
             </button>

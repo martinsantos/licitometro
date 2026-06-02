@@ -126,7 +126,7 @@ const ScraperFormPage = () => {
         </Link>
       </div>
 
-      <div className="bg-white rounded-lg shadow-md overflow-hidden">
+      <div className="codex-panel overflow-hidden">
         <div className="p-6 border-b border-gray-200">
           <h1 className="text-2xl font-bold">
             {isEditMode ? 'Editar Configuración de Scraper' : 'Nueva Configuración de Scraper'}

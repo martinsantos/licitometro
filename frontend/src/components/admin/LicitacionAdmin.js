@@ -161,7 +161,7 @@ const LicitacionAdmin = () => {
                       {lic.organization}
                     </td>
                     <td className="px-3 py-3">
-                      <span className="px-2 py-0.5 bg-violet-50 text-violet-700 rounded text-xs font-medium">
+                      <span className="px-2 py-0.5 bg-blue-50 text-blue-700 rounded text-xs font-medium">
                         {lic.fuente || '-'}
                       </span>
                     </td>
