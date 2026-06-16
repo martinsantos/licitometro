@@ -1,6 +1,6 @@
 """
 Seed scraper configurations for AR national procurement sources.
-All configs have scope='ar_nacional' and are inactive by default (manual trigger).
+Configs are inactive by default for manual trigger. Most are ar_nacional; Mendoza OCDS stays in the default Mendoza scope.
 
 Usage:
     python scripts/seed_ar_sources.py [--activate]
@@ -30,7 +30,7 @@ AR_SOURCES = [
         "source_type": "api",
         "max_items": 200,
         "wait_time": 1.0,
-        "scope": "ar_nacional",
+        "scope": None,
     },
     {
         "name": "datos_argentina_contratar",
@@ -139,6 +139,11 @@ AR_SOURCES = [
         "selectors": {
             "section_url": "https://www.boletinoficial.gob.ar/seccion/tercera",
             "scraper_type": "boletin_oficial_nacional",
+            "lookback_days": 5,
+            "lookback_min_items_per_day": 5,
+            "timezone": "America/Argentina/Buenos_Aires",
+            "cadence_hours": 24,
+            "freshness_slo_days": 4,
         },
         "source_type": "website",
         "max_items": 50,

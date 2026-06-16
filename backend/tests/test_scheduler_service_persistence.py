@@ -34,6 +34,7 @@ class _Collection:
     def __init__(self, docs=None):
         self.docs = docs or []
         self.updates = []
+        self.update_many_calls = []
         self.bulk_ops = []
 
     async def find_one(self, *_args, **_kwargs):
@@ -49,7 +50,9 @@ class _Collection:
     async def update_one(self, filter_doc, update_doc, upsert=False):
         self.updates.append((filter_doc, update_doc, upsert))
 
-    async def update_many(self, *_args, **_kwargs):
+    async def update_many(self, filter_doc, update_doc, *_args, **_kwargs):
+        self.update_many_calls.append((filter_doc, update_doc))
+
         class Result:
             modified_count = 0
         return Result()
@@ -176,3 +179,25 @@ async def test_execute_core_scraper_below_contract_minimum_is_partial(monkeypatc
     assert final_update["status"] == "partial"
     assert final_update["items_found"] == 1
     assert "Below expected volume: found 1 items, expected at least 20" in final_update["warnings"]
+
+
+@pytest.mark.asyncio
+async def test_cleanup_orphaned_runs_handles_pending_without_started_at():
+    db = _Db(_config())
+    service = SchedulerService(db)
+
+    await service._cleanup_orphaned_runs()
+
+    filter_doc, update_doc = db.scraper_runs.update_many_calls[-1]
+    orphan_branches = filter_doc["$or"]
+
+    assert filter_doc["status"] == {"$in": ["running", "pending"]}
+    assert {"started_at": {"$exists": False}, "created_at": {"$lt": orphan_branches[0]["started_at"]["$lt"]}} in orphan_branches
+    assert any(
+        branch.get("started_at") is None
+        and branch.get("created_at") == {"$exists": False}
+        and "_id" in branch
+        for branch in orphan_branches
+    )
+    assert update_doc["$set"]["status"] == "failed"
+    assert update_doc["$set"]["error_message"] == "Orphaned run - process restarted"
