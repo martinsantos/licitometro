@@ -1,4 +1,4 @@
-.PHONY: test check backend-test frontend-test frontend-build backend-syntax e2e-smoke
+.PHONY: test check backend-test frontend-test frontend-build backend-syntax e2e-smoke uiux-boundaries
 
 test: check
 
@@ -19,3 +19,6 @@ frontend-build:
 
 e2e-smoke:
 	npm --prefix frontend run e2e:smoke
+
+uiux-boundaries:
+	bash scripts/audit-uiux-production-boundaries.sh
