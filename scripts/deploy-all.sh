@@ -11,10 +11,17 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_DIR="$(dirname "$SCRIPT_DIR")"
 COMPOSE_FILE="${PROJECT_DIR}/docker-compose.prod.yml"
 BACKUP_SCRIPT="${SCRIPT_DIR}/backup-mongodb.sh"
+FRONTEND_GUARD="${SCRIPT_DIR}/guard-prod-frontend-source.sh"
 
 echo "============================================"
 echo "DEPLOY ALL - $(date)"
 echo "============================================"
+
+if [ ! -x "$FRONTEND_GUARD" ]; then
+    echo "ERROR: Frontend deploy guard not found or not executable: $FRONTEND_GUARD"
+    exit 1
+fi
+"$FRONTEND_GUARD" "$PROJECT_DIR"
 
 # 1. Kill any competing containers from cotiza repo's docker-compose
 echo ""
