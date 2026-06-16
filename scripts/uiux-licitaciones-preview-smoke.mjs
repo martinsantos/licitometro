@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * Local UI/UX smoke for /licitaciones.
+ * Local UI/UX smoke for /licitaciones and /licitacion/:id.
  *
  * Serves a built React bundle with mocked API responses, captures desktop/mobile
  * screenshots, and fails on blank render, JS errors, failed requests, or missing
@@ -27,6 +27,7 @@ const BUILD_DIR = path.resolve(process.env.UIUX_BUILD_DIR || '/tmp/licitometro-u
 const OUT_DIR = path.resolve(process.env.UIUX_SCREENSHOT_DIR || '/tmp/licitometro-uiux-screenshots');
 const HEADLESS = process.env.HEADLESS !== 'false';
 const TARGET_PATH = '/licitaciones';
+const DETAIL_ID = 'mock-2145-2025';
 const today = new Date().toISOString().slice(0, 10);
 const yesterday = new Date(Date.now() - 86400000).toISOString().slice(0, 10);
 
@@ -151,6 +152,51 @@ const nodos = [
   },
 ];
 
+function detailLicitacion(id = DETAIL_ID) {
+  const base = licitaciones.find((item) => item.id === id) || licitaciones[0];
+  return {
+    ...base,
+    description: 'Detalle de obra vial con documentacion tecnica, pliego adjunto y requisitos de entrega.',
+    source_url: 'https://example.test/pliegos/mock-2145-2025.pdf',
+    canonical_url: 'https://example.test/licitaciones/mock-2145-2025',
+    enrichment_level: 2,
+    workflow_state: 'evaluando',
+    workflow_history: [
+      { to_state: 'descubierta', timestamp: `${today}T09:00:00Z`, notes: 'Detectada por scraper' },
+      { to_state: 'evaluando', timestamp: `${today}T11:00:00Z`, notes: 'Revisión inicial' },
+    ],
+    items: [
+      { descripcion: 'Ripio seleccionado', cantidad: 120, unidad: 'm3' },
+      { descripcion: 'Arena gruesa', cantidad: 80, unidad: 'm3' },
+    ],
+    attached_files: [
+      { name: 'Anexo tecnico.pdf', url: 'https://example.test/anexo.pdf', size: 120000 },
+    ],
+    pliegos_bases: [
+      { nombre: 'Pliego base', url: 'https://example.test/pliego.pdf', fuente: 'local' },
+    ],
+    requisitos: {
+      documentacion: ['Constancia fiscal', 'Declaracion jurada'],
+      capacidad_tecnica: ['Antecedentes en obras viales'],
+      red_flags: [],
+    },
+    requisitos_participacion: ['Inscripcion vigente', 'Garantia de mantenimiento de oferta'],
+    garantias: [{ tipo: 'Mantenimiento de oferta', monto: 350000 }],
+    fecha_publicacion_portal: today,
+    fecha_inicio_consultas: today,
+    fecha_fin_consultas: '2026-06-25T10:00:00',
+    metadata: {
+      ...base.metadata,
+      ia_resumen: {
+        items_principales: ['Materiales viales', 'Entrega en Lavalle'],
+        documentacion: ['Constancia fiscal', 'Oferta economica'],
+      },
+      ia_resumen_provider: 'mock',
+      pliego_local_url: 'https://example.test/pliego-local.pdf',
+    },
+  };
+}
+
 function sendJson(res, body, status = 200) {
   res.writeHead(status, {
     'content-type': 'application/json; charset=utf-8',
@@ -176,6 +222,32 @@ function apiResponse(req, res, url) {
   }
   if (pathname === '/api/nodos/' || pathname === '/api/nodos') {
     sendJson(res, nodos);
+    return true;
+  }
+  if (pathname === '/api/company-context/profiles') {
+    sendJson(res, [
+      { company_id: 'ultima-milla', nombre: 'Ultima Milla' },
+    ]);
+    return true;
+  }
+  if (pathname === `/api/company-context/profiles/ultima-milla/score/${DETAIL_ID}`) {
+    sendJson(res, {
+      score: 82,
+      nivel: 'alto',
+      razones: [
+        { peso: 18, texto: 'Antecedentes compatibles con obra publica' },
+        { peso: 12, texto: 'Zona de entrega cubierta' },
+      ],
+      company_id: 'ultima-milla',
+      requisitos_available: true,
+      requirements_context: {
+        source: 'ai_extraction_v2',
+        documentacion_count: 2,
+        capacidad_tecnica_count: 1,
+        has_budget: true,
+        has_zone: true,
+      },
+    });
     return true;
   }
   if (pathname === '/api/licitaciones/stats/daily-counts') {
@@ -256,6 +328,22 @@ function apiResponse(req, res, url) {
   }
   if (pathname === '/api/licitaciones/presets') {
     sendJson(res, []);
+    return true;
+  }
+  if (pathname === `/api/licitaciones/${DETAIL_ID}`) {
+    sendJson(res, detailLicitacion(DETAIL_ID));
+    return true;
+  }
+  if (pathname === `/api/licitaciones/similar/${DETAIL_ID}`) {
+    sendJson(res, [licitaciones[1], licitaciones[2]]);
+    return true;
+  }
+  if (pathname === `/api/adjudicaciones/competencia/${DETAIL_ID}`) {
+    sendJson(res, {
+      query: 'materiales viales',
+      total_adjudicaciones: 0,
+      proveedores: [],
+    });
     return true;
   }
   if (pathname === '/api/licitaciones/' || pathname === '/api/licitaciones') {
@@ -375,7 +463,7 @@ async function collectPageEvidence(page, url, screenshotPath, fullPage) {
   });
 
   await page.goto(url, { waitUntil: 'networkidle' });
-  await page.waitForSelector('text=Compra de materiales', { timeout: 15000 });
+  await page.locator('text=/ADQUISICION DE MATERIALES|Compra de materiales/i').first().waitFor({ timeout: 15000 });
   const screenshot = await page.screenshot({ path: screenshotPath, fullPage });
   const bodyText = await page.locator('body').innerText();
   const overflow = await page.evaluate(() => ({
@@ -387,8 +475,51 @@ async function collectPageEvidence(page, url, screenshotPath, fullPage) {
     checks: {
       titleVisible: await page.locator('h1:has-text("Licitaciones"), h2:has-text("Licitaciones")').first().isVisible(),
       resultCountVisible: await page.locator('text=2524').first().isVisible(),
-      firstResultVisible: await page.locator('text=Compra de materiales').first().isVisible(),
+      firstResultVisible: await page.locator('text=/ADQUISICION DE MATERIALES|Compra de materiales|Provision de implante/i').first().isVisible(),
       filterButtonVisible: await page.locator('button:has-text("Filtros")').first().isVisible().catch(() => false),
+      screenshotBytes: screenshot.length,
+      horizontalOverflowPx: Math.max(0, overflow.scrollWidth - overflow.clientWidth),
+      bodyTextSample: bodyText.slice(0, 500),
+    },
+    consoleErrors,
+    pageErrors,
+    requestFailures,
+  };
+}
+
+async function collectDetailEvidence(page, url, screenshotPath, fullPage) {
+  const consoleErrors = [];
+  const pageErrors = [];
+  const requestFailures = [];
+
+  page.on('console', (msg) => {
+    if (msg.type() === 'error') consoleErrors.push(msg.text());
+  });
+  page.on('pageerror', (err) => pageErrors.push(String(err)));
+  page.on('requestfailed', (req) => {
+    requestFailures.push(`${req.method()} ${req.url()} ${req.failure()?.errorText || ''}`);
+  });
+
+  await page.goto(url, { waitUntil: 'networkidle' });
+  await page.locator('text=/ADQUISICION DE MATERIALES|Compra de materiales/i').first().waitFor({ timeout: 15000 });
+
+  const pliegoTab = page.locator('button:has-text("Pliego IA")').first();
+  await pliegoTab.click({ timeout: 10000 });
+  await page.waitForSelector('text=Asistente de Pliego', { timeout: 10000 });
+
+  const screenshot = await page.screenshot({ path: screenshotPath, fullPage });
+  const bodyText = await page.locator('body').innerText();
+  const overflow = await page.evaluate(() => ({
+    clientWidth: document.documentElement.clientWidth,
+    scrollWidth: document.documentElement.scrollWidth,
+  }));
+
+  return {
+    checks: {
+      titleVisible: await page.locator('h1', { hasText: /ADQUISICION DE MATERIALES|Compra de materiales/i }).first().isVisible(),
+      scoreVisible: await page.locator('text=Ultima Milla').first().isVisible(),
+      pliegoPanelVisible: await page.locator('text=Asistente de Pliego').first().isVisible(),
+      pliegoButtonVisible: await page.locator('button:has-text("Analizar pliego")').first().isVisible(),
       screenshotBytes: screenshot.length,
       horizontalOverflowPx: Math.max(0, overflow.scrollWidth - overflow.clientWidth),
       bodyTextSample: bodyText.slice(0, 500),
@@ -414,6 +545,21 @@ function assertEvidence(label, evidence, { requireFilterButton = false } = {}) {
   return failures;
 }
 
+function assertDetailEvidence(label, evidence) {
+  const failures = [];
+  const { checks } = evidence;
+  if (!checks.titleVisible) failures.push(`${label}: detail title not visible`);
+  if (!checks.scoreVisible) failures.push(`${label}: score panel not visible`);
+  if (!checks.pliegoPanelVisible) failures.push(`${label}: Pliego IA panel not visible`);
+  if (!checks.pliegoButtonVisible) failures.push(`${label}: analyze pliego button not visible`);
+  if (checks.screenshotBytes < 5000) failures.push(`${label}: screenshot looks too small/blank`);
+  if (checks.horizontalOverflowPx > 2) failures.push(`${label}: horizontal overflow ${checks.horizontalOverflowPx}px`);
+  if (evidence.consoleErrors.length) failures.push(`${label}: console errors: ${evidence.consoleErrors.join(' | ')}`);
+  if (evidence.pageErrors.length) failures.push(`${label}: page errors: ${evidence.pageErrors.join(' | ')}`);
+  if (evidence.requestFailures.length) failures.push(`${label}: request failures: ${evidence.requestFailures.join(' | ')}`);
+  return failures;
+}
+
 async function main() {
   await assertBuildDir();
   await mkdir(OUT_DIR, { recursive: true });
@@ -424,6 +570,8 @@ async function main() {
   try {
     const desktopPath = path.join(OUT_DIR, 'licitaciones-desktop.png');
     const mobilePath = path.join(OUT_DIR, 'licitaciones-mobile.png');
+    const detailDesktopPath = path.join(OUT_DIR, 'licitacion-detail-desktop.png');
+    const detailMobilePath = path.join(OUT_DIR, 'licitacion-detail-mobile.png');
 
     const desktopPage = await browser.newPage({ viewport: { width: 1440, height: 900 }, deviceScaleFactor: 1 });
     const desktop = await collectPageEvidence(desktopPage, `${baseUrl}${TARGET_PATH}`, desktopPath, false);
@@ -431,9 +579,27 @@ async function main() {
     const mobilePage = await browser.newPage({ viewport: { width: 390, height: 844 }, isMobile: true, deviceScaleFactor: 2 });
     const mobile = await collectPageEvidence(mobilePage, `${baseUrl}${TARGET_PATH}`, mobilePath, true);
 
+    const detailDesktopPage = await browser.newPage({ viewport: { width: 1440, height: 900 }, deviceScaleFactor: 1 });
+    const detailDesktop = await collectDetailEvidence(
+      detailDesktopPage,
+      `${baseUrl}/licitacion/${DETAIL_ID}`,
+      detailDesktopPath,
+      true,
+    );
+
+    const detailMobilePage = await browser.newPage({ viewport: { width: 390, height: 844 }, isMobile: true, deviceScaleFactor: 2 });
+    const detailMobile = await collectDetailEvidence(
+      detailMobilePage,
+      `${baseUrl}/licitacion/${DETAIL_ID}`,
+      detailMobilePath,
+      true,
+    );
+
     const failures = [
       ...assertEvidence('desktop', desktop),
       ...assertEvidence('mobile', mobile, { requireFilterButton: true }),
+      ...assertDetailEvidence('detail desktop', detailDesktop),
+      ...assertDetailEvidence('detail mobile', detailMobile),
     ];
 
     const report = {
@@ -441,9 +607,16 @@ async function main() {
       baseUrl,
       buildDir: BUILD_DIR,
       screenshotDir: OUT_DIR,
-      screenshots: { desktop: desktopPath, mobile: mobilePath },
+      screenshots: {
+        desktop: desktopPath,
+        mobile: mobilePath,
+        detailDesktop: detailDesktopPath,
+        detailMobile: detailMobilePath,
+      },
       desktop,
       mobile,
+      detailDesktop,
+      detailMobile,
       failures,
     };
 

@@ -62,6 +62,6 @@ Before proposing production rollout of a UI/UX change, collect all evidence belo
 - `bash scripts/audit-uiux-production-boundaries.sh` passes.
 - `bash scripts/test-prod-frontend-guard.sh` passes.
 - Frontend unit/smoke checks relevant to changed components pass.
-- `make uiux-preview-build uiux-preview-smoke` passes for `/licitaciones`, using `UIUX_BUILD_DIR` outside the repo and outside production paths.
+- `make uiux-preview-build uiux-preview-smoke` passes for `/licitaciones` and `/licitacion/:id`, using `UIUX_BUILD_DIR` outside the repo and outside production paths.
 - Desktop and mobile screenshots exist for `/licitaciones`, `/licitacion/:id`, `/cotizar`, `/editarra` if touched, and `/psiweb20` if nginx is touched.
 - Production itself was not deployed or rebuilt during review unless explicitly approved.

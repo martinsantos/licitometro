@@ -397,7 +397,7 @@ const LicitacionDetailPage = ({ userRole }) => {
   const detailUrl = getDetailUrl();
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-100 py-8 px-4 sm:px-6 lg:px-8">
+    <div className="min-h-screen bg-gray-50 py-4 px-3 sm:px-6 lg:px-8">
       <div className="max-w-5xl mx-auto">
         {/* Breadcrumb */}
         <nav className="mb-8">
@@ -433,11 +433,9 @@ const LicitacionDetailPage = ({ userRole }) => {
         )}
 
         {/* Main Card */}
-        <div className="glass rounded-[2.5rem] shadow-[0_20px_60px_rgba(0,0,0,0.1)] border border-white/40 overflow-hidden">
+        <div className="lic-panel overflow-hidden">
           {/* Header */}
-          <div className="relative bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 p-4 sm:p-6 lg:p-10">
-            <div className="absolute inset-0 bg-[url('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNjAiIGhlaWdodD0iNjAiIHZpZXdCb3g9IjAgMCA2MCA2MCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48ZyBmaWxsPSJub25lIiBmaWxsLXJ1bGU9ImV2ZW5vZGQiPjxnIGZpbGw9IiNmZmYiIGZpbGwtb3BhY2l0eT0iMC4wNSI+PHBhdGggZD0iTTM2IDM0djItSDI0di0yaDEyek0zNiAzMHYySDI0di0yaDEyeiBNMzYgMjZ2MkgyNHYtMmgxMnoiLz48L2c+PC9nPjwvc3ZnPg==')] opacity-30"></div>
-            
+          <div className="relative bg-white p-4 sm:p-6 lg:p-8 border-b border-gray-100">
             <div className="relative flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
               <div className="flex-1">
                 <div className="flex items-center gap-3 mb-4 flex-wrap">
@@ -457,7 +455,7 @@ const LicitacionDetailPage = ({ userRole }) => {
                      licitacion.status === 'awarded' ? 'Adjudicada' : (licitacion.estado || licitacion.status)}
                   </span>
                   {licitacion.fuente && (
-                    <span className="px-3 py-1 rounded-full bg-white/20 text-white/90 text-xs font-bold">
+                    <span className="px-3 py-1 rounded-full bg-violet-50 text-violet-700 text-xs font-bold">
                       {licitacion.fuente}
                     </span>
                   )}
@@ -477,10 +475,10 @@ const LicitacionDetailPage = ({ userRole }) => {
                     );
                   })()}
                 </div>
-                <h1 className="text-2xl sm:text-3xl font-black text-white leading-tight mb-3">
+                <h1 className="text-2xl sm:text-3xl font-black text-gray-900 leading-tight mb-3">
                   {licitacion.title}
                 </h1>
-                <p className="text-blue-100 font-medium flex items-center flex-wrap gap-x-4 gap-y-1">
+                <p className="text-gray-600 font-medium flex items-center flex-wrap gap-x-4 gap-y-1">
                   <span className="flex items-center">
                     <svg className="w-4 h-4 mr-1.5 opacity-70" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
@@ -503,10 +501,10 @@ const LicitacionDetailPage = ({ userRole }) => {
               <div className="flex flex-wrap gap-2 sm:flex-col sm:gap-3">
                 <button
                   onClick={toggleSave}
-                  className={`flex items-center gap-2 px-3 py-2 rounded-2xl transition-all duration-300 text-sm ${
+                  className={`lic-control-transition flex items-center gap-2 px-3 py-2 rounded-lg text-sm ${
                     isSaved
-                      ? 'bg-yellow-400 text-yellow-900 shadow-lg shadow-yellow-400/30'
-                      : 'bg-white/20 text-white hover:bg-white/30'
+                      ? 'bg-yellow-100 text-yellow-800 border border-yellow-200'
+                      : 'bg-gray-100 text-gray-700 hover:bg-gray-200 border border-gray-200'
                   }`}
                 >
                   <svg className="w-5 h-5" fill={isSaved ? 'currentColor' : 'none'} stroke="currentColor" viewBox="0 0 24 24">
@@ -518,7 +516,7 @@ const LicitacionDetailPage = ({ userRole }) => {
                 {/* Share Button with dropdown */}
                 <div className="relative group">
                   <button
-                    className="flex items-center gap-2 px-3 py-2 rounded-2xl bg-white/20 text-white hover:bg-white/30 transition-all duration-300 text-sm"
+                    className="lic-control-transition flex items-center gap-2 px-3 py-2 rounded-lg bg-gray-100 text-gray-700 hover:bg-gray-200 border border-gray-200 text-sm"
                   >
                     <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z" />
@@ -526,7 +524,7 @@ const LicitacionDetailPage = ({ userRole }) => {
                     Compartir
                   </button>
                   {/* Share dropdown */}
-                  <div className="absolute right-0 mt-2 w-48 bg-white rounded-xl shadow-xl border border-gray-100 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-50">
+                  <div className="lic-popover absolute right-0 mt-2 w-48 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-opacity duration-150 z-50">
                     <button
                       onClick={() => {
                         const subject = encodeURIComponent(`Licitación: ${licitacion.title}`);
@@ -575,7 +573,7 @@ const LicitacionDetailPage = ({ userRole }) => {
                 {isAdmin && (
                   <Link
                     to={`/cotizar?licitacion_id=${id}`}
-                    className="flex items-center gap-1.5 px-4 py-2.5 rounded-2xl bg-emerald-500 hover:bg-emerald-400 text-white text-sm font-semibold transition-all duration-300"
+                    className="lic-control-transition flex items-center gap-1.5 px-4 py-2.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-semibold"
                     title="Cotizar esta licitación"
                   >
                     <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -589,7 +587,7 @@ const LicitacionDetailPage = ({ userRole }) => {
                 {isAdmin && (
                   <button
                     onClick={() => setHunterOpen(true)}
-                    className="flex items-center gap-2 px-4 py-2.5 rounded-2xl bg-amber-500 text-white hover:bg-amber-600 transition-all duration-300 font-semibold text-sm shadow-lg"
+                    className="lic-control-transition flex items-center gap-2 px-4 py-2.5 rounded-lg bg-amber-500 text-white hover:bg-amber-600 font-semibold text-sm"
                   >
                     <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                       <circle cx="12" cy="12" r="10" /><circle cx="12" cy="12" r="6" /><circle cx="12" cy="12" r="2" />
@@ -603,10 +601,10 @@ const LicitacionDetailPage = ({ userRole }) => {
                     <button
                       onClick={() => enrichLicitacion(2)}
                       disabled={enriching}
-                      className={`flex items-center gap-2 px-3 py-2 rounded-2xl transition-all duration-300 text-sm ${
+                      className={`lic-control-transition flex items-center gap-2 px-3 py-2 rounded-lg text-sm border ${
                         enriching
                           ? 'bg-blue-300 text-blue-700 cursor-wait'
-                          : 'bg-white/20 text-white hover:bg-white/30'
+                          : 'bg-gray-100 text-gray-700 hover:bg-gray-200 border-gray-200'
                       }`}
                     >
                       <svg className={`w-5 h-5 ${enriching ? 'animate-spin' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -618,7 +616,7 @@ const LicitacionDetailPage = ({ userRole }) => {
                       <button
                         onClick={() => enrichLicitacion(3)}
                         disabled={enriching}
-                        className="flex items-center gap-2 px-3 py-2 rounded-2xl bg-white/20 text-white hover:bg-white/30 transition-all duration-300 text-sm"
+                        className="lic-control-transition flex items-center gap-2 px-3 py-2 rounded-lg bg-gray-100 text-gray-700 hover:bg-gray-200 border border-gray-200 text-sm"
                       >
                         <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
@@ -665,11 +663,11 @@ const LicitacionDetailPage = ({ userRole }) => {
                 { id: 'cronograma', label: 'Cronograma', show: hasCronograma },
                 { id: 'workflow', label: 'Workflow', show: isAdmin },
                 { id: 'oferta', label: 'Oferta', show: isAdmin && ['evaluando', 'preparando'].includes(licitacion?.workflow_state) },
-                { id: 'pliego_ia', label: '🤖 Pliego IA', show: isAdmin },
-                { id: 'checklist', label: '✅ Checklist', show: isAdmin },
+                { id: 'pliego_ia', label: 'Pliego IA', show: isAdmin },
+                { id: 'checklist', label: 'Checklist', show: isAdmin },
                 { id: 'similares', label: 'Similares' },
-                { id: 'competencia', label: '🏆 Competencia', show: isAdmin },
-                { id: 'ia_pliego', label: '💬 IA del pliego', show: isAdmin },
+                { id: 'competencia', label: 'Competencia', show: isAdmin },
+                { id: 'ia_pliego', label: 'IA del pliego', show: isAdmin },
               ].filter(t => t.show !== false).map(tab => (
                 <button
                   key={tab.id}
@@ -679,7 +677,7 @@ const LicitacionDetailPage = ({ userRole }) => {
                       tabNavRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
                     }, 0);
                   }}
-                  className={`px-4 py-3 text-sm font-bold whitespace-nowrap border-b-2 transition-all ${
+                  className={`lic-control-transition px-4 py-3 text-sm font-bold whitespace-nowrap border-b-2 ${
                     activeTab === tab.id
                       ? 'border-blue-600 text-blue-600'
                       : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
