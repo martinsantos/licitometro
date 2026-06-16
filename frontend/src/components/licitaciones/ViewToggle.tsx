@@ -12,7 +12,7 @@ const ViewToggle: React.FC<ViewToggleProps> = ({ viewMode, onViewModeChange }) =
       <button
         key={mode}
         onClick={() => onViewModeChange(mode)}
-        className={`p-1.5 rounded-md transition-all ${viewMode === mode ? 'bg-white shadow-sm text-emerald-600' : 'text-gray-400 hover:text-gray-600'}`}
+        className={`lic-control-transition p-1.5 rounded-md ${viewMode === mode ? 'bg-white shadow-sm text-emerald-600' : 'text-gray-400 hover:text-gray-600'}`}
         title={mode === 'cards' ? 'Tarjetas' : mode === 'table' ? 'Tabla' : mode === 'timeline' ? 'Timeline' : 'Calendario'}
       >
         {mode === 'cards' ? (

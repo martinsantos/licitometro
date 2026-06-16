@@ -36,7 +36,7 @@ const LicitacionCard: React.FC<LicitacionCardProps> = ({
 
   return (
     <div
-      className="bg-white rounded-2xl shadow-md border border-gray-100 hover:shadow-xl hover:border-gray-200 transition-all duration-300 overflow-hidden group cursor-pointer"
+      className="lic-card group"
       onClick={handleClick}
     >
       <div className="flex flex-col lg:flex-row">
@@ -165,7 +165,7 @@ const LicitacionCard: React.FC<LicitacionCardProps> = ({
                     </span>
                   )}
                   {isNew && (
-                    <span className="px-2 py-0.5 bg-green-100 text-green-700 rounded text-[10px] font-black uppercase tracking-wide animate-pulse">
+                    <span className="px-2 py-0.5 bg-green-100 text-green-700 rounded text-[10px] font-black uppercase tracking-wide">
                       NUEVO
                     </span>
                   )}
@@ -175,7 +175,7 @@ const LicitacionCard: React.FC<LicitacionCardProps> = ({
                     </span>
                   )}
                   {isUrgent && (
-                    <span className="px-2 py-0.5 bg-orange-100 text-orange-700 rounded text-[10px] font-black uppercase tracking-wide animate-pulse">
+                    <span className="px-2 py-0.5 bg-orange-100 text-orange-700 rounded text-[10px] font-black uppercase tracking-wide">
                       Urgente
                     </span>
                   )}
@@ -340,7 +340,7 @@ const LicitacionCard: React.FC<LicitacionCardProps> = ({
           </div>
 
           {/* Action Bar */}
-          <div className="mt-3 pt-3 lg:mt-4 lg:pt-4 border-t border-gray-100 flex items-center justify-between gap-2">
+          <div className="mt-3 pt-3 lg:mt-4 lg:pt-4 border-t border-gray-100 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
             <div className="flex items-center gap-1 min-w-0 overflow-hidden">
               {formatFechaScraping(lic.fecha_scraping) && (
                 <span className="text-[10px] lg:text-[11px] text-gray-400 mr-1 flex-shrink-0">
@@ -369,7 +369,7 @@ const LicitacionCard: React.FC<LicitacionCardProps> = ({
               </button>
             </div>
 
-            <div className="flex items-center gap-1.5 flex-shrink-0">
+            <div className="flex flex-wrap items-center gap-1.5 sm:flex-shrink-0">
               {onEnrich && (
                 <button
                   onClick={(e) => { e.stopPropagation(); onEnrich(lic.id); }}
@@ -397,7 +397,7 @@ const LicitacionCard: React.FC<LicitacionCardProps> = ({
                   className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-indigo-100 text-indigo-700 cursor-default"
                   title={`Antecedente SGI: ${lic.metadata.sgi_antecedentes[0].nombre}`}
                 >
-                  📁 Antec. SGI
+                  Antec. SGI
                 </span>
               )}
               <WorkflowBadge state={lic.workflow_state || 'descubierta'} compact />

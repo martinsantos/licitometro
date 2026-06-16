@@ -82,17 +82,17 @@ const DailyDigestStrip = ({
   }
 
   return (
-    <div className="bg-white rounded-xl border border-gray-100 overflow-hidden">
+    <div className="lic-toolbar-surface overflow-hidden">
       {/* Compact summary bar - always visible */}
       <button
         onClick={() => setExpanded(!expanded)}
-        className="w-full px-3 py-2 flex items-center justify-between hover:bg-gray-50 transition-colors"
+        className="lic-control-transition w-full px-3 py-2 flex items-center justify-between hover:bg-gray-50"
       >
         <div className="flex items-center gap-1.5 sm:gap-3 text-xs font-bold min-w-0 overflow-x-auto scrollbar-hide">
           <span className="text-gray-400 uppercase tracking-wide flex-shrink-0 hidden sm:inline">Actividad</span>
           <button
             onClick={(e) => { e.stopPropagation(); onDaySelect(selectedDate === today ? null : today); }}
-            className={`px-2 py-1 rounded transition-all flex-shrink-0 flex items-center gap-1 ${
+            className={`lic-control-transition px-2 py-1 rounded flex-shrink-0 flex items-center gap-1 ${
               selectedDate === today
                 ? 'bg-emerald-600 text-white'
                 : 'bg-emerald-50 text-emerald-700 hover:bg-emerald-100'
@@ -109,7 +109,7 @@ const DailyDigestStrip = ({
           </button>
           <button
             onClick={(e) => { e.stopPropagation(); onDaySelect(selectedDate === yesterday ? null : yesterday); }}
-            className={`px-2 py-1 rounded transition-all flex-shrink-0 flex items-center gap-1 ${
+            className={`lic-control-transition px-2 py-1 rounded flex-shrink-0 flex items-center gap-1 ${
               selectedDate === yesterday
                 ? 'bg-blue-600 text-white'
                 : 'bg-blue-50 text-blue-700 hover:bg-blue-100'
@@ -145,7 +145,7 @@ const DailyDigestStrip = ({
 
       {/* Expandable day strip */}
       <div
-        className="transition-all duration-300 overflow-hidden"
+        className="lic-expand-transition overflow-hidden"
         style={{ maxHeight: expanded ? '140px' : '0px', opacity: expanded ? 1 : 0 }}
       >
         <div className="px-3 pb-3 pt-2 border-t border-gray-50">
@@ -166,7 +166,7 @@ const DailyDigestStrip = ({
                 <button
                   key={dateStr}
                   onClick={() => onDaySelect(isSelected ? null : dateStr)}
-                  className={`flex flex-col items-center justify-end min-w-[3.5rem] sm:min-w-[2.5rem] p-1.5 sm:p-1 rounded-lg transition-all ${
+                  className={`lic-control-transition flex flex-col items-center justify-end min-w-[3.5rem] sm:min-w-[2.5rem] p-1.5 sm:p-1 rounded-lg ${
                     isSelected
                       ? 'bg-emerald-100 ring-2 ring-emerald-500'
                       : isToday
@@ -183,7 +183,7 @@ const DailyDigestStrip = ({
                     </span>
                   )}
                   <div
-                    className={`w-6 sm:w-5 rounded-t transition-all ${
+                    className={`w-6 sm:w-5 rounded-t transition-colors ${
                       isSelected
                         ? 'bg-emerald-500'
                         : isToday

@@ -314,20 +314,20 @@ const LicitacionesList = ({
   // Error state
   if (error && licitaciones.length === 0) {
     return (
-      <div className="flex flex-col items-center justify-center p-12 bg-red-50 rounded-xl border border-red-100 text-center">
+      <div className="flex flex-col items-center justify-center p-12 bg-red-50 rounded-lg border border-red-100 text-center">
         <h3 className="text-lg font-black text-red-900 mb-2">Error al cargar datos</h3>
         <p className="text-red-600 font-medium mb-4 text-sm">{error}</p>
         <div className="flex gap-3">
           <button
             onClick={refreshFromHome}
             disabled={isFetching}
-            className="px-4 py-2 bg-red-600 text-white rounded-lg font-bold text-sm hover:bg-red-700 transition-all disabled:opacity-50"
+            className="lic-control-transition px-4 py-2 bg-red-600 text-white rounded-lg font-bold text-sm hover:bg-red-700 disabled:opacity-50"
           >
             {isFetching ? 'Reintentando...' : 'Reintentar'}
           </button>
           <button
             onClick={() => { clearAll(); refreshFromHome(); }}
-            className="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg font-bold text-sm hover:bg-gray-300 transition-all"
+            className="lic-control-transition px-4 py-2 bg-gray-200 text-gray-700 rounded-lg font-bold text-sm hover:bg-gray-300"
           >
             Limpiar filtros y reintentar
           </button>
@@ -438,13 +438,13 @@ const LicitacionesList = ({
                 className="lg:hidden px-2 py-1.5 bg-gray-100 rounded-lg font-bold text-xs text-gray-600 hover:bg-gray-200 transition-colors flex-shrink-0 border-0 outline-none cursor-pointer"
                 title="Agrupar por"
               >
-                <option value="none">📋 Sin agrupar</option>
-                <option value="organization">🏢 Por Org</option>
-                <option value="fuente">📰 Por Fuente</option>
-                <option value="status">🔴 Por Estado</option>
-                <option value="jurisdiccion">🌎 Por Jurisd.</option>
-                <option value="procedimiento">📑 Por Tipo</option>
-                <option value="category">🏷️ Por Rubro</option>
+                <option value="none">Sin agrupar</option>
+                <option value="organization">Por Org</option>
+                <option value="fuente">Por Fuente</option>
+                <option value="status">Por Estado</option>
+                <option value="jurisdiccion">Por Jurisd.</option>
+                <option value="procedimiento">Por Tipo</option>
+                <option value="category">Por Rubro</option>
               </select>
 
               {/* Mobile filter button */}
@@ -499,8 +499,8 @@ const LicitacionesList = ({
                       {prefs.groupBy !== 'none' && (
                         <div className={`rounded-lg p-3 flex items-center justify-between ${
                           prefs.groupBy === 'category' && prefs.criticalRubros.has(groupName)
-                            ? 'bg-gradient-to-r from-red-50 to-orange-50 border border-red-200'
-                            : 'bg-gradient-to-r from-slate-100 to-gray-50'
+                            ? 'bg-red-50 border border-red-200'
+                            : 'bg-slate-50 border border-gray-100'
                         }`}>
                           <div className="flex items-center gap-2">
                             {prefs.groupBy === 'status' && (

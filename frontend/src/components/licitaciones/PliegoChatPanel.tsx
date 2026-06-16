@@ -137,13 +137,13 @@ export default function PliegoChatPanel({ licitacionId }: Props) {
   };
 
   return (
-    <div className="bg-white border border-gray-100 rounded-xl overflow-hidden">
+    <div className="lic-panel overflow-hidden">
       {/* Header */}
-      <div className="flex items-center gap-3 px-4 py-3 bg-gradient-to-r from-violet-50 to-purple-50 border-b border-purple-100">
-        <span className="text-lg">🤖</span>
+      <div className="flex items-center gap-3 px-4 py-3 bg-slate-50 border-b border-gray-100">
+        <span className="rounded bg-purple-100 px-1.5 py-0.5 text-[10px] font-black text-purple-700">AI</span>
         <span className="font-semibold text-purple-900 text-sm">Asistente de Pliego</span>
         {summary && summaryCached && (
-          <span className="ml-auto text-xs text-purple-400">📋 cacheado</span>
+          <span className="ml-auto text-xs text-purple-500">cacheado</span>
         )}
       </div>
 
@@ -153,13 +153,13 @@ export default function PliegoChatPanel({ licitacionId }: Props) {
           <button
             key={t}
             onClick={() => setTab(t)}
-            className={`flex-1 py-2 text-xs font-medium transition-colors ${
+            className={`lic-control-transition flex-1 py-2 text-xs font-medium ${
               tab === t
                 ? 'text-purple-700 border-b-2 border-purple-500 bg-purple-50'
                 : 'text-gray-500 hover:text-gray-700'
             }`}
           >
-            {t === 'resumen' ? '📋 Resumen' : t === 'extraccion' ? '🧪 0.2' : '💬 Chat'}
+            {t === 'resumen' ? 'Resumen' : t === 'extraccion' ? 'Extraccion 0.2' : 'Chat'}
           </button>
         ))}
       </div>
@@ -175,7 +175,7 @@ export default function PliegoChatPanel({ licitacionId }: Props) {
                 </p>
                 <button
                   onClick={loadSummary}
-                  className="px-4 py-2 bg-purple-600 text-white text-sm rounded-lg hover:bg-purple-700 transition-colors"
+                  className="lic-control-transition px-4 py-2 bg-purple-600 text-white text-sm rounded-lg hover:bg-purple-700"
                 >
                   Analizar pliego
                 </button>
@@ -263,7 +263,7 @@ export default function PliegoChatPanel({ licitacionId }: Props) {
                 </p>
                 <button
                   onClick={() => loadExtractionV2(false)}
-                  className="px-4 py-2 bg-indigo-600 text-white text-sm rounded-lg hover:bg-indigo-700 transition-colors"
+                  className="lic-control-transition px-4 py-2 bg-indigo-600 text-white text-sm rounded-lg hover:bg-indigo-700"
                 >
                   Extraer con 0.2
                 </button>
@@ -370,7 +370,7 @@ export default function PliegoChatPanel({ licitacionId }: Props) {
                         key={i}
                         onClick={() => sendMessage(q)}
                         disabled={chatLoading}
-                        className="px-2.5 py-1 bg-purple-50 text-purple-700 rounded-full text-xs hover:bg-purple-100 transition-colors disabled:opacity-50"
+                        className="lic-control-transition px-2.5 py-1 bg-purple-50 text-purple-700 rounded-full text-xs hover:bg-purple-100 disabled:opacity-50"
                       >
                         {q}
                       </button>
@@ -415,15 +415,15 @@ export default function PliegoChatPanel({ licitacionId }: Props) {
                 onChange={e => setInput(e.target.value)}
                 onKeyDown={e => e.key === 'Enter' && !e.shiftKey && sendMessage()}
                 placeholder="Que certificaciones se piden?"
-                className="flex-1 text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-purple-300"
+                className="lic-control-transition flex-1 text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-purple-300"
                 disabled={chatLoading}
               />
               <button
                 onClick={() => sendMessage()}
                 disabled={!input.trim() || chatLoading}
-                className="px-3 py-2 bg-purple-600 text-white rounded-lg text-sm hover:bg-purple-700 disabled:opacity-40 transition-colors"
+                className="lic-control-transition px-3 py-2 bg-purple-600 text-white rounded-lg text-sm hover:bg-purple-700 disabled:opacity-40"
               >
-                ➤
+                Enviar
               </button>
             </div>
           </div>

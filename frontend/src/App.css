@@ -53,6 +53,82 @@ body {
   text-overflow: ellipsis;
 }
 
+/* Licitometro operational UI surfaces */
+.lic-toolbar-surface,
+.lic-table-shell,
+.lic-panel,
+.lic-card,
+.lic-empty-state,
+.lic-popover {
+  background: #fff;
+  border: 1px solid #e5e7eb;
+  border-radius: 0.5rem;
+  box-shadow:
+    0 1px 1px rgba(17, 24, 39, 0.04),
+    0 2px 4px rgba(17, 24, 39, 0.04);
+}
+
+.lic-card {
+  overflow: hidden;
+  cursor: pointer;
+  transition:
+    border-color 140ms ease-out,
+    box-shadow 140ms ease-out,
+    transform 140ms ease-out;
+}
+
+.lic-table-row {
+  transition: background-color 120ms ease-out;
+}
+
+.lic-control-transition {
+  transition:
+    background-color 120ms ease-out,
+    border-color 120ms ease-out,
+    color 120ms ease-out,
+    box-shadow 120ms ease-out;
+}
+
+.lic-expand-transition {
+  transition:
+    max-height 180ms ease-out,
+    opacity 180ms ease-out;
+}
+
+.lic-popover {
+  box-shadow:
+    0 1px 2px rgba(17, 24, 39, 0.05),
+    0 4px 8px rgba(17, 24, 39, 0.05),
+    0 8px 24px rgba(17, 24, 39, 0.04);
+}
+
+@media (hover: hover) {
+  .lic-card:hover {
+    border-color: #d1d5db;
+    transform: translateY(-1px);
+    box-shadow:
+      0 1px 2px rgba(17, 24, 39, 0.05),
+      0 4px 8px rgba(17, 24, 39, 0.05);
+  }
+
+  .lic-table-row:hover {
+    background-color: #f8fafc;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .lic-card,
+  .lic-table-row,
+  .lic-control-transition,
+  .lic-expand-transition {
+    transition-duration: 1ms;
+  }
+
+  .lic-card:hover {
+    transform: none;
+  }
+}
+
 /* Add responsive table styles */
 @media (max-width: 768px) {
   .overflow-x-auto {

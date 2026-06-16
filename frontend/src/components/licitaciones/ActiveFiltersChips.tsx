@@ -96,7 +96,7 @@ const ActiveFiltersChips: React.FC<ActiveFiltersChipsProps> = ({
         <Chip label={`${filters.fechaCampo && filters.fechaCampo !== 'publication_date' ? (FECHA_CAMPO_LABELS[filters.fechaCampo] || filters.fechaCampo) + ': ' : ''}${filters.fechaDesde || '...'} a ${filters.fechaHasta || '...'}`} color="bg-green-100 text-green-700" onRemove={() => onSetMany({ fechaDesde: '', fechaHasta: '', fechaCampo: 'publication_date' })} />
       )}
       {filters.nuevasDesde && (
-        <Chip label={`✨ Nuevas desde ${filters.nuevasDesde}`} color="bg-emerald-100 text-emerald-700" onRemove={() => onFilterChange('nuevasDesde', '')} />
+        <Chip label={`Nuevas desde ${filters.nuevasDesde}`} color="bg-emerald-100 text-emerald-700" onRemove={() => onFilterChange('nuevasDesde', '')} />
       )}
       {hasActiveFilters && (
         <button
