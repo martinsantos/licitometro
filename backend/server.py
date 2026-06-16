@@ -25,6 +25,7 @@ from routers import (
     adjudicaciones, catalogo, alertas, mendoza_core,
     canonical,
     admin_query, admin_open_data,
+    editarra,
 )
 from services.auth_service import verify_token
 
@@ -137,7 +138,12 @@ async def auth_middleware(request: Request, call_next):
     path = request.url.path
 
     # Skip auth for non-API routes, exempt paths, and public API
-    if not path.startswith("/api") or path in AUTH_EXEMPT_PATHS or path.startswith("/api/public/"):
+    if (
+        not path.startswith("/api")
+        or path in AUTH_EXEMPT_PATHS
+        or path.startswith("/api/public/")
+        or path.startswith("/api/editarra")
+    ):
         return await call_next(request)
 
     # Allow public GET access to licitaciones, market data, open-data, and adjudicaciones endpoints
@@ -228,6 +234,7 @@ app.include_router(canonical.router)
 app.include_router(mendoza_core.router)
 app.include_router(admin_query.router)
 app.include_router(admin_open_data.router)
+app.include_router(editarra.router)
 app.include_router(public.router)
 app.include_router(users.admin_router)
 app.include_router(users.public_router)
@@ -383,6 +390,21 @@ async def startup_db_client():
         # Alertas indexes
         await database.alertas_personalizadas.create_index("activa")
         await database.alertas_personalizadas.create_index([("created_at", -1)])
+
+        # EDITARRA Radar collections: isolated operational workspace for /editarra.
+        await database.editarra_agendas.create_index("id", unique=True)
+        await database.editarra_agendas.create_index("updatedAt")
+        await database.editarra_candidates.create_index("id", unique=True)
+        await database.editarra_candidates.create_index([
+            ("agendaId", 1),
+            ("status", 1),
+            ("score", -1),
+        ])
+        await database.editarra_discovery_runs.create_index("id", unique=True)
+        await database.editarra_discovery_runs.create_index([
+            ("agendaId", 1),
+            ("createdAt", -1),
+        ])
 
         logger.info("MongoDB indexes ensured")
     except Exception as e:
