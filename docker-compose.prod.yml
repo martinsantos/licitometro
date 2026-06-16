@@ -97,7 +97,9 @@ services:
       backend:
         condition: service_healthy
     volumes:
-      - ./frontend/build:/usr/share/nginx/html:ro
+      # Production UI artifact is intentionally outside /opt/licitometro so
+      # code rsyncs cannot overwrite the stable frontend served by nginx.
+      - ${PROD_FRONTEND_BUILD_DIR:-/opt/licitometro-prod-ui/build}:/usr/share/nginx/html:ro
       - /usr/share/nginx/html-v2:/usr/share/nginx/html-v2:ro
       - /opt/psicole-static/psiweb20:/usr/share/nginx/psiweb20:ro
       - ./manual:/usr/share/nginx/manual:ro

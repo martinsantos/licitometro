@@ -2,11 +2,17 @@
 set -euo pipefail
 
 # Guard the frontend artifact served by production nginx.
-# Production currently serves ./frontend/build as a bind mount; backend deploys must
-# not replace it with experimental UI builds.
+# Production serves a canonical build outside the rsynced repo by default so
+# backend deploys cannot replace it with experimental UI builds.
 
 PROJECT_DIR="${1:-$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)}"
-BUILD_DIR="${PROJECT_DIR}/frontend/build"
+CANONICAL_PROD_BUILD_DIR="/opt/licitometro-prod-ui/build"
+if [ -d "$CANONICAL_PROD_BUILD_DIR" ]; then
+    DEFAULT_BUILD_DIR="$CANONICAL_PROD_BUILD_DIR"
+else
+    DEFAULT_BUILD_DIR="${PROJECT_DIR}/frontend/build"
+fi
+BUILD_DIR="${PROD_FRONTEND_BUILD_DIR:-$DEFAULT_BUILD_DIR}"
 INDEX_HTML="${BUILD_DIR}/index.html"
 EXPECTED_PROD_MAIN_JS="${EXPECTED_PROD_MAIN_JS:-main.1489fc86.js}"
 FORBIDDEN_UI_PATTERN="${FORBIDDEN_UI_PATTERN:-Radar de oportunidades|Listado completo para examinar|TENDEROPS|licito-codex-shell|codex-hero}"
