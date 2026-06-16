@@ -149,13 +149,25 @@ class SchedulerService:
         """Mark runs stuck in 'running' as failed (from previous crashes/restarts).
         Runs every 10 min via scheduler + on startup."""
         # Only clean up runs older than 15 minutes to avoid killing legitimately running scrapers
-        cutoff = utc_now() - timedelta(minutes=15)
+        now = utc_now()
+        cutoff = now - timedelta(minutes=15)
+        cutoff_object_id = ObjectId.from_datetime(cutoff)
         result = await self.db.scraper_runs.update_many(
-            {"status": {"$in": ["running", "pending"]}, "started_at": {"$lt": cutoff}},
+            {
+                "status": {"$in": ["running", "pending"]},
+                "$or": [
+                    {"started_at": {"$lt": cutoff}},
+                    {"started_at": {"$exists": False}, "created_at": {"$lt": cutoff}},
+                    {"started_at": None, "created_at": {"$lt": cutoff}},
+                    {"started_at": {"$exists": False}, "created_at": {"$exists": False}, "_id": {"$lt": cutoff_object_id}},
+                    {"started_at": None, "created_at": {"$exists": False}, "_id": {"$lt": cutoff_object_id}},
+                ],
+            },
             {"$set": {
                 "status": "failed",
                 "error_message": "Orphaned run - process restarted",
-                "ended_at": utc_now(),
+                "ended_at": now,
+                "updated_at": now,
             }}
         )
         if result.modified_count:
