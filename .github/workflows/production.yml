@@ -3,7 +3,13 @@ name: Production Deployment
 on:
   push:
     branches: [main, master]
-  workflow_dispatch:  # Manual trigger
+  workflow_dispatch:
+    inputs:
+      deploy_frontend:
+        description: 'Deploy frontend/build to production. Use only after explicit UI approval.'
+        required: false
+        type: boolean
+        default: false
 
 # Permissions for creating issues on failure
 permissions:
@@ -31,6 +37,7 @@ jobs:
           fetch-depth: 1
 
       - name: Setup Node.js
+        if: ${{ github.event_name == 'workflow_dispatch' && inputs.deploy_frontend == true }}
         uses: actions/setup-node@v4
         with:
           node-version: '20'
@@ -38,6 +45,7 @@ jobs:
           cache-dependency-path: frontend/package-lock.json
 
       - name: Build frontend
+        if: ${{ github.event_name == 'workflow_dispatch' && inputs.deploy_frontend == true }}
         working-directory: frontend
         env:
           CI: true
@@ -45,6 +53,7 @@ jobs:
         run: |
           npm ci
           npm run build
+          bash ../scripts/guard-prod-frontend-source.sh "$GITHUB_WORKSPACE"
           echo "✅ Frontend built ($(du -sh build | cut -f1))"
 
       - name: Setup SSH
@@ -63,19 +72,31 @@ jobs:
         env:
           VPS_HOST: ${{ secrets.VPS_HOST }}
           VPS_USER: ${{ secrets.VPS_USER }}
+          DEPLOY_FRONTEND: ${{ github.event_name == 'workflow_dispatch' && inputs.deploy_frontend == true }}
         run: |
           echo "Syncing code to production VPS..."
+          RSYNC_EXCLUDES=(
+            --exclude 'node_modules'
+            --exclude '.git'
+            --exclude 'storage'
+            --exclude '__pycache__'
+            --exclude '*.pyc'
+            --exclude '.env'
+            --exclude '.env.production'
+            --exclude '.env.preview-*'
+            --exclude 'docker-compose.preview-*.yml'
+            --exclude 'docker-compose.caddy.yml'
+          )
+
+          if [ "$DEPLOY_FRONTEND" != "true" ]; then
+            echo "Preserving production frontend/build; backend deploy will not touch UI artifacts."
+            RSYNC_EXCLUDES+=(--exclude 'frontend/build')
+          else
+            echo "Including frontend/build because deploy_frontend=true was selected."
+          fi
+
           rsync -avz --delete --checksum \
-            --exclude 'node_modules' \
-            --exclude '.git' \
-            --exclude 'storage' \
-            --exclude '__pycache__' \
-            --exclude '*.pyc' \
-            --exclude '.env' \
-            --exclude '.env.production' \
-            --exclude '.env.preview-*' \
-            --exclude 'docker-compose.preview-*.yml' \
-            --exclude 'docker-compose.caddy.yml' \
+            "${RSYNC_EXCLUDES[@]}" \
             -e "ssh -o StrictHostKeyChecking=no -o ServerAliveInterval=30 -o ServerAliveCountMax=20" \
             ./ "${VPS_USER}@${VPS_HOST}:/opt/licitometro/"
 

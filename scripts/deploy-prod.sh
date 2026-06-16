@@ -9,12 +9,22 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_DIR="$(dirname "$SCRIPT_DIR")"
 COMPOSE_FILE="${PROJECT_DIR}/docker-compose.prod.yml"
 BACKUP_SCRIPT="${SCRIPT_DIR}/backup-mongodb.sh"
+FRONTEND_GUARD="${SCRIPT_DIR}/guard-prod-frontend-source.sh"
 MAX_HEALTH_RETRIES=30
 HEALTH_CHECK_INTERVAL=10
 
 echo "=========================================="
 echo "Production Deployment - $(date)"
 echo "=========================================="
+
+# Step 0: Protect the production UI artifact before any service restart
+echo ""
+echo "Step 0/5: Verifying production frontend artifact..."
+if [ ! -x "$FRONTEND_GUARD" ]; then
+    echo "❌ Frontend guard not found or not executable: $FRONTEND_GUARD"
+    exit 1
+fi
+"$FRONTEND_GUARD" "$PROJECT_DIR"
 
 # Step 1: Pre-deployment backup (non-blocking - runs in background via nohup)
 echo ""
