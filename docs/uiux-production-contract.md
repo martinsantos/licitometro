@@ -12,7 +12,7 @@ branches and previews.
 | `/favoritos`, `/observatorio`, `/adjudicaciones` | Production product | Secondary operational routes | Can share the production shell, but must not drive changes into `/licitaciones` without review. |
 | `/cotizar` | Admin-only product surface | Quoting workflow | Keep isolated behind auth/admin checks. Do not let cotizar visual experiments rewrite the tender list shell. |
 | `/editarra` | Experiment | Editorial automation studio | Must render outside the authenticated product shell and remain isolated from `/licitaciones` components, CSS, and rollout decisions. |
-| `/psiweb20` | Static experiment | Nginx alias outside the SPA | Must stay outside React SPA fallback and outside production bundle changes. |
+| `/psiweb20` | Static experiment | Nginx alias outside the SPA | Must stay outside React SPA fallback and outside production bundle changes. Nginx must serve it from a read-only static mount before the SPA fallback. |
 
 ## Non-Negotiable Safety Rules
 
@@ -28,6 +28,7 @@ branches and previews.
    - `TENDEROPS`
    - `licito-codex-shell`
    - `codex-hero`
+8. `/psiweb20` must remain a static nginx alias backed by `/opt/psicole-static/psiweb20:/usr/share/nginx/psiweb20:ro`, with no React route and with the alias declared before the SPA fallback in every production app server block.
 
 ## Production Visual Baseline
 

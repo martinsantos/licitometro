@@ -96,12 +96,78 @@ else
     fi
 fi
 
-if ! grep -q 'location \^~ /psiweb20/' nginx/nginx.conf; then
-    fail "/psiweb20 is not isolated as an nginx static alias"
+if ! grep -q -- '/opt/psicole-static/psiweb20:/usr/share/nginx/psiweb20:ro' docker-compose.prod.yml; then
+    fail "/psiweb20 static artifact must be mounted read-only outside the SPA build"
 fi
 
-if ! grep -q 'alias /usr/share/nginx/psiweb20/' nginx/nginx.conf; then
-    fail "/psiweb20 alias target is missing from nginx config"
+if [ "$(grep -c 'location \^~ /psiweb20/' nginx/nginx.conf)" -ne 2 ]; then
+    fail "/psiweb20 must be isolated in both production nginx app server blocks"
 fi
+
+if [ "$(grep -c 'alias /usr/share/nginx/psiweb20/;' nginx/nginx.conf)" -ne 2 ]; then
+    fail "/psiweb20 alias target must be present in both production nginx app server blocks"
+fi
+
+if [ "$(grep -c 'X-Robots-Tag "noindex, nofollow, noarchive, nosnippet" always' nginx/nginx.conf)" -ne 2 ]; then
+    fail "/psiweb20 must keep noindex headers in both production nginx app server blocks"
+fi
+
+PSIWEB_ORDER_AUDIT="$(
+awk '
+function reset_block() {
+    in_app = 0
+    psiweb_line = 0
+    alias_line = 0
+    fallback_line = 0
+}
+function finish_block() {
+    if (!in_app) return
+    app_blocks++
+    if (!psiweb_line) {
+        print "missing location ^~ /psiweb20/ in app server block"
+        exit 10
+    }
+    if (!alias_line) {
+        print "missing /psiweb20 alias in app server block"
+        exit 11
+    }
+    if (!fallback_line) {
+        print "missing SPA fallback location / in app server block"
+        exit 12
+    }
+    if (psiweb_line > fallback_line) {
+        print "/psiweb20 location appears after SPA fallback in app server block"
+        exit 13
+    }
+}
+BEGIN {
+    reset_block()
+}
+/^[[:space:]]*server[[:space:]]*\{/ {
+    finish_block()
+    reset_block()
+    next
+}
+/server_name[[:space:]]+srv1342577\.hstgr\.cloud[[:space:]]+licitometro\.ar;/ {
+    in_app = 1
+}
+in_app && /location \^~ \/psiweb20\// && !psiweb_line {
+    psiweb_line = NR
+}
+in_app && /alias \/usr\/share\/nginx\/psiweb20\// && !alias_line {
+    alias_line = NR
+}
+in_app && /^[[:space:]]*location \/ \{/ && !fallback_line {
+    fallback_line = NR
+}
+END {
+    finish_block()
+    if (app_blocks != 2) {
+        print "expected 2 production app server blocks, found " app_blocks
+        exit 14
+    }
+}
+' nginx/nginx.conf
+)" || fail "/psiweb20 nginx isolation order failed: ${PSIWEB_ORDER_AUDIT:-unknown awk error}"
 
 echo "UI/UX production boundary audit OK."
