@@ -81,6 +81,15 @@ if [ -n "$EDITARRA_MATCHES" ]; then
     if ! grep -q 'path="/editarra' frontend/src/App.js; then
         fail "Editarra source exists but /editarra is not routed explicitly"
     fi
+    if ! grep -q 'location.pathname.startsWith("/editarra")' frontend/src/App.js; then
+        fail "/editarra must be isolated outside the authenticated product shell"
+    fi
+    if ! grep -q 'window.location.pathname.startsWith("/editarra")' frontend/src/App.js; then
+        fail "/editarra must bypass startup auth checks"
+    fi
+    if ! grep -q 'editarra-desktop' scripts/uiux-licitaciones-preview-smoke.mjs; then
+        fail "UI/UX preview smoke does not cover the /editarra experiment"
+    fi
 else
     if grep -REIq 'editarra|EDITARRA|Editarra' frontend/src; then
         fail "partial Editarra references found without isolated source files"

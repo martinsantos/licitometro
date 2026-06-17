@@ -11,7 +11,7 @@ branches and previews.
 | `/licitacion/:id` and `/licitaciones/:id` | Production product | Tender detail and quoting handoff | Refactors must keep detail, pliego, workflow, and cotizar actions reachable. |
 | `/favoritos`, `/observatorio`, `/adjudicaciones` | Production product | Secondary operational routes | Can share the production shell, but must not drive changes into `/licitaciones` without review. |
 | `/cotizar` | Admin-only product surface | Quoting workflow | Keep isolated behind auth/admin checks. Do not let cotizar visual experiments rewrite the tender list shell. |
-| `/editarra` | Experiment | Editorial automation studio | Must remain isolated from `/licitaciones` components, CSS, and bundle rollout decisions. |
+| `/editarra` | Experiment | Editorial automation studio | Must render outside the authenticated product shell and remain isolated from `/licitaciones` components, CSS, and rollout decisions. |
 | `/psiweb20` | Static experiment | Nginx alias outside the SPA | Must stay outside React SPA fallback and outside production bundle changes. |
 
 ## Non-Negotiable Safety Rules
@@ -62,6 +62,6 @@ Before proposing production rollout of a UI/UX change, collect all evidence belo
 - `bash scripts/audit-uiux-production-boundaries.sh` passes.
 - `bash scripts/test-prod-frontend-guard.sh` passes.
 - Frontend unit/smoke checks relevant to changed components pass.
-- `make uiux-preview-build uiux-preview-smoke` passes for `/licitaciones`, `/licitacion/:id`, and the admin `/cotizar` handoff, using `UIUX_BUILD_DIR` outside the repo and outside production paths.
-- Desktop and mobile screenshots exist for `/licitaciones`, `/licitacion/:id`, `/cotizar`, `/editarra` if touched, and `/psiweb20` if nginx is touched.
+- `make uiux-preview-build uiux-preview-smoke` passes for `/licitaciones`, `/licitacion/:id`, the admin `/cotizar` handoff, and `/editarra`, using `UIUX_BUILD_DIR` outside the repo and outside production paths.
+- Desktop and mobile screenshots exist for `/licitaciones`, `/licitacion/:id`, `/cotizar`, `/editarra`, and `/psiweb20` if nginx is touched.
 - Production itself was not deployed or rebuilt during review unless explicitly approved.

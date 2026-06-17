@@ -286,6 +286,18 @@ function apiResponse(req, res, url) {
     });
     return true;
   }
+  if (pathname === '/api/editarra/agendas') {
+    sendJson(res, { agendas: [] });
+    return true;
+  }
+  if (pathname === '/api/editarra/candidates') {
+    sendJson(res, { candidates: [] });
+    return true;
+  }
+  if (pathname === '/api/editarra/runs') {
+    sendJson(res, { runs: [] });
+    return true;
+  }
   if (pathname === '/api/licitaciones/stats/daily-counts') {
     sendJson(res, { counts: { [today]: 28, [yesterday]: 1 } });
     return true;
@@ -637,6 +649,47 @@ async function collectCotizarEvidence(page, url, screenshotPath, fullPage) {
   };
 }
 
+async function collectEditarraEvidence(page, url, screenshotPath, fullPage) {
+  const consoleErrors = [];
+  const pageErrors = [];
+  const requestFailures = [];
+
+  page.on('console', (msg) => {
+    if (msg.type() === 'error') consoleErrors.push(msg.text());
+  });
+  page.on('pageerror', (err) => pageErrors.push(String(err)));
+  page.on('requestfailed', (req) => {
+    requestFailures.push(`${req.method()} ${req.url()} ${req.failure()?.errorText || ''}`);
+  });
+
+  await page.goto(url, { waitUntil: 'networkidle' });
+  await page.locator('.editarra-app').first().waitFor({ timeout: 15000 });
+  await page.locator('text=EDITARRA').first().waitFor({ timeout: 15000 });
+
+  const screenshot = await page.screenshot({ path: screenshotPath, fullPage });
+  const bodyText = await page.locator('body').innerText();
+  const overflow = await page.evaluate(() => ({
+    clientWidth: document.documentElement.clientWidth,
+    scrollWidth: document.documentElement.scrollWidth,
+    inProductShell: Boolean(document.querySelector('.App')),
+  }));
+
+  return {
+    checks: {
+      shellVisible: await page.locator('.editarra-app').first().isVisible(),
+      titleVisible: await page.locator('text=EDITARRA').first().isVisible(),
+      studioVisible: await page.locator('text=Studio editorial').first().isVisible().catch(() => false),
+      outsideProductShell: !overflow.inProductShell,
+      screenshotBytes: screenshot.length,
+      horizontalOverflowPx: Math.max(0, overflow.scrollWidth - overflow.clientWidth),
+      bodyTextSample: bodyText.slice(0, 500),
+    },
+    consoleErrors,
+    pageErrors,
+    requestFailures,
+  };
+}
+
 function assertEvidence(label, evidence, { requireFilterButton = false } = {}) {
   const failures = [];
   const { checks } = evidence;
@@ -683,6 +736,21 @@ function assertCotizarEvidence(label, evidence) {
   return failures;
 }
 
+function assertEditarraEvidence(label, evidence, { requireStudioLabel = false } = {}) {
+  const failures = [];
+  const { checks } = evidence;
+  if (!checks.shellVisible) failures.push(`${label}: Editarra shell not visible`);
+  if (!checks.titleVisible) failures.push(`${label}: EDITARRA title not visible`);
+  if (requireStudioLabel && !checks.studioVisible) failures.push(`${label}: Studio label not visible`);
+  if (!checks.outsideProductShell) failures.push(`${label}: rendered inside product shell`);
+  if (checks.screenshotBytes < 5000) failures.push(`${label}: screenshot looks too small/blank`);
+  if (checks.horizontalOverflowPx > 2) failures.push(`${label}: horizontal overflow ${checks.horizontalOverflowPx}px`);
+  if (evidence.consoleErrors.length) failures.push(`${label}: console errors: ${evidence.consoleErrors.join(' | ')}`);
+  if (evidence.pageErrors.length) failures.push(`${label}: page errors: ${evidence.pageErrors.join(' | ')}`);
+  if (evidence.requestFailures.length) failures.push(`${label}: request failures: ${evidence.requestFailures.join(' | ')}`);
+  return failures;
+}
+
 async function main() {
   await assertBuildDir();
   await mkdir(OUT_DIR, { recursive: true });
@@ -697,6 +765,8 @@ async function main() {
     const detailMobilePath = path.join(OUT_DIR, 'licitacion-detail-mobile.png');
     const cotizarDesktopPath = path.join(OUT_DIR, 'cotizar-detail-desktop.png');
     const cotizarMobilePath = path.join(OUT_DIR, 'cotizar-detail-mobile.png');
+    const editarraDesktopPath = path.join(OUT_DIR, 'editarra-desktop.png');
+    const editarraMobilePath = path.join(OUT_DIR, 'editarra-mobile.png');
 
     const desktopPage = await browser.newPage({ viewport: { width: 1440, height: 900 }, deviceScaleFactor: 1 });
     const desktop = await collectPageEvidence(desktopPage, `${baseUrl}${TARGET_PATH}`, desktopPath, false);
@@ -736,6 +806,22 @@ async function main() {
       true,
     );
 
+    const editarraDesktopPage = await browser.newPage({ viewport: { width: 1440, height: 900 }, deviceScaleFactor: 1 });
+    const editarraDesktop = await collectEditarraEvidence(
+      editarraDesktopPage,
+      `${baseUrl}/editarra`,
+      editarraDesktopPath,
+      true,
+    );
+
+    const editarraMobilePage = await browser.newPage({ viewport: { width: 390, height: 844 }, isMobile: true, deviceScaleFactor: 2 });
+    const editarraMobile = await collectEditarraEvidence(
+      editarraMobilePage,
+      `${baseUrl}/editarra`,
+      editarraMobilePath,
+      true,
+    );
+
     const failures = [
       ...assertEvidence('desktop', desktop),
       ...assertEvidence('mobile', mobile, { requireFilterButton: true }),
@@ -743,6 +829,8 @@ async function main() {
       ...assertDetailEvidence('detail mobile', detailMobile),
       ...assertCotizarEvidence('cotizar desktop', cotizarDesktop),
       ...assertCotizarEvidence('cotizar mobile', cotizarMobile),
+      ...assertEditarraEvidence('editarra desktop', editarraDesktop, { requireStudioLabel: true }),
+      ...assertEditarraEvidence('editarra mobile', editarraMobile),
     ];
 
     const report = {
@@ -757,6 +845,8 @@ async function main() {
         detailMobile: detailMobilePath,
         cotizarDesktop: cotizarDesktopPath,
         cotizarMobile: cotizarMobilePath,
+        editarraDesktop: editarraDesktopPath,
+        editarraMobile: editarraMobilePath,
       },
       desktop,
       mobile,
@@ -764,6 +854,8 @@ async function main() {
       detailMobile,
       cotizarDesktop,
       cotizarMobile,
+      editarraDesktop,
+      editarraMobile,
       failures,
     };
 
