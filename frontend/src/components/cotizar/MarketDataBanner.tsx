@@ -28,34 +28,32 @@ export default function MarketDataBanner() {
   if (!rates && !inflation && !loading) return null;
 
   return (
-    <div className="flex items-center gap-4 px-4 py-2 bg-amber-50 border-b border-amber-100 text-xs text-gray-600 flex-wrap">
+    <div className="flex items-center gap-3 px-4 py-2 bg-white border-b border-gray-200 text-xs text-gray-600 flex-wrap">
       {rates?.usd && (
-        <span className="flex items-center gap-1">
-          <span>💵</span>
-          <span className="font-medium">USD:</span>
+        <span className="inline-flex items-center gap-1.5 rounded-md border border-gray-200 bg-gray-50 px-2 py-1">
+          <span className="font-bold text-gray-500">USD</span>
           <span>${new Intl.NumberFormat('es-AR').format(rates.usd)}</span>
         </span>
       )}
       {inflation?.rate != null && (
-        <span className="flex items-center gap-1">
-          <span>📊</span>
-          <span className="font-medium">Inflación:</span>
+        <span className="inline-flex items-center gap-1.5 rounded-md border border-gray-200 bg-gray-50 px-2 py-1">
+          <span className="font-bold text-gray-500">IPC</span>
           <span>{inflation.rate.toFixed(1)}%{inflation.period ? ` (${inflation.period})` : ''}</span>
         </span>
       )}
       {updatedAt && (
-        <span className="text-gray-400 flex items-center gap-1">
-          <span>🕐</span>
+        <span className="inline-flex items-center gap-1.5 text-gray-400">
+          <span className="font-bold text-gray-300">ACT</span>
           <span>{updatedAt}</span>
         </span>
       )}
       <button
         onClick={load}
         disabled={loading}
-        className="ml-auto text-amber-600 hover:text-amber-800 disabled:opacity-40 transition-colors"
+        className="ml-auto rounded-md border border-gray-200 px-2 py-1 font-semibold text-gray-500 hover:border-blue-300 hover:text-blue-700 disabled:opacity-40 lic-control-transition"
         title="Actualizar datos de mercado"
       >
-        {loading ? '⟳' : '↻'}
+        {loading ? '...' : 'Actualizar'}
       </button>
     </div>
   );

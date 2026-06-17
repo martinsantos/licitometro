@@ -25,7 +25,7 @@ export function DecisionSummary({
   const status = isFetching ? 'Actualizando' : totalItems === 0 ? 'Sin resultados' : 'Listo para revisar';
 
   return (
-    <section className="bg-white border border-gray-100 rounded-lg px-3 py-2.5 shadow-sm" aria-label={title}>
+    <section className="lic-toolbar-surface px-3 py-2.5" aria-label={title}>
       <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
         <div className="grid grid-cols-3 gap-2 sm:flex sm:items-center sm:gap-3">
           <div>
@@ -52,7 +52,7 @@ export function DecisionSummary({
             <button
               type="button"
               onClick={onClearFilters}
-              className="px-2.5 py-1.5 rounded-md bg-gray-100 text-gray-700 text-xs font-bold hover:bg-gray-200 transition-colors"
+              className="lic-control-transition px-2.5 py-1.5 rounded-md bg-gray-100 text-gray-700 text-xs font-bold hover:bg-gray-200"
             >
               Limpiar filtros
             </button>
@@ -61,7 +61,7 @@ export function DecisionSummary({
             <button
               type="button"
               onClick={onRetry}
-              className="px-2.5 py-1.5 rounded-md bg-blue-50 text-blue-700 text-xs font-bold hover:bg-blue-100 transition-colors"
+              className="lic-control-transition px-2.5 py-1.5 rounded-md bg-blue-50 text-blue-700 text-xs font-bold hover:bg-blue-100"
             >
               Actualizar
             </button>
@@ -80,7 +80,7 @@ interface EmptyResultsStateProps {
 
 export function EmptyResultsState({ hasActiveFilters, onClearFilters, onRetry }: EmptyResultsStateProps) {
   return (
-    <div className="bg-white rounded-lg p-8 text-center border border-gray-100">
+    <div className="lic-empty-state p-8 text-center">
       <h3 className="text-base font-black text-gray-800 mb-2">No se encontraron licitaciones</h3>
       <p className="text-sm text-gray-500 mb-4">
         {hasActiveFilters
@@ -92,7 +92,7 @@ export function EmptyResultsState({ hasActiveFilters, onClearFilters, onRetry }:
           <button
             type="button"
             onClick={onClearFilters}
-            className="px-4 py-2 bg-emerald-600 text-white rounded-lg font-bold text-sm hover:bg-emerald-700 transition-colors"
+            className="lic-control-transition px-4 py-2 bg-emerald-600 text-white rounded-lg font-bold text-sm hover:bg-emerald-700"
           >
             Limpiar filtros
           </button>
@@ -101,7 +101,7 @@ export function EmptyResultsState({ hasActiveFilters, onClearFilters, onRetry }:
           <button
             type="button"
             onClick={onRetry}
-            className="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg font-bold text-sm hover:bg-gray-200 transition-colors"
+            className="lic-control-transition px-4 py-2 bg-gray-100 text-gray-700 rounded-lg font-bold text-sm hover:bg-gray-200"
           >
             Reintentar
           </button>

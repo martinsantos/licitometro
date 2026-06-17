@@ -17,7 +17,7 @@ const LicitacionesPage = ({ apiUrl }: { apiUrl: string }) => {
         <h2 className="text-xl font-black text-gray-900 tracking-tight">Licitaciones</h2>
         <button
           onClick={() => setShowForm(!showForm)}
-          className="px-4 py-2 bg-emerald-600 text-white rounded-lg font-bold text-sm hover:bg-emerald-700 transition-all flex items-center gap-1.5"
+          className="lic-control-transition px-4 py-2 bg-emerald-600 text-white rounded-lg font-bold text-sm hover:bg-emerald-700 flex items-center gap-1.5"
         >
           {showForm ? (
             <>
@@ -38,7 +38,7 @@ const LicitacionesPage = ({ apiUrl }: { apiUrl: string }) => {
       </div>
 
       {showForm && (
-        <div className="mb-4 animate-in fade-in slide-in-from-top-4 duration-500">
+        <div className="mb-4 animate-in fade-in slide-in-from-top-2 duration-200">
           <LicitacionForm apiUrl={apiUrl} onSuccess={handleLicitacionCreated} />
         </div>
       )}

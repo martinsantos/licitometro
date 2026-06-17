@@ -18,7 +18,7 @@ const FacetItem: React.FC<FacetItemProps> = ({
   return (
     <button
       onClick={onClick}
-      className={`w-full flex items-center justify-between ${sm ? 'px-2 py-1.5' : 'px-3 py-2'} rounded-lg ${sm ? 'text-xs' : 'text-sm'} transition-all ${
+      className={`lic-control-transition w-full flex items-center justify-between ${sm ? 'px-2 py-1.5' : 'px-3 py-2'} rounded-lg ${sm ? 'text-xs' : 'text-sm'} ${
         isActive
           ? 'bg-emerald-50 text-emerald-800 font-bold'
           : count === 0

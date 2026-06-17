@@ -29,13 +29,13 @@ const Pagination: React.FC<PaginationProps> = ({ paginacion, pagina, onPageChang
   }
 
   return (
-    <div className="mt-6 flex flex-col sm:flex-row items-center justify-between gap-4 bg-white rounded-2xl p-4 shadow-sm border border-gray-100">
+    <div className="lic-toolbar-surface mt-6 flex flex-col sm:flex-row items-center justify-between gap-4 p-4">
       <div className="text-sm font-medium text-gray-500">
         Pagina <span className="font-bold text-gray-900">{pagina}</span> de <span className="font-bold text-gray-900">{total}</span>
       </div>
       <div className="flex items-center gap-2">
         <button
-          className="p-2 rounded-xl border border-gray-200 bg-white hover:bg-gray-50 disabled:opacity-30 disabled:cursor-not-allowed transition-all"
+          className="lic-control-transition p-2 rounded-lg border border-gray-200 bg-white hover:bg-gray-50 disabled:opacity-30 disabled:cursor-not-allowed"
           onClick={() => onPageChange(Math.max(pagina - 1, 1))}
           disabled={pagina === 1}
         >
@@ -48,9 +48,9 @@ const Pagination: React.FC<PaginationProps> = ({ paginacion, pagina, onPageChang
           {pageNumbers.map((num) => (
             <button
               key={num}
-              className={`w-10 h-10 rounded-xl text-sm font-black transition-all ${
+              className={`lic-control-transition w-10 h-10 rounded-lg text-sm font-black ${
                 pagina === num
-                  ? 'bg-blue-600 text-white shadow-lg shadow-blue-200'
+                  ? 'bg-blue-600 text-white shadow-sm'
                   : 'bg-white border border-gray-200 text-gray-600 hover:bg-gray-50'
               }`}
               onClick={() => onPageChange(num)}
@@ -61,7 +61,7 @@ const Pagination: React.FC<PaginationProps> = ({ paginacion, pagina, onPageChang
         </div>
 
         <button
-          className="p-2 rounded-xl border border-gray-200 bg-white hover:bg-gray-50 disabled:opacity-30 disabled:cursor-not-allowed transition-all"
+          className="lic-control-transition p-2 rounded-lg border border-gray-200 bg-white hover:bg-gray-50 disabled:opacity-30 disabled:cursor-not-allowed"
           onClick={() => onPageChange(Math.min(pagina + 1, total))}
           disabled={pagina === total}
         >

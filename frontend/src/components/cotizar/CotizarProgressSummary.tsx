@@ -40,7 +40,7 @@ export default function CotizarProgressSummary({ licitacion }: { licitacion: Lic
   const itemsCount = licitacion.items?.length || 0;
 
   return (
-    <section className="bg-white border border-gray-100 rounded-lg p-4 shadow-sm" aria-label="Resumen de cotización">
+    <section className="lic-panel p-4" aria-label="Resumen de cotización">
       <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
         <div className="min-w-0">
           <h2 className="text-sm font-black text-gray-900 mb-1">Resumen para cotizar</h2>
@@ -48,19 +48,19 @@ export default function CotizarProgressSummary({ licitacion }: { licitacion: Lic
           {licitacion.organization && <p className="text-xs text-gray-400 mt-1">{licitacion.organization}</p>}
         </div>
         <div className="grid grid-cols-2 sm:grid-cols-4 lg:w-[520px] gap-2">
-          <div className="rounded-md bg-gray-50 px-3 py-2">
+          <div className="rounded-md border border-gray-200 bg-gray-50 px-3 py-2">
             <div className="text-[10px] uppercase font-bold text-gray-400">Apertura</div>
             <div className="text-sm font-black text-gray-800">{urgency}</div>
           </div>
-          <div className="rounded-md bg-gray-50 px-3 py-2">
+          <div className="rounded-md border border-gray-200 bg-gray-50 px-3 py-2">
             <div className="text-[10px] uppercase font-bold text-gray-400">Items</div>
             <div className="text-sm font-black text-gray-800">{itemsCount}</div>
           </div>
-          <div className="rounded-md bg-gray-50 px-3 py-2">
+          <div className="rounded-md border border-gray-200 bg-gray-50 px-3 py-2">
             <div className="text-[10px] uppercase font-bold text-gray-400">Presupuesto</div>
             <div className="text-sm font-black text-gray-800 truncate">{formatARS(licitacion.budget)}</div>
           </div>
-          <div className="rounded-md bg-blue-50 px-3 py-2">
+          <div className="rounded-md border border-blue-100 bg-blue-50 px-3 py-2">
             <div className="text-[10px] uppercase font-bold text-blue-400">Próxima acción</div>
             <div className="text-xs font-black text-blue-800 line-clamp-2">{getCotizarNextAction(licitacion)}</div>
           </div>

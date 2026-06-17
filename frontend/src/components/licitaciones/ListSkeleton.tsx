@@ -3,7 +3,7 @@ import React from 'react';
 const ListSkeleton: React.FC = () => (
   <div className="space-y-4 animate-pulse">
     {Array.from({ length: 5 }).map((_, i) => (
-      <div key={i} className="bg-white rounded-2xl shadow-md border border-gray-100 overflow-hidden">
+      <div key={i} className="lic-card">
         <div className="flex flex-col lg:flex-row">
           <div className="lg:w-28 flex-shrink-0 p-4 bg-slate-50 border-b lg:border-b-0 lg:border-r border-gray-100">
             <div className="h-8 w-12 bg-gray-200 rounded mx-auto mb-1" />

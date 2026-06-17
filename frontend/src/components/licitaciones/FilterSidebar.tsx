@@ -62,7 +62,7 @@ const FilterSidebar: React.FC<FilterSidebarProps> = ({
   if (isCollapsed) {
     return (
       <div className="w-12 flex-shrink-0">
-        <div className="h-[calc(100vh-3.5rem)] bg-white border border-gray-100 rounded-xl flex flex-col items-center py-3 gap-2">
+        <div className="lic-panel h-[calc(100vh-3.5rem)] flex flex-col items-center py-3 gap-2">
           <button onClick={onToggleCollapse} className="p-2 hover:bg-gray-100 rounded-lg transition-colors" title="Mostrar filtros">
             <svg className="w-4 h-4 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z" />
@@ -80,7 +80,7 @@ const FilterSidebar: React.FC<FilterSidebarProps> = ({
 
   return (
     <div className="w-[280px] flex-shrink-0">
-      <div className="h-[calc(100vh-3.5rem)] overflow-y-auto bg-white border border-gray-100 rounded-xl">
+      <div className="lic-panel h-[calc(100vh-3.5rem)] overflow-y-auto">
         {/* Header */}
         <div className="flex items-center justify-between p-3 border-b border-gray-100">
           <div className="flex items-center gap-2">

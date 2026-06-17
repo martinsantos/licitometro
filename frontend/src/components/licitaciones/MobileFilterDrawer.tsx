@@ -120,7 +120,7 @@ const MobileFilterDrawer: React.FC<MobileFilterDrawerProps> = ({
                     <button
                       key={opt.value}
                       onClick={() => onSortChange(opt.value)}
-                      className={`w-full flex items-center justify-between px-3 py-2 rounded-lg text-sm transition-all ${
+                      className={`lic-control-transition w-full flex items-center justify-between px-3 py-2 rounded-lg text-sm ${
                         sortBy === opt.value ? 'bg-emerald-50 text-emerald-800 font-bold' : 'text-gray-600 hover:bg-gray-50'
                       }`}
                     >
@@ -259,11 +259,11 @@ const MobileFilterDrawer: React.FC<MobileFilterDrawerProps> = ({
           {/* Footer */}
           <div className="p-4 border-t border-gray-100 space-y-2">
             {activeFilterCount > 0 && (
-              <button onClick={onClearAll} className="w-full py-3 bg-red-50 text-red-600 rounded-xl font-bold text-sm hover:bg-red-100 transition-colors">
+              <button onClick={onClearAll} className="lic-control-transition w-full py-3 bg-red-50 text-red-600 rounded-lg font-bold text-sm hover:bg-red-100">
                 Limpiar todos los filtros
               </button>
             )}
-            <button onClick={onClose} className="w-full py-3 bg-emerald-600 text-white rounded-xl font-bold text-sm hover:bg-emerald-700 transition-colors">
+            <button onClick={onClose} className="lic-control-transition w-full py-3 bg-emerald-600 text-white rounded-lg font-bold text-sm hover:bg-emerald-700">
               {totalItems != null ? `Ver ${totalItems} resultados` : 'Aplicar filtros'}
             </button>
           </div>

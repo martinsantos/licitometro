@@ -26,6 +26,7 @@ const NodosPage = lazy(() => import("./pages/NodosPage"));
 const PublicLicitacionPage = lazy(() => import("./pages/PublicLicitacionPage"));
 const PublicListPage = lazy(() => import("./pages/PublicListPage"));
 const CotizarPage = lazy(() => import("./pages/CotizarPage"));
+const EditarraPage = lazy(() => import("./pages/EditarraPage"));
 const PerfilPage = lazy(() => import("./pages/PerfilPage"));
 const CompanyContextPage = lazy(() => import("./pages/CompanyContextPage"));
 const LabPage = lazy(() => import("./pages/LabPage"));
@@ -100,6 +101,17 @@ function AppRouter({ authState, setAuthState }) {
     );
   }
 
+  // Experiment routes - isolated outside the authenticated product shell.
+  if (location.pathname.startsWith("/editarra")) {
+    return (
+      <Suspense fallback={<PageLoader />}>
+        <Routes>
+          <Route path="/editarra/*" element={<EditarraPage />} />
+        </Routes>
+      </Suspense>
+    );
+  }
+
   // Loading state
   if (authState === null) {
     return (
@@ -130,6 +142,11 @@ function App() {
   }, []);
 
   const handleStartup = async () => {
+    const isPublicLicitacionRoute = window.location.pathname === "/p" || window.location.pathname.startsWith("/p/");
+    if (window.location.pathname.startsWith("/editarra") || isPublicLicitacionRoute) {
+      return;
+    }
+
     // Check for ?token=xxx in URL (public access link from notifications)
     const params = new URLSearchParams(window.location.search);
     const token = params.get("token");

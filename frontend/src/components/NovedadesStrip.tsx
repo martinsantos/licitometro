@@ -58,21 +58,21 @@ const NovedadesStrip: React.FC<NovedadesStripProps> = ({ apiUrl, apiPath = '/api
   // Never return null - use CSS transition for smooth appearance/disappearance
   return (
     <div
-      className="transition-all duration-300 overflow-hidden"
+      className="lic-expand-transition overflow-hidden"
       style={{
         maxHeight: hasActivity ? '500px' : '0px',
         opacity: hasActivity ? 1 : 0,
         marginBottom: hasActivity ? undefined : 0,
       }}
     >
-      <div className="bg-white rounded-xl border border-gray-100 overflow-hidden">
+      <div className="lic-toolbar-surface overflow-hidden">
         {/* Header - categorized badges */}
         <button
           onClick={() => setExpanded(!expanded)}
-          className="w-full px-3 py-2 flex items-center justify-between hover:bg-gray-50 transition-colors"
+          className="lic-control-transition w-full px-3 py-2 flex items-center justify-between hover:bg-gray-50"
         >
           <div className="flex items-center gap-2 sm:gap-3 min-w-0 flex-wrap">
-            <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse flex-shrink-0" />
+            <span className="w-2 h-2 rounded-full bg-emerald-500 flex-shrink-0" />
             <span className="text-xs sm:text-sm font-black text-gray-800 flex-shrink-0">ACTIVIDAD</span>
             {activity && activity.truly_new > 0 && (
               <span className="px-2 py-0.5 bg-emerald-100 text-emerald-700 rounded-full text-[10px] sm:text-xs font-bold flex-shrink-0">
@@ -100,7 +100,7 @@ const NovedadesStrip: React.FC<NovedadesStripProps> = ({ apiUrl, apiPath = '/api
                 <button
                   key={opt.value}
                   onClick={() => setHours(opt.value)}
-                  className={`px-1.5 sm:px-2 py-1 rounded-md font-bold transition-all ${
+                  className={`lic-control-transition px-1.5 sm:px-2 py-1 rounded-md font-bold ${
                     hours === opt.value ? 'bg-white shadow-sm text-gray-800' : 'text-gray-500'
                   }`}
                 >
@@ -129,7 +129,7 @@ const NovedadesStrip: React.FC<NovedadesStripProps> = ({ apiUrl, apiPath = '/api
                   <button
                     key={src.fuente}
                     onClick={() => onSourceClick?.(src.fuente)}
-                    className="w-full flex items-center gap-2 px-3 py-2 rounded-xl hover:bg-gray-50 transition-colors text-left"
+                    className="lic-control-transition w-full flex items-center gap-2 px-3 py-2 rounded-lg hover:bg-gray-50 text-left"
                   >
                     <span className="w-2 h-2 rounded-full bg-violet-500 flex-shrink-0" />
                     <span className="text-sm font-bold text-gray-700 flex-1 min-w-0 truncate">

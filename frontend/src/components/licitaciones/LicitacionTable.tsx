@@ -23,7 +23,7 @@ const LicitacionTable: React.FC<LicitacionTableProps> = ({
   }, []);
 
   return (
-    <div className="bg-white rounded-2xl shadow-lg border border-gray-100 overflow-hidden">
+    <div className="lic-table-shell overflow-hidden">
       <div className="overflow-x-auto">
         <table className="w-full text-left border-collapse">
           <thead>
@@ -45,7 +45,7 @@ const LicitacionTable: React.FC<LicitacionTableProps> = ({
               return (
                 <tr
                   key={lic.id}
-                  className="hover:bg-slate-50 transition-colors cursor-pointer"
+                  className="lic-table-row cursor-pointer"
                   onClick={() => onRowClick(lic.id)}
                 >
                   <td className="px-4 py-4 whitespace-nowrap">

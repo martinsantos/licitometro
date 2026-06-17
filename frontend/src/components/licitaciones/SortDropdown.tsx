@@ -56,7 +56,7 @@ const SortDropdown: React.FC<SortDropdownProps> = ({ sortBy, sortOrder, onSortCh
 
         {/* Desktop dropdown */}
         {open && (
-          <div className="hidden sm:block absolute right-0 top-full mt-1 bg-white border border-gray-200 rounded-xl shadow-lg z-40 w-44 py-1">
+          <div className="lic-popover hidden sm:block absolute right-0 top-full mt-1 z-40 w-44 py-1">
             <div className="px-3 py-1 text-[10px] font-bold text-gray-400 uppercase">Ordenar por</div>
             {SORT_OPTIONS.map((opt) => (
               <button
@@ -101,7 +101,7 @@ const SortDropdown: React.FC<SortDropdownProps> = ({ sortBy, sortOrder, onSortCh
                 {SORT_OPTIONS.map((opt) => (
                   <button
                     key={opt.value}
-                    className={`w-full px-4 py-3 text-left rounded-xl flex items-center gap-3 transition-colors ${
+                    className={`lic-control-transition w-full px-4 py-3 text-left rounded-lg flex items-center gap-3 ${
                       sortBy === opt.value
                         ? 'bg-emerald-50 text-emerald-700 font-bold'
                         : 'text-gray-700 hover:bg-gray-50'

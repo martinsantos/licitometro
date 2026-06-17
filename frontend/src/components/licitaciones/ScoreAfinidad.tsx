@@ -117,7 +117,7 @@ export default function ScoreAfinidad({ licitacionId }: Props) {
 
             {showTooltip && (
             <div
-              className="absolute top-8 left-0 z-50 bg-white border border-gray-200 rounded-xl shadow-xl p-3 min-w-[260px] max-w-xs"
+              className="lic-popover absolute top-8 left-0 z-50 p-3 min-w-[260px] max-w-xs"
               onMouseLeave={() => setTooltip(null)}
             >
               <p className="text-xs font-semibold text-gray-700 mb-2">
