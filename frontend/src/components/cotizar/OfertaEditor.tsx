@@ -80,12 +80,12 @@ const IVA_OPTIONS = [
 const UNIT_OPTIONS = ['u.', 'kg', 'm', 'm²', 'm³', 'hs', 'gl', 'l', 'tn', 'km', 'mes', 'año'];
 
 const STEPS = [
-  { id: 1, label: 'Items', icon: '📋' },
-  { id: 2, label: 'Propuesta', icon: '📝' },
-  { id: 3, label: 'Empresa', icon: '🏢' },
-  { id: 4, label: 'Marco Legal', icon: '⚖️' },
-  { id: 5, label: 'Análisis IA', icon: '🤖' },
-  { id: 6, label: 'Secciones', icon: '📑' },
+  { id: 1, label: 'Items' },
+  { id: 2, label: 'Propuesta' },
+  { id: 3, label: 'Empresa' },
+  { id: 4, label: 'Marco Legal' },
+  { id: 5, label: 'Análisis IA' },
+  { id: 6, label: 'Secciones' },
 ];
 
 function formatARS(n: number) {
@@ -151,8 +151,8 @@ function NumericInput({
 // Error banner with retry
 function ErrorBanner({ message, onRetry, onDismiss }: { message: string; onRetry?: () => void; onDismiss: () => void }) {
   return (
-    <div className="bg-red-50 border border-red-200 rounded-xl p-3 flex items-center gap-3 text-sm">
-      <span className="text-red-500 shrink-0">⚠</span>
+    <div className="bg-red-50 border border-red-200 rounded-lg p-3 flex items-center gap-3 text-sm">
+      <span className="text-red-500 shrink-0 font-bold">!</span>
       <span className="flex-1 text-red-700">{message}</span>
       {onRetry && (
         <button onClick={onRetry} className="text-red-600 hover:text-red-800 text-xs font-medium underline">
@@ -871,7 +871,7 @@ export default function OfertaEditor({ licitacion, onSaved }: Props) {
       {errorMsg && <ErrorBanner message={errorMsg} onDismiss={() => setErrorMsg('')} />}
 
       {/* Licitacion header */}
-      <div className="bg-gray-50 rounded-xl p-4 grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
+      <div className="rounded-lg border border-gray-200 bg-gray-50 p-4 grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
         <div>
           <span className="text-xs font-semibold text-gray-400 uppercase tracking-wide">Organismo</span>
           <p className="text-gray-800 font-medium mt-0.5">{licitacion.organization || 'N/A'}</p>
@@ -1058,7 +1058,7 @@ export default function OfertaEditor({ licitacion, onSaved }: Props) {
                   : 'text-gray-400 hover:text-gray-600 hover:bg-gray-100'
               }`}
             >
-              <span>{step > s.id ? '✓' : s.icon}</span>
+              <span>{step > s.id ? '✓' : s.id}</span>
               <span className="hidden sm:inline">{s.label}</span>
             </button>
             {i < STEPS.length - 1 && (
@@ -1083,7 +1083,7 @@ export default function OfertaEditor({ licitacion, onSaved }: Props) {
       {step === 1 && (
         <div className="space-y-4">
           {/* Budget banner — prompt to edit */}
-          <div className={`rounded-xl px-4 py-3 text-sm ${
+          <div className={`rounded-lg px-4 py-3 text-sm ${
             budgetOverride ? 'bg-blue-50 border-2 border-blue-300' :
             'bg-gray-50 border border-gray-200'
           }`}>
@@ -1193,14 +1193,14 @@ export default function OfertaEditor({ licitacion, onSaved }: Props) {
 
           <div className="flex items-center justify-between gap-2 flex-wrap">
             <h3 className="font-semibold text-gray-800">Items de la Oferta</h3>
-            <div className="flex gap-2">
+            <div className="flex min-w-0 flex-wrap gap-2">
               {!priceIntelligence && (
                 <button
                   onClick={handleLoadPriceIntelligence}
                   disabled={loadingPrices}
                   className="text-xs text-indigo-600 hover:text-indigo-800 border border-indigo-200 hover:border-indigo-400 px-3 py-1.5 rounded-lg transition-colors disabled:opacity-50 flex items-center gap-1"
                 >
-                  {loadingPrices ? <span className="w-3 h-3 border border-indigo-400 border-t-transparent rounded-full animate-spin" /> : '📊'}
+                  {loadingPrices ? <span className="w-3 h-3 border border-indigo-400 border-t-transparent rounded-full animate-spin" /> : null}
                   Precios ref.
                 </button>
               )}
@@ -1214,7 +1214,7 @@ export default function OfertaEditor({ licitacion, onSaved }: Props) {
                 disabled={loadingHints}
                 className="text-xs text-purple-600 hover:text-purple-800 border border-purple-200 hover:border-purple-400 px-3 py-1.5 rounded-lg transition-colors disabled:opacity-50 flex items-center gap-1"
               >
-                {loadingHints ? <span className="w-3 h-3 border border-purple-400 border-t-transparent rounded-full animate-spin" /> : '✨'}
+                {loadingHints ? <span className="w-3 h-3 border border-purple-400 border-t-transparent rounded-full animate-spin" /> : null}
                 Cargar items con IA
               </button>
               <button
@@ -1222,7 +1222,7 @@ export default function OfertaEditor({ licitacion, onSaved }: Props) {
                 disabled={loadingCatalog}
                 className="text-xs text-emerald-600 hover:text-emerald-800 border border-emerald-200 hover:border-emerald-400 px-3 py-1.5 rounded-lg transition-colors disabled:opacity-50 flex items-center gap-1"
               >
-                {loadingCatalog ? <span className="w-3 h-3 border border-emerald-400 border-t-transparent rounded-full animate-spin" /> : '📦'}
+                {loadingCatalog ? <span className="w-3 h-3 border border-emerald-400 border-t-transparent rounded-full animate-spin" /> : null}
                 Desde catálogo
               </button>
               <button
@@ -1239,7 +1239,7 @@ export default function OfertaEditor({ licitacion, onSaved }: Props) {
 
           {/* Price adjustment toolbar */}
           {items.length > 0 && items.some(it => it.descripcion.trim()) && (
-            <div className="bg-amber-50 border border-amber-200 rounded-xl p-3 space-y-2">
+            <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 space-y-2">
               <div className="flex items-center justify-between">
                 <span className="text-xs font-semibold text-amber-800">Ajustar precios</span>
                 <div className="flex gap-1.5">
@@ -1347,7 +1347,7 @@ export default function OfertaEditor({ licitacion, onSaved }: Props) {
           {/* Mobile: card per item */}
           <div className="block sm:hidden space-y-3">
             {items.map((item, idx) => (
-              <div key={idx} className="border border-gray-200 rounded-xl p-3 space-y-2 bg-white">
+              <div key={idx} className="border border-gray-200 rounded-lg p-3 space-y-2 bg-white">
                 <div className="flex items-center justify-between">
                   <span className="text-xs font-semibold text-gray-400">ITEM {idx + 1}</span>
                   {items.length > 1 && (
@@ -1401,7 +1401,7 @@ export default function OfertaEditor({ licitacion, onSaved }: Props) {
 
           {/* Monthly grid view */}
           {monthlyViewActive && (
-            <div className="overflow-x-auto mb-4 border border-blue-200 rounded-xl">
+            <div className="overflow-x-auto mb-4 border border-blue-200 rounded-lg">
               <table className="w-full text-xs border-collapse">
                 <thead>
                   <tr className="bg-blue-600 text-white">
@@ -1478,7 +1478,7 @@ export default function OfertaEditor({ licitacion, onSaved }: Props) {
                               title={`Aplicar precio de catálogo: ${m.descripcion}`}
                               className="text-[10px] bg-emerald-50 border border-emerald-200 text-emerald-700 rounded px-1.5 py-0.5 hover:bg-emerald-100 whitespace-nowrap"
                             >
-                              📦 {m.descripcion.slice(0, 25)}{m.descripcion.length > 25 ? '…' : ''} · {new Intl.NumberFormat('es-AR', { style: 'currency', currency: 'ARS', maximumFractionDigits: 0 }).format(m.precio_unitario)}/{m.unidad_medida}
+                              {m.descripcion.slice(0, 25)}{m.descripcion.length > 25 ? '…' : ''} · {new Intl.NumberFormat('es-AR', { style: 'currency', currency: 'ARS', maximumFractionDigits: 0 }).format(m.precio_unitario)}/{m.unidad_medida}
                             </button>
                           ))}
                         </div>
@@ -1498,7 +1498,7 @@ export default function OfertaEditor({ licitacion, onSaved }: Props) {
                       {formatARS((item.cantidad || 0) * (item.precio_unitario || 0))}
                     </td>
                     <td className="py-2.5">
-                      <button onClick={() => removeItem(idx)} disabled={items.length === 1} className="opacity-0 group-hover:opacity-100 text-red-400 hover:text-red-600 disabled:opacity-0 transition-all p-1 rounded text-xs" title="Eliminar item">✕</button>
+                      <button onClick={() => removeItem(idx)} disabled={items.length === 1} className="opacity-0 group-hover:opacity-100 text-red-400 hover:text-red-600 disabled:opacity-0 transition-opacity p-1 rounded text-xs" title="Eliminar item">✕</button>
                     </td>
                   </tr>
                 ))}
@@ -1512,7 +1512,7 @@ export default function OfertaEditor({ licitacion, onSaved }: Props) {
           </button>
 
           {/* Subtotals */}
-          <div className="bg-gray-50 rounded-xl p-4 space-y-2 text-sm mt-2">
+          <div className="bg-gray-50 rounded-lg p-4 space-y-2 text-sm mt-2">
             <div className="flex justify-between text-gray-600">
               <span>Subtotal sin IVA</span>
               <span className="font-medium tabular-nums">{formatARS(subtotal)}</span>
@@ -1563,11 +1563,11 @@ export default function OfertaEditor({ licitacion, onSaved }: Props) {
               )}
             </div>
             <div className="flex gap-3">
-              <button onClick={() => doSave()} disabled={saving} className="flex items-center gap-2 px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 text-sm font-medium rounded-xl disabled:opacity-60 transition-colors">
+              <button onClick={() => doSave()} disabled={saving} className="flex items-center gap-2 px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 text-sm font-medium rounded-lg disabled:opacity-60 transition-colors">
                 {saving ? <div className="w-4 h-4 border-2 border-gray-400/40 border-t-gray-600 rounded-full animate-spin" /> : null}
                 Guardar
               </button>
-              <button onClick={() => { doSave(true); setStep(2); }} className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold rounded-xl transition-colors">
+              <button onClick={() => { doSave(true); setStep(2); }} className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold rounded-lg transition-colors">
                 Siguiente <span>→</span>
               </button>
             </div>

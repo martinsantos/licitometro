@@ -50,9 +50,9 @@ function LicitacionCard({
   onSelect: (id: string) => void;
 }) {
   return (
-    <div className="flex items-start gap-3 p-4 bg-white rounded-xl border border-gray-100 hover:border-blue-200 hover:shadow-sm transition-all group">
+    <div className="lic-card flex items-start gap-3 p-4 group">
       <div className="flex-1 min-w-0">
-        <p className="font-medium text-gray-800 text-sm line-clamp-2 group-hover:text-blue-700 transition-colors">
+        <p className="font-medium text-gray-800 text-sm line-clamp-2 group-hover:text-blue-700 lic-control-transition">
           {lic.objeto || lic.title}
         </p>
         <div className="flex items-center gap-3 mt-1.5 flex-wrap">
@@ -81,7 +81,7 @@ function LicitacionCard({
         )}
         <button
           onClick={() => onSelect(lic.id)}
-          className="text-xs font-semibold px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors"
+          className="text-xs font-semibold px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-md lic-control-transition"
         >
           {hasBid ? 'Continuar' : 'Cotizar'}
         </button>
@@ -201,7 +201,6 @@ function MisCotizacionesTab({ onSelect }: { onSelect: (id: string) => void }) {
   if (all.length === 0) {
     return (
       <div className="text-center py-14 space-y-3">
-        <div className="text-5xl">📋</div>
         <h3 className="font-semibold text-gray-700">Sin cotizaciones aun</h3>
         <p className="text-sm text-gray-400 max-w-xs mx-auto">
           Encontra una licitacion activa y presiona "Cotizar".
@@ -220,7 +219,7 @@ function MisCotizacionesTab({ onSelect }: { onSelect: (id: string) => void }) {
             { label: 'Adjudicadas', value: stats.adjudicadas_count, sub: formatARS(stats.adjudicadas_monto), highlight: true },
             { label: 'Tasa de éxito', value: `${stats.tasa_exito_pct}%`, sub: `${stats.adjudicadas_count} de ${stats.total_count}` },
           ].map(({ label, value, sub, highlight }) => (
-            <div key={label} className={`rounded-xl p-3 text-center ${highlight ? 'bg-emerald-50 border border-emerald-200' : 'bg-gray-50 border border-gray-200'}`}>
+            <div key={label} className={`rounded-lg p-3 text-center ${highlight ? 'bg-emerald-50 border border-emerald-200' : 'bg-gray-50 border border-gray-200'}`}>
               <p className={`text-xl font-bold ${highlight ? 'text-emerald-700' : 'text-gray-800'}`}>{value}</p>
               <p className="text-xs font-medium text-gray-600 mt-0.5">{label}</p>
               <p className="text-[11px] text-gray-400 tabular-nums">{sub}</p>
@@ -266,7 +265,7 @@ function MisCotizacionesTab({ onSelect }: { onSelect: (id: string) => void }) {
           const cfg = STATUS_CONFIG[cot.status] || STATUS_CONFIG.borrador;
           const isFinal = ['adjudicada', 'rechazada', 'perdida', 'cancelada'].includes(cot.status);
           return (
-            <div key={cot.id} className="flex items-start gap-3 p-4 bg-white rounded-xl border border-gray-100 hover:border-blue-100 hover:shadow-sm transition-all">
+            <div key={cot.id} className="lic-card flex items-start gap-3 p-4">
               {/* Status indicator bar */}
               <div className={`w-1 self-stretch rounded-full shrink-0 ${
                 cot.status === 'adjudicada' ? 'bg-emerald-400' :
@@ -352,7 +351,7 @@ function MisCotizacionesTab({ onSelect }: { onSelect: (id: string) => void }) {
       {/* Notas modal for terminal statuses */}
       {notasModal && (
         <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50">
-          <div className="bg-white rounded-xl p-6 w-80 space-y-4 shadow-xl">
+          <div className="lic-popover p-6 w-80 space-y-4">
             <h3 className="font-semibold text-gray-800">
               Marcar como {STATUS_CONFIG[notasModal.status]?.label}
             </h3>
@@ -387,7 +386,7 @@ function MisCotizacionesTab({ onSelect }: { onSelect: (id: string) => void }) {
       {/* Hitos modal */}
       {hitosModal && (
         <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-xl w-full max-w-lg shadow-xl flex flex-col max-h-[80vh]">
+          <div className="lic-popover w-full max-w-lg flex flex-col max-h-[80vh]">
             <div className="p-5 border-b border-gray-100 flex justify-between items-center">
               <h3 className="font-bold text-gray-800">📅 Hitos post-adjudicación</h3>
               <button onClick={() => setHitosModal(null)} className="text-gray-400 hover:text-gray-600 text-lg">✕</button>
@@ -507,7 +506,7 @@ function LicitacionesActivasTab({
           value={q}
           onChange={e => setQ(e.target.value)}
           placeholder="Buscar por objeto, organismo…"
-          className="w-full pl-9 pr-4 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-400 bg-white"
+          className="w-full pl-9 pr-4 py-2.5 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-400 bg-white"
           autoFocus
         />
         {q && (
@@ -626,7 +625,6 @@ function FavoritosTab({
   if (licitaciones.length === 0) {
     return (
       <div className="text-center py-14 space-y-3">
-        <div className="text-5xl">⭐</div>
         <h3 className="font-semibold text-gray-700">Sin favoritos</h3>
         <p className="text-sm text-gray-400 max-w-xs mx-auto">
           Guarda licitaciones con el icono de estrella para acceder rapido desde aca.
@@ -670,26 +668,25 @@ function CotizarHome({ onSelect }: { onSelect: (id: string) => void }) {
   }, []);
 
   const TABS = [
-    { id: 'favoritos' as const, label: 'Favoritos', icon: '⭐' },
-    { id: 'cotizaciones' as const, label: 'Mis cotizaciones', icon: '📋' },
-    { id: 'activas' as const, label: 'Buscar', icon: '🔎' },
+    { id: 'favoritos' as const, label: 'Favoritos' },
+    { id: 'cotizaciones' as const, label: 'Mis cotizaciones' },
+    { id: 'activas' as const, label: 'Buscar' },
   ];
 
   return (
     <div className="max-w-3xl mx-auto px-4 py-6 space-y-5">
       {/* Tabs */}
-      <div className="flex gap-1 bg-gray-100 rounded-xl p-1">
+      <div className="flex gap-1 rounded-lg border border-gray-200 bg-gray-100 p-1">
         {TABS.map(t => (
           <button
             key={t.id}
             onClick={() => setTab(t.id)}
-            className={`flex-1 flex items-center justify-center gap-2 px-3 py-2 rounded-lg text-sm font-medium transition-all ${
+            className={`flex-1 flex items-center justify-center gap-2 px-3 py-2 rounded-md text-sm font-medium lic-control-transition ${
               tab === t.id
-                ? 'bg-white text-gray-800 shadow-sm'
+                ? 'bg-white text-gray-800 border border-gray-200'
                 : 'text-gray-500 hover:text-gray-700'
             }`}
           >
-            <span className="hidden sm:inline">{t.icon}</span>
             <span className="truncate">{t.label}</span>
             {t.id === 'cotizaciones' && cotCount > 0 && (
               <span className="bg-blue-100 text-blue-700 text-xs px-1.5 py-0.5 rounded-full font-semibold min-w-[20px] text-center">
@@ -760,7 +757,7 @@ function LicitacionCotizarView({
         </Link>
       </div>
 
-      <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+      <div className="lic-panel overflow-hidden">
         <div className="px-6 py-4 border-b border-gray-100 bg-gray-50">
           <h2 className="font-bold text-gray-800">Armar Cotización</h2>
           <p className="text-sm text-gray-500 mt-0.5 line-clamp-2">
@@ -795,11 +792,11 @@ export default function CotizarPage() {
       <div className="bg-white border-b border-gray-200 px-4 py-3 flex items-center justify-between">
         <h1 className="text-base font-bold text-gray-800">Cotizador</h1>
         <div className="flex items-center gap-3">
-          <Link to="/empresa" className="text-sm text-blue-600 hover:text-blue-800 transition-colors">
-            🏢 Empresa
+          <Link to="/empresa" className="text-sm font-medium text-blue-600 hover:text-blue-800 lic-control-transition">
+            Empresa
           </Link>
-          <Link to="/licitaciones" className="text-sm text-gray-400 hover:text-gray-700 transition-colors">
-            ← Licitaciones
+          <Link to="/licitaciones" className="text-sm font-medium text-gray-500 hover:text-gray-700 lic-control-transition">
+            Licitaciones
           </Link>
         </div>
       </div>

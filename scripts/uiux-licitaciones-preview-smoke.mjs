@@ -216,6 +216,14 @@ function apiResponse(req, res, url) {
     sendJson(res, { today_calls: 2, today_tokens: 0, token_limit: 100000, status: 'ok', providers: {} });
     return true;
   }
+  if (pathname === '/api/market/rates') {
+    sendJson(res, { usd: 1200, source: 'mock' });
+    return true;
+  }
+  if (pathname === '/api/market/inflation') {
+    sendJson(res, { rate: 2.3, period: 'mensual', source: 'mock' });
+    return true;
+  }
   if (pathname === '/api/licitaciones/favorites') {
     sendJson(res, []);
     return true;
@@ -228,6 +236,17 @@ function apiResponse(req, res, url) {
     sendJson(res, [
       { company_id: 'ultima-milla', nombre: 'Ultima Milla' },
     ]);
+    return true;
+  }
+  if (pathname === '/api/company-context/profile') {
+    sendJson(res, {
+      company_id: 'ultima-milla',
+      nombre: 'Ultima Milla',
+      cuit: '30-00000000-0',
+      email: 'licitaciones@example.test',
+      telefono: '+54 261 000 0000',
+      domicilio: 'Mendoza',
+    });
     return true;
   }
   if (pathname === `/api/company-context/profiles/ultima-milla/score/${DETAIL_ID}`) {
@@ -247,6 +266,23 @@ function apiResponse(req, res, url) {
         has_budget: true,
         has_zone: true,
       },
+    });
+    return true;
+  }
+  if (pathname === `/api/cotizaciones/${DETAIL_ID}`) {
+    sendJson(res, null);
+    return true;
+  }
+  if (pathname === '/api/cotizaciones/' || pathname === '/api/cotizaciones') {
+    sendJson(res, []);
+    return true;
+  }
+  if (pathname === '/api/cotizaciones/stats/resumen') {
+    sendJson(res, {
+      total_count: 0,
+      total_monto: 0,
+      adjudicadas_count: 0,
+      adjudicadas_monto: 0,
     });
     return true;
   }
@@ -334,8 +370,38 @@ function apiResponse(req, res, url) {
     sendJson(res, detailLicitacion(DETAIL_ID));
     return true;
   }
+  if (pathname === `/api/licitaciones/${DETAIL_ID}/budget-hints`) {
+    sendJson(res, {
+      budget: 6927500,
+      source: 'scraper',
+      confidence: 'high',
+      hints: [],
+    });
+    return true;
+  }
   if (pathname === `/api/licitaciones/similar/${DETAIL_ID}`) {
     sendJson(res, [licitaciones[1], licitaciones[2]]);
+    return true;
+  }
+  if (pathname === `/api/cotizar-ai/pliego/${DETAIL_ID}/extract-v2`) {
+    sendJson(res, { ok: false, error: 'mock_no_ai' });
+    return true;
+  }
+  if (pathname === '/api/cotizar-ai/extract-pliego-info') {
+    sendJson(res, {
+      items: [],
+      documentacion_requerida: [],
+      requisitos_tecnicos: [],
+      error: null,
+    });
+    return true;
+  }
+  if (pathname === '/api/documentos/' || pathname === '/api/documentos') {
+    sendJson(res, []);
+    return true;
+  }
+  if (pathname === '/api/cotizar-ai/offer-templates-list') {
+    sendJson(res, []);
     return true;
   }
   if (pathname === `/api/adjudicaciones/competencia/${DETAIL_ID}`) {
@@ -530,6 +596,47 @@ async function collectDetailEvidence(page, url, screenshotPath, fullPage) {
   };
 }
 
+async function collectCotizarEvidence(page, url, screenshotPath, fullPage) {
+  const consoleErrors = [];
+  const pageErrors = [];
+  const requestFailures = [];
+
+  page.on('console', (msg) => {
+    if (msg.type() === 'error') consoleErrors.push(msg.text());
+  });
+  page.on('pageerror', (err) => pageErrors.push(String(err)));
+  page.on('requestfailed', (req) => {
+    requestFailures.push(`${req.method()} ${req.url()} ${req.failure()?.errorText || ''}`);
+  });
+
+  await page.goto(url, { waitUntil: 'networkidle' });
+  await page.locator('text=Armar Cotización').first().waitFor({ timeout: 15000 });
+  await page.locator('text=Resumen para cotizar').first().waitFor({ timeout: 15000 });
+
+  const screenshot = await page.screenshot({ path: screenshotPath, fullPage });
+  const bodyText = await page.locator('body').innerText();
+  const overflow = await page.evaluate(() => ({
+    clientWidth: document.documentElement.clientWidth,
+    scrollWidth: document.documentElement.scrollWidth,
+  }));
+
+  return {
+    checks: {
+      titleVisible: await page.locator('h1:has-text("Cotizador")').first().isVisible(),
+      editorTitleVisible: await page.locator('text=Armar Cotización').first().isVisible(),
+      summaryVisible: await page.locator('text=Resumen para cotizar').first().isVisible(),
+      tenderVisible: await page.locator('text=/ADQUISICION DE MATERIALES|Compra de materiales/i').first().isVisible(),
+      backLinkVisible: await page.locator('text=Ver licitación').first().isVisible(),
+      screenshotBytes: screenshot.length,
+      horizontalOverflowPx: Math.max(0, overflow.scrollWidth - overflow.clientWidth),
+      bodyTextSample: bodyText.slice(0, 500),
+    },
+    consoleErrors,
+    pageErrors,
+    requestFailures,
+  };
+}
+
 function assertEvidence(label, evidence, { requireFilterButton = false } = {}) {
   const failures = [];
   const { checks } = evidence;
@@ -560,6 +667,22 @@ function assertDetailEvidence(label, evidence) {
   return failures;
 }
 
+function assertCotizarEvidence(label, evidence) {
+  const failures = [];
+  const { checks } = evidence;
+  if (!checks.titleVisible) failures.push(`${label}: Cotizador title not visible`);
+  if (!checks.editorTitleVisible) failures.push(`${label}: editor title not visible`);
+  if (!checks.summaryVisible) failures.push(`${label}: quote summary not visible`);
+  if (!checks.tenderVisible) failures.push(`${label}: tender context not visible`);
+  if (!checks.backLinkVisible) failures.push(`${label}: tender back link not visible`);
+  if (checks.screenshotBytes < 5000) failures.push(`${label}: screenshot looks too small/blank`);
+  if (checks.horizontalOverflowPx > 2) failures.push(`${label}: horizontal overflow ${checks.horizontalOverflowPx}px`);
+  if (evidence.consoleErrors.length) failures.push(`${label}: console errors: ${evidence.consoleErrors.join(' | ')}`);
+  if (evidence.pageErrors.length) failures.push(`${label}: page errors: ${evidence.pageErrors.join(' | ')}`);
+  if (evidence.requestFailures.length) failures.push(`${label}: request failures: ${evidence.requestFailures.join(' | ')}`);
+  return failures;
+}
+
 async function main() {
   await assertBuildDir();
   await mkdir(OUT_DIR, { recursive: true });
@@ -572,6 +695,8 @@ async function main() {
     const mobilePath = path.join(OUT_DIR, 'licitaciones-mobile.png');
     const detailDesktopPath = path.join(OUT_DIR, 'licitacion-detail-desktop.png');
     const detailMobilePath = path.join(OUT_DIR, 'licitacion-detail-mobile.png');
+    const cotizarDesktopPath = path.join(OUT_DIR, 'cotizar-detail-desktop.png');
+    const cotizarMobilePath = path.join(OUT_DIR, 'cotizar-detail-mobile.png');
 
     const desktopPage = await browser.newPage({ viewport: { width: 1440, height: 900 }, deviceScaleFactor: 1 });
     const desktop = await collectPageEvidence(desktopPage, `${baseUrl}${TARGET_PATH}`, desktopPath, false);
@@ -595,11 +720,29 @@ async function main() {
       true,
     );
 
+    const cotizarDesktopPage = await browser.newPage({ viewport: { width: 1440, height: 900 }, deviceScaleFactor: 1 });
+    const cotizarDesktop = await collectCotizarEvidence(
+      cotizarDesktopPage,
+      `${baseUrl}/cotizar?licitacion_id=${DETAIL_ID}`,
+      cotizarDesktopPath,
+      true,
+    );
+
+    const cotizarMobilePage = await browser.newPage({ viewport: { width: 390, height: 844 }, isMobile: true, deviceScaleFactor: 2 });
+    const cotizarMobile = await collectCotizarEvidence(
+      cotizarMobilePage,
+      `${baseUrl}/cotizar?licitacion_id=${DETAIL_ID}`,
+      cotizarMobilePath,
+      true,
+    );
+
     const failures = [
       ...assertEvidence('desktop', desktop),
       ...assertEvidence('mobile', mobile, { requireFilterButton: true }),
       ...assertDetailEvidence('detail desktop', detailDesktop),
       ...assertDetailEvidence('detail mobile', detailMobile),
+      ...assertCotizarEvidence('cotizar desktop', cotizarDesktop),
+      ...assertCotizarEvidence('cotizar mobile', cotizarMobile),
     ];
 
     const report = {
@@ -612,11 +755,15 @@ async function main() {
         mobile: mobilePath,
         detailDesktop: detailDesktopPath,
         detailMobile: detailMobilePath,
+        cotizarDesktop: cotizarDesktopPath,
+        cotizarMobile: cotizarMobilePath,
       },
       desktop,
       mobile,
       detailDesktop,
       detailMobile,
+      cotizarDesktop,
+      cotizarMobile,
       failures,
     };
 

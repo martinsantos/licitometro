@@ -20,6 +20,8 @@ require_file ".github/workflows/production.yml"
 require_file "docker-compose.prod.yml"
 require_file "nginx/nginx.conf"
 require_file "frontend/src/App.js"
+require_file "docs/uiux-production-contract.md"
+require_file "scripts/uiux-licitaciones-preview-smoke.mjs"
 
 if ! grep -q 'guard-prod-frontend-source.sh' scripts/deploy-prod.sh; then
     fail "deploy-prod.sh does not call the production frontend guard"
@@ -61,6 +63,28 @@ fi
 
 if ! grep -q 'path="/cotizar".*admin' frontend/src/App.js; then
     fail "/cotizar route is not visibly admin-gated in App.js"
+fi
+
+if ! grep -q 'cotizar-detail-desktop' scripts/uiux-licitaciones-preview-smoke.mjs; then
+    fail "UI/UX preview smoke does not cover the /cotizar detail handoff"
+fi
+
+if grep -REIq 'path="/psiweb20|path="/psiweb20/' frontend/src; then
+    fail "/psiweb20 must stay outside the React SPA"
+fi
+
+EDITARRA_MATCHES="$(find frontend/src \
+    \( -iname '*editarra*' -o -iname '*Editarra*' \) \
+    -print)"
+
+if [ -n "$EDITARRA_MATCHES" ]; then
+    if ! grep -q 'path="/editarra' frontend/src/App.js; then
+        fail "Editarra source exists but /editarra is not routed explicitly"
+    fi
+else
+    if grep -REIq 'editarra|EDITARRA|Editarra' frontend/src; then
+        fail "partial Editarra references found without isolated source files"
+    fi
 fi
 
 if ! grep -q 'location \^~ /psiweb20/' nginx/nginx.conf; then
